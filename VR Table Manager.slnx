@@ -1,0 +1,6 @@
+<Solution>
+  <Project Path="SmokeTest/SmokeTest.csproj" />
+  <Project Path="VrLobby/VrLobby.csproj" />
+  <Project Path="VrTableManager.Core/VrTableManager.Core.csproj" />
+  <Project Path="VrTableManager/VrTableManager.csproj" />
+</Solution>

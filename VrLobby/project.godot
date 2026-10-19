@@ -1,0 +1,33 @@
+; Engine configuration file.
+
+config_version=5
+
+[application]
+
+config/name="VR Pinball Lobby"
+config/description="Pick a table in VR, play it, come back."
+run/main_scene="res://main.tscn"
+config/features=PackedStringArray("4.7", "C#", "Mobile")
+
+[display]
+
+window/size/viewport_width=1280
+window/size/viewport_height=720
+
+[dotnet]
+
+project/assembly_name="VrLobby"
+
+[rendering]
+
+renderer/rendering_method="mobile"
+
+[xr]
+
+openxr/enabled=true
+; 2 = Local Floor: y = 0 is the floor the Quest's guardian set up, and recentering keeps it there.
+; (Falls back to Stage/Local on runtimes without it.) The in-lobby height control adjusts on top.
+openxr/reference_space=2
+; No popup when there is no headset: the lobby falls back to a desktop window.
+openxr/startup_alert=false
+shaders/enabled=true

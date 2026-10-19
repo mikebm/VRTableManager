@@ -1,0 +1,45 @@
+# .NET build output
+**/bin/
+**/obj/
+**/artifacts/
+**/publish/
+
+# Visual Studio / VS Code user state
+.vs/
+*.suo
+*.user
+*.userosscache
+*.sln.docstates
+.vscode/*
+!.vscode/extensions.json
+!.vscode/launch.json
+!.vscode/tasks.json
+
+# Test and coverage output
+**/TestResults/
+**/test-results/
+**/playwright-report/
+*.coverage
+*.coveragexml
+coverage/
+
+# Godot editor and export output
+.godot/
+.mono/
+export/
+
+# NuGet and package caches
+.nuget/
+packages/
+
+# Logs and temporary files
+*.log
+*.tmp
+*.temp
+.DS_Store
+Thumbs.db
+
+# Local environment and secrets
+.env
+.env.*
+!.env.example

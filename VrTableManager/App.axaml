@@ -1,0 +1,336 @@
+<Application xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             x:Class="VrTableManager.App"
+             RequestedThemeVariant="Dark">
+
+  <!-- Arcade / synthwave look, after vpxtablemanager.com:
+       near-black navy, cyan accent, magenta highlights, Orbitron headings, Manrope body. -->
+  <Application.Resources>
+    <FontFamily x:Key="Display">avares://VrTableManager/Assets/Fonts#Orbitron</FontFamily>
+    <FontFamily x:Key="Body">avares://VrTableManager/Assets/Fonts#Manrope</FontFamily>
+    <FontFamily x:Key="Mono">avares://VrTableManager/Assets/Fonts#JetBrains Mono</FontFamily>
+
+    <Color x:Key="BgColor">#080B14</Color>
+    <SolidColorBrush x:Key="Bg" Color="#080B14" />
+    <SolidColorBrush x:Key="Surface" Color="#0E1424" />
+    <SolidColorBrush x:Key="SurfaceHi" Color="#141C30" />
+    <SolidColorBrush x:Key="Line" Color="#1E2840" />
+    <SolidColorBrush x:Key="LineHi" Color="#2C3956" />
+    <SolidColorBrush x:Key="Text" Color="#E6EBF5" />
+    <SolidColorBrush x:Key="Muted" Color="#8C96AD" />
+    <SolidColorBrush x:Key="Cyan" Color="#4DE3FF" />
+    <SolidColorBrush x:Key="CyanSoft" Color="#144DE3FF" />
+    <SolidColorBrush x:Key="Magenta" Color="#F0287A" />
+    <SolidColorBrush x:Key="Green" Color="#5CF2A0" />
+    <SolidColorBrush x:Key="Orange" Color="#FFB547" />
+    <SolidColorBrush x:Key="Red" Color="#FF5C7A" />
+    <LinearGradientBrush x:Key="Stripes" StartPoint="0%,0%" EndPoint="4%,4%" SpreadMethod="Repeat">
+      <GradientStop Offset="0" Color="#10172A" />
+      <GradientStop Offset="0.5" Color="#10172A" />
+      <GradientStop Offset="0.5" Color="#0C1222" />
+      <GradientStop Offset="1" Color="#0C1222" />
+    </LinearGradientBrush>
+    <LinearGradientBrush x:Key="CardFade" StartPoint="0%,0%" EndPoint="0%,100%">
+      <GradientStop Offset="0.55" Color="#00080B14" />
+      <GradientStop Offset="1" Color="#E6080B14" />
+    </LinearGradientBrush>
+  </Application.Resources>
+
+  <Application.Styles>
+    <FluentTheme>
+      <FluentTheme.Palettes>
+        <ColorPaletteResources x:Key="Dark" Accent="#4DE3FF" RegionColor="#080B14" BaseHigh="#E6EBF5"
+                               ChromeMediumLow="#0E1424" ChromeMedium="#141C30" ChromeLow="#0E1424"
+                               AltHigh="#080B14" ErrorText="#FF5C7A" />
+      </FluentTheme.Palettes>
+    </FluentTheme>
+
+    <Style Selector="Window">
+      <Setter Property="Background" Value="{StaticResource Bg}" />
+      <Setter Property="FontFamily" Value="{StaticResource Body}" />
+      <Setter Property="Foreground" Value="{StaticResource Text}" />
+    </Style>
+
+    <!-- ===== Typography ===== -->
+    <Style Selector="TextBlock.display">
+      <Setter Property="FontFamily" Value="{StaticResource Display}" />
+      <Setter Property="FontWeight" Value="Black" />
+      <Setter Property="FontSize" Value="34" />
+      <Setter Property="LetterSpacing" Value="1.4" />
+    </Style>
+    <Style Selector="TextBlock.h2">
+      <Setter Property="FontFamily" Value="{StaticResource Display}" />
+      <Setter Property="FontWeight" Value="Bold" />
+      <Setter Property="FontSize" Value="17" />
+      <Setter Property="LetterSpacing" Value="1" />
+    </Style>
+    <Style Selector="TextBlock.eyebrow">
+      <Setter Property="FontFamily" Value="{StaticResource Display}" />
+      <Setter Property="FontWeight" Value="Bold" />
+      <Setter Property="FontSize" Value="10" />
+      <Setter Property="LetterSpacing" Value="2" />
+      <Setter Property="Foreground" Value="{StaticResource Cyan}" />
+    </Style>
+    <Style Selector="TextBlock.title">
+      <Setter Property="FontWeight" Value="Bold" />
+      <Setter Property="FontSize" Value="14" />
+    </Style>
+    <Style Selector="TextBlock.muted">
+      <Setter Property="Foreground" Value="{StaticResource Muted}" />
+      <Setter Property="FontSize" Value="12.5" />
+    </Style>
+    <Style Selector="TextBlock.mono">
+      <Setter Property="FontFamily" Value="{StaticResource Mono}" />
+      <Setter Property="FontSize" Value="11" />
+      <Setter Property="Foreground" Value="{StaticResource Muted}" />
+    </Style>
+    <Style Selector="TextBlock.body">
+      <Setter Property="Foreground" Value="#B9C2D6" />
+      <Setter Property="FontSize" Value="13.5" />
+      <Setter Property="LineHeight" Value="21" />
+      <Setter Property="TextWrapping" Value="Wrap" />
+    </Style>
+
+    <!-- ===== Surfaces ===== -->
+    <Style Selector="Border.panel">
+      <Setter Property="Background" Value="{StaticResource Surface}" />
+      <Setter Property="BorderBrush" Value="{StaticResource Line}" />
+      <Setter Property="BorderThickness" Value="1" />
+      <Setter Property="CornerRadius" Value="12" />
+      <Setter Property="Padding" Value="20" />
+    </Style>
+    <Style Selector="Border.tile">
+      <Setter Property="Background" Value="{StaticResource Surface}" />
+      <Setter Property="BorderBrush" Value="{StaticResource Line}" />
+      <Setter Property="BorderThickness" Value="1" />
+      <Setter Property="CornerRadius" Value="10" />
+      <Setter Property="ClipToBounds" Value="True" />
+      <Setter Property="Cursor" Value="Hand" />
+      <Setter Property="Transitions">
+        <Transitions>
+          <BrushTransition Property="BorderBrush" Duration="0:0:0.15" />
+          <TransformOperationsTransition Property="RenderTransform" Duration="0:0:0.15" />
+        </Transitions>
+      </Setter>
+    </Style>
+    <Style Selector="Border.tile:pointerover">
+      <Setter Property="BorderBrush" Value="{StaticResource Cyan}" />
+      <Setter Property="RenderTransform" Value="translateY(-3px)" />
+    </Style>
+
+    <!-- Small uppercase chips: VR / FP / INSTALLED / features -->
+    <Style Selector="Border.chip">
+      <Setter Property="CornerRadius" Value="5" />
+      <Setter Property="Padding" Value="7,3" />
+      <Setter Property="Background" Value="{StaticResource CyanSoft}" />
+      <Setter Property="BorderBrush" Value="{StaticResource Cyan}" />
+      <Setter Property="BorderThickness" Value="1" />
+    </Style>
+    <Style Selector="Border.chip > TextBlock">
+      <Setter Property="FontFamily" Value="{StaticResource Display}" />
+      <Setter Property="FontWeight" Value="Bold" />
+      <Setter Property="FontSize" Value="9" />
+      <Setter Property="LetterSpacing" Value="1.2" />
+      <Setter Property="Foreground" Value="{StaticResource Cyan}" />
+    </Style>
+    <Style Selector="Border.chip.solid">
+      <Setter Property="Background" Value="{StaticResource Cyan}" />
+    </Style>
+    <Style Selector="Border.chip.solid > TextBlock">
+      <Setter Property="Foreground" Value="#061018" />
+    </Style>
+    <Style Selector="Border.chip.magenta">
+      <Setter Property="Background" Value="{StaticResource Magenta}" />
+      <Setter Property="BorderBrush" Value="{StaticResource Magenta}" />
+    </Style>
+    <Style Selector="Border.chip.magenta > TextBlock">
+      <Setter Property="Foreground" Value="White" />
+    </Style>
+    <Style Selector="Border.chip.green">
+      <Setter Property="Background" Value="#1A5CF2A0" />
+      <Setter Property="BorderBrush" Value="{StaticResource Green}" />
+    </Style>
+    <Style Selector="Border.chip.green > TextBlock">
+      <Setter Property="Foreground" Value="{StaticResource Green}" />
+    </Style>
+    <Style Selector="Border.chip.quiet">
+      <Setter Property="Background" Value="{StaticResource SurfaceHi}" />
+      <Setter Property="BorderBrush" Value="{StaticResource LineHi}" />
+    </Style>
+    <Style Selector="Border.chip.quiet > TextBlock">
+      <Setter Property="Foreground" Value="#AEB8CC" />
+      <Setter Property="FontFamily" Value="{StaticResource Body}" />
+      <Setter Property="FontSize" Value="11" />
+      <Setter Property="LetterSpacing" Value="0" />
+      <Setter Property="FontWeight" Value="SemiBold" />
+    </Style>
+
+    <!-- ===== Buttons ===== -->
+    <Style Selector="Button">
+      <Setter Property="FontFamily" Value="{StaticResource Display}" />
+      <Setter Property="FontWeight" Value="Bold" />
+      <Setter Property="FontSize" Value="10.5" />
+      <Setter Property="LetterSpacing" Value="1.2" />
+      <Setter Property="CornerRadius" Value="8" />
+      <Setter Property="Padding" Value="16,10" />
+      <Setter Property="Background" Value="Transparent" />
+      <Setter Property="BorderBrush" Value="{StaticResource LineHi}" />
+      <Setter Property="BorderThickness" Value="1" />
+      <Setter Property="Foreground" Value="{StaticResource Text}" />
+      <Setter Property="Cursor" Value="Hand" />
+    </Style>
+    <Style Selector="Button:pointerover /template/ ContentPresenter#PART_ContentPresenter">
+      <Setter Property="Background" Value="{StaticResource CyanSoft}" />
+      <Setter Property="BorderBrush" Value="{StaticResource Cyan}" />
+      <Setter Property="Foreground" Value="{StaticResource Cyan}" />
+    </Style>
+    <Style Selector="Button:pressed /template/ ContentPresenter#PART_ContentPresenter">
+      <Setter Property="Background" Value="#264DE3FF" />
+    </Style>
+    <Style Selector="Button:disabled /template/ ContentPresenter#PART_ContentPresenter">
+      <Setter Property="Background" Value="Transparent" />
+      <Setter Property="Opacity" Value="0.4" />
+    </Style>
+
+    <Style Selector="Button.primary">
+      <Setter Property="Background" Value="{StaticResource Cyan}" />
+      <Setter Property="BorderBrush" Value="{StaticResource Cyan}" />
+      <Setter Property="Foreground" Value="#061018" />
+      <Setter Property="Effect">
+        <DropShadowEffect Color="#4DE3FF" BlurRadius="22" OffsetX="0" OffsetY="0" Opacity="0.45" />
+      </Setter>
+    </Style>
+    <Style Selector="Button.primary:pointerover /template/ ContentPresenter#PART_ContentPresenter">
+      <Setter Property="Background" Value="#86EDFF" />
+      <Setter Property="BorderBrush" Value="#86EDFF" />
+      <Setter Property="Foreground" Value="#061018" />
+    </Style>
+    <Style Selector="Button.primary:pressed /template/ ContentPresenter#PART_ContentPresenter">
+      <Setter Property="Background" Value="#2CC4E0" />
+    </Style>
+
+    <Style Selector="Button.danger:pointerover /template/ ContentPresenter#PART_ContentPresenter">
+      <Setter Property="Background" Value="#1FFF5C7A" />
+      <Setter Property="BorderBrush" Value="{StaticResource Red}" />
+      <Setter Property="Foreground" Value="{StaticResource Red}" />
+    </Style>
+
+    <Style Selector="Button.icon">
+      <Setter Property="Padding" Value="9" />
+      <Setter Property="FontFamily" Value="{StaticResource Body}" />
+      <Setter Property="FontSize" Value="14" />
+      <Setter Property="LetterSpacing" Value="0" />
+    </Style>
+    <Style Selector="Button.small">
+      <Setter Property="Padding" Value="11,7" />
+      <Setter Property="FontSize" Value="9.5" />
+    </Style>
+
+    <!-- ===== Inputs ===== -->
+    <Style Selector="TextBox">
+      <Setter Property="Background" Value="{StaticResource Surface}" />
+      <Setter Property="BorderBrush" Value="{StaticResource Line}" />
+      <Setter Property="CornerRadius" Value="8" />
+      <Setter Property="Padding" Value="12,9" />
+      <Setter Property="FontSize" Value="13.5" />
+    </Style>
+    <Style Selector="TextBox:pointerover /template/ Border#PART_BorderElement">
+      <Setter Property="Background" Value="{StaticResource SurfaceHi}" />
+      <Setter Property="BorderBrush" Value="{StaticResource LineHi}" />
+    </Style>
+    <Style Selector="TextBox:focus /template/ Border#PART_BorderElement">
+      <Setter Property="Background" Value="{StaticResource Surface}" />
+      <Setter Property="BorderBrush" Value="{StaticResource Cyan}" />
+      <Setter Property="BorderThickness" Value="1" />
+    </Style>
+    <Style Selector="ComboBox">
+      <Setter Property="Background" Value="{StaticResource Surface}" />
+      <Setter Property="BorderBrush" Value="{StaticResource Line}" />
+      <Setter Property="CornerRadius" Value="8" />
+    </Style>
+
+    <!-- Segmented control (engine filter): a horizontal ListBox -->
+    <Style Selector="ListBox.segmented">
+      <Setter Property="Background" Value="{StaticResource Surface}" />
+      <Setter Property="BorderBrush" Value="{StaticResource Line}" />
+      <Setter Property="BorderThickness" Value="1" />
+      <Setter Property="CornerRadius" Value="10" />
+      <Setter Property="Padding" Value="3" />
+      <Setter Property="ItemsPanel">
+        <ItemsPanelTemplate><StackPanel Orientation="Horizontal" Spacing="2" /></ItemsPanelTemplate>
+      </Setter>
+    </Style>
+    <Style Selector="ListBox.segmented ListBoxItem">
+      <Setter Property="Padding" Value="14,8" />
+      <Setter Property="CornerRadius" Value="7" />
+      <Setter Property="FontFamily" Value="{StaticResource Display}" />
+      <Setter Property="FontWeight" Value="Bold" />
+      <Setter Property="FontSize" Value="10" />
+      <Setter Property="LetterSpacing" Value="1.2" />
+      <Setter Property="Foreground" Value="{StaticResource Muted}" />
+      <Setter Property="Cursor" Value="Hand" />
+      <Setter Property="BorderThickness" Value="1" />
+      <Setter Property="BorderBrush" Value="Transparent" />
+    </Style>
+    <Style Selector="ListBox.segmented ListBoxItem:pointerover /template/ ContentPresenter#PART_ContentPresenter">
+      <Setter Property="Background" Value="{StaticResource SurfaceHi}" />
+      <Setter Property="Foreground" Value="{StaticResource Text}" />
+    </Style>
+    <Style Selector="ListBox.segmented ListBoxItem:selected /template/ ContentPresenter#PART_ContentPresenter">
+      <Setter Property="Background" Value="{StaticResource CyanSoft}" />
+      <Setter Property="BorderBrush" Value="{StaticResource Cyan}" />
+      <Setter Property="Foreground" Value="{StaticResource Cyan}" />
+    </Style>
+
+    <!-- ===== Top navigation (TabControl) ===== -->
+    <Style Selector="TabControl.nav">
+      <Setter Property="Padding" Value="0" />
+    </Style>
+    <Style Selector="TabControl.nav /template/ ItemsPresenter#PART_ItemsPresenter">
+      <Setter Property="Margin" Value="0" />
+    </Style>
+    <Style Selector="TabControl.nav TabItem">
+      <Setter Property="FontFamily" Value="{StaticResource Display}" />
+      <Setter Property="FontWeight" Value="Bold" />
+      <Setter Property="FontSize" Value="11" />
+      <Setter Property="LetterSpacing" Value="1.6" />
+      <Setter Property="Foreground" Value="{StaticResource Muted}" />
+      <Setter Property="Padding" Value="16,0" />
+      <Setter Property="Margin" Value="0,0,6,0" />
+      <Setter Property="MinHeight" Value="36" />
+      <Setter Property="CornerRadius" Value="8" />
+      <Setter Property="BorderThickness" Value="1" />
+      <Setter Property="BorderBrush" Value="Transparent" />
+      <Setter Property="VerticalContentAlignment" Value="Center" />
+    </Style>
+    <Style Selector="TabControl.nav TabItem /template/ Border#PART_SelectedPipe">
+      <Setter Property="IsVisible" Value="False" />
+    </Style>
+    <Style Selector="TabControl.nav TabItem:pointerover /template/ Border#PART_LayoutRoot">
+      <Setter Property="Background" Value="{StaticResource SurfaceHi}" />
+    </Style>
+    <Style Selector="TabControl.nav TabItem:pointerover">
+      <Setter Property="Foreground" Value="{StaticResource Text}" />
+    </Style>
+    <Style Selector="TabControl.nav TabItem:selected">
+      <Setter Property="Foreground" Value="{StaticResource Cyan}" />
+      <Setter Property="Background" Value="{StaticResource CyanSoft}" />
+    </Style>
+    <Style Selector="TabControl.nav TabItem:selected /template/ Border#PART_LayoutRoot">
+      <Setter Property="Background" Value="{StaticResource CyanSoft}" />
+    </Style>
+    <Style Selector="TabControl.nav TabItem:selected:pointerover /template/ Border#PART_LayoutRoot">
+      <Setter Property="Background" Value="#204DE3FF" />
+    </Style>
+
+    <Style Selector="ProgressBar">
+      <Setter Property="Foreground" Value="{StaticResource Cyan}" />
+      <Setter Property="Background" Value="{StaticResource SurfaceHi}" />
+      <Setter Property="MinHeight" Value="4" />
+      <Setter Property="CornerRadius" Value="2" />
+    </Style>
+    <Style Selector="ScrollViewer">
+      <Setter Property="AllowAutoHide" Value="True" />
+    </Style>
+  </Application.Styles>
+</Application>

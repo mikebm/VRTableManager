@@ -1,0 +1,16 @@
+<Project Sdk="Godot.NET.Sdk/4.7.2">
+
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <EnableDynamicLoading>true</EnableDynamicLoading>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+    <RootNamespace>VrLobby</RootNamespace>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <!-- Same table scanning, engines and lobby logic as VR Table Manager. -->
+    <ProjectReference Include="..\VrTableManager.Core\VrTableManager.Core.csproj" />
+  </ItemGroup>
+
+</Project>
