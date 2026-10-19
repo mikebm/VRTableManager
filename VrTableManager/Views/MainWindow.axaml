@@ -1,0 +1,657 @@
+<Window xmlns="https://github.com/avaloniaui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:vm="using:VrTableManager.ViewModels"
+        xmlns:v="using:VrTableManager.Views"
+        x:Class="VrTableManager.Views.MainWindow"
+        x:DataType="vm:MainViewModel"
+        Title="VR Table Manager"
+        Icon="/Assets/app.ico"
+        Width="1360" Height="880" MinWidth="980" MinHeight="640">
+
+  <Window.Styles>
+    <!-- Card grids are ListBoxes with a WrapPanel; strip the default row chrome. -->
+    <Style Selector="ListBox.grid">
+      <Setter Property="Background" Value="Transparent" />
+      <Setter Property="BorderThickness" Value="0" />
+      <Setter Property="Padding" Value="0" />
+      <Setter Property="ItemsPanel">
+        <ItemsPanelTemplate><WrapPanel /></ItemsPanelTemplate>
+      </Setter>
+    </Style>
+    <Style Selector="ListBox.grid ListBoxItem">
+      <Setter Property="Padding" Value="0" />
+      <Setter Property="Margin" Value="0,0,16,16" />
+    </Style>
+    <Style Selector="ListBox.grid ListBoxItem /template/ ContentPresenter#PART_ContentPresenter">
+      <Setter Property="Background" Value="Transparent" />
+    </Style>
+    <Style Selector="ListBox.grid ListBoxItem:pointerover /template/ ContentPresenter#PART_ContentPresenter">
+      <Setter Property="Background" Value="Transparent" />
+    </Style>
+    <Style Selector="ListBox.grid ListBoxItem:selected /template/ ContentPresenter#PART_ContentPresenter">
+      <Setter Property="Background" Value="Transparent" />
+    </Style>
+    <Style Selector="ListBox.grid ListBoxItem:selected Border.tile">
+      <Setter Property="BorderBrush" Value="{StaticResource Cyan}" />
+      <Setter Property="BorderThickness" Value="2" />
+    </Style>
+    <Style Selector="PathIcon.search">
+      <Setter Property="Data" Value="M15.5 14h-.79l-.28-.27A6.47 6.47 0 0 0 16 9.5 6.5 6.5 0 1 0 9.5 16c1.61 0 3.09-.59 4.23-1.57l.27.28v.79l5 4.99L20.49 19l-4.99-5zm-6 0C7.01 14 5 11.99 5 9.5S7.01 5 9.5 5 14 7.01 14 9.5 11.99 14 9.5 14z" />
+      <Setter Property="Width" Value="16" />
+      <Setter Property="Height" Value="16" />
+      <Setter Property="Foreground" Value="{StaticResource Muted}" />
+    </Style>
+  </Window.Styles>
+
+  <Grid RowDefinitions="*,Auto">
+    <!-- Header bar behind the nav tabs -->
+    <Border Height="64" VerticalAlignment="Top" Background="#0A0E19"
+            BorderBrush="{StaticResource Line}" BorderThickness="0,0,0,1" />
+
+    <TabControl Classes="nav">
+      <TabControl.Styles>
+        <Style Selector="TabControl.nav /template/ ItemsPresenter#PART_ItemsPresenter">
+          <Setter Property="HorizontalAlignment" Value="Right" />
+          <Setter Property="Margin" Value="0,14,24,14" />
+        </Style>
+      </TabControl.Styles>
+
+      <!-- ================= Get tables ================= -->
+      <TabItem Header="GET TABLES">
+        <Grid ColumnDefinitions="*,Auto">
+
+          <ScrollViewer Grid.Column="0">
+            <StackPanel Margin="28,22,12,28" Spacing="20">
+
+              <!-- Hero -->
+              <Border CornerRadius="16" ClipToBounds="True" BorderBrush="{StaticResource Line}" BorderThickness="1" Padding="32,28">
+                <Border.Background>
+                  <LinearGradientBrush StartPoint="0%,0%" EndPoint="100%,100%">
+                    <GradientStop Offset="0" Color="#121B33" />
+                    <GradientStop Offset="0.6" Color="#0C1222" />
+                    <GradientStop Offset="1" Color="#1A0E24" />
+                  </LinearGradientBrush>
+                </Border.Background>
+                <Grid ColumnDefinitions="*,Auto">
+                  <StackPanel Spacing="10" MaxWidth="640" HorizontalAlignment="Left">
+                    <TextBlock Classes="eyebrow" Text="VIRTUAL PINBALL SPREADSHEET · ONE-CLICK INSTALL" />
+                    <TextBlock Classes="display" Text="Get Tables" />
+                    <TextBlock Classes="body"
+                               Text="Every VPX and Future Pinball table on the Virtual Pinball Spreadsheet. Pick one, hit Install, and it's downloaded, unpacked and ready to play in your headset. Sign in to the table site once; the app does the clicking after that." />
+                  </StackPanel>
+                  <StackPanel Grid.Column="1" VerticalAlignment="Center" Spacing="2" Margin="24,0,8,0">
+                    <TextBlock FontFamily="{StaticResource Display}" FontWeight="Black" FontSize="40"
+                               Foreground="{StaticResource Cyan}" HorizontalAlignment="Right" Text="{Binding MatchCount, StringFormat='{}{0:N0}'}">
+                      <TextBlock.Effect>
+                        <DropShadowEffect Color="#4DE3FF" BlurRadius="18" OffsetX="0" OffsetY="0" Opacity="0.5" />
+                      </TextBlock.Effect>
+                    </TextBlock>
+                    <TextBlock Classes="mono" HorizontalAlignment="Right" Text="{Binding TotalCount, StringFormat='TABLES MATCH · OF {0:N0}'}" />
+                  </StackPanel>
+                </Grid>
+              </Border>
+
+              <!-- Toolbar -->
+              <Grid>
+                <Grid.ColumnDefinitions>
+                  <ColumnDefinition Width="*" MaxWidth="460" />
+                  <ColumnDefinition Width="Auto" />
+                  <ColumnDefinition Width="Auto" />
+                  <ColumnDefinition Width="Auto" />
+                  <ColumnDefinition Width="Auto" />
+                </Grid.ColumnDefinitions>
+                <TextBox Grid.Column="0" Text="{Binding SearchText}" PlaceholderText="Search name, manufacturer or author">
+                  <TextBox.InnerLeftContent>
+                    <PathIcon Classes="search" Margin="12,0,0,0" />
+                  </TextBox.InnerLeftContent>
+                </TextBox>
+                <ListBox Grid.Column="1" Classes="segmented" Margin="14,0,0,0" VerticalAlignment="Center"
+                         ItemsSource="{Binding EngineFilters}" SelectedItem="{Binding EngineFilter}" />
+                <ToggleSwitch Grid.Column="2" Margin="18,0,0,0" IsChecked="{Binding VrOnly}" OnContent="VR-ready only" OffContent="VR-ready only"
+                              FontWeight="SemiBold" VerticalAlignment="Center" />
+                <Button Grid.Column="3" Classes="icon" Content="⟳" ToolTip.Tip="Refresh catalog" Margin="12,0,0,0"
+                        Command="{Binding RefreshCatalogCommand}" VerticalAlignment="Center" />
+                <TextBlock Grid.Column="4" Classes="mono" Margin="16,0,4,0" VerticalAlignment="Center" Text="{Binding CountLabel}" />
+              </Grid>
+
+              <StackPanel Orientation="Horizontal" Spacing="10" IsVisible="{Binding IsLoading}">
+                <ProgressBar IsIndeterminate="True" Width="120" />
+                <TextBlock Classes="mono" Text="Loading tables…" />
+              </StackPanel>
+
+              <!-- Card grid -->
+              <ListBox Classes="grid" ItemsSource="{Binding Games}" SelectedItem="{Binding SelectedGame}">
+                <ListBox.ItemTemplate>
+                  <DataTemplate x:DataType="vm:GameItem">
+                    <Border Classes="tile" Width="214">
+                      <StackPanel>
+                        <Grid Height="276">
+                          <Border Background="{StaticResource Stripes}" />
+                          <TextBlock Classes="mono" Text="NO ARTWORK" HorizontalAlignment="Center" VerticalAlignment="Center"
+                                     IsVisible="{Binding !HasImage}" />
+                          <Image v:ImageLoader.Url="{Binding ImgUrl}" Stretch="UniformToFill" />
+                          <Border Background="{StaticResource CardFade}" />
+                          <StackPanel Orientation="Horizontal" Spacing="5" Margin="10" VerticalAlignment="Top">
+                            <Border Classes="chip solid" IsVisible="{Binding IsVr}"><TextBlock Text="VR" /></Border>
+                            <Border Classes="chip magenta" IsVisible="{Binding HasFp}"><TextBlock Text="FP" /></Border>
+                          </StackPanel>
+                          <Border Classes="chip green" Margin="10" HorizontalAlignment="Right" VerticalAlignment="Top"
+                                  IsVisible="{Binding IsInstalled}">
+                            <TextBlock Text="INSTALLED" />
+                          </Border>
+                        </Grid>
+                        <StackPanel Margin="14,12,14,14" Spacing="3">
+                          <TextBlock Classes="title" Text="{Binding Title}" TextWrapping="Wrap" MaxLines="2" TextTrimming="CharacterEllipsis" />
+                          <TextBlock Classes="muted" Text="{Binding MakerYear}" />
+                          <TextBlock Classes="mono" Margin="0,6,0,0" TextTrimming="CharacterEllipsis"
+                                     Text="{Binding AuthorsShort, StringFormat='✎  {0}'}" />
+                        </StackPanel>
+                      </StackPanel>
+                    </Border>
+                  </DataTemplate>
+                </ListBox.ItemTemplate>
+              </ListBox>
+
+              <Button HorizontalAlignment="Center" Content="SHOW MORE TABLES" IsVisible="{Binding HasMore}"
+                      Command="{Binding ShowMoreCommand}" />
+            </StackPanel>
+          </ScrollViewer>
+
+          <!-- Detail drawer -->
+          <Border Grid.Column="1" Width="470" Background="{StaticResource Surface}"
+                  BorderBrush="{StaticResource Line}" BorderThickness="1,0,0,0"
+                  IsVisible="{Binding SelectedGame, Converter={x:Static ObjectConverters.IsNotNull}}">
+            <ScrollViewer>
+              <StackPanel>
+                <Grid Height="250">
+                  <Border Background="{StaticResource Stripes}" />
+                  <Image v:ImageLoader.Url="{Binding SelectedGame.ImgUrl}" Stretch="UniformToFill" />
+                  <Border>
+                    <Border.Background>
+                      <LinearGradientBrush StartPoint="0%,0%" EndPoint="0%,100%">
+                        <GradientStop Offset="0.35" Color="#000E1424" />
+                        <GradientStop Offset="1" Color="#FF0E1424" />
+                      </LinearGradientBrush>
+                    </Border.Background>
+                  </Border>
+                  <Button Classes="icon" Content="✕" HorizontalAlignment="Right" VerticalAlignment="Top" Margin="12"
+                          Background="#B3080B14" Command="{Binding CloseDetailsCommand}" />
+                </Grid>
+
+                <StackPanel Margin="24,0,24,28" Spacing="16">
+                  <StackPanel Spacing="6">
+                    <TextBlock Classes="h2" FontSize="22" Text="{Binding SelectedGame.Title}" TextWrapping="Wrap" />
+                    <TextBlock Classes="muted" FontSize="13.5" Text="{Binding SelectedGame.MakerYear}" />
+                    <StackPanel Orientation="Horizontal" Spacing="6" Margin="0,4,0,0">
+                      <Border Classes="chip solid" IsVisible="{Binding SelectedGame.IsVr}"><TextBlock Text="VR READY" /></Border>
+                      <Border Classes="chip magenta" IsVisible="{Binding SelectedGame.HasFp}"><TextBlock Text="FUTURE PINBALL" /></Border>
+                      <Border Classes="chip green" IsVisible="{Binding SelectedGame.IsInstalled}"><TextBlock Text="INSTALLED" /></Border>
+                    </StackPanel>
+                  </StackPanel>
+
+                  <TextBlock Classes="eyebrow" Text="VERSIONS" Margin="0,6,0,0" />
+
+                  <ItemsControl ItemsSource="{Binding Versions}">
+                    <ItemsControl.ItemsPanel>
+                      <ItemsPanelTemplate><StackPanel Spacing="12" /></ItemsPanelTemplate>
+                    </ItemsControl.ItemsPanel>
+                    <ItemsControl.ItemTemplate>
+                      <DataTemplate x:DataType="vm:TableVersionItem">
+                        <Border Background="{StaticResource Bg}" BorderBrush="{StaticResource Line}" BorderThickness="1"
+                                CornerRadius="10" Padding="16">
+                          <StackPanel Spacing="8">
+                            <StackPanel Orientation="Horizontal" Spacing="6">
+                              <Border Classes="chip solid" IsVisible="{Binding IsVr}"><TextBlock Text="VR" /></Border>
+                              <Border Classes="chip"><TextBlock Text="{Binding Engine}" /></Border>
+                            </StackPanel>
+                            <TextBlock Classes="title" Text="{Binding Heading}" TextWrapping="Wrap" />
+                            <TextBlock Classes="mono" Text="{Binding Details}" TextWrapping="Wrap" />
+                            <ItemsControl ItemsSource="{Binding FeatureList}">
+                              <ItemsControl.ItemsPanel>
+                                <ItemsPanelTemplate><WrapPanel /></ItemsPanelTemplate>
+                              </ItemsControl.ItemsPanel>
+                              <ItemsControl.ItemTemplate>
+                                <DataTemplate x:DataType="x:String">
+                                  <Border Classes="chip quiet" Margin="0,0,5,5"><TextBlock Text="{Binding}" /></Border>
+                                </DataTemplate>
+                              </ItemsControl.ItemTemplate>
+                            </ItemsControl>
+                            <TextBlock Classes="muted" Text="{Binding Comment}" TextWrapping="Wrap" FontStyle="Italic"
+                                       IsVisible="{Binding Comment, Converter={x:Static StringConverters.IsNotNullOrEmpty}}" />
+                            <StackPanel Orientation="Horizontal" Spacing="8" Margin="0,4,0,0">
+                              <Button Classes="primary" Content="INSTALL" Command="{Binding Install}" IsEnabled="{Binding HasUrl}" />
+                              <Button Content="OPEN PAGE" IsEnabled="{Binding HasUrl}"
+                                      Command="{ReflectionBinding $parent[Window].DataContext.OpenPageCommand}"
+                                      CommandParameter="{Binding Url}" />
+                            </StackPanel>
+                          </StackPanel>
+                        </Border>
+                      </DataTemplate>
+                    </ItemsControl.ItemTemplate>
+                  </ItemsControl>
+                </StackPanel>
+              </StackPanel>
+            </ScrollViewer>
+          </Border>
+
+        </Grid>
+      </TabItem>
+
+      <!-- ================= My tables ================= -->
+      <TabItem>
+        <TabItem.Header>
+          <StackPanel Orientation="Horizontal" Spacing="8">
+            <TextBlock Text="MY TABLES" VerticalAlignment="Center" />
+            <Border Classes="chip magenta" Padding="6,1" VerticalAlignment="Center"
+                    IsVisible="{Binding TableUpdateCount, Converter={x:Static v:Converters.NonZero}}"
+                    ToolTip.Tip="Table updates available">
+              <TextBlock Text="{Binding TableUpdateCount}" />
+            </Border>
+          </StackPanel>
+        </TabItem.Header>
+        <ScrollViewer>
+          <StackPanel Margin="28,22,28,28" Spacing="20">
+            <Grid ColumnDefinitions="*,Auto">
+              <StackPanel Spacing="8">
+                <TextBlock Classes="eyebrow" Text="{Binding InstalledTotal, StringFormat='{}{0} INSTALLED'}" />
+                <TextBlock Classes="display" Text="My Tables" />
+                <TextBlock Classes="body" Text="Hit Play in VR, then put your headset on. This window gets out of the way and comes back when the table closes, so you can pick the next one." />
+                <TextBlock Foreground="{StaticResource Cyan}" FontWeight="SemiBold" Text="{Binding PlayStatus}"
+                           IsVisible="{Binding PlayStatus, Converter={x:Static StringConverters.IsNotNullOrEmpty}}" />
+              </StackPanel>
+              <Button Grid.Column="1" VerticalAlignment="Bottom" Content="⟳  RESCAN" Command="{Binding RefreshInstalledCommand}" />
+            </Grid>
+
+            <!-- Table updates banner -->
+            <Border CornerRadius="12" Padding="18,14" BorderBrush="{StaticResource Magenta}" BorderThickness="1" Background="#14F0287A"
+                    IsVisible="{Binding TableUpdateCount, Converter={x:Static v:Converters.NonZero}}">
+              <Grid ColumnDefinitions="Auto,*,Auto">
+                <TextBlock FontFamily="{StaticResource Display}" FontWeight="Black" FontSize="26" Foreground="{StaticResource Magenta}"
+                           Text="{Binding TableUpdateCount}" VerticalAlignment="Center" Margin="0,0,16,0" />
+                <StackPanel Grid.Column="1" VerticalAlignment="Center" Spacing="2">
+                  <TextBlock Classes="title" Text="{Binding TableUpdateText}" />
+                  <TextBlock Classes="muted" Text="Authors released newer versions. Updating keeps your ROMs, high scores and table settings." />
+                </StackPanel>
+                <Button Grid.Column="2" Classes="primary" Content="UPDATE ALL TABLES" Command="{Binding UpdateAllTablesCommand}" VerticalAlignment="Center" />
+              </Grid>
+            </Border>
+
+            <StackPanel Orientation="Horizontal" Spacing="14" IsVisible="{Binding InstalledTotal, Converter={x:Static v:Converters.NonZero}}">
+              <ListBox Classes="segmented" ItemsSource="{Binding InstalledFilters}" SelectedItem="{Binding InstalledFilter}" />
+              <TextBlock Classes="mono" VerticalAlignment="Center"
+                         Text="Favourites and plays are shared with the VR lobby" />
+            </StackPanel>
+            <TextBlock Classes="body" Text="{Binding InstalledEmptyText}"
+                       IsVisible="{Binding InstalledEmptyText, Converter={x:Static StringConverters.IsNotNullOrEmpty}}" />
+
+            <Border Classes="panel" IsVisible="{Binding InstalledTotal, Converter={x:Static v:Converters.IsZero}}">
+              <StackPanel Spacing="6">
+                <TextBlock Classes="h2" Text="No tables yet" />
+                <TextBlock Classes="body" Text="Go to Get Tables, pick a table with the VR badge and press Install." />
+              </StackPanel>
+            </Border>
+
+            <ItemsControl ItemsSource="{Binding Installed}">
+              <ItemsControl.ItemsPanel>
+                <ItemsPanelTemplate><WrapPanel /></ItemsPanelTemplate>
+              </ItemsControl.ItemsPanel>
+              <ItemsControl.ItemTemplate>
+                <DataTemplate x:DataType="vm:InstalledItem">
+                  <Border Classes="tile" Width="264" Margin="0,0,16,16" Cursor="Arrow">
+                    <StackPanel>
+                      <Grid Height="300">
+                        <Border Background="{StaticResource Stripes}" />
+                        <TextBlock Classes="mono" Text="NO ARTWORK" HorizontalAlignment="Center" VerticalAlignment="Center"
+                                   IsVisible="{Binding !HasImage}" />
+                        <Image v:ImageLoader.Url="{Binding ImgUrl}" Stretch="UniformToFill" />
+                        <Border Background="{StaticResource CardFade}" />
+                        <Border Classes="chip" Margin="10" HorizontalAlignment="Left" VerticalAlignment="Top">
+                          <TextBlock Text="{Binding EngineBadge}" />
+                        </Border>
+                        <StackPanel Orientation="Horizontal" Spacing="5" Margin="10" HorizontalAlignment="Right" VerticalAlignment="Top">
+                          <Border Classes="chip magenta" IsVisible="{Binding HasUpdate}"><TextBlock Text="UPDATE" /></Border>
+                          <Border Classes="chip magenta" IsVisible="{Binding NeedsRom}"><TextBlock Text="NEEDS ROM" /></Border>
+                        </StackPanel>
+                      </Grid>
+                      <StackPanel Margin="14,12,14,14" Spacing="4">
+                        <Grid ColumnDefinitions="*,Auto">
+                          <TextBlock Classes="title" Text="{Binding Title}" TextTrimming="CharacterEllipsis" VerticalAlignment="Center" />
+                          <Button Grid.Column="1" Classes="icon" Padding="6,2" BorderThickness="0" FontSize="20"
+                                  Content="{Binding IsFavourite, Converter={x:Static v:Converters.Star}}"
+                                  Foreground="{Binding IsFavourite, Converter={x:Static v:Converters.StarBrush}}"
+                                  ToolTip.Tip="Favourite (shared with the VR lobby)"
+                                  Command="{ReflectionBinding $parent[Window].DataContext.ToggleFavouriteCommand}" CommandParameter="{Binding}" />
+                        </Grid>
+                        <TextBlock Classes="mono" Text="{Binding Subtitle}" TextTrimming="CharacterEllipsis" />
+                        <TextBlock Classes="mono" Foreground="{StaticResource Cyan}" Text="{Binding PlayInfo}" TextTrimming="CharacterEllipsis" />
+                        <TextBlock FontSize="12" Foreground="{StaticResource Orange}" Text="{Binding RomStatus}" TextWrapping="Wrap"
+                                   IsVisible="{Binding NeedsRom}" />
+                        <Grid ColumnDefinitions="*,Auto" Margin="0,4,0,0" IsVisible="{Binding HasUpdate}">
+                          <TextBlock FontSize="12" Foreground="{StaticResource Magenta}" FontWeight="SemiBold" Text="{Binding UpdateLabel}"
+                                     TextWrapping="Wrap" VerticalAlignment="Center" />
+                          <Button Grid.Column="1" Classes="small" Content="UPDATE" Margin="8,0,0,0"
+                                  Command="{ReflectionBinding $parent[Window].DataContext.UpdateTableCommand}" CommandParameter="{Binding}" />
+                        </Grid>
+                        <Button Classes="primary" Content="▶  PLAY IN VR" Margin="0,8,0,0"
+                                HorizontalAlignment="Stretch" HorizontalContentAlignment="Center"
+                                Command="{ReflectionBinding $parent[Window].DataContext.PlayVrCommand}" CommandParameter="{Binding}" />
+                        <WrapPanel Margin="0,4,0,0">
+                          <Button Classes="small" Content="DESKTOP" Margin="0,0,6,6" IsVisible="{Binding CanPlayDesktop}"
+                                  Command="{ReflectionBinding $parent[Window].DataContext.PlayDesktopCommand}" CommandParameter="{Binding}" />
+                          <Button Classes="small primary" Content="GET ROM" Margin="0,0,6,6" IsVisible="{Binding CanGetRom}"
+                                  ToolTip.Tip="Download this table's ROM from the catalog (usually VPForums) and install it"
+                                  Command="{ReflectionBinding $parent[Window].DataContext.GetRomCommand}" CommandParameter="{Binding}" />
+                          <Button Classes="small" Content="ALL ROMS" Margin="0,0,6,6" IsVisible="{Binding CanGetAllRoms}"
+                                  ToolTip.Tip="Download every ROM version from this table's ROM page (some versions need another one beside them)"
+                                  Command="{ReflectionBinding $parent[Window].DataContext.GetRomCommand}" CommandParameter="{Binding}" />
+                          <Button Classes="small" Content="ADD ROM" Margin="0,0,6,6" IsVisible="{Binding NeedsRom}"
+                                  ToolTip.Tip="Install a ROM zip you already have"
+                                  Command="{ReflectionBinding $parent[Window].DataContext.AddRomCommand}" CommandParameter="{Binding}" />
+                          <Button Classes="small" Content="FOLDER" Margin="0,0,6,6"
+                                  Command="{ReflectionBinding $parent[Window].DataContext.OpenTableFolderCommand}" CommandParameter="{Binding}" />
+                          <Button Classes="small danger" Content="REMOVE" Margin="0,0,6,6" IsVisible="{Binding CanRemove}"
+                                  Command="{ReflectionBinding $parent[Window].DataContext.RemoveCommand}" CommandParameter="{Binding}" />
+                        </WrapPanel>
+                      </StackPanel>
+                    </StackPanel>
+                  </Border>
+                </DataTemplate>
+              </ItemsControl.ItemTemplate>
+            </ItemsControl>
+          </StackPanel>
+        </ScrollViewer>
+      </TabItem>
+
+      <!-- ================= Setup ================= -->
+      <TabItem Header="SETUP">
+        <ScrollViewer>
+          <StackPanel Margin="28,22,28,28" Spacing="16" MaxWidth="980" HorizontalAlignment="Left">
+            <StackPanel Spacing="8" Margin="0,0,0,6">
+              <TextBlock Classes="eyebrow" Text="GET YOUR QUEST 3 READY" />
+              <TextBlock Classes="display" Text="Setup" />
+              <TextBlock Classes="body" Text="Steps 1 to 3 are all you need for VPX. Future Pinball and Pinball FX are optional extras." />
+            </StackPanel>
+
+            <!-- Updates -->
+            <Border Classes="panel" BorderBrush="{StaticResource LineHi}">
+              <StackPanel Spacing="14">
+                <Grid ColumnDefinitions="*,Auto,Auto">
+                  <StackPanel Spacing="4" VerticalAlignment="Center">
+                    <StackPanel Orientation="Horizontal" Spacing="10">
+                      <TextBlock Classes="h2" Text="Updates" />
+                      <Border Classes="chip magenta" VerticalAlignment="Center"
+                              IsVisible="{Binding UpdateCount, Converter={x:Static v:Converters.NonZero}}">
+                        <TextBlock Text="{Binding UpdateCount, StringFormat='{}{0} AVAILABLE'}" />
+                      </Border>
+                    </StackPanel>
+                    <TextBlock Classes="mono" Text="{Binding LastChecked}" />
+                  </StackPanel>
+                  <Button Grid.Column="1" Content="CHECK NOW" Margin="0,0,8,0" Command="{Binding CheckUpdatesCommand}"
+                          IsEnabled="{Binding !IsCheckingUpdates}" VerticalAlignment="Center" />
+                  <Button Grid.Column="2" Classes="primary" Content="UPDATE ALL" Command="{Binding UpdateAllCommand}"
+                          IsEnabled="{Binding !IsUpdating}" VerticalAlignment="Center" />
+                </Grid>
+                <ProgressBar IsIndeterminate="True" IsVisible="{Binding IsCheckingUpdates}" />
+
+                <Grid ColumnDefinitions="170,*,Auto" RowDefinitions="Auto,Auto,Auto,Auto,Auto">
+                  <Grid.Styles>
+                    <Style Selector="Grid > TextBlock.k">
+                      <Setter Property="FontFamily" Value="{StaticResource Display}" />
+                      <Setter Property="FontWeight" Value="Bold" />
+                      <Setter Property="FontSize" Value="10.5" />
+                      <Setter Property="LetterSpacing" Value="1.4" />
+                      <Setter Property="Foreground" Value="{StaticResource Muted}" />
+                      <Setter Property="VerticalAlignment" Value="Center" />
+                      <Setter Property="Margin" Value="0,9" />
+                    </Style>
+                    <Style Selector="Grid > TextBlock.v">
+                      <Setter Property="VerticalAlignment" Value="Center" />
+                      <Setter Property="TextWrapping" Value="Wrap" />
+                      <Setter Property="FontSize" Value="13" />
+                      <Setter Property="Margin" Value="0,0,12,0" />
+                    </Style>
+                  </Grid.Styles>
+
+                  <TextBlock Grid.Row="0" Classes="k" Text="YOUR TABLES" />
+                  <TextBlock Grid.Row="0" Grid.Column="1" Classes="v" Text="{Binding TableUpdateText}" />
+                  <Button Grid.Row="0" Grid.Column="2" Classes="small" Content="UPDATE TABLES" Command="{Binding UpdateAllTablesCommand}"
+                          IsVisible="{Binding TableUpdateCount, Converter={x:Static v:Converters.NonZero}}" />
+
+                  <TextBlock Grid.Row="1" Classes="k" Text="VISUAL PINBALL X" />
+                  <TextBlock Grid.Row="1" Grid.Column="1" Classes="v" Text="{Binding VpxUpdateText}" />
+                  <Button Grid.Row="1" Grid.Column="2" Classes="small" Content="UPDATE VPX" Command="{Binding InstallVpxCommand}"
+                          IsVisible="{Binding HasVpxUpdate}" />
+
+                  <TextBlock Grid.Row="2" Classes="k" Text="UEVR" />
+                  <TextBlock Grid.Row="2" Grid.Column="1" Classes="v" Text="{Binding UevrUpdateText}" />
+                  <Button Grid.Row="2" Grid.Column="2" Classes="small" Content="{Binding UevrButtonText}" Command="{Binding InstallUevrCommand}" />
+
+                  <TextBlock Grid.Row="3" Classes="k" Text="BAM" />
+                  <TextBlock Grid.Row="3" Grid.Column="1" Classes="v" Text="{Binding BamUpdateText}" />
+                  <Button Grid.Row="3" Grid.Column="2" Classes="small" Content="BAM PAGE" Command="{Binding OpenPageCommand}"
+                          CommandParameter="https://www.ravarcade.pl/" />
+
+                  <TextBlock Grid.Row="4" Classes="k" Text="FUTURE PINBALL" />
+                  <TextBlock Grid.Row="4" Grid.Column="1" Classes="v" Foreground="{StaticResource Muted}"
+                             Text="No updates. The final release came out in 2010; BAM is what keeps it current." />
+                </Grid>
+              </StackPanel>
+            </Border>
+
+            <!-- 01 VPX -->
+            <Border Classes="panel">
+              <Grid ColumnDefinitions="72,*">
+                <TextBlock Classes="display" FontSize="28" Foreground="{StaticResource Cyan}" Text="01" />
+                <StackPanel Grid.Column="1" Spacing="10">
+                  <TextBlock Classes="h2" Text="Visual Pinball X" />
+                  <TextBlock Classes="body" Foreground="{StaticResource Text}" Text="{Binding VpxStatus}" />
+                  <StackPanel Orientation="Horizontal" Spacing="8">
+                    <Button Classes="primary" Content="INSTALL / UPDATE VPX" Command="{Binding InstallVpxCommand}" IsEnabled="{Binding !IsInstallingVpx}" />
+                    <Button Content="CHECK FOR UPDATES" Command="{Binding CheckVpxUpdateCommand}" />
+                  </StackPanel>
+                  <ProgressBar Value="{Binding VpxProgress}" IsVisible="{Binding IsInstallingVpx}" />
+                  <TextBlock Classes="mono" Text="{Binding LatestVpx}" TextWrapping="Wrap" />
+                  <TextBlock Classes="muted" TextWrapping="Wrap"
+                             Text="Installs the official BGFX build from github.com/vpinball (VR through OpenXR). Tables launch with a separate VR settings file, so desktop settings stay as they are." />
+                </StackPanel>
+              </Grid>
+            </Border>
+
+            <!-- 02 Headset -->
+            <Border Classes="panel">
+              <Grid ColumnDefinitions="72,*">
+                <TextBlock Classes="display" FontSize="28" Foreground="{StaticResource Cyan}" Text="02" />
+                <StackPanel Grid.Column="1" Spacing="10">
+                  <TextBlock Classes="h2" Text="Quest 3 connection" />
+                  <TextBlock Classes="body"
+                             Text="VPX talks to your headset through the PC's OpenXR runtime. Easiest: install the Meta Quest Link app, connect with a USB-C cable or Air Link, and make Meta Quest Link the active OpenXR runtime (Link app → Settings → General). Virtual Desktop (VDXR) and SteamVR also work." />
+                  <StackPanel Orientation="Horizontal" Spacing="10">
+                    <TextBlock Text="Headset refresh rate" VerticalAlignment="Center" FontWeight="SemiBold" />
+                    <ComboBox ItemsSource="{Binding RefreshRates}" SelectedItem="{Binding RefreshRate}" Width="190" />
+                    <Button Classes="small" Content="RECHECK" Command="{Binding RecheckSetupCommand}" VerticalAlignment="Center" />
+                  </StackPanel>
+                  <CheckBox Content="Hide this window while playing and bring it back when the table closes" IsChecked="{Binding ReturnAfterPlay}" />
+                </StackPanel>
+              </Grid>
+            </Border>
+
+            <!-- 03 Sign in -->
+            <Border Classes="panel">
+              <Grid ColumnDefinitions="72,*">
+                <TextBlock Classes="display" FontSize="28" Foreground="{StaticResource Cyan}" Text="03" />
+                <StackPanel Grid.Column="1" Spacing="10">
+                  <TextBlock Classes="h2" Text="Sign in to table sites" />
+                  <TextBlock Classes="body"
+                             Text="Most tables are on sites that need a free account. Sign in once in the browser window and it remembers you. If you're ever signed out during an install, sign in and the app carries on. Your password goes only to the site, never to this app." />
+                  <WrapPanel>
+                    <Button Content="VPUNIVERSE" Margin="0,0,8,8" Command="{Binding OpenSiteCommand}" CommandParameter="https://vpuniverse.com/login/" />
+                    <Button Content="VPFORUMS" Margin="0,0,8,8" Command="{Binding OpenSiteCommand}" CommandParameter="https://www.vpforums.org/index.php?app=core&amp;module=global&amp;section=login" />
+                    <Button Content="PINBALL NIRVANA" Margin="0,0,8,8" Command="{Binding OpenSiteCommand}" CommandParameter="https://pinballnirvana.com/forums/login/" />
+                  </WrapPanel>
+                </StackPanel>
+              </Grid>
+            </Border>
+
+            <!-- 04 Future Pinball -->
+            <Border Classes="panel">
+              <Grid ColumnDefinitions="72,*">
+                <TextBlock Classes="display" FontSize="28" Foreground="{StaticResource Magenta}" Text="04" />
+                <StackPanel Grid.Column="1" Spacing="10">
+                  <StackPanel Orientation="Horizontal" Spacing="10">
+                    <TextBlock Classes="h2" Text="Future Pinball" />
+                    <Border Classes="chip quiet" VerticalAlignment="Center"><TextBlock Text="Optional" /></Border>
+                  </StackPanel>
+                  <TextBlock Classes="body" Foreground="{StaticResource Text}" Text="{Binding FpStatus}" />
+                  <TextBlock Classes="muted" TextWrapping="Wrap"
+                             Text="Future Pinball plays in VR through BAM-OpenVR, which needs SteamVR (with Quest Link or Virtual Desktop under it). Install Future Pinball and BAM yourself (see ravarcade.pl), then point this app at the folder." />
+                  <Grid ColumnDefinitions="*,Auto">
+                    <TextBox Text="{Binding FpDir}" PlaceholderText="C:\Games\Future Pinball" />
+                    <Button Grid.Column="1" Content="BROWSE" Margin="8,0,0,0" Command="{Binding BrowseFpDirCommand}" />
+                  </Grid>
+                  <CheckBox Content="Run FPLoader as administrator (BAM recommends this)" IsChecked="{Binding FpRunAsAdmin}" />
+                  <WrapPanel>
+                    <Button Classes="small" Content="BAM DOWNLOAD PAGE" Margin="0,0,8,8" Command="{Binding OpenPageCommand}" CommandParameter="https://www.ravarcade.pl/" />
+                    <Button Classes="small" Content="BAM OPENVR GUIDE" Margin="0,0,8,8" Command="{Binding OpenPageCommand}" CommandParameter="https://pinballnirvana.com/forums/threads/bam-openvr-guide-by-terryred.19916/" />
+                  </WrapPanel>
+                </StackPanel>
+              </Grid>
+            </Border>
+
+            <!-- 05 Pinball FX -->
+            <Border Classes="panel">
+              <Grid ColumnDefinitions="72,*">
+                <TextBlock Classes="display" FontSize="28" Foreground="{StaticResource Magenta}" Text="05" />
+                <StackPanel Grid.Column="1" Spacing="10">
+                  <StackPanel Orientation="Horizontal" Spacing="10">
+                    <TextBlock Classes="h2" Text="Pinball FX &amp; Pinball M through UEVR" />
+                    <Border Classes="chip quiet" VerticalAlignment="Center"><TextBlock Text="Optional" /></Border>
+                  </StackPanel>
+                  <TextBlock Classes="muted" TextWrapping="Wrap"
+                             Text="UEVR injects VR into Zen's Unreal pinball games: Pinball FX and Pinball M (now sold as Pinball FX Midnight). Both are found automatically on Steam or Epic. Play in VR starts the injector, launches the game and closes the injector when you quit. Pick your table inside the game; neither can be told to open one. Choose OpenXR in the injector window (players report it's smoother than OpenVR), and play with a gamepad." />
+                  <Grid ColumnDefinitions="*,Auto">
+                    <TextBox Text="{Binding UevrDir}" PlaceholderText="Folder containing UEVRInjector.exe" />
+                    <Button Grid.Column="1" Content="BROWSE" Margin="8,0,0,0" Command="{Binding BrowseUevrDirCommand}" />
+                  </Grid>
+
+                  <!-- Pinball tuning on top of UEVR -->
+                  <Border Background="{StaticResource Bg}" BorderBrush="{StaticResource Line}" BorderThickness="1" CornerRadius="10" Padding="16" Margin="0,4,0,0">
+                    <StackPanel Spacing="8">
+                      <StackPanel Orientation="Horizontal" Spacing="10">
+                        <TextBlock Classes="eyebrow" Text="PINBALL SETTINGS FOR UEVR" VerticalAlignment="Center" />
+                        <Border Classes="chip green" VerticalAlignment="Center" IsVisible="{Binding ApplyPinballUevrProfile}"><TextBlock Text="ON" /></Border>
+                      </StackPanel>
+                      <CheckBox Content="Apply pinball settings to UEVR before each VR launch (recommended)" IsChecked="{Binding ApplyPinballUevrProfile}" />
+                      <CheckBox Content="Show the 'before you start' checklist before launching" IsChecked="{Binding ShowZenReminder}" />
+                      <Expander Header="What gets set, and why" Padding="0,8,0,0">
+                        <TextBlock Classes="mono" FontSize="11.5" TextWrapping="Wrap" LineHeight="19" Text="{Binding PinballProfileSummary}" />
+                      </Expander>
+                      <TextBlock Classes="muted" TextWrapping="Wrap"
+                                 Text="Only these settings are changed; the rest of UEVR's profile is left alone. Your original profile is backed up the first time. OpenXR vs OpenVR can't be set here: UEVR's injector window decides that each time, so the app checks which one was used." />
+                    </StackPanel>
+                  </Border>
+
+                  <TextBlock Classes="eyebrow" Foreground="{StaticResource Muted}" Text="PINBALL FX" Margin="0,6,0,0" />
+                  <TextBlock Classes="body" Foreground="{StaticResource Text}" Text="{Binding PfxStatus}" />
+                  <TextBlock Classes="body" Foreground="{StaticResource Cyan}" Text="{Binding PfxProfileStatus}" />
+                  <WrapPanel>
+                    <Button Classes="small" Content="RESET TO PINBALL DEFAULTS" Margin="0,0,8,8" Command="{Binding ApplyPinballProfileCommand}" CommandParameter="PFX" />
+                    <Button Classes="small" Content="RESTORE MY ORIGINAL" Margin="0,0,8,8" IsVisible="{Binding PfxHasUevrBackup}" Command="{Binding RestoreUevrOriginalCommand}" CommandParameter="PFX" />
+                    <Button Classes="small" Content="IMPORT PROFILE" Margin="0,0,8,8" Command="{Binding ImportUevrProfileCommand}" CommandParameter="PFX" />
+                    <Button Classes="small" Content="OPEN PROFILE FOLDER" Margin="0,0,8,8" Command="{Binding OpenUevrProfileFolderCommand}" CommandParameter="PFX" />
+                  </WrapPanel>
+
+                  <TextBlock Classes="eyebrow" Foreground="{StaticResource Muted}" Text="PINBALL M" Margin="0,6,0,0" />
+                  <TextBlock Classes="body" Foreground="{StaticResource Text}" Text="{Binding PmStatus}" />
+                  <TextBlock Classes="body" Foreground="{StaticResource Cyan}" Text="{Binding PmProfileStatus}" />
+                  <WrapPanel>
+                    <Button Classes="small" Content="RESET TO PINBALL DEFAULTS" Margin="0,0,8,8" Command="{Binding ApplyPinballProfileCommand}" CommandParameter="PM" />
+                    <Button Classes="small" Content="RESTORE MY ORIGINAL" Margin="0,0,8,8" IsVisible="{Binding PmHasUevrBackup}" Command="{Binding RestoreUevrOriginalCommand}" CommandParameter="PM" />
+                    <Button Classes="small" Content="IMPORT PROFILE" Margin="0,0,8,8" Command="{Binding ImportUevrProfileCommand}" CommandParameter="PM" />
+                    <Button Classes="small" Content="OPEN PROFILE FOLDER" Margin="0,0,8,8" Command="{Binding OpenUevrProfileFolderCommand}" CommandParameter="PM" />
+                  </WrapPanel>
+
+                  <WrapPanel>
+                    <Button Classes="small" Content="UEVR DOWNLOAD PAGE" Margin="0,0,8,8" Command="{Binding OpenPageCommand}" CommandParameter="https://github.com/praydog/UEVR/releases" />
+                    <Button Classes="small" Content="RECHECK" Margin="0,0,8,8" Command="{Binding RecheckSetupCommand}" />
+                  </WrapPanel>
+                </StackPanel>
+              </Grid>
+            </Border>
+
+            <!-- Folders -->
+            <Border Classes="panel">
+              <Grid ColumnDefinitions="72,*">
+                <TextBlock Classes="display" FontSize="28" Foreground="{StaticResource Muted}" Text="⚙" />
+                <StackPanel Grid.Column="1" Spacing="10">
+                  <TextBlock Classes="h2" Text="Folders" />
+                  <TextBlock Classes="eyebrow" Foreground="{StaticResource Muted}" Text="VPX INSTALL FOLDER" />
+                  <Grid ColumnDefinitions="*,Auto">
+                    <TextBox Text="{Binding VpxDir}" />
+                    <Button Grid.Column="1" Content="BROWSE" Margin="8,0,0,0" Command="{Binding BrowseVpxDirCommand}" />
+                  </Grid>
+                  <TextBlock Classes="eyebrow" Foreground="{StaticResource Muted}" Text="VPX TABLES FOLDER · ONE SUB-FOLDER PER TABLE" Margin="0,6,0,0" />
+                  <Grid ColumnDefinitions="*,Auto">
+                    <TextBox Text="{Binding TablesDir}" />
+                    <Button Grid.Column="1" Content="BROWSE" Margin="8,0,0,0" Command="{Binding BrowseTablesDirCommand}" />
+                  </Grid>
+                  <CheckBox Content="Hide adult-themed tables" IsChecked="{Binding HideAdult}" />
+                </StackPanel>
+              </Grid>
+            </Border>
+
+            <TextBlock Classes="mono" TextWrapping="Wrap" Margin="0,8,0,0"
+                       Text="Table data from the Virtual Pinball Spreadsheet (virtualpinballspreadsheet.github.io). This app doesn't host tables. Thank the authors on the sites you download from." />
+          </StackPanel>
+        </ScrollViewer>
+      </TabItem>
+    </TabControl>
+
+    <!-- Logo, drawn over the left side of the header bar -->
+    <StackPanel Orientation="Horizontal" Spacing="10" Margin="26,0,0,0" Height="64" VerticalAlignment="Top"
+                HorizontalAlignment="Left" IsHitTestVisible="False">
+      <Image Source="/Assets/app-icon.png" Width="42" Height="42" VerticalAlignment="Center"
+             RenderOptions.BitmapInterpolationMode="HighQuality" />
+      <StackPanel VerticalAlignment="Center" Spacing="0">
+        <TextBlock FontFamily="{StaticResource Display}" FontWeight="Black" FontSize="15" LetterSpacing="2.4"
+                   Foreground="{StaticResource Cyan}" Text="VR TABLE">
+          <TextBlock.Effect>
+            <DropShadowEffect Color="#4DE3FF" BlurRadius="12" OffsetX="0" OffsetY="0" Opacity="0.55" />
+          </TextBlock.Effect>
+        </TextBlock>
+        <TextBlock FontFamily="{StaticResource Display}" FontWeight="Bold" FontSize="10" LetterSpacing="4.6"
+                   Foreground="{StaticResource Magenta}" Text="MANAGER" />
+      </StackPanel>
+    </StackPanel>
+
+    <!-- Downloads tray: installs and updates from any tab -->
+    <Border Grid.Row="1" Background="#0A0E19" BorderBrush="{StaticResource Line}" BorderThickness="0,1,0,0"
+            Padding="28,14" MaxHeight="220"
+            IsVisible="{Binding Jobs.Count, Converter={x:Static v:Converters.NonZero}}">
+      <DockPanel>
+        <DockPanel DockPanel.Dock="Top" Margin="0,0,0,10">
+          <Button DockPanel.Dock="Right" Classes="small" Content="CLEAR FINISHED" Command="{Binding ClearFinishedJobsCommand}" />
+          <TextBlock Classes="eyebrow" Text="DOWNLOADS" VerticalAlignment="Center" />
+        </DockPanel>
+        <ScrollViewer>
+          <ItemsControl ItemsSource="{Binding Jobs}">
+            <ItemsControl.ItemsPanel>
+              <ItemsPanelTemplate><StackPanel Spacing="8" /></ItemsPanelTemplate>
+            </ItemsControl.ItemsPanel>
+            <ItemsControl.ItemTemplate>
+              <DataTemplate x:DataType="vm:JobItem">
+                <Grid ColumnDefinitions="280,200,*,Auto">
+                  <TextBlock Classes="title" FontSize="13" Text="{Binding Title}" TextTrimming="CharacterEllipsis" VerticalAlignment="Center" />
+                  <ProgressBar Grid.Column="1" Value="{Binding Progress}" IsIndeterminate="{Binding IsIndeterminate}" Margin="12,0" VerticalAlignment="Center" />
+                  <TextBlock Grid.Column="2" FontSize="12.5" Text="{Binding Status}" TextWrapping="Wrap" VerticalAlignment="Center"
+                             Foreground="{Binding IsError, Converter={x:Static v:Converters.ErrorBrush}}" />
+                  <Button Grid.Column="3" Classes="small danger" Content="CANCEL" Margin="12,0,0,0" Command="{Binding CancelCommand}"
+                          IsVisible="{Binding !IsDone}" />
+                </Grid>
+              </DataTemplate>
+            </ItemsControl.ItemTemplate>
+          </ItemsControl>
+        </ScrollViewer>
+      </DockPanel>
+    </Border>
+  </Grid>
+</Window>
