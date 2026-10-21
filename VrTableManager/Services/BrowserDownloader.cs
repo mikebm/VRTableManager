@@ -234,10 +234,25 @@ public sealed class BrowserDownloader : IAsyncDisposable
     // ---- Site automation -------------------------------------------------
 
     // Selectors for "you are signed out" across Invision (VPUniverse, VPForums) and XenForo (Pinball Nirvana).
+    // Sign-in links. Sign-OUT links are excluded: IP.Board 3 (VPForums) signs out through
+    // "…section=login&do=logout", which would otherwise look like a sign-in link forever.
     static readonly string[] SignInSelectors =
     [
-        "#elUserSignIn", "a[href*='/login/']", "a[href*='section=login']",
-        "a.p-navgroup-link--logIn", "a[href*='/login']",
+        "#elUserSignIn",                                              // Invision 4 (VPUniverse)
+        "#sign_in", "#user_navigation.not_logged_in a",               // IP.Board 3 (VPForums)
+        "a.p-navgroup-link--logIn",                                   // XenForo (Pinball Nirvana)
+        "a[href*='/login/']:not([href*='logout'])",
+        "a[href*='section=login']:not([href*='logout'])",
+        "a[href*='/login']:not([href*='logout'])",
+    ];
+
+    // Things only a signed-in visitor sees. Checked first: if any is on the page, you're signed in.
+    static readonly string[] SignedInSelectors =
+    [
+        "#elUserLink",                                                // Invision 4 (VPUniverse)
+        "#user_navigation.logged_in", "#user_link",                   // IP.Board 3 (VPForums)
+        "a.p-navgroup-link--user",                                    // XenForo (Pinball Nirvana)
+        "a[href*='do=logout']", "a[href*='/logout']",                 // any sign-out link
     ];
 
     // Ordered from most to least specific; each is tried until one leads to a download.
@@ -392,11 +407,21 @@ public sealed class BrowserDownloader : IAsyncDisposable
 
     static async Task<bool> IsSignedOutAsync(IPage page)
     {
+        // A sign-out link or user menu means signed in, whatever else is on the page.
+        foreach (var sel in SignedInSelectors)
+            if (await page.Locator(sel).CountAsync() > 0) return false;
+
         foreach (var sel in SignInSelectors)
-        {
-            var el = page.Locator(sel).First;
-            if (await el.CountAsync() > 0 && await el.IsVisibleAsync()) return true;
-        }
+            if (await AnyVisibleAsync(page.Locator(sel))) return true;
+        return false;
+    }
+
+    /// <summary>Any match visible (not just the first: a hidden duplicate in a menu shouldn't hide a visible one).</summary>
+    static async Task<bool> AnyVisibleAsync(ILocator matches)
+    {
+        var n = Math.Min(await matches.CountAsync(), 10);
+        for (var i = 0; i < n; i++)
+            if (await matches.Nth(i).IsVisibleAsync()) return true;
         return false;
     }
 
@@ -448,9 +473,22 @@ public sealed class BrowserDownloader : IAsyncDisposable
         return null;
     }
 
-    static bool SameFilePage(string current, string target) =>
-        Uri.TryCreate(current, UriKind.Absolute, out var a) && Uri.TryCreate(target, UriKind.Absolute, out var b) &&
-        a.Host == b.Host && a.AbsolutePath.TrimEnd('/') == b.AbsolutePath.TrimEnd('/');
+    /// <summary>
+    /// Same page? Compares the path and the query: on VPForums every page is /index.php and only
+    /// the query differs (?showfile=123 vs the board index). Session/security parameters that
+    /// sites add (s, csrfKey, sid) are ignored, and so is "www.".
+    /// </summary>
+    public static bool SameFilePage(string current, string target)
+    {
+        if (!Uri.TryCreate(current, UriKind.Absolute, out var a) || !Uri.TryCreate(target, UriKind.Absolute, out var b)) return false;
+        static string Host(Uri u) => u.Host.StartsWith("www.") ? u.Host[4..] : u.Host;
+        static string Query(Uri u) => string.Join("&", u.Query.TrimStart('?').Split('&', StringSplitOptions.RemoveEmptyEntries)
+            .Where(p => p.Split('=')[0].ToLowerInvariant() is not ("s" or "csrfkey" or "sid"))
+            .Order(StringComparer.OrdinalIgnoreCase));
+        return Host(a).Equals(Host(b), StringComparison.OrdinalIgnoreCase)
+            && a.AbsolutePath.TrimEnd('/').Equals(b.AbsolutePath.TrimEnd('/'), StringComparison.OrdinalIgnoreCase)
+            && Query(a).Equals(Query(b), StringComparison.OrdinalIgnoreCase);
+    }
 
     static string MakeSafe(string name)
     {

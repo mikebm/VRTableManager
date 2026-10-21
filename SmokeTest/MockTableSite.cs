@@ -52,6 +52,8 @@ sealed class MockTableSite : IDisposable
         {
             if (path == "/favicon.ico") { res.StatusCode = 404; return; }
 
+            if (path == "/vpf/index.php") { await VpForumsAsync(req, res); return; }
+
             if (path == "/login/" && req.HttpMethod == "POST")
             {
                 Log.Enqueue("login-post");
@@ -147,6 +149,59 @@ sealed class MockTableSite : IDisposable
         {
             try { res.Close(); } catch { }
         }
+    }
+
+    /// <summary>A VPForums-style (IP.Board 3) file page. Its Sign Out link contains "section=login".</summary>
+    public string VpfFileUrl => Root + "vpf/index.php?app=downloads&showfile=99";
+
+    async Task VpForumsAsync(HttpListenerRequest req, HttpListenerResponse res)
+    {
+        var q = req.QueryString;
+        var signedIn = req.Cookies["vpfsess"]?.Value == "ok";
+        var header = signedIn
+            ? "<div id=\"user_navigation\" class=\"logged_in\"><a id=\"user_link\" href=\"/vpf/index.php?showuser=1\">me</a> " +
+              "<a href=\"/vpf/index.php?app=core&amp;module=global&amp;section=login&amp;do=logout&amp;k=abc\">Sign Out</a></div>"
+            : "<div id=\"user_navigation\" class=\"not_logged_in\"><a id=\"sign_in\" href=\"/vpf/index.php?app=core&amp;module=global&amp;section=login\">Sign In</a></div>";
+
+        if (q["section"] == "login" && q["do"] == "process" && req.HttpMethod == "POST")
+        {
+            Log.Enqueue("vpf-login-post");
+            res.AddHeader("Set-Cookie", "vpfsess=ok; Path=/; Max-Age=86400");
+            res.Redirect(Root + "vpf/index.php"); // IP.Board 3 lands on the forum index
+            return;
+        }
+        if (q["section"] == "login")
+        {
+            Log.Enqueue("vpf-login-page");
+            await Html(res, header + """
+                <form id=f method=post action="/vpf/index.php?app=core&module=global&section=login&do=process">
+                  <input name=ips_username><input name=ips_password type=password><button>Sign In</button>
+                </form>
+                <script>setTimeout(() => { f.ips_username.value='me'; f.ips_password.value='x'; f.submit(); }, 3000);</script>
+                """);
+            return;
+        }
+        if (q["do"] == "confirm_download")
+        {
+            Log.Enqueue("vpf-file");
+            using var ms = new MemoryStream();
+            using (var z = new ZipArchive(ms, ZipArchiveMode.Create, true)) z.CreateEntry("afm_113b.rom");
+            res.ContentType = "application/zip";
+            res.AddHeader("Content-Disposition", "attachment; filename=\"afm_113b.zip\"");
+            await res.OutputStream.WriteAsync(ms.ToArray());
+            return;
+        }
+        if (q["showfile"] == "99")
+        {
+            Log.Enqueue(signedIn ? "vpf-page" : "vpf-page-signed-out");
+            var body = signedIn
+                ? "<a href=\"/vpf/index.php?app=downloads&amp;module=display&amp;section=download&amp;do=confirm_download&amp;id=99\">Download</a>"
+                : "<p>Sign in to download</p><script>setTimeout(() => location.href='/vpf/index.php?app=core&module=global&section=login', 2000);</script>";
+            await Html(res, header + body);
+            return;
+        }
+        Log.Enqueue("vpf-home");
+        await Html(res, header + "<p>Board index</p>");
     }
 
     static bool IsTablePath(string path) => path is "/files/file/42-test-table-author-edition/" or "/files/file/43-test-table-author-edition/";
