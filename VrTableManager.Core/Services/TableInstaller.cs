@@ -83,11 +83,13 @@ public static class TableInstaller
                 throw new InvalidDataException($"No {tableExt} file in the download. It may be a patch or a media pack, not a table.");
 
             var main = PickMainTable(tables, tf);
+            // (*.BIN entries are Stern firmware files, not PinMAME ROM names.)
             var vpsRoms = (game.RomFiles ?? []).Select(r => r.Version).OfType<string>()
-                .Where(v => !string.IsNullOrWhiteSpace(v)).Distinct().ToList();
+                .Where(v => !string.IsNullOrWhiteSpace(v) && !v.EndsWith(".bin", StringComparison.OrdinalIgnoreCase)).Distinct().ToList();
             // The script names the one ROM this table loads; fall back to VPS's list if it can't be read.
-            var detectedRom = isFp ? null : RomDetector.FromVpx(main);
-            List<string> romNames = detectedRom != null ? [detectedRom] : vpsRoms;
+            // Originals that don't use PinMAME need no ROM even if they set cGameName.
+            var rom = isFp ? new VpxRomInfo(null, false) : RomDetector.Inspect(main);
+            List<string> romNames = rom.NoRomNeeded ? [] : rom.GameName != null ? [rom.GameName] : vpsRoms;
 
             status("Installing files…");
             var installed = await Task.Run(() => isFp

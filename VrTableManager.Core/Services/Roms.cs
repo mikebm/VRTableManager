@@ -12,32 +12,74 @@ namespace VrTableManager.Services;
 /// </summary>
 public static partial class RomDetector
 {
-    public static string? FromVpx(string vpxPath)
+    public static string? FromVpx(string vpxPath) => Inspect(vpxPath).GameName;
+
+    /// <summary>
+    /// Reads the table script for the ROM name (cGameName) and whether it drives PinMAME at all
+    /// (LoadVPM / VPinMAME.Controller). Original tables often set cGameName for other things
+    /// (high scores, backglass) without using a ROM; those don't need one.
+    /// </summary>
+    public static VpxRomInfo Inspect(string vpxPath)
     {
-        if (!File.Exists(vpxPath)) return null;
+        if (!File.Exists(vpxPath)) return new(null, false);
         const int Chunk = 4 << 20, Overlap = 256;
         var buffer = new byte[Chunk + Overlap];
         var carry = 0;
+        string? gameName = null;
+        var pinMame = false;
         using var fs = File.OpenRead(vpxPath);
         int read;
-        while ((read = fs.Read(buffer, carry, Chunk)) > 0)
+        while ((gameName == null || !pinMame) && (read = fs.Read(buffer, carry, Chunk)) > 0)
         {
             var total = carry + read;
             var text = Encoding.Latin1.GetString(buffer, 0, total);
-            if (GameNameRegex().Match(text) is { Success: true } m) return m.Groups[1].Value;
+            if (gameName == null && GameNameRegex().Match(text) is { Success: true } m) gameName = m.Groups[1].Value;
+            pinMame |= PinMameRegex().IsMatch(text);
             // Keep the tail so a match split across chunks is still found.
             var keep = Math.Min(Overlap, total);
             Buffer.BlockCopy(buffer, total - keep, buffer, 0, keep);
             carry = keep;
         }
-        return null;
+        return new(gameName, pinMame);
     }
 
     public static string? FromScript(string script) =>
         GameNameRegex().Match(script) is { Success: true } m ? m.Groups[1].Value : null;
 
+    public static bool UsesPinMame(string script) => PinMameRegex().IsMatch(script);
+
     [GeneratedRegex("cGameName\\s*=\\s*\"([A-Za-z0-9_]{2,32})\"", RegexOptions.IgnoreCase)]
     private static partial Regex GameNameRegex();
+
+    [GeneratedRegex("LoadVPM|VPinMAME\\.Controller", RegexOptions.IgnoreCase)]
+    private static partial Regex PinMameRegex();
+}
+
+/// <param name="GameName">cGameName from the script, if found.</param>
+/// <param name="UsesPinMame">The script loads PinMAME, so it needs a ROM.</param>
+public sealed record VpxRomInfo(string? GameName, bool UsesPinMame)
+{
+    /// <summary>The script was read and it doesn't use PinMAME: no ROM needed, whatever cGameName says.</summary>
+    public bool NoRomNeeded => GameName != null && !UsesPinMame;
+}
+
+public static class RomSources
+{
+    /// <summary>
+    /// A ROM entry that can actually be downloaded as a PinMAME ROM set. Stern's own site
+    /// (sternpinball.com game_code) and *.bin entries are machine firmware updates, not ROMs.
+    /// </summary>
+    public static bool IsUsable(string url, string? romName)
+    {
+        if (romName != null && romName.EndsWith(".bin", StringComparison.OrdinalIgnoreCase)) return false;
+        if (!Uri.TryCreate(url, UriKind.Absolute, out var u)) return false;
+        if (u.Host.EndsWith("sternpinball.com", StringComparison.OrdinalIgnoreCase)) return false;
+        return !u.AbsolutePath.EndsWith(".bin", StringComparison.OrdinalIgnoreCase);
+    }
+
+    /// <summary>Opens a VPUniverse file search for a ROM the catalog can't download.</summary>
+    public static string VpuSearchUrl(string romName) =>
+        "https://vpuniverse.com/search/?q=" + Uri.EscapeDataString(romName) + "&type=downloads_file";
 }
 
 /// <summary>Puts a downloaded ROM into a table's pinmame/roms folder.</summary>

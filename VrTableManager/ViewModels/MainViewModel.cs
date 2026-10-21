@@ -291,11 +291,41 @@ public sealed partial class MainViewModel : ObservableObject, IAsyncDisposable
         var missing = t.MissingRoms.Count > 0 ? t.MissingRoms : t.Manifest.RomNames;
         if (missing.Count == 0 || t.Manifest.GameId == "") return null;
         var game = _allGames.FirstOrDefault(g => g.Id == t.Manifest.GameId);
-        var roms = game?.RomFiles?.Where(r => r.Urls?.Any(u => !u.Broken) == true).ToList() ?? [];
+        var roms = game?.RomFiles?.Where(r => UsableRomUrl(r) != null).ToList() ?? [];
         foreach (var name in missing)
             if (roms.FirstOrDefault(r => string.Equals(r.Version, name, StringComparison.OrdinalIgnoreCase)) is { } hit) return hit;
         return null;
     }
+
+    readonly HashSet<string> _romRechecked = new(StringComparer.OrdinalIgnoreCase);
+
+    /// <summary>
+    /// Tables installed before the app checked for PinMAME may list a ROM they don't use (originals
+    /// that set cGameName for other things). Re-reads the script once per table and corrects it.
+    /// </summary>
+    async Task RecheckRomNeedAsync(InstalledTable t)
+    {
+        if (t.Manifest.GameId == "" || !File.Exists(t.TablePath) || !_romRechecked.Add(t.TablePath)) return;
+        var info = await Task.Run(() => RomDetector.Inspect(t.TablePath));
+        List<string>? fixedNames =
+            info.NoRomNeeded ? [] :
+            info.GameName is { } g && !t.Manifest.RomNames.SequenceEqual([g], StringComparer.OrdinalIgnoreCase) ? [g] :
+            null;
+        if (fixedNames == null) return;
+        t.Manifest.RomNames = fixedNames;
+        try { TableInstaller.SaveManifest(t); } catch { /* still corrected for this session */ }
+        RefreshInstalled();
+    }
+
+    [RelayCommand]
+    void SearchRom(InstalledItem item)
+    {
+        if (item.Table.MissingRoms.FirstOrDefault() is { } rom) _ui.OpenExternal(RomSources.VpuSearchUrl(rom));
+    }
+
+    /// <summary>First link that's a real ROM download (not Stern's firmware site, not a .bin).</summary>
+    static string? UsableRomUrl(VpsFile r) =>
+        r.Urls?.FirstOrDefault(u => !u.Broken && RomSources.IsUsable(u.Url, r.Version))?.Url;
 
     // Per-table commands run for several tables at once (a shared command would otherwise grey out
     // every card's button while one download runs); only the busy table's buttons are disabled.
@@ -361,7 +391,7 @@ public sealed partial class MainViewModel : ObservableObject, IAsyncDisposable
         {
             var src = FindRomSource(table)
                 ?? throw new InvalidOperationException($"The catalog has no download for {string.Join(" / ", table.MissingRoms)}.zip. Use Add ROM with a file you have.");
-            var url = src.Urls!.First(u => !u.Broken).Url;
+            var url = UsableRomUrl(src)!;
             // ROM pages often hold every version of the machine's ROM; clones need their parent,
             // so take them all (they're small).
             List<string> files = BrowserDownloader.IsDirectFileUrl(url)
@@ -855,6 +885,7 @@ public sealed partial class MainViewModel : ObservableObject, IAsyncDisposable
         {
             item.Update = updates.GetValueOrDefault(item.Table.TablePath);
             item.RomSource = FindRomSource(item.Table);
+            if (item.NeedsRom && item.RomSource == null) _ = RecheckRomNeedAsync(item.Table);
         }
         TableUpdateCount = updates.Count;
         var tracked = _allInstalled.Count(i => i.Table.Manifest.TableFileId != "");
