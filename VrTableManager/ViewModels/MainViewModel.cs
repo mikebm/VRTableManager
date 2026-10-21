@@ -50,6 +50,7 @@ public sealed partial class MainViewModel : ObservableObject, IAsyncDisposable
         FpRunAsAdmin = Settings.FpRunAsAdmin;
         ApplyPinballUevrProfile = Settings.ApplyPinballUevrProfile;
         ShowZenReminder = Settings.ShowZenReminder;
+        MaxParallelDownloads = Math.Clamp(Settings.MaxParallelDownloads, 1, 4);
         RefreshRate = RefreshRates.FirstOrDefault(r => r.StartsWith(Settings.VrRefreshRate.ToString())) ?? RefreshRates[0];
         RefreshInstalled();
         RefreshSetupStatus();
@@ -189,43 +190,39 @@ public sealed partial class MainViewModel : ObservableObject, IAsyncDisposable
             string[] hint = VpsCatalog.HasFeature(tf, "VR") ? ["VR"] : [];
             file = await FetchAsync(url, job, hint);
 
+            job.Report("Installing files…");
             var installed = await TableInstaller.InstallAsync(file, game, tf, Settings, job.Report, job.Cts.Token, replacing);
             var done = replacing == null ? "Installed" : $"Updated to v{tf.Version}";
             var getRom = installed.MissingRoms.Count > 0 && FindRomSource(installed) != null;
-            job.Status = installed.MissingRoms.Count == 0 ? $"{done}. Ready to play."
-                : getRom ? $"{done}. Getting its ROM next…"
-                : $"{done}. The catalog has no ROM download for it; use Add ROM in My Tables.";
-            job.IsDone = true;
+            // This job is done; the ROM (if any) gets its own entry in the downloads list.
+            job.Finish(installed.MissingRoms.Count == 0 ? $"✓ {done}. Ready to play."
+                : getRom ? $"✓ {done}. Getting its ROM next (see below)."
+                : $"✓ {done}. The catalog has no ROM download for it; use Add ROM in My Tables.");
             RefreshInstalled();
             ApplyFilter();
-            if (getRom) await GetRomAsync(installed);
+            if (getRom) _ = GetRomAsync(installed);
             return true;
         }
         catch (OperationCanceledException)
         {
-            job.Status = "Cancelled";
-            job.IsError = true;
+            job.Finish("Cancelled", error: true);
             return false;
         }
         catch (Exception e)
         {
-            job.Status = "Failed: " + e.Message;
-            job.IsError = true;
+            job.Finish("Failed: " + e.Message, error: true);
             return false;
         }
         finally
         {
-            job.IsIndeterminate = false;
-            job.Progress = 100;
-            if (file != null) try { File.Delete(file); } catch { }
+            CleanJobDownloads(job);
         }
     }
 
     /// <summary>Downloads a file straight (GitHub etc.) or through the sign-in browser (table sites).</summary>
-    async Task<string> FetchAsync(string url, JobItem job, string[] hint)
+    Task<string> FetchAsync(string url, JobItem job, string[] hint) => WithDownloadSlotAsync(job, async () =>
     {
-        var downloads = Path.Combine(AppSettings.DataDir, "downloads");
-        Directory.CreateDirectory(downloads);
+        var downloads = JobDownloadDir(job);
         if (BrowserDownloader.IsDirectFileUrl(url))
         {
             var file = Path.Combine(downloads, TableInstaller.SafeName(Path.GetFileName(new Uri(url).LocalPath)));
@@ -234,6 +231,41 @@ public sealed partial class MainViewModel : ObservableObject, IAsyncDisposable
             return file;
         }
         return await _browser.DownloadAsync(url, downloads, hint, job.Report, job.Cts.Token);
+    });
+
+    // ---- Download queue ----------------------------------------------------------
+    // Downloads run a few at a time (Setup → "Downloads at once", default 2); the rest wait in the
+    // queue. Unpacking and installing don't take a slot, so the next download starts meanwhile.
+
+    public int[] ParallelDownloadChoices { get; } = [1, 2, 3, 4];
+    [ObservableProperty] public partial int MaxParallelDownloads { get; set; }
+    SemaphoreSlim _downloadSlots = new(2);
+
+    partial void OnMaxParallelDownloadsChanged(int value)
+    {
+        value = Math.Clamp(value, 1, 4);
+        Settings.MaxParallelDownloads = value;
+        Settings.Save();
+        // Jobs already holding a slot release it to the old gate; new jobs use the new size.
+        _downloadSlots = new SemaphoreSlim(value);
+    }
+
+    async Task<T> WithDownloadSlotAsync<T>(JobItem job, Func<Task<T>> download)
+    {
+        var slots = _downloadSlots;
+        if (slots.CurrentCount == 0) job.Report("Queued: waiting for a free download slot…");
+        await slots.WaitAsync(job.Cts.Token);
+        try { return await download(); }
+        finally { slots.Release(); }
+    }
+
+    /// <summary>Each job downloads into its own folder, so parallel downloads with the same file name can't collide.</summary>
+    static string JobDownloadDir(JobItem job) =>
+        Directory.CreateDirectory(Path.Combine(AppSettings.DataDir, "downloads", job.Id)).FullName;
+
+    static void CleanJobDownloads(JobItem job)
+    {
+        try { Directory.Delete(Path.Combine(AppSettings.DataDir, "downloads", job.Id), recursive: true); } catch { }
     }
 
     // ---- ROMs ------------------------------------------------------------------
@@ -273,41 +305,30 @@ public sealed partial class MainViewModel : ObservableObject, IAsyncDisposable
             var url = src.Urls!.First(u => !u.Broken).Url;
             // ROM pages often hold every version of the machine's ROM; clones need their parent,
             // so take them all (they're small).
-            List<string> files;
-            if (BrowserDownloader.IsDirectFileUrl(url)) files = [file = await FetchAsync(url, job, [src.Version!])];
-            else
-            {
-                var downloads = Path.Combine(AppSettings.DataDir, "downloads");
-                files = await _browser.DownloadAllAsync(url, downloads, job.Report, job.Cts.Token);
-            }
+            List<string> files = BrowserDownloader.IsDirectFileUrl(url)
+                ? [file = await FetchAsync(url, job, [src.Version!])]
+                : await WithDownloadSlotAsync(job, () => _browser.DownloadAllAsync(url, JobDownloadDir(job), job.Report, job.Cts.Token));
             job.Report("Installing ROM…");
-            List<string> placed;
-            try { placed = RomInstaller.InstallAll(files, table, src.Version!); }
-            finally { foreach (var f in files) try { File.Delete(f); } catch { } }
+            var placed = await Task.Run(() => RomInstaller.InstallAll(files, table, src.Version!));
             var stillMissing = table.MissingRoms.Count > 0;
-            job.Status = stillMissing
+            job.Finish(stillMissing
                 ? $"Installed {placed.Count} ROM file(s), but none is {string.Join(" / ", table.MissingRoms)}.zip. Use Add ROM if you have it."
-                : placed.Count == 1 ? $"Installed {Path.GetFileName(placed[0])}. Ready to play."
-                : $"Installed {placed.Count} ROM files ({string.Join(", ", placed.Select(Path.GetFileNameWithoutExtension))}). Ready to play.";
-            job.IsError = stillMissing;
-            job.IsDone = true;
+                : placed.Count == 1 ? $"✓ Installed {Path.GetFileName(placed[0])}. Ready to play."
+                : $"✓ Installed {placed.Count} ROM files ({string.Join(", ", placed.Select(Path.GetFileNameWithoutExtension))}). Ready to play.",
+                error: stillMissing);
             RefreshInstalled();
         }
         catch (OperationCanceledException)
         {
-            job.Status = "Cancelled";
-            job.IsError = true;
+            job.Finish("Cancelled", error: true);
         }
         catch (Exception e)
         {
-            job.Status = "Failed: " + e.Message;
-            job.IsError = true;
+            job.Finish("Failed: " + e.Message, error: true);
         }
         finally
         {
-            job.IsIndeterminate = false;
-            job.Progress = 100;
-            if (file != null) try { File.Delete(file); } catch { }
+            CleanJobDownloads(job);
         }
     }
 
@@ -867,18 +888,14 @@ public sealed partial class MainViewModel : ObservableObject, IAsyncDisposable
             job.Report($"Downloading UEVR {rel.Tag}…");
             await UevrSetup.InstallAsync(Settings, rel, job.ProgressReporter, job.Cts.Token);
             UevrDir = Settings.UevrDir;
-            job.Status = $"UEVR {rel.Tag} installed. Your Pinball FX profile is untouched.";
-            job.IsDone = true;
+            job.Finish($"✓ UEVR {rel.Tag} installed. Your Pinball FX / Pinball M profiles are untouched.");
         }
         catch (Exception e)
         {
-            job.Status = "Failed: " + e.Message;
-            job.IsError = true;
+            job.Finish("Failed: " + e.Message, error: true);
         }
         finally
         {
-            job.IsIndeterminate = false;
-            job.Progress = 100;
             RefreshSetupStatus();
             await CheckUpdatesAsync();
         }

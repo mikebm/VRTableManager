@@ -106,6 +106,19 @@ using (var site = new MockTableSite())
     var placedAll = RomInstaller.InstallAll(roms, afm, "afm_113b");
     Check(placedAll.Count == 3 && afm.MissingRoms.Count == 0
           && File.Exists(Path.Combine(afm.Folder, "pinmame", "roms", "afm_113.zip")), "installs the whole ROM family (parent beside the clone)");
+
+    // Two downloads at once, each in its own tab and folder. Each file takes 4 s to start on the
+    // mock site, so running them one after the other would take over 8 s.
+    var before2 = site.Count("file-2");
+    var sw = System.Diagnostics.Stopwatch.StartNew();
+    var pair = await Task.WhenAll(
+        browser2.DownloadAsync(site.FileUrl, Path.Combine(root, "dl-a"), ["VR"], _ => { }, CancellationToken.None),
+        browser2.DownloadAsync(site.FileUrl2, Path.Combine(root, "dl-b"), ["VR"], _ => { }, CancellationToken.None));
+    sw.Stop();
+    Console.WriteLine($"   two parallel downloads took {sw.Elapsed.TotalSeconds:F1} s");
+    Check(pair[0] != pair[1] && File.Exists(pair[0]) && File.Exists(pair[1]) && Path.GetDirectoryName(pair[0])!.EndsWith("dl-a") && Path.GetDirectoryName(pair[1])!.EndsWith("dl-b"),
+        "parallel downloads each land in their own job's folder");
+    Check(site.Count("file-2") - before2 == 2 && sw.Elapsed < TimeSpan.FromSeconds(7.5), "two downloads run at the same time (not one after the other)");
 }
 
 // 5. URL classification

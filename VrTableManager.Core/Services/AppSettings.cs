@@ -19,6 +19,8 @@ public sealed class AppSettings
     public bool ApplyPinballUevrProfile { get; set; } = true;
     /// <summary>Show the "before you start" checklist before Pinball FX / M VR launches.</summary>
     public bool ShowZenReminder { get; set; } = true;
+    /// <summary>How many table/ROM downloads run at the same time (1–4); the rest queue.</summary>
+    public int MaxParallelDownloads { get; set; } = 2;
     public bool HideAdult { get; set; } = true;
     /// <summary>0 = runtime default, otherwise 72/80/90/120.</summary>
     public int VrRefreshRate { get; set; }

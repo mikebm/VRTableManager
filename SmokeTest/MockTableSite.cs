@@ -15,6 +15,8 @@ sealed class MockTableSite : IDisposable
     readonly CancellationTokenSource _stop = new();
     public string Root { get; }
     public string FileUrl => Root + "files/file/42-test-table-author-edition/";
+    /// <summary>A second table with the same layout at a different address.</summary>
+    public string FileUrl2 => Root + "files/file/43-test-table-author-edition/";
     public string RomPageUrl => Root + "files/file/721-attack-from-mars-roms/";
     public ConcurrentQueue<string> Log { get; } = new();
 
@@ -102,7 +104,7 @@ sealed class MockTableSite : IDisposable
                 return;
             }
 
-            if (path == "/files/file/42-test-table-author-edition/" && q["do"] == "download" && q["r"] != null)
+            if (IsTablePath(path) && q["do"] == "download" && q["r"] != null)
             {
                 Log.Enqueue("file-" + q["r"]);
                 await Task.Delay(4000); // slow to start, like the real site
@@ -114,10 +116,10 @@ sealed class MockTableSite : IDisposable
                 await res.OutputStream.WriteAsync(ms.ToArray());
                 return;
             }
-            if (path == "/files/file/42-test-table-author-edition/" && q["do"] == "download")
+            if (IsTablePath(path) && q["do"] == "download")
             {
                 Log.Enqueue("picker");
-                var link = Root + "files/file/42-test-table-author-edition/?do=download&csrfKey=abc&r=";
+                var link = Root + path.TrimStart('/') + "?do=download&csrfKey=abc&r=";
                 await Html(res, Header(signedIn) + $"""
                     <h2>Choose a file</h2>
                     <ul>
@@ -127,14 +129,14 @@ sealed class MockTableSite : IDisposable
                     """);
                 return;
             }
-            if (path == "/files/file/42-test-table-author-edition/")
+            if (IsTablePath(path))
             {
                 Log.Enqueue("file-page");
                 // Signed out: the "user" clicks Sign In after 2 s.
                 var autoSignIn = signedIn ? "" : "<script>setTimeout(() => location.href='/login/', 2000);</script>";
                 await Html(res, Header(signedIn) + $"""
                     <div style="height:2500px">Test Table by Someone</div>
-                    <a class="ipsButton" href="{FileUrl}?do=download">Download this file</a>
+                    <a class="ipsButton" href="{Root}{path.TrimStart('/')}?do=download">Download this file</a>
                     {autoSignIn}
                     """);
                 return;
@@ -146,6 +148,8 @@ sealed class MockTableSite : IDisposable
             try { res.Close(); } catch { }
         }
     }
+
+    static bool IsTablePath(string path) => path is "/files/file/42-test-table-author-edition/" or "/files/file/43-test-table-author-edition/";
 
     static string Header(bool signedIn) => signedIn
         ? "<nav><a href=\"/files/\">Downloads</a> <a id=elUserLink href=\"/profile/\">me</a></nav>"

@@ -66,9 +66,9 @@ public static class TableInstaller
             List<string> romNames = detectedRom != null ? [detectedRom] : vpsRoms;
 
             status("Installing files…");
-            var installed = isFp
+            var installed = await Task.Run(() => isFp
                 ? InstallFp(staging, main, settings)
-                : InstallVpx(staging, main, game, vpsRoms.Union(romNames, StringComparer.OrdinalIgnoreCase).ToList(), settings);
+                : InstallVpx(staging, main, game, vpsRoms.Union(romNames, StringComparer.OrdinalIgnoreCase).ToList(), settings), ct); // copying can take a while; keep it off the UI thread
 
             var manifest = new TableManifest
             {
