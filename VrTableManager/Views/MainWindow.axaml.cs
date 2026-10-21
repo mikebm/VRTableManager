@@ -11,13 +11,34 @@ namespace VrTableManager.Views;
 public partial class MainWindow : Window, IUiHost
 {
     readonly MainViewModel _vm;
+    bool _closeConfirmed;
 
     public MainWindow()
     {
         InitializeComponent();
         DataContext = _vm = new MainViewModel(this);
         Opened += async (_, _) => await _vm.LoadCatalogAsync();
-        Closing += async (_, _) => await _vm.DisposeAsync();
+        Closing += async (_, e) =>
+        {
+            // Downloads running? Ask first; if closing anyway, they're offered again next launch.
+            var running = _vm.RunningJobCount;
+            if (!_closeConfirmed && running > 0)
+            {
+                e.Cancel = true;
+                var pick = await ChoiceAsync(
+                    running == 1 ? "A download is still running" : $"{running} downloads are still running",
+                    "If you close now they stop, and VR Table Manager offers to start them again the next time you open it.",
+                    ["KEEP OPEN", "CLOSE ANYWAY"]);
+                if (pick == 1)
+                {
+                    _closeConfirmed = true;
+                    Close();
+                }
+                return;
+            }
+            _vm.PrepareToClose();
+            await _vm.DisposeAsync();
+        };
     }
 
     public async Task<string?> PickFolderAsync(string title)

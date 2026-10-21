@@ -30,7 +30,8 @@ public static class LobbyLibrary
 {
     /// <summary>Everything the manager knows about: its table folders plus engine-owned tables (Pinball FX).</summary>
     public static List<LobbyTable> Load(AppSettings s) =>
-        TableInstaller.Scan(s).Select(From).OrderBy(t => t.Title, StringComparer.OrdinalIgnoreCase).ToList();
+        // Half-installed tables (install cut off) can't be played; they're fixed from the manager.
+        TableInstaller.Scan(s).Where(t => !t.IsIncomplete).Select(From).OrderBy(t => t.Title, StringComparer.OrdinalIgnoreCase).ToList();
 
     /// <summary>
     /// Table ids are full paths with the platform's separators, so ids saved in favourites/recent and

@@ -309,6 +309,7 @@
                           <TextBlock Text="{Binding EngineBadge}" />
                         </Border>
                         <StackPanel Orientation="Horizontal" Spacing="5" Margin="10" HorizontalAlignment="Right" VerticalAlignment="Top">
+                          <Border Classes="chip magenta" IsVisible="{Binding IsIncomplete}"><TextBlock Text="INCOMPLETE" /></Border>
                           <Border Classes="chip magenta" IsVisible="{Binding HasUpdate}"><TextBlock Text="UPDATE" /></Border>
                           <Border Classes="chip magenta" IsVisible="{Binding NeedsRom}"><TextBlock Text="NEEDS ROM" /></Border>
                         </StackPanel>
@@ -332,7 +333,12 @@
                           <Button Grid.Column="1" Classes="small" Content="UPDATE" Margin="8,0,0,0"
                                   Command="{ReflectionBinding $parent[Window].DataContext.UpdateTableCommand}" CommandParameter="{Binding}" />
                         </Grid>
-                        <Button Classes="primary" Content="▶  PLAY IN VR" Margin="0,8,0,0"
+                        <TextBlock FontSize="12" Foreground="{StaticResource Magenta}" TextWrapping="Wrap" IsVisible="{Binding IsIncomplete}"
+                                   Text="This install was cut off before it finished, so files may be missing. Reinstall it." />
+                        <Button Classes="primary" Content="⟳  REINSTALL" Margin="0,8,0,0" IsVisible="{Binding IsIncomplete}"
+                                HorizontalAlignment="Stretch" HorizontalContentAlignment="Center"
+                                Command="{ReflectionBinding $parent[Window].DataContext.ReinstallCommand}" CommandParameter="{Binding}" />
+                        <Button Classes="primary" Content="▶  PLAY IN VR" Margin="0,8,0,0" IsVisible="{Binding CanPlay}"
                                 HorizontalAlignment="Stretch" HorizontalContentAlignment="Center"
                                 Command="{ReflectionBinding $parent[Window].DataContext.PlayVrCommand}" CommandParameter="{Binding}" />
                         <WrapPanel Margin="0,4,0,0">
