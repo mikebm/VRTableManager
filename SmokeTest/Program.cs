@@ -346,7 +346,7 @@ Check(uevrRel?.Url.EndsWith("/UEVR.zip") == true, "finds the latest UEVR release
         RomFiles = [new VpsFile { Version = "mm_109" }, new VpsFile { Version = "mm_109c" }, new VpsFile { Version = "mm_10" }] };
     var rpack = Path.Combine(root, "romtable-pack.zip");
     using (var z = ZipFile.Open(rpack, ZipArchiveMode.Create))
-    using (var e = new StreamWriter(z.CreateEntry("Rom Table.vpx").Open())) e.Write("...binary...Const cGameName = \"mm_109c\"...");
+    using (var e = new StreamWriter(z.CreateEntry("Rom Table.vpx").Open())) e.Write("...binary...Const cGameName = \"mm_109c\"...LoadVPM \"01560000\", \"WPC.VBS\", 3.26...");
     var rinst = await TableInstaller.InstallAsync(rpack, rg, new VpsTableFile { Id = "t3", TableFormat = "VPX" }, rs, _ => { }, CancellationToken.None);
     Check(rinst.Manifest.RomNames.SequenceEqual(["mm_109c"]), "install records the exact ROM from the script");
 }
@@ -431,6 +431,41 @@ Console.WriteLine($"   this PC: Pinball M {(pmDetected == null ? "not installed"
     Console.WriteLine($"   pinball settings changed {r1.Changed.Count} of {ours.Count} keys: {string.Join(", ", r1.Changed)}");
 }
 Console.WriteLine($"   gamepad connected: {Gamepad.IsConnected()?.ToString() ?? "unknown"}");
+
+// ---- ROM sources and tables that don't use PinMAME ----
+{
+    Check(!RomSources.IsUsable("https://sternpinball.com/?post_type=game_code&s=metallica", "MTL180LE.BIN")
+          && !RomSources.IsUsable("https://wp.sternpinball.com/?post_type=game_code&s=x-men+LE+1.51", "xmn_151h")
+          && RomSources.IsUsable("https://vpuniverse.com/files/file/5266-metallica-limited-edition-v17/", "mtl_170h"),
+        "Stern's firmware links aren't offered as ROM downloads");
+    Check(RomSources.VpuSearchUrl("mtl_180hc") == "https://vpuniverse.com/search/?q=mtl_180hc&type=downloads_file", "VPUniverse search link for a missing ROM");
+
+    var odir = Path.Combine(root, "orig");
+    Directory.CreateDirectory(odir);
+    var origVpx = Path.Combine(odir, "orig.vpx");
+    File.WriteAllText(origVpx, "...Const cGameName = \"JAWS_50Th_Anniversary\" ' for high scores ...");
+    var pmVpx = Path.Combine(odir, "pm.vpx");
+    File.WriteAllText(pmVpx, "...Const cGameName = \"mtl_180hc\"...LoadVPM \"03060000\", \"sam.VBS\", 3.10...");
+    Check(RomDetector.Inspect(origVpx) is { NoRomNeeded: true } && RomDetector.Inspect(pmVpx) is { GameName: "mtl_180hc", UsesPinMame: true, NoRomNeeded: false },
+        "tells PinMAME tables from originals that only set cGameName");
+
+    var os = new AppSettings { TablesDir = Path.Combine(root, "orig-tables"), VpxDir = Path.Combine(root, "vpx") };
+    var opack = Path.Combine(root, "orig-pack.zip");
+    using (var z = ZipFile.Open(opack, ZipArchiveMode.Create))
+    using (var e = new StreamWriter(z.CreateEntry("Jaws.vpx").Open())) e.Write("...Const cGameName = \"JAWS_50Th_Anniversary\"...");
+    var oinst = await TableInstaller.InstallAsync(opack, new VpsGame { Id = "gJ", Name = "Jaws", Manufacturer = "Original", Year = 2025 },
+        new VpsTableFile { Id = "tJ", TableFormat = "VPX" }, os, _ => { }, CancellationToken.None);
+    Check(oinst.Manifest.RomNames.Count == 0 && oinst.MissingRoms.Count == 0, "an original table installs without a ROM requirement");
+
+    // Read-only look at this PC's real tables, if they're here.
+    var mine = AppSettings.Load();
+    foreach (var name in new[] { "Jaws (Original 2025)", "Metallica (Premium Monsters) (Stern 2013)" })
+    {
+        var tblDir = Path.Combine(mine.TablesDir, name);
+        var vpx = Directory.Exists(tblDir) ? Directory.EnumerateFiles(tblDir, "*.vpx").FirstOrDefault() : null;
+        if (vpx != null) Console.WriteLine($"   this PC: {name}: {RomDetector.Inspect(vpx)}");
+    }
+}
 
 // ---- Downloads survive closing the app ----
 {

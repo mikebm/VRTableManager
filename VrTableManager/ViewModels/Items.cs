@@ -126,8 +126,16 @@ public sealed partial class InstalledItem : ObservableObject
     };
 
     /// <summary>The catalog's download for the missing ROM (set by the view model), if it has one.</summary>
-    [ObservableProperty, NotifyPropertyChangedFor(nameof(CanGetRom), nameof(CanGetAllRoms))]
+    [ObservableProperty, NotifyPropertyChangedFor(nameof(CanGetRom), nameof(CanGetAllRoms), nameof(RomUnavailable), nameof(RomUnavailableText))]
     public partial VpsFile? RomSource { get; set; }
+
+    /// <summary>Needs a ROM the catalog has no download for.</summary>
+    public bool RomUnavailable => NeedsRom && RomSource == null;
+
+    public string RomUnavailableText => !RomUnavailable ? "" :
+        $"The catalog has no download for {string.Join(" / ", Table.MissingRoms.Select(r => r + ".zip"))}. " +
+        "Some ROMs (often …h or …hc versions) are made by players from Stern's code rather than downloaded. " +
+        "Search VPUniverse for it, or use Add ROM if you have the file.";
 
     /// <summary>ROM missing and the catalog has a download for it.</summary>
     public bool CanGetRom => NeedsRom && RomSource != null;

@@ -327,6 +327,8 @@
                         <TextBlock Classes="mono" Foreground="{StaticResource Cyan}" Text="{Binding PlayInfo}" TextTrimming="CharacterEllipsis" />
                         <TextBlock FontSize="12" Foreground="{StaticResource Orange}" Text="{Binding RomStatus}" TextWrapping="Wrap"
                                    IsVisible="{Binding NeedsRom}" />
+                        <TextBlock Classes="muted" FontSize="11.5" TextWrapping="Wrap" Text="{Binding RomUnavailableText}"
+                                   IsVisible="{Binding RomUnavailable}" />
                         <Grid ColumnDefinitions="*,Auto" Margin="0,4,0,0" IsVisible="{Binding HasUpdate}">
                           <TextBlock FontSize="12" Foreground="{StaticResource Magenta}" FontWeight="SemiBold" Text="{Binding UpdateLabel}"
                                      TextWrapping="Wrap" VerticalAlignment="Center" />
@@ -350,6 +352,9 @@
                           <Button Classes="small" Content="ALL ROMS" Margin="0,0,6,6" IsVisible="{Binding CanGetAllRoms}"
                                   ToolTip.Tip="Download every ROM version from this table's ROM page (some versions need another one beside them)"
                                   IsEnabled="{Binding !IsBusy}" Command="{ReflectionBinding $parent[Window].DataContext.GetRomCommand}" CommandParameter="{Binding}" />
+                          <Button Classes="small" Content="SEARCH VPUNIVERSE" Margin="0,0,6,6" IsVisible="{Binding RomUnavailable}"
+                                  ToolTip.Tip="Search VPUniverse's files for this ROM in your browser"
+                                  Command="{ReflectionBinding $parent[Window].DataContext.SearchRomCommand}" CommandParameter="{Binding}" />
                           <Button Classes="small" Content="ADD ROM" Margin="0,0,6,6" IsVisible="{Binding NeedsRom}"
                                   ToolTip.Tip="Install a ROM zip you already have"
                                   Command="{ReflectionBinding $parent[Window].DataContext.AddRomCommand}" CommandParameter="{Binding}" />
