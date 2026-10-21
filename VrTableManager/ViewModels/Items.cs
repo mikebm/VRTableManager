@@ -139,6 +139,9 @@ public sealed partial class InstalledItem : ObservableObject
 
     /// <summary>Its install was cut off (app closed mid-copy): offer Reinstall instead of Play.</summary>
     public bool IsIncomplete => Table.IsIncomplete;
+
+    /// <summary>A ROM fetch, update or reinstall for this table is running: its buttons are disabled.</summary>
+    [ObservableProperty] public partial bool IsBusy { get; set; }
     public bool CanPlay => !IsIncomplete;
 
     // ---- Favourites and play history (shared with the VR lobby through PlayStats) ----
