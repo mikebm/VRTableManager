@@ -18,7 +18,19 @@ public sealed record InstalledTable(TableManifest Manifest, string TablePath, st
               && !Manifest.RomNames.Any(r => File.Exists(Path.Combine(Folder, "pinmame", "roms", r + ".zip")))
             ? Manifest.RomNames
             : [];
+
+    /// <summary>
+    /// An install into this folder started but never finished (app closed or crashed mid-copy),
+    /// so files may be missing. Reinstalling fixes it.
+    /// </summary>
+    public bool IsIncomplete => IsVpx && File.Exists(Path.Combine(Folder, TableInstaller.InstallingMarker));
+
+    /// <summary>What the interrupted install was installing (to reinstall it), if known.</summary>
+    public InstallMarker? IncompleteInstall => IsIncomplete ? TableInstaller.ReadMarker(Folder) : null;
 }
+
+/// <summary>Written into a VPX table folder while an install copies files; removed when it completes.</summary>
+public sealed record InstallMarker(string GameId, string TableFileId, string GameName, DateTime StartedAt);
 
 /// <summary>
 /// Turns a downloaded archive into a ready-to-play table:
@@ -31,6 +43,18 @@ public static class TableInstaller
     static readonly JsonSerializerOptions Json = new() { WriteIndented = true };
     static readonly string[] ArchiveExts = [".zip", ".rar", ".7z", ".tar", ".gz"];
     const string ManifestName = "vrtm.json";
+    /// <summary>Present in a VPX table folder only while an install is copying into it.</summary>
+    public const string InstallingMarker = "vrtm-installing.json";
+
+    public static InstallMarker? ReadMarker(string folder)
+    {
+        try
+        {
+            var p = Path.Combine(folder, InstallingMarker);
+            return File.Exists(p) ? JsonSerializer.Deserialize<InstallMarker>(File.ReadAllText(p)) : null;
+        }
+        catch { return null; }
+    }
 
     public static async Task<InstalledTable> InstallAsync(string downloaded, VpsGame game, VpsTableFile tf,
         AppSettings settings, Action<string> status, CancellationToken ct, InstalledTable? replacing = null)
@@ -68,7 +92,7 @@ public static class TableInstaller
             status("Installing files…");
             var installed = await Task.Run(() => isFp
                 ? InstallFp(staging, main, settings)
-                : InstallVpx(staging, main, game, vpsRoms.Union(romNames, StringComparer.OrdinalIgnoreCase).ToList(), settings), ct); // copying can take a while; keep it off the UI thread
+                : InstallVpx(staging, main, game, vpsRoms.Union(romNames, StringComparer.OrdinalIgnoreCase).ToList(), settings, tf.Id), ct); // copying can take a while; keep it off the UI thread
 
             var manifest = new TableManifest
             {
@@ -100,6 +124,8 @@ public static class TableInstaller
             }
 
             await File.WriteAllTextAsync(ManifestPathFor(installed.tablePath, isFp), JsonSerializer.Serialize(manifest, Json), ct);
+            // Everything's in place: the folder is no longer half-installed.
+            if (!isFp) File.Delete(Path.Combine(installed.folder, InstallingMarker));
             return new InstalledTable(manifest, installed.tablePath, installed.folder);
         }
         finally
@@ -111,10 +137,13 @@ public static class TableInstaller
     // ---- VPX ---------------------------------------------------------------
 
     static (string tablePath, string folder) InstallVpx(string staging, string main, VpsGame game,
-        List<string> romNames, AppSettings settings)
+        List<string> romNames, AppSettings settings, string tableFileId)
     {
         var folder = Path.Combine(settings.TablesDir, SafeName(game.DisplayTitle));
         Directory.CreateDirectory(folder);
+        // Flag the folder until the install completes (see InstalledTable.IsIncomplete).
+        File.WriteAllText(Path.Combine(folder, InstallingMarker),
+            JsonSerializer.Serialize(new InstallMarker(game.Id, tableFileId, game.Name, DateTime.Now), Json));
 
         // Everything next to the .vpx (b2s, ini, vbs, music/, pinmame/ …) comes along as-is.
         var contentRoot = Path.GetDirectoryName(main)!;
@@ -209,6 +238,13 @@ public static class TableInstaller
                 var vpx = m != null && File.Exists(Path.Combine(folder, m.VpxFile))
                     ? Path.Combine(folder, m.VpxFile)
                     : Directory.EnumerateFiles(folder, "*.vpx").FirstOrDefault();
+                if (vpx == null && ReadMarker(folder) is { } cut)
+                {
+                    // Install cut off before the table file was copied: still list it, so it can be reinstalled.
+                    result.Add(new InstalledTable(new TableManifest { GameId = cut.GameId, TableFileId = cut.TableFileId, GameName = cut.GameName },
+                        folder, folder));
+                    continue;
+                }
                 if (vpx == null) continue;
                 m ??= new TableManifest { GameName = Path.GetFileName(folder), VpxFile = Path.GetFileName(vpx) };
                 result.Add(new InstalledTable(m, vpx, folder));
@@ -247,6 +283,12 @@ public static class TableInstaller
     {
         if (!Engines.For(table.Manifest.Engine).ManagesFiles)
             throw new InvalidOperationException("This game belongs to a store; uninstall it there.");
+        if (table.IsIncomplete && SamePath(table.TablePath, table.Folder))
+        {
+            // Cut off before the table file arrived; the marker shows this app created the folder.
+            Directory.Delete(table.Folder, recursive: true);
+            return;
+        }
         if (table.IsVpx && Path.GetFullPath(table.Folder) != Path.GetFullPath(Path.GetDirectoryName(table.TablePath)!))
             throw new InvalidOperationException("Unexpected table layout; not removing.");
 

@@ -24,6 +24,9 @@ public sealed partial class MainViewModel : ObservableObject, IAsyncDisposable
 {
     readonly IUiHost _ui;
     readonly BrowserDownloader _browser = new();
+    /// <summary>Saved queue: downloads not finished when the app closed are offered again at the next launch.</summary>
+    readonly PendingDownloads _pending = new();
+    bool _offeredResume;
     List<VpsGame> _allGames = [];
 
     public AppSettings Settings { get; } = AppSettings.Load();
@@ -51,6 +54,9 @@ public sealed partial class MainViewModel : ObservableObject, IAsyncDisposable
         ApplyPinballUevrProfile = Settings.ApplyPinballUevrProfile;
         ShowZenReminder = Settings.ShowZenReminder;
         MaxParallelDownloads = Math.Clamp(Settings.MaxParallelDownloads, 1, 4);
+        // Partial files from downloads cut off when the app last closed. (Their queue entries are
+        // kept and offered again once the catalog has loaded.)
+        PendingDownloads.CleanDownloadsFolder();
         RefreshRate = RefreshRates.FirstOrDefault(r => r.StartsWith(Settings.VrRefreshRate.ToString())) ?? RefreshRates[0];
         RefreshInstalled();
         RefreshSetupStatus();
@@ -85,6 +91,7 @@ public sealed partial class MainViewModel : ObservableObject, IAsyncDisposable
             ApplyFilter();
             ApplyTableUpdates();
             _ = CheckUpdatesAsync(); // VPX / UEVR / BAM, in the background
+            if (!_offeredResume) { _offeredResume = true; _ = OfferResumeAsync(); }
         }
         catch (Exception e)
         {
@@ -183,6 +190,11 @@ public sealed partial class MainViewModel : ObservableObject, IAsyncDisposable
         var verb = replacing == null ? "" : "Update: ";
         var job = new JobItem($"{verb}{game.Name} — {string.Join(", ", tf.Authors ?? [])}");
         Jobs.Insert(0, job);
+        _pending.Add(new PendingDownload
+        {
+            Id = job.Id, Kind = PendingDownload.TableKind, Title = job.Title,
+            GameId = game.Id, TableFileId = tf.Id, TablePath = replacing?.TablePath,
+        });
         string? file = null;
         try
         {
@@ -216,6 +228,9 @@ public sealed partial class MainViewModel : ObservableObject, IAsyncDisposable
         finally
         {
             CleanJobDownloads(job);
+            // Finished, failed or cancelled: nothing to resume. (Not when it was cut off by the app
+            // closing: that entry stays so the download is offered again next time.)
+            if (!_closing) _pending.Remove(job.Id);
         }
     }
 
@@ -297,6 +312,11 @@ public sealed partial class MainViewModel : ObservableObject, IAsyncDisposable
 
         var job = new JobItem($"ROM for {table.Manifest.GameName}");
         Jobs.Insert(0, job);
+        _pending.Add(new PendingDownload
+        {
+            Id = job.Id, Kind = PendingDownload.RomKind, Title = job.Title,
+            GameId = table.Manifest.GameId, TablePath = table.TablePath,
+        });
         string? file = null;
         try
         {
@@ -329,6 +349,9 @@ public sealed partial class MainViewModel : ObservableObject, IAsyncDisposable
         finally
         {
             CleanJobDownloads(job);
+            // Finished, failed or cancelled: nothing to resume. (Not when it was cut off by the app
+            // closing: that entry stays so the download is offered again next time.)
+            if (!_closing) _pending.Remove(job.Id);
         }
     }
 
@@ -917,6 +940,73 @@ public sealed partial class MainViewModel : ObservableObject, IAsyncDisposable
             IsUpdating = false;
         }
     }
+
+    // ---- Resume after a restart / closing with downloads running ------------------------
+
+    volatile bool _closing;
+
+    /// <summary>Downloads still running or waiting in the queue.</summary>
+    public int RunningJobCount => Jobs.Count(j => !j.IsDone && !j.IsError);
+
+    /// <summary>Downloads still in the saved queue are offered again after the catalog loads.</summary>
+    async Task OfferResumeAsync()
+    {
+        var items = _pending.Items;
+        if (items.Count == 0) return;
+        var list = string.Join("\n", items.Take(8).Select(i => "• " + i.Title)) + (items.Count > 8 ? $"\n• …and {items.Count - 8} more" : "");
+        var pick = await _ui.ChoiceAsync(
+            items.Count == 1 ? "Resume 1 download?" : $"Resume {items.Count} downloads?",
+            $"These hadn't finished when VR Table Manager last closed:\n\n{list}\n\nThey'll start again from the beginning.",
+            ["RESUME", "DISCARD"]);
+        _pending.Clear(); // resumed jobs add themselves back
+        if (pick != 0) return;
+
+        var installed = TableInstaller.Scan(Settings);
+        InstalledTable? Find(string? path) => path == null ? null
+            : installed.FirstOrDefault(t => string.Equals(Path.GetFullPath(t.TablePath), Path.GetFullPath(path), StringComparison.OrdinalIgnoreCase));
+        var skipped = new List<string>();
+        foreach (var item in items)
+        {
+            if (item.Kind == PendingDownload.RomKind)
+            {
+                if (Find(item.TablePath) is { } t) _ = GetRomAsync(t);
+                else skipped.Add(item.Title);
+                continue;
+            }
+            var game = _allGames.FirstOrDefault(g => g.Id == item.GameId);
+            var tf = game?.TableFiles?.FirstOrDefault(f => f.Id == item.TableFileId);
+            if (game == null || tf == null) { skipped.Add(item.Title); continue; }
+            var replacing = Find(item.TablePath);
+            _ = InstallAsync(game, tf, replacing is { IsIncomplete: false } ? replacing : null);
+        }
+        if (skipped.Count > 0)
+            CatalogStatus = $"Couldn't resume {string.Join(", ", skipped)}: no longer in the catalog or installed.";
+    }
+
+    /// <summary>Reinstalls a table whose install was cut off (INCOMPLETE on My Tables).</summary>
+    [RelayCommand]
+    async Task ReinstallAsync(InstalledItem item)
+    {
+        var marker = item.Table.IncompleteInstall;
+        var gameId = marker?.GameId ?? item.Table.Manifest.GameId;
+        var fileId = marker?.TableFileId ?? item.Table.Manifest.TableFileId;
+        var game = _allGames.FirstOrDefault(g => g.Id == gameId);
+        var tf = game?.TableFiles?.FirstOrDefault(f => f.Id == fileId);
+        if (game == null || tf == null)
+        {
+            PlayStatus = $"Couldn't find {item.Title} in the catalog to reinstall it. Remove it and install it again from Get Tables.";
+            return;
+        }
+        // An interrupted update still has the old table file; replace it like a normal update.
+        var replacing = File.Exists(item.Table.TablePath) ? item.Table : null;
+        await InstallAsync(game, tf, replacing);
+    }
+
+    /// <summary>
+    /// Called by the window when it's really closing. Downloads that end because of the shutdown
+    /// keep their saved-queue entries, so they're offered again at the next launch.
+    /// </summary>
+    public void PrepareToClose() => _closing = true;
 
     public ValueTask DisposeAsync() => _browser.DisposeAsync();
 }

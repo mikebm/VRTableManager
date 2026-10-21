@@ -417,6 +417,55 @@ Console.WriteLine($"   this PC: Pinball M {(pmDetected == null ? "not installed"
 }
 Console.WriteLine($"   gamepad connected: {Gamepad.IsConnected()?.ToString() ?? "unknown"}");
 
+// ---- Downloads survive closing the app ----
+{
+    var qPath = Path.Combine(root, "queue", "download-queue.json");
+    var q = new PendingDownloads(qPath);
+    q.Add(new PendingDownload { Id = "a", Title = "Table A", GameId = "g1", TableFileId = "t1" });
+    q.Add(new PendingDownload { Id = "b", Kind = PendingDownload.RomKind, Title = "ROM for B", TablePath = @"C:\T\b.vpx" });
+    q.Remove("a");
+    var reopened = new PendingDownloads(qPath);
+    Check(reopened.Items.Count == 1 && reopened.Items[0].Id == "b" && reopened.Items[0].Kind == PendingDownload.RomKind,
+        "unfinished downloads are still in the queue after a restart");
+    reopened.Clear();
+    Check(new PendingDownloads(qPath).Items.Count == 0, "queue clears once resumed or discarded");
+    File.WriteAllText(qPath, "{ not json");
+    Check(new PendingDownloads(qPath).Items.Count == 0, "a damaged queue file starts empty instead of crashing");
+
+    var dl = Path.Combine(root, "downloads-left");
+    Directory.CreateDirectory(Path.Combine(dl, "job1"));
+    File.WriteAllText(Path.Combine(dl, "job1", "half.zip"), "partial");
+    File.WriteAllText(Path.Combine(dl, "loose.tmp"), "x");
+    Check(PendingDownloads.CleanDownloadsFolder(dl) == 2 && !Directory.EnumerateFileSystemEntries(dl).Any(),
+        "leftover partial downloads are cleared at startup");
+
+    // Half-installed tables: the marker stays until an install completes.
+    var hs = new AppSettings { TablesDir = Path.Combine(root, "half-tables"), VpxDir = Path.Combine(root, "vpx") };
+    var cutEarly = Path.Combine(hs.TablesDir, "Cut Early (Bally 1980)");
+    Directory.CreateDirectory(cutEarly);
+    File.WriteAllText(Path.Combine(cutEarly, TableInstaller.InstallingMarker),
+        System.Text.Json.JsonSerializer.Serialize(new InstallMarker("gE", "tE", "Cut Early", DateTime.Now)));
+    var cutLate = Path.Combine(hs.TablesDir, "Cut Late (Bally 1981)");
+    Directory.CreateDirectory(cutLate);
+    File.WriteAllText(Path.Combine(cutLate, "Cut Late.vpx"), "half copied");
+    File.WriteAllText(Path.Combine(cutLate, TableInstaller.InstallingMarker),
+        System.Text.Json.JsonSerializer.Serialize(new InstallMarker("gL", "tL", "Cut Late", DateTime.Now)));
+    var halfScan = TableInstaller.Scan(hs).Where(t => t.IsVpx).ToList();
+    var early = halfScan.FirstOrDefault(t => t.Folder == cutEarly);
+    var late = halfScan.FirstOrDefault(t => t.Folder == cutLate);
+    Check(early is { IsIncomplete: true } && early.IncompleteInstall?.TableFileId == "tE" && late is { IsIncomplete: true },
+        "half-installed tables are listed as incomplete, with what to reinstall");
+    Check(!LobbyLibrary.Load(hs).Any(t => t.Id.Contains("Cut ")), "the VR lobby leaves half-installed tables out");
+    TableInstaller.Remove(early!);
+    Check(!Directory.Exists(cutEarly), "a table cut off before its file arrived can be removed");
+
+    var hg = new VpsGame { Id = "gL", Name = "Cut Late", Manufacturer = "Bally", Year = 1981 };
+    var hpack = Path.Combine(root, "cut-late.zip");
+    using (var z = ZipFile.Open(hpack, ZipArchiveMode.Create)) z.CreateEntry("Cut Late.vpx");
+    var redone = await TableInstaller.InstallAsync(hpack, hg, new VpsTableFile { Id = "tL", TableFormat = "VPX" }, hs, _ => { }, CancellationToken.None);
+    Check(!redone.IsIncomplete && !File.Exists(Path.Combine(cutLate, TableInstaller.InstallingMarker)), "reinstalling completes it and clears the marker");
+}
+
 static string JsonEsc(string s) => System.Text.Json.JsonSerializer.Serialize(s);
 
 Directory.Delete(root, true);

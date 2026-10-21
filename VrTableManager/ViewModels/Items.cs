@@ -105,7 +105,7 @@ public sealed partial class InstalledItem : ObservableObject
         TableManifest.PinballM => "PINBALL M",
         _ => "VPX",
     };
-    public bool CanPlayDesktop => Engines.For(Table.Manifest.Engine).SupportsDesktopMode;
+    public bool CanPlayDesktop => Engines.For(Table.Manifest.Engine).SupportsDesktopMode && !Table.IsIncomplete;
     public bool CanRemove => Engines.For(Table.Manifest.Engine).ManagesFiles;
 
     public string Subtitle
@@ -136,6 +136,10 @@ public sealed partial class InstalledItem : ObservableObject
     public bool CanGetAllRoms => !NeedsRom && RomSource != null;
 
     public bool NeedsRom => Table.MissingRoms.Count > 0;
+
+    /// <summary>Its install was cut off (app closed mid-copy): offer Reinstall instead of Play.</summary>
+    public bool IsIncomplete => Table.IsIncomplete;
+    public bool CanPlay => !IsIncomplete;
 
     // ---- Favourites and play history (shared with the VR lobby through PlayStats) ----
 
