@@ -119,6 +119,21 @@ using (var site = new MockTableSite())
     Check(pair[0] != pair[1] && File.Exists(pair[0]) && File.Exists(pair[1]) && Path.GetDirectoryName(pair[0])!.EndsWith("dl-a") && Path.GetDirectoryName(pair[1])!.EndsWith("dl-b"),
         "parallel downloads each land in their own job's folder");
     Check(site.Count("file-2") - before2 == 2 && sw.Elapsed < TimeSpan.FromSeconds(7.5), "two downloads run at the same time (not one after the other)");
+
+    Check(!BrowserDownloader.SameFilePage("https://www.vpforums.org/index.php", "https://www.vpforums.org/index.php?app=downloads&showfile=99")
+          && BrowserDownloader.SameFilePage("https://vpforums.org/index.php?s=abc123&app=downloads&showfile=99", "https://www.vpforums.org/index.php?app=downloads&showfile=99")
+          && BrowserDownloader.SameFilePage("https://vpuniverse.com/files/file/721-x/", "https://vpuniverse.com/files/file/721-x"),
+        "same-page check uses the query (VPForums is all /index.php) but ignores session ids");
+
+    // VPForums (IP.Board 3): once signed in, its Sign Out link contains "section=login". The download
+    // must carry on after sign-in instead of waiting for a sign-in that already happened.
+    using var vpfLimit = new CancellationTokenSource(TimeSpan.FromSeconds(60));
+    string? vpfFile = null;
+    try { vpfFile = await browser2.DownloadAsync(site.VpfFileUrl, Path.Combine(root, "dl-vpf"), [], _ => { }, vpfLimit.Token); }
+    catch (OperationCanceledException) { }
+    Console.WriteLine("   VPForums-style requests: " + string.Join(", ", site.Log.Where(l => l.StartsWith("vpf"))));
+    Check(site.Count("vpf-login-post") == 1 && vpfFile != null && Path.GetFileName(vpfFile) == "afm_113b.zip",
+        "VPForums: the download carries on after signing in");
 }
 
 // 5. URL classification
