@@ -198,15 +198,39 @@ public sealed partial class JobItem : ObservableObject
     [ObservableProperty] public partial bool IsError { get; set; }
 
     public CancellationTokenSource Cts { get; } = new();
+    /// <summary>Short unique id (names this job's temporary download folder).</summary>
+    public string Id { get; } = Guid.NewGuid().ToString("N")[..10];
 
-    /// <summary>Thread-safe status update (browser and download callbacks run off the UI thread).</summary>
-    public void Report(string status) => Dispatcher.UIThread.Post(() => Status = status);
+    bool IsFinished => IsDone || IsError;
 
-    public IProgress<double> ProgressReporter => new Progress<double>(p => Dispatcher.UIThread.Post(() =>
+    /// <summary>
+    /// Thread-safe status update (browser and download callbacks run off the UI thread). Applied at
+    /// once on the UI thread, so a queued update can't land after the final "Installed" message;
+    /// ignored once the job has finished.
+    /// </summary>
+    public void Report(string status) => OnUi(() => { if (!IsFinished) Status = status; });
+
+    public IProgress<double> ProgressReporter => new Progress<double>(p => OnUi(() =>
     {
+        if (IsFinished) return;
         IsIndeterminate = false;
         Progress = p * 100;
     }));
+
+    /// <summary>Marks the job finished: final message, progress bar full and stopped.</summary>
+    public void Finish(string status, bool error = false) => OnUi(() =>
+    {
+        Status = status;
+        IsIndeterminate = false;
+        Progress = 100;
+        if (error) IsError = true; else IsDone = true;
+    });
+
+    static void OnUi(Action a)
+    {
+        if (Dispatcher.UIThread.CheckAccess()) a();
+        else Dispatcher.UIThread.Post(a);
+    }
 
     [RelayCommand]
     void Cancel() => Cts.Cancel();

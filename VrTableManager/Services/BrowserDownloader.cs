@@ -13,7 +13,9 @@ public sealed class BrowserDownloader : IAsyncDisposable
 {
     IPlaywright? _pw;
     IBrowserContext? _ctx;
-    readonly SemaphoreSlim _gate = new(1, 1);
+    // Pages share one browser (one profile = one window), each download in its own tab. The app's
+    // download queue decides how many run at once; this is only an upper bound.
+    readonly SemaphoreSlim _gate = new(4, 4);
     readonly string _profileDir;
     readonly bool _headless;
 
@@ -138,9 +140,10 @@ public sealed class BrowserDownloader : IAsyncDisposable
             var got = new TaskCompletionSource<IDownload>(TaskCreationOptions.RunContinuationsAsynchronously);
             var picker = all ? new TaskCompletionSource<List<string>>(TaskCreationOptions.RunContinuationsAsynchronously) : null;
             void OnDownload(object? _, IDownload d) => got.TrySetResult(d);
-            void OnPage(object? _, IPage p) => p.Download += OnDownload; // downloads that open a popup
+            // Only popups opened by *this* tab: another download may be running in a different tab.
+            void OnPage(object? _, IPage p) => p.Download += OnDownload;
             page.Download += OnDownload;
-            ctx.Page += OnPage;
+            page.Popup += OnPage;
 
             using var cts = CancellationTokenSource.CreateLinkedTokenSource(ct);
             cts.CancelAfter(TimeSpan.FromMinutes(20));
@@ -161,7 +164,7 @@ public sealed class BrowserDownloader : IAsyncDisposable
                     cts.Cancel();
                     try { await automation; } catch { /* cancelled */ }
                     page.Download -= OnDownload;
-                    ctx.Page -= OnPage;
+                    page.Popup -= OnPage;
                     var links = picker.Task.Result.Take(MaxFilesPerPage).ToList();
                     var saved = new List<string>();
                     for (var i = 0; i < links.Count; i++)
@@ -186,7 +189,7 @@ public sealed class BrowserDownloader : IAsyncDisposable
             }
             finally
             {
-                ctx.Page -= OnPage;
+                page.Popup -= OnPage;
                 page.Download -= OnDownload;
                 try { await page.CloseAsync(); } catch { }
             }

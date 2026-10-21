@@ -595,6 +595,11 @@
                     <Button Grid.Column="1" Content="BROWSE" Margin="8,0,0,0" Command="{Binding BrowseTablesDirCommand}" />
                   </Grid>
                   <CheckBox Content="Hide adult-themed tables" IsChecked="{Binding HideAdult}" />
+                  <StackPanel Orientation="Horizontal" Spacing="10">
+                    <TextBlock Text="Downloads at once" VerticalAlignment="Center" FontWeight="SemiBold" />
+                    <ComboBox ItemsSource="{Binding ParallelDownloadChoices}" SelectedItem="{Binding MaxParallelDownloads}" Width="90" />
+                    <TextBlock Classes="muted" VerticalAlignment="Center" Text="More installs wait in the queue. Unpacking doesn't count, so the next download starts meanwhile." />
+                  </StackPanel>
                 </StackPanel>
               </Grid>
             </Border>
@@ -630,7 +635,10 @@
       <DockPanel>
         <DockPanel DockPanel.Dock="Top" Margin="0,0,0,10">
           <Button DockPanel.Dock="Right" Classes="small" Content="CLEAR FINISHED" Command="{Binding ClearFinishedJobsCommand}" />
-          <TextBlock Classes="eyebrow" Text="DOWNLOADS" VerticalAlignment="Center" />
+          <StackPanel Orientation="Horizontal" Spacing="12" VerticalAlignment="Center">
+            <TextBlock Classes="eyebrow" Text="DOWNLOADS" VerticalAlignment="Center" />
+            <TextBlock Classes="mono" VerticalAlignment="Center" Text="{Binding MaxParallelDownloads, StringFormat='{}{0} at a time · change on Setup'}" />
+          </StackPanel>
         </DockPanel>
         <ScrollViewer>
           <ItemsControl ItemsSource="{Binding Jobs}">
