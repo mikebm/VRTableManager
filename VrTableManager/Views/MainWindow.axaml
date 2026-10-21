@@ -331,13 +331,13 @@
                           <TextBlock FontSize="12" Foreground="{StaticResource Magenta}" FontWeight="SemiBold" Text="{Binding UpdateLabel}"
                                      TextWrapping="Wrap" VerticalAlignment="Center" />
                           <Button Grid.Column="1" Classes="small" Content="UPDATE" Margin="8,0,0,0"
-                                  Command="{ReflectionBinding $parent[Window].DataContext.UpdateTableCommand}" CommandParameter="{Binding}" />
+                                  IsEnabled="{Binding !IsBusy}" Command="{ReflectionBinding $parent[Window].DataContext.UpdateTableCommand}" CommandParameter="{Binding}" />
                         </Grid>
                         <TextBlock FontSize="12" Foreground="{StaticResource Magenta}" TextWrapping="Wrap" IsVisible="{Binding IsIncomplete}"
                                    Text="This install was cut off before it finished, so files may be missing. Reinstall it." />
                         <Button Classes="primary" Content="⟳  REINSTALL" Margin="0,8,0,0" IsVisible="{Binding IsIncomplete}"
                                 HorizontalAlignment="Stretch" HorizontalContentAlignment="Center"
-                                Command="{ReflectionBinding $parent[Window].DataContext.ReinstallCommand}" CommandParameter="{Binding}" />
+                                IsEnabled="{Binding !IsBusy}" Command="{ReflectionBinding $parent[Window].DataContext.ReinstallCommand}" CommandParameter="{Binding}" />
                         <Button Classes="primary" Content="▶  PLAY IN VR" Margin="0,8,0,0" IsVisible="{Binding CanPlay}"
                                 HorizontalAlignment="Stretch" HorizontalContentAlignment="Center"
                                 Command="{ReflectionBinding $parent[Window].DataContext.PlayVrCommand}" CommandParameter="{Binding}" />
@@ -346,10 +346,10 @@
                                   Command="{ReflectionBinding $parent[Window].DataContext.PlayDesktopCommand}" CommandParameter="{Binding}" />
                           <Button Classes="small primary" Content="GET ROM" Margin="0,0,6,6" IsVisible="{Binding CanGetRom}"
                                   ToolTip.Tip="Download this table's ROM from the catalog (usually VPForums) and install it"
-                                  Command="{ReflectionBinding $parent[Window].DataContext.GetRomCommand}" CommandParameter="{Binding}" />
+                                  IsEnabled="{Binding !IsBusy}" Command="{ReflectionBinding $parent[Window].DataContext.GetRomCommand}" CommandParameter="{Binding}" />
                           <Button Classes="small" Content="ALL ROMS" Margin="0,0,6,6" IsVisible="{Binding CanGetAllRoms}"
                                   ToolTip.Tip="Download every ROM version from this table's ROM page (some versions need another one beside them)"
-                                  Command="{ReflectionBinding $parent[Window].DataContext.GetRomCommand}" CommandParameter="{Binding}" />
+                                  IsEnabled="{Binding !IsBusy}" Command="{ReflectionBinding $parent[Window].DataContext.GetRomCommand}" CommandParameter="{Binding}" />
                           <Button Classes="small" Content="ADD ROM" Margin="0,0,6,6" IsVisible="{Binding NeedsRom}"
                                   ToolTip.Tip="Install a ROM zip you already have"
                                   Command="{ReflectionBinding $parent[Window].DataContext.AddRomCommand}" CommandParameter="{Binding}" />

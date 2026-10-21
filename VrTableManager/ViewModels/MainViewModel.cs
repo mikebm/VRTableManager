@@ -181,8 +181,7 @@ public sealed partial class MainViewModel : ObservableObject, IAsyncDisposable
 
     public ObservableCollection<JobItem> Jobs { get; } = [];
 
-    /// <param name="replacing">The installed table this replaces (updates), so its old file is removed.</param>
-    async Task<bool> InstallAsync(VpsGame game, VpsTableFile tf, InstalledTable? replacing = null)
+    async Task<bool> InstallCoreAsync(VpsGame game, VpsTableFile tf, InstalledTable? replacing)
     {
         var url = tf.Urls?.FirstOrDefault(u => !u.Broken)?.Url;
         if (url == null) return false;
@@ -298,10 +297,50 @@ public sealed partial class MainViewModel : ObservableObject, IAsyncDisposable
         return null;
     }
 
-    [RelayCommand]
+    // Per-table commands run for several tables at once (a shared command would otherwise grey out
+    // every card's button while one download runs); only the busy table's buttons are disabled.
+    [RelayCommand(AllowConcurrentExecutions = true)]
     Task GetRom(InstalledItem item) => GetRomAsync(item.Table);
 
     async Task GetRomAsync(InstalledTable table)
+    {
+        if (!TryBeginBusy(table.TablePath)) return; // already fetching this table's ROM
+        try { await GetRomCoreAsync(table); }
+        finally { EndBusy(table.TablePath); }
+    }
+
+    /// <param name="replacing">The installed table this replaces (updates), so its old file is removed.</param>
+    async Task<bool> InstallAsync(VpsGame game, VpsTableFile tf, InstalledTable? replacing = null)
+    {
+        if (replacing == null) return await InstallCoreAsync(game, tf, null);
+        if (!TryBeginBusy(replacing.TablePath)) return false; // already updating this table
+        try { return await InstallCoreAsync(game, tf, replacing); }
+        finally { EndBusy(replacing.TablePath); }
+    }
+
+    /// <summary>Tables with a ROM fetch, update or reinstall running (by table path).</summary>
+    readonly HashSet<string> _busyTables = new(StringComparer.OrdinalIgnoreCase);
+
+    bool TryBeginBusy(string tablePath)
+    {
+        if (!_busyTables.Add(tablePath)) return false;
+        SetBusy(tablePath, true);
+        return true;
+    }
+
+    void EndBusy(string tablePath)
+    {
+        _busyTables.Remove(tablePath);
+        SetBusy(tablePath, false);
+    }
+
+    void SetBusy(string tablePath, bool on)
+    {
+        foreach (var i in _allInstalled.Where(i => string.Equals(i.Table.TablePath, tablePath, StringComparison.OrdinalIgnoreCase)))
+            i.IsBusy = on;
+    }
+
+    async Task GetRomCoreAsync(InstalledTable table)
     {
         // Older installs list every ROM VPS knows; read the script to find the one this table loads.
         if (table.Manifest.RomNames.Count > 1 && RomDetector.FromVpx(table.TablePath) is { } exact)
@@ -391,7 +430,11 @@ public sealed partial class MainViewModel : ObservableObject, IAsyncDisposable
         // Re-read stats every time: the VR lobby and its launcher write them too.
         _stats = PlayStats.Load();
         _allInstalled = TableInstaller.Scan(Settings).Select(t => new InstalledItem(t)).ToList();
-        foreach (var item in _allInstalled) item.ApplyStats(_stats);
+        foreach (var item in _allInstalled)
+        {
+            item.ApplyStats(_stats);
+            item.IsBusy = _busyTables.Contains(item.Table.TablePath); // keep a running fetch's button greyed after a rescan
+        }
         ShowInstalled();
     }
 
@@ -884,7 +927,7 @@ public sealed partial class MainViewModel : ObservableObject, IAsyncDisposable
         catch (Exception e) { return (null, e.Message); }
     }
 
-    [RelayCommand]
+    [RelayCommand(AllowConcurrentExecutions = true)]
     async Task UpdateTableAsync(InstalledItem item)
     {
         if (item.Update is not { } u) return;
@@ -984,7 +1027,7 @@ public sealed partial class MainViewModel : ObservableObject, IAsyncDisposable
     }
 
     /// <summary>Reinstalls a table whose install was cut off (INCOMPLETE on My Tables).</summary>
-    [RelayCommand]
+    [RelayCommand(AllowConcurrentExecutions = true)]
     async Task ReinstallAsync(InstalledItem item)
     {
         var marker = item.Table.IncompleteInstall;
@@ -999,7 +1042,11 @@ public sealed partial class MainViewModel : ObservableObject, IAsyncDisposable
         }
         // An interrupted update still has the old table file; replace it like a normal update.
         var replacing = File.Exists(item.Table.TablePath) ? item.Table : null;
-        await InstallAsync(game, tf, replacing);
+        if (replacing != null) { await InstallAsync(game, tf, replacing); return; }
+        // Cut off before the table file arrived: nothing to replace, but still mark this card busy.
+        if (!TryBeginBusy(item.Table.TablePath)) return;
+        try { await InstallAsync(game, tf); }
+        finally { EndBusy(item.Table.TablePath); }
     }
 
     /// <summary>
