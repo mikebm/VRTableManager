@@ -187,6 +187,151 @@ Check(at == mIdx && hops <= 13, $"reach M in {hops} jumps instead of {mIdx} sing
 Check(LobbyNav.Jump(all.Groups, mIdx + 2, -1) == mIdx, "up inside a group goes to its first table");
 Check(LobbyNav.GroupAt(all.Groups, LobbyNav.Jump(all.Groups, mIdx, -1)) == 12, "up at a group start goes to the previous letter");
 Check(LobbyNav.GroupForKey(all.Groups, 'm') == 13 && LobbyNav.GroupForKey(all.Groups, '2') == 0, "typed keys map to letters, digits to #");
+var letterRuns = all.List.Select(t => LobbyNav.Letters.IndexOf(LobbyNav.LetterOf(t.Title))).ToList();
+Check(letterRuns.Zip(letterRuns.Skip(1)).All(p => p.First <= p.Second)
+      && all.List.FindIndex(t => t.Title == "The Getaway") < all.List.FindIndex(t => t.Title == "Gorgar"),
+    "every rail letter is one contiguous run (\"The Getaway\" sorts under G, digits first)");
+
+// Cabinet art for the VR lobby: backglass from VPS, playfield from the table image, attract sound from the table folder
+VpsGame G(string id, string? img, params string?[] b2s) =>
+    new() { Id = id, ImgUrl = img, B2sFiles = b2s.Select(u => new VpsFile { ImgUrl = u }).ToList() };
+Check(LobbyArt.BackglassUrl(G("a", "game.webp", null, "", "b2s1.webp", "b2s2.webp")) == "b2s1.webp"
+      && LobbyArt.BackglassUrl(G("b", "game.webp")) == "game.webp" && LobbyArt.BackglassUrl(G("c", null)) == null,
+    "backglass: first backglass picture, else the game's image, else none");
+var bgIndex = LobbyArt.BackglassIndex([G("x", null, "bx.webp"), G("y", null), G("x", null, "dup.webp")]);
+Check(bgIndex.Count == 1 && bgIndex["x"] == "bx.webp", "backglass index skips games with no picture and duplicate ids");
+var store = new LobbyTable("pfx", TableManifest.PinballFx, "Pinball FX", "", "Zen", 0, "header.jpg", [],
+    new InstalledTable(new TableManifest { Engine = TableManifest.PinballFx }, root, root));
+Check(LobbyArt.PlayfieldUrl(store) == null && LobbyArt.BackglassFor(store, bgIndex) == "header.jpg"
+      && LobbyArt.PlayfieldUrl(mmT) == LobbyFixture.ArtUrl && LobbyArt.BackglassFor(mmT, bgIndex) == null,
+    "store games' landscape header goes on the backglass; VPX table image on the playfield");
+var mmFolder = Path.GetDirectoryName(fx.MedievalMadness)!;
+Check(LobbyArt.AttractSound(mmT) == null, "no sound file: no attract sound");
+Directory.CreateDirectory(Path.Combine(mmFolder, "music"));
+File.WriteAllBytes(Path.Combine(mmFolder, "music", "track01.ogg"), [1, 2, 3]);
+File.WriteAllBytes(Path.Combine(mmFolder, "music", "Attract Loop.mp3"), [1, 2, 3]);
+Check(Path.GetFileName(LobbyArt.AttractSound(mmT)) == "Attract Loop.mp3", "attract sound prefers names like \"attract\"");
+Check(LobbyArt.AttractSound(lib.First(t => t.Badge == "FP")) == null, "no attract sound for Future Pinball (shared Tables folder)");
+Check(VpsCatalog.LoadCached(Path.Combine(root, "missing.json")) == null, "no cached catalog: no backglass index, no network");
+
+// Full-resolution playfield straight out of a .vpx (a synthetic one, so this doesn't depend on installed tables)
+byte[] Rec(string tag, byte[] data) => [.. BitConverter.GetBytes(4 + data.Length), .. System.Text.Encoding.ASCII.GetBytes(tag), .. data];
+byte[] Str(string s) => [.. BitConverter.GetBytes(s.Length), .. System.Text.Encoding.Latin1.GetBytes(s)];
+byte[] I32(int v) => BitConverter.GetBytes(v);
+byte[] ImageStream(string name, int w, int h, byte[] pic) =>
+    [.. Rec("NAME", Str(name)), .. Rec("WDTH", I32(w)), .. Rec("HGHT", I32(h)), .. Rec("JPEG", []),
+     .. Rec("NAME", Str(name)), .. Rec("SIZE", I32(pic.Length)), .. Rec("DATA", pic), .. Rec("ENDB", []), .. Rec("ENDB", [])];
+byte[] fakePng = [0x89, 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10];
+var fakeVpx = Path.Combine(root, "fake table.vpx");
+using (var cfb = OpenMcdf.RootStorage.Create(fakeVpx))
+{
+    var gs = cfb.CreateStorage("GameStg");
+    void Put(string name, byte[] bytes) { using var s = gs.CreateStream(name); s.Write(bytes, 0, bytes.Length); }
+    Put("GameData", [.. Rec("LEFT", I32(0)), .. Rec("IMAG", Str("ball")), .. Rec("TOPX", I32(0))]);  // names a ball texture, like some tables
+    Put("Image0", ImageStream("ball", 128, 128, [9, 9, 9, 9, 9, 9, 9, 9, 9, 9, 9, 9, 9]));
+    Put("Image1", ImageStream("Playfield_4K", 2048, 4096, fakePng));
+    Put("Image2", ImageStream("LightOverlay", 3000, 6000, [7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7]));
+}
+var fakeImages = VpxImages.ListImages(fakeVpx);
+Check(VpxImages.PlayfieldImageName(fakeVpx) == "ball" && fakeImages.Count == 3 && fakeImages[1] is { Name: "Playfield_4K", Width: 2048, Height: 4096 },
+    "reads the table's playfield name and every image's name and size from a .vpx");
+Check(VpxImages.ExtractPlayfield(fakeVpx)?.SequenceEqual(fakePng) == true,
+    "named playfield isn't playfield-shaped: picks the playfield-named portrait image (not a bigger light overlay)");
+var artCache = Path.Combine(root, "img-cache");
+var cachedPf = VpxImages.CachedPlayfield(fakeVpx, artCache);
+Check(cachedPf != null && File.ReadAllBytes(cachedPf).SequenceEqual(fakePng) && VpxImages.CachedPlayfield(fakeVpx, artCache) == cachedPf,
+    "extracted once into the image cache, then reused");
+File.WriteAllText(Path.Combine(root, "not a table.vpx"), "this is not a compound file");
+Check(VpxImages.CachedPlayfield(Path.Combine(root, "not a table.vpx"), artCache) == null, "a damaged .vpx falls back quietly (no crash)");
+Check(LobbyArt.PlayfieldSource(mmT) == LobbyArt.VpxScheme + fx.MedievalMadness, "VPX tables take their playfield from the table file first");
+// A table's own VR cabinet: a synthetic .vpx with two cabinet parts (raw and zlib-compressed meshes),
+// a playfield bolt and a VR-room floor that must be left out, and a 10.8-style nested material.
+byte[] F32(params float[] v) => v.SelectMany(BitConverter.GetBytes).ToArray();
+byte[] WStr(string s) => [.. BitConverter.GetBytes(s.Length), .. System.Text.Encoding.Unicode.GetBytes(s)];
+byte[] Zip(byte[] raw) { using var ms = new MemoryStream(); using (var z = new System.IO.Compression.ZLibStream(ms, System.IO.Compression.CompressionLevel.Optimal)) z.Write(raw); return ms.ToArray(); }
+byte[] Prim(string name, float[] verts8, ushort[] idx, bool compress, float[] pos, float[] size, float rotZ = 0, float traX = 0, string? mat = null)
+{
+    var vb = F32(verts8);
+    var ib = idx.SelectMany(BitConverter.GetBytes).ToArray();
+    var recs = new List<byte>(BitConverter.GetBytes(19)); // item type: primitive
+    recs.AddRange(Rec("VPOS", F32(pos[0], pos[1], pos[2], 0)));
+    recs.AddRange(Rec("VSIZ", F32(size[0], size[1], size[2], 0)));
+    recs.AddRange(Rec("RTV2", F32(rotZ)));
+    recs.AddRange(Rec("RTV3", F32(traX)));
+    recs.AddRange(Rec("NAME", WStr(name)));
+    if (mat != null) recs.AddRange(Rec("MATR", Str(mat)));
+    recs.AddRange(Rec("U3DM", I32(1)));
+    recs.AddRange(Rec("M3VN", I32(verts8.Length / 8)));
+    if (compress) { var z = Zip(vb); recs.AddRange(Rec("M3CY", I32(z.Length))); recs.AddRange(Rec("M3CX", z)); }
+    else recs.AddRange(Rec("M3DX", vb));
+    recs.AddRange(Rec("M3FN", I32(idx.Length)));
+    if (compress) { var z = Zip(ib); recs.AddRange(Rec("M3CJ", I32(z.Length))); recs.AddRange(Rec("M3CI", z)); }
+    else recs.AddRange(Rec("M3DI", ib));
+    recs.AddRange(Rec("ENDB", []));
+    return [.. recs];
+}
+// x,y,z, nx,ny,nz, u,v
+float[] tri = [0, 0, 0, 0, 0, 1, 0, 0,   1, 0, 0, 0, 0, 1, 1, 0,   0, 1, 0, 0, 0, 1, 0, 1];
+var cabVpx = Path.Combine(root, "cabinet table.vpx");
+using (var cfb = OpenMcdf.RootStorage.Create(cabVpx))
+{
+    var gs = cfb.CreateStorage("GameStg");
+    void Put(string name, byte[] bytes) { using var s = gs.CreateStream(name); s.Write(bytes, 0, bytes.Length); }
+    byte[] chrome = [.. Rec("TYPE", I32(1)), .. Rec("NAME", Str("Chrome")), .. Rec("ROUG", F32(0.9f)), .. Rec("BASE", I32(0x00C8D2DC)), .. Rec("ENDB", [])];
+    Put("GameData", [.. Rec("LEFT", F32(0)), .. Rec("TOPX", F32(0)), .. Rec("RGHT", F32(952)), .. Rec("BOTM", F32(2162)), .. Rec("MATR", chrome)]);
+    // Body: scaled ×2, translated 10 along x, then turned 90° about z, then placed at (100, 200, 0).
+    Put("GameItem0", Prim("PinCab_Cabinet", tri, [0, 1, 2], compress: false, pos: [100, 200, 0], size: [2, 2, 2], rotZ: 90, traX: 10, mat: "Chrome"));
+    Put("GameItem1", Prim("PinCab_Legs", tri, [0, 1, 2], compress: true, pos: [100, 200, -1000], size: [100, 100, 100]));
+    Put("GameItem2", Prim("Bolt12", tri, [0, 1, 2], compress: false, pos: [400, 900, 10], size: [5, 5, 5]));
+    Put("GameItem3", Prim("VR_Room_Floor", tri, [0, 1, 2], compress: false, pos: [100, 200, -1100], size: [300, 300, 1]));
+}
+var cab = VpxCabinet.Load(cabVpx, frontZ: 0.7f);
+Check(cab != null && cab.Parts.Select(p => p.Name).OrderBy(n => n).SequenceEqual(["PinCab_Cabinet", "PinCab_Legs"]),
+    "VR cabinet: cabinet parts read (raw and compressed meshes); playfield bolt and room floor left out: " + string.Join(", ", cab?.Parts.Select(p => p.Name) ?? []));
+if (cab != null)
+{
+    var body = cab.Parts.Single(p => p.Name == "PinCab_Cabinet");
+    System.Numerics.Vector3 V(int i) => new(body.Positions[i * 3], body.Positions[i * 3 + 1], body.Positions[i * 3 + 2]);
+    var s = VpxCabinet.VpuToMetres;
+    // VPX: (1,0,0)·2 + (10,0,0) → rotate 90° → (0,12) vs (0,10): +2 along VPX y = towards the player = lobby +z.
+    var e1 = V(1) - V(0);
+    var e2 = V(2) - V(0);
+    Check(Math.Abs(e1.X) < 1e-5 && Math.Abs(e1.Y) < 1e-5 && Math.Abs(e1.Z - 2 * s) < 1e-5 && Math.Abs(e2.X + 2 * s) < 1e-5 && Math.Abs(e2.Z) < 1e-5,
+        $"VPX transform order (scale → translate → rotate → position) and axis mapping: e1={e1}, e2={e2}");
+    Check(body.Indices.SequenceEqual([0, 2, 1]), "triangle winding flipped for the axis swap");
+    Check(Math.Abs(body.Normals[1] - 1) < 1e-5, "normals follow the axes (VPX up → lobby up)");
+    Check(body.Material is { Name: "Chrome", IsMetal: true } m && Math.Abs(m.Roughness - 0.9f) < 1e-6 && m.Rgb.R > 0.85f && m.Rgb.B < 0.8f,
+        "10.8-style nested material read (metal, roughness, colour 0x00BBGGRR)");
+    Check(Math.Abs(cab.Min.Y) < 1e-5 && Math.Abs(cab.Max.Z - 0.7f) < 1e-5 && Math.Abs(cab.Min.X + cab.Max.X) < 1e-5,
+        "cabinet anchored: floor at 0, front edge at 0.7 m, centred across");
+}
+File.WriteAllText(Path.Combine(root, "desktop only.vpx"), "not a compound file");
+Check(VpxCabinet.Load(Path.Combine(root, "desktop only.vpx")) == null && VpxCabinet.Load(fakeVpx) == null,
+    "no VR cabinet (or a damaged file): null, so the lobby keeps its generic cabinet");
+var realCab = Directory.Exists(@"C:\Users\mikem\VPinball\Tables") ? Directory.GetFiles(@"C:\Users\mikem\VPinball\Tables", "*.vpx", SearchOption.AllDirectories).FirstOrDefault(f => f.Contains("Medieval Madness")) : null;
+if (realCab != null)
+{
+    var sw = System.Diagnostics.Stopwatch.StartNew();
+    var model = VpxCabinet.Load(realCab);
+    var size = model == null ? default : model.Max - model.Min;
+    Console.WriteLine($"this PC's Medieval Madness cabinet: {model?.Parts.Count} parts, {size.X:F2}x{size.Y:F2}x{size.Z:F2} m, {sw.ElapsedMilliseconds} ms");
+    Check(model != null && size.X is > 0.6f and < 0.9f && size.Y is > 1.7f and < 2.2f && model.Parts.Any(p => p.Name == "PinCab_Backglass"),
+        "a real VR table's cabinet comes out real-size (≈0.7 m wide, ≈1.9 m tall) with its backglass");
+}
+var realAfm = Directory.Exists(@"C:\Users\mikem\VPinball\Tables") ? Directory.GetFiles(@"C:\Users\mikem\VPinball\Tables", "*.vpx", SearchOption.AllDirectories).FirstOrDefault(f => f.Contains("Attack from Mars")) : null;
+if (realAfm != null)
+{
+    var pf = VpxImages.ExtractPlayfield(realAfm);
+    var pick = VpxImages.PickPlayfield(VpxImages.ListImages(realAfm), VpxImages.PlayfieldImageName(realAfm));
+    Console.WriteLine($"this PC's Attack from Mars: playfield '{pick?.Name}' {pick?.Width}x{pick?.Height}, {pf?.Length / 1024} KB");
+    Check(pf != null && pick!.Height >= 2048 && pf[0] == 0x89, "a real table gives its full-resolution playfield (≥ 2048 px tall)");
+}
+if (VpsCatalog.LoadCached() is { } cachedGames)
+{
+    var realIndex = LobbyArt.BackglassIndex(cachedGames);
+    Console.WriteLine($"cached VPS catalog: {cachedGames.Count} games, {realIndex.Count} with a backglass picture");
+    Check(realIndex.Count > 1000, "this PC's cached VPS catalog gives backglass pictures for most games");
+}
 var maker = LobbyNav.Apply(lib, "Manufacturer", lobbyState);
 Check(maker.Groups.Select(g => g.Label).SequenceEqual(["Bally", "Data East", "Gottlieb", "Stern", "Unknown", "Williams"]), "manufacturer groups");
 var decade = LobbyNav.Apply(lib, "Decade", lobbyState);

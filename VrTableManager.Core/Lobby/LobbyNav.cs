@@ -34,16 +34,17 @@ public static class LobbyNav
         }
         if (filter == "Manufacturer")
         {
-            var list = q.OrderBy(ManufacturerOf, StringComparer.OrdinalIgnoreCase).ThenBy(t => t.Title, StringComparer.OrdinalIgnoreCase).ToList();
+            var list = q.OrderBy(ManufacturerOf, StringComparer.OrdinalIgnoreCase).ThenBy(t => SortKey(t.Title), StringComparer.OrdinalIgnoreCase).ToList();
             return new(list, GroupsBy(list, ManufacturerOf));
         }
         if (filter == "Decade")
         {
-            var list = q.OrderBy(t => t.Year > 0 ? t.Year : 9999).ThenBy(t => t.Title, StringComparer.OrdinalIgnoreCase).ToList();
+            var list = q.OrderBy(t => t.Year > 0 ? t.Year : 9999).ThenBy(t => SortKey(t.Title), StringComparer.OrdinalIgnoreCase).ToList();
             return new(list, GroupsBy(list, DecadeOf));
         }
 
-        var sorted = q.OrderBy(t => t.Title, StringComparer.OrdinalIgnoreCase).ToList();
+        // Sorted the same way the rail files them ("The Getaway" under G), so each letter is one contiguous run.
+        var sorted = q.OrderBy(t => SortKey(t.Title), StringComparer.OrdinalIgnoreCase).ToList();
         var first = new int[Letters.Length];
         Array.Fill(first, -1);
         for (var i = 0; i < sorted.Count; i++)
@@ -63,6 +64,17 @@ public static class LobbyNav
             if (groups.Count == 0 || groups[^1].Label != k) groups.Add(new(k, i));
         }
         return groups;
+    }
+
+    /// <summary>
+    /// Sort key matching <see cref="LetterOf"/>: a leading "The " is ignored, and titles that file under
+    /// "#" sort before A, so every rail letter is one contiguous run of tables.
+    /// </summary>
+    public static string SortKey(string title)
+    {
+        var t = title.Trim();
+        if (t.StartsWith("The ", StringComparison.OrdinalIgnoreCase) && t.Length > 4) t = t[4..];
+        return LetterOf(t) == "#" ? "\u0001" + t : t;
     }
 
     /// <summary>"#" for titles starting with a digit or symbol. A leading "The " is skipped, so "The Addams Family" files under A.</summary>

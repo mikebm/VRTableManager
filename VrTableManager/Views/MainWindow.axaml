@@ -32,7 +32,7 @@
       <Setter Property="Background" Value="Transparent" />
     </Style>
     <Style Selector="ListBox.grid ListBoxItem:selected Border.tile">
-      <Setter Property="BorderBrush" Value="{StaticResource Cyan}" />
+      <Setter Property="BorderBrush" Value="{StaticResource Lamp}" />
       <Setter Property="BorderThickness" Value="2" />
     </Style>
     <Style Selector="PathIcon.search">
@@ -45,8 +45,16 @@
 
   <Grid RowDefinitions="*,Auto">
     <!-- Header bar behind the nav tabs -->
-    <Border Height="64" VerticalAlignment="Top" Background="#0A0E19"
-            BorderBrush="{StaticResource Line}" BorderThickness="0,0,0,1" />
+    <!-- Black lacquer with a chrome trim line, like a cabinet's lockbar edge -->
+    <Border Height="66" VerticalAlignment="Top">
+      <Border.Background>
+        <LinearGradientBrush StartPoint="0%,0%" EndPoint="0%,100%">
+          <GradientStop Offset="0" Color="#1A1A1D" />
+          <GradientStop Offset="1" Color="#0A0A0B" />
+        </LinearGradientBrush>
+      </Border.Background>
+    </Border>
+    <Border Height="2" Margin="0,64,0,0" VerticalAlignment="Top" Background="{StaticResource Chrome}" Opacity="0.55" />
 
     <TabControl Classes="nav">
       <TabControl.Styles>
@@ -64,32 +72,27 @@
             <StackPanel Margin="28,22,12,28" Spacing="20">
 
               <!-- Hero -->
-              <Border CornerRadius="16" ClipToBounds="True" BorderBrush="{StaticResource Line}" BorderThickness="1" Padding="32,28">
-                <Border.Background>
-                  <LinearGradientBrush StartPoint="0%,0%" EndPoint="100%,100%">
-                    <GradientStop Offset="0" Color="#121B33" />
-                    <GradientStop Offset="0.6" Color="#0C1222" />
-                    <GradientStop Offset="1" Color="#1A0E24" />
-                  </LinearGradientBrush>
-                </Border.Background>
-                <Grid ColumnDefinitions="*,Auto">
-                  <StackPanel Spacing="10" MaxWidth="640" HorizontalAlignment="Left">
-                    <TextBlock Classes="eyebrow" Text="VIRTUAL PINBALL SPREADSHEET · ONE-CLICK INSTALL" />
-                    <TextBlock Classes="display" Text="Get Tables" />
-                    <TextBlock Classes="body"
-                               Text="Every VPX and Future Pinball table on the Virtual Pinball Spreadsheet. Pick one, hit Install, and it's downloaded, unpacked and ready to play in your headset. Sign in to the table site once; the app does the clicking after that." />
-                  </StackPanel>
-                  <StackPanel Grid.Column="1" VerticalAlignment="Center" Spacing="2" Margin="24,0,8,0">
-                    <TextBlock FontFamily="{StaticResource Display}" FontWeight="Black" FontSize="40"
-                               Foreground="{StaticResource Cyan}" HorizontalAlignment="Right" Text="{Binding MatchCount, StringFormat='{}{0:N0}'}">
-                      <TextBlock.Effect>
-                        <DropShadowEffect Color="#4DE3FF" BlurRadius="18" OffsetX="0" OffsetY="0" Opacity="0.5" />
-                      </TextBlock.Effect>
-                    </TextBlock>
-                    <TextBlock Classes="mono" HorizontalAlignment="Right" Text="{Binding TotalCount, StringFormat='TABLES MATCH · OF {0:N0}'}" />
-                  </StackPanel>
-                </Grid>
-              </Border>
+              <Grid ColumnDefinitions="*,Auto">
+                <StackPanel Spacing="8" MaxWidth="660" HorizontalAlignment="Left" VerticalAlignment="Center">
+                  <TextBlock Classes="eyebrow" Text="VIRTUAL PINBALL SPREADSHEET · ONE-CLICK INSTALL" />
+                  <TextBlock Classes="display" Text="Get Tables" />
+                  <TextBlock Classes="body"
+                             Text="Every VPX and Future Pinball table on the Virtual Pinball Spreadsheet. Pick one, hit Install, and it's downloaded, unpacked and ready to play in your headset. Sign in to the table site once; the app does the clicking after that." />
+                </StackPanel>
+
+                <!-- The score display: count in dot-matrix plasma, dot grid showing through -->
+                <Border Grid.Column="1" Classes="dmd" Width="380" Height="150" Margin="24,0,4,0" ClipToBounds="True">
+                  <Grid>
+                    <Border Background="{StaticResource DmdDots}" />
+                    <StackPanel VerticalAlignment="Center" HorizontalAlignment="Center" Spacing="0">
+                      <TextBlock Classes="dmd" FontSize="72" HorizontalAlignment="Center" LineHeight="70"
+                                 Text="{Binding MatchCount, StringFormat='{}{0:N0}'}" />
+                      <TextBlock Classes="dmd" FontSize="17" LetterSpacing="2" HorizontalAlignment="Center"
+                                 Text="{Binding TotalCount, StringFormat='TABLES MATCH · OF {0:N0}'}" />
+                    </StackPanel>
+                  </Grid>
+                </Border>
+              </Grid>
 
               <!-- Toolbar -->
               <Grid>
@@ -132,8 +135,8 @@
                           <Image v:ImageLoader.Url="{Binding ImgUrl}" Stretch="UniformToFill" />
                           <Border Background="{StaticResource CardFade}" />
                           <StackPanel Orientation="Horizontal" Spacing="5" Margin="10" VerticalAlignment="Top">
-                            <Border Classes="chip solid" IsVisible="{Binding IsVr}"><TextBlock Text="VR" /></Border>
-                            <Border Classes="chip magenta" IsVisible="{Binding HasFp}"><TextBlock Text="FP" /></Border>
+                            <Border Classes="chip lit" IsVisible="{Binding IsVr}"><TextBlock Text="VR" /></Border>
+                            <Border Classes="chip hot" IsVisible="{Binding HasFp}"><TextBlock Text="FP" /></Border>
                           </StackPanel>
                           <Border Classes="chip green" Margin="10" HorizontalAlignment="Right" VerticalAlignment="Top"
                                   IsVisible="{Binding IsInstalled}">
@@ -169,13 +172,13 @@
                   <Border>
                     <Border.Background>
                       <LinearGradientBrush StartPoint="0%,0%" EndPoint="0%,100%">
-                        <GradientStop Offset="0.35" Color="#000E1424" />
-                        <GradientStop Offset="1" Color="#FF0E1424" />
+                        <GradientStop Offset="0.35" Color="#00141416" />
+                        <GradientStop Offset="1" Color="#FF141416" />
                       </LinearGradientBrush>
                     </Border.Background>
                   </Border>
                   <Button Classes="icon" Content="✕" HorizontalAlignment="Right" VerticalAlignment="Top" Margin="12"
-                          Background="#B3080B14" Command="{Binding CloseDetailsCommand}" />
+                          Background="#B30A0A0B" Command="{Binding CloseDetailsCommand}" />
                 </Grid>
 
                 <StackPanel Margin="24,0,24,28" Spacing="16">
@@ -183,8 +186,8 @@
                     <TextBlock Classes="h2" FontSize="22" Text="{Binding SelectedGame.Title}" TextWrapping="Wrap" />
                     <TextBlock Classes="muted" FontSize="13.5" Text="{Binding SelectedGame.MakerYear}" />
                     <StackPanel Orientation="Horizontal" Spacing="6" Margin="0,4,0,0">
-                      <Border Classes="chip solid" IsVisible="{Binding SelectedGame.IsVr}"><TextBlock Text="VR READY" /></Border>
-                      <Border Classes="chip magenta" IsVisible="{Binding SelectedGame.HasFp}"><TextBlock Text="FUTURE PINBALL" /></Border>
+                      <Border Classes="chip lit" IsVisible="{Binding SelectedGame.IsVr}"><TextBlock Text="VR READY" /></Border>
+                      <Border Classes="chip hot" IsVisible="{Binding SelectedGame.HasFp}"><TextBlock Text="FUTURE PINBALL" /></Border>
                       <Border Classes="chip green" IsVisible="{Binding SelectedGame.IsInstalled}"><TextBlock Text="INSTALLED" /></Border>
                     </StackPanel>
                   </StackPanel>
@@ -201,7 +204,7 @@
                                 CornerRadius="10" Padding="16">
                           <StackPanel Spacing="8">
                             <StackPanel Orientation="Horizontal" Spacing="6">
-                              <Border Classes="chip solid" IsVisible="{Binding IsVr}"><TextBlock Text="VR" /></Border>
+                              <Border Classes="chip lit" IsVisible="{Binding IsVr}"><TextBlock Text="VR" /></Border>
                               <Border Classes="chip"><TextBlock Text="{Binding Engine}" /></Border>
                             </StackPanel>
                             <TextBlock Classes="title" Text="{Binding Heading}" TextWrapping="Wrap" />
@@ -242,7 +245,7 @@
         <TabItem.Header>
           <StackPanel Orientation="Horizontal" Spacing="8">
             <TextBlock Text="MY TABLES" VerticalAlignment="Center" />
-            <Border Classes="chip magenta" Padding="6,1" VerticalAlignment="Center"
+            <Border Classes="chip hot" Padding="6,1" VerticalAlignment="Center"
                     IsVisible="{Binding TableUpdateCount, Converter={x:Static v:Converters.NonZero}}"
                     ToolTip.Tip="Table updates available">
               <TextBlock Text="{Binding TableUpdateCount}" />
@@ -256,17 +259,22 @@
                 <TextBlock Classes="eyebrow" Text="{Binding InstalledTotal, StringFormat='{}{0} INSTALLED'}" />
                 <TextBlock Classes="display" Text="My Tables" />
                 <TextBlock Classes="body" Text="Hit Play in VR, then put your headset on. This window gets out of the way and comes back when the table closes, so you can pick the next one." />
-                <TextBlock Foreground="{StaticResource Cyan}" FontWeight="SemiBold" Text="{Binding PlayStatus}"
+                <TextBlock Foreground="{StaticResource Lamp}" FontWeight="SemiBold" Text="{Binding PlayStatus}"
                            IsVisible="{Binding PlayStatus, Converter={x:Static StringConverters.IsNotNullOrEmpty}}" />
               </StackPanel>
-              <Button Grid.Column="1" VerticalAlignment="Bottom" Content="⟳  RESCAN" Command="{Binding RefreshInstalledCommand}" />
+              <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="10" VerticalAlignment="Bottom">
+                <Button Content="⟳  RESCAN" Command="{Binding RefreshInstalledCommand}" />
+                <Button Classes="primary" Content="◉  LAUNCH VR LOBBY" Command="{Binding LaunchLobbyCommand}"
+                        IsEnabled="{Binding !IsLobbyRunning}"
+                        ToolTip.Tip="Pick and play tables inside the headset. First time: downloads Godot (117 MB) and builds the lobby." />
+              </StackPanel>
             </Grid>
 
             <!-- Table updates banner -->
-            <Border CornerRadius="12" Padding="18,14" BorderBrush="{StaticResource Magenta}" BorderThickness="1" Background="#14F0287A"
+            <Border CornerRadius="12" Padding="18,14" BorderBrush="{StaticResource Insert}" BorderThickness="1" Background="#14E5483B"
                     IsVisible="{Binding TableUpdateCount, Converter={x:Static v:Converters.NonZero}}">
               <Grid ColumnDefinitions="Auto,*,Auto">
-                <TextBlock FontFamily="{StaticResource Display}" FontWeight="Black" FontSize="26" Foreground="{StaticResource Magenta}"
+                <TextBlock FontFamily="{StaticResource Display}" FontWeight="Black" FontSize="26" Foreground="{StaticResource Insert}"
                            Text="{Binding TableUpdateCount}" VerticalAlignment="Center" Margin="0,0,16,0" />
                 <StackPanel Grid.Column="1" VerticalAlignment="Center" Spacing="2">
                   <TextBlock Classes="title" Text="{Binding TableUpdateText}" />
@@ -309,9 +317,9 @@
                           <TextBlock Text="{Binding EngineBadge}" />
                         </Border>
                         <StackPanel Orientation="Horizontal" Spacing="5" Margin="10" HorizontalAlignment="Right" VerticalAlignment="Top">
-                          <Border Classes="chip magenta" IsVisible="{Binding IsIncomplete}"><TextBlock Text="INCOMPLETE" /></Border>
-                          <Border Classes="chip magenta" IsVisible="{Binding HasUpdate}"><TextBlock Text="UPDATE" /></Border>
-                          <Border Classes="chip magenta" IsVisible="{Binding NeedsRom}"><TextBlock Text="NEEDS ROM" /></Border>
+                          <Border Classes="chip hot" IsVisible="{Binding IsIncomplete}"><TextBlock Text="INCOMPLETE" /></Border>
+                          <Border Classes="chip hot" IsVisible="{Binding HasUpdate}"><TextBlock Text="UPDATE" /></Border>
+                          <Border Classes="chip hot" IsVisible="{Binding NeedsRom}"><TextBlock Text="NEEDS ROM" /></Border>
                         </StackPanel>
                       </Grid>
                       <StackPanel Margin="14,12,14,14" Spacing="4">
@@ -324,18 +332,18 @@
                                   Command="{ReflectionBinding $parent[Window].DataContext.ToggleFavouriteCommand}" CommandParameter="{Binding}" />
                         </Grid>
                         <TextBlock Classes="mono" Text="{Binding Subtitle}" TextTrimming="CharacterEllipsis" />
-                        <TextBlock Classes="mono" Foreground="{StaticResource Cyan}" Text="{Binding PlayInfo}" TextTrimming="CharacterEllipsis" />
+                        <TextBlock Classes="mono" Foreground="{StaticResource Lamp}" Text="{Binding PlayInfo}" TextTrimming="CharacterEllipsis" />
                         <TextBlock FontSize="12" Foreground="{StaticResource Orange}" Text="{Binding RomStatus}" TextWrapping="Wrap"
                                    IsVisible="{Binding NeedsRom}" />
                         <TextBlock Classes="muted" FontSize="11.5" TextWrapping="Wrap" Text="{Binding RomUnavailableText}"
                                    IsVisible="{Binding RomUnavailable}" />
                         <Grid ColumnDefinitions="*,Auto" Margin="0,4,0,0" IsVisible="{Binding HasUpdate}">
-                          <TextBlock FontSize="12" Foreground="{StaticResource Magenta}" FontWeight="SemiBold" Text="{Binding UpdateLabel}"
+                          <TextBlock FontSize="12" Foreground="{StaticResource Insert}" FontWeight="SemiBold" Text="{Binding UpdateLabel}"
                                      TextWrapping="Wrap" VerticalAlignment="Center" />
                           <Button Grid.Column="1" Classes="small" Content="UPDATE" Margin="8,0,0,0"
                                   IsEnabled="{Binding !IsBusy}" Command="{ReflectionBinding $parent[Window].DataContext.UpdateTableCommand}" CommandParameter="{Binding}" />
                         </Grid>
-                        <TextBlock FontSize="12" Foreground="{StaticResource Magenta}" TextWrapping="Wrap" IsVisible="{Binding IsIncomplete}"
+                        <TextBlock FontSize="12" Foreground="{StaticResource Insert}" TextWrapping="Wrap" IsVisible="{Binding IsIncomplete}"
                                    Text="This install was cut off before it finished, so files may be missing. Reinstall it." />
                         <Button Classes="primary" Content="⟳  REINSTALL" Margin="0,8,0,0" IsVisible="{Binding IsIncomplete}"
                                 HorizontalAlignment="Stretch" HorizontalContentAlignment="Center"
@@ -380,7 +388,7 @@
             <StackPanel Spacing="8" Margin="0,0,0,6">
               <TextBlock Classes="eyebrow" Text="GET YOUR QUEST 3 READY" />
               <TextBlock Classes="display" Text="Setup" />
-              <TextBlock Classes="body" Text="Steps 1 to 3 are all you need for VPX. Future Pinball and Pinball FX are optional extras." />
+              <TextBlock Classes="body" Text="Steps 1 to 3 are all you need for VPX. Future Pinball, Pinball FX and Pinball M are optional extras." />
             </StackPanel>
 
             <!-- Updates -->
@@ -390,7 +398,7 @@
                   <StackPanel Spacing="4" VerticalAlignment="Center">
                     <StackPanel Orientation="Horizontal" Spacing="10">
                       <TextBlock Classes="h2" Text="Updates" />
-                      <Border Classes="chip magenta" VerticalAlignment="Center"
+                      <Border Classes="chip hot" VerticalAlignment="Center"
                               IsVisible="{Binding UpdateCount, Converter={x:Static v:Converters.NonZero}}">
                         <TextBlock Text="{Binding UpdateCount, StringFormat='{}{0} AVAILABLE'}" />
                       </Border>
@@ -409,7 +417,7 @@
                     <Style Selector="Grid > TextBlock.k">
                       <Setter Property="FontFamily" Value="{StaticResource Display}" />
                       <Setter Property="FontWeight" Value="Bold" />
-                      <Setter Property="FontSize" Value="10.5" />
+                      <Setter Property="FontSize" Value="14" />
                       <Setter Property="LetterSpacing" Value="1.4" />
                       <Setter Property="Foreground" Value="{StaticResource Muted}" />
                       <Setter Property="VerticalAlignment" Value="Center" />
@@ -452,7 +460,7 @@
             <!-- 01 VPX -->
             <Border Classes="panel">
               <Grid ColumnDefinitions="72,*">
-                <TextBlock Classes="display" FontSize="28" Foreground="{StaticResource Cyan}" Text="01" />
+                <TextBlock Classes="display" FontSize="28" Foreground="{StaticResource Lamp}" Text="01" />
                 <StackPanel Grid.Column="1" Spacing="10">
                   <TextBlock Classes="h2" Text="Visual Pinball X" />
                   <TextBlock Classes="body" Foreground="{StaticResource Text}" Text="{Binding VpxStatus}" />
@@ -471,7 +479,7 @@
             <!-- 02 Headset -->
             <Border Classes="panel">
               <Grid ColumnDefinitions="72,*">
-                <TextBlock Classes="display" FontSize="28" Foreground="{StaticResource Cyan}" Text="02" />
+                <TextBlock Classes="display" FontSize="28" Foreground="{StaticResource Lamp}" Text="02" />
                 <StackPanel Grid.Column="1" Spacing="10">
                   <TextBlock Classes="h2" Text="Quest 3 connection" />
                   <TextBlock Classes="body"
@@ -489,7 +497,7 @@
             <!-- 03 Sign in -->
             <Border Classes="panel">
               <Grid ColumnDefinitions="72,*">
-                <TextBlock Classes="display" FontSize="28" Foreground="{StaticResource Cyan}" Text="03" />
+                <TextBlock Classes="display" FontSize="28" Foreground="{StaticResource Lamp}" Text="03" />
                 <StackPanel Grid.Column="1" Spacing="10">
                   <TextBlock Classes="h2" Text="Sign in to table sites" />
                   <TextBlock Classes="body"
@@ -506,7 +514,7 @@
             <!-- 04 Future Pinball -->
             <Border Classes="panel">
               <Grid ColumnDefinitions="72,*">
-                <TextBlock Classes="display" FontSize="28" Foreground="{StaticResource Magenta}" Text="04" />
+                <TextBlock Classes="display" FontSize="28" Foreground="{StaticResource Insert}" Text="04" />
                 <StackPanel Grid.Column="1" Spacing="10">
                   <StackPanel Orientation="Horizontal" Spacing="10">
                     <TextBlock Classes="h2" Text="Future Pinball" />
@@ -531,7 +539,7 @@
             <!-- 05 Pinball FX -->
             <Border Classes="panel">
               <Grid ColumnDefinitions="72,*">
-                <TextBlock Classes="display" FontSize="28" Foreground="{StaticResource Magenta}" Text="05" />
+                <TextBlock Classes="display" FontSize="28" Foreground="{StaticResource Insert}" Text="05" />
                 <StackPanel Grid.Column="1" Spacing="10">
                   <StackPanel Orientation="Horizontal" Spacing="10">
                     <TextBlock Classes="h2" Text="Pinball FX &amp; Pinball M through UEVR" />
@@ -563,7 +571,7 @@
 
                   <TextBlock Classes="eyebrow" Foreground="{StaticResource Muted}" Text="PINBALL FX" Margin="0,6,0,0" />
                   <TextBlock Classes="body" Foreground="{StaticResource Text}" Text="{Binding PfxStatus}" />
-                  <TextBlock Classes="body" Foreground="{StaticResource Cyan}" Text="{Binding PfxProfileStatus}" />
+                  <TextBlock Classes="body" Foreground="{StaticResource Lamp}" Text="{Binding PfxProfileStatus}" />
                   <WrapPanel>
                     <Button Classes="small" Content="RESET TO PINBALL DEFAULTS" Margin="0,0,8,8" Command="{Binding ApplyPinballProfileCommand}" CommandParameter="PFX" />
                     <Button Classes="small" Content="RESTORE MY ORIGINAL" Margin="0,0,8,8" IsVisible="{Binding PfxHasUevrBackup}" Command="{Binding RestoreUevrOriginalCommand}" CommandParameter="PFX" />
@@ -573,7 +581,7 @@
 
                   <TextBlock Classes="eyebrow" Foreground="{StaticResource Muted}" Text="PINBALL M" Margin="0,6,0,0" />
                   <TextBlock Classes="body" Foreground="{StaticResource Text}" Text="{Binding PmStatus}" />
-                  <TextBlock Classes="body" Foreground="{StaticResource Cyan}" Text="{Binding PmProfileStatus}" />
+                  <TextBlock Classes="body" Foreground="{StaticResource Lamp}" Text="{Binding PmProfileStatus}" />
                   <WrapPanel>
                     <Button Classes="small" Content="RESET TO PINBALL DEFAULTS" Margin="0,0,8,8" Command="{Binding ApplyPinballProfileCommand}" CommandParameter="PM" />
                     <Button Classes="small" Content="RESTORE MY ORIGINAL" Margin="0,0,8,8" IsVisible="{Binding PmHasUevrBackup}" Command="{Binding RestoreUevrOriginalCommand}" CommandParameter="PM" />
@@ -627,20 +635,14 @@
                 HorizontalAlignment="Left" IsHitTestVisible="False">
       <Image Source="/Assets/app-icon.png" Width="42" Height="42" VerticalAlignment="Center"
              RenderOptions.BitmapInterpolationMode="HighQuality" />
-      <StackPanel VerticalAlignment="Center" Spacing="0">
-        <TextBlock FontFamily="{StaticResource Display}" FontWeight="Black" FontSize="15" LetterSpacing="2.4"
-                   Foreground="{StaticResource Cyan}" Text="VR TABLE">
-          <TextBlock.Effect>
-            <DropShadowEffect Color="#4DE3FF" BlurRadius="12" OffsetX="0" OffsetY="0" Opacity="0.55" />
-          </TextBlock.Effect>
-        </TextBlock>
-        <TextBlock FontFamily="{StaticResource Display}" FontWeight="Bold" FontSize="10" LetterSpacing="4.6"
-                   Foreground="{StaticResource Magenta}" Text="MANAGER" />
+      <StackPanel Orientation="Horizontal" VerticalAlignment="Center" Spacing="8">
+        <TextBlock FontFamily="{StaticResource Display}" FontWeight="Black" FontSize="26" LetterSpacing="1.2"
+                   VerticalAlignment="Center" Foreground="{StaticResource Text}" Text="TABLE MANAGER" />
       </StackPanel>
     </StackPanel>
 
     <!-- Downloads tray: installs and updates from any tab -->
-    <Border Grid.Row="1" Background="#0A0E19" BorderBrush="{StaticResource Line}" BorderThickness="0,1,0,0"
+    <Border Grid.Row="1" Background="#0E0E10" BorderBrush="{StaticResource Line}" BorderThickness="0,1,0,0"
             Padding="28,14" MaxHeight="220"
             IsVisible="{Binding Jobs.Count, Converter={x:Static v:Converters.NonZero}}">
       <DockPanel>

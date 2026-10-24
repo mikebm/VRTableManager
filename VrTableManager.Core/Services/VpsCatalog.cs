@@ -18,6 +18,25 @@ public static class VpsCatalog
 
     static string CachePath => Path.Combine(AppSettings.DataDir, "vpsdb.json");
 
+    /// <summary>
+    /// Every game in the already-downloaded catalog, with no network access and no filtering
+    /// (the VR lobby uses it for backglass art). Null when there's no cache yet or it can't be read.
+    /// </summary>
+    public static List<VpsGame>? LoadCached(string? path = null)
+    {
+        path ??= CachePath;
+        try
+        {
+            if (!File.Exists(path)) return null;
+            using var stream = File.OpenRead(path);
+            return JsonSerializer.Deserialize<List<VpsGame>>(stream, Json);
+        }
+        catch
+        {
+            return null;
+        }
+    }
+
     public static async Task<List<VpsGame>> LoadAsync(bool forceRefresh, CancellationToken ct = default)
     {
         var cacheFresh = File.Exists(CachePath) && DateTime.UtcNow - File.GetLastWriteTimeUtc(CachePath) < MaxAge;
