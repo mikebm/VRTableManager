@@ -146,5 +146,5 @@ public static class Converters
     public static readonly IValueConverter IsZero = new FuncValueConverter<int, bool>(n => n == 0);
     public static readonly IValueConverter Star = new FuncValueConverter<bool, string>(on => on ? "★" : "☆");
     public static readonly IValueConverter StarBrush =
-        new FuncValueConverter<bool, IBrush>(on => on ? new SolidColorBrush(Color.Parse("#FFB547")) : new SolidColorBrush(Color.Parse("#8C96AD")));
+        new FuncValueConverter<bool, IBrush>(on => on ? new SolidColorBrush(Color.Parse("#FFB547")) : new SolidColorBrush(Color.Parse("#9B9BA4")));
 }

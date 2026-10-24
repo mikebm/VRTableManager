@@ -620,6 +620,83 @@ public sealed partial class MainViewModel : ObservableObject, IAsyncDisposable
         return pick is 0 or 1;
     }
 
+    // ---- VR lobby ------------------------------------------------------------------
+
+    [ObservableProperty] public partial bool IsLobbyRunning { get; set; }
+
+    /// <summary>
+    /// One click: get Godot (first time), rebuild the lobby if its code changed, start it, and get
+    /// out of the way until you're done. The lobby quits while a table runs (handing the headset to
+    /// the table) and is restarted afterwards, so this waits until neither is running.
+    /// </summary>
+    [RelayCommand]
+    async Task LaunchLobbyAsync()
+    {
+        if (IsLobbyRunning) return;
+        var lobbyDir = LobbyRunner.FindLobbyDir();
+        if (lobbyDir == null)
+        {
+            PlayStatus = "Couldn't find the VrLobby project next to this app.";
+            return;
+        }
+        if (!await EnsureHeadsetAsync()) { PlayStatus = ""; return; }
+
+        IsLobbyRunning = true;
+        var job = new JobItem("VR lobby");
+        Jobs.Insert(0, job);
+        var hidden = false;
+        try
+        {
+            var godot = await LobbyRunner.EnsureGodotAsync(job.ProgressReporter, job.Report, job.Cts.Token);
+            if (LobbyRunner.NeedsBuild(lobbyDir)) await LobbyRunner.BuildAsync(lobbyDir, job.Report, job.Cts.Token);
+            await LobbyRunner.ImportIfNeededAsync(godot, lobbyDir, job.Report, job.Cts.Token);
+
+            using var lobby = LobbyRunner.Start(godot, lobbyDir);
+            job.Finish("✓ Lobby started. Put your headset on; this window comes back when you quit the lobby.");
+            PlayStatus = "VR lobby running…";
+            _ui.HideForPlay();
+            hidden = true;
+            await WaitForLobbySessionAsync(lobby, Path.GetFileNameWithoutExtension(godot));
+            PlayStatus = "Back from the VR lobby.";
+        }
+        catch (OperationCanceledException) { job.Finish("Cancelled", error: true); }
+        catch (Exception e)
+        {
+            job.Finish("Couldn't start the lobby: " + e.Message, error: true);
+            PlayStatus = "";
+        }
+        finally
+        {
+            IsLobbyRunning = false;
+            if (hidden) _ui.ShowAfterPlay();
+            RefreshInstalled(); // favourites and plays may have changed in the lobby
+        }
+    }
+
+    /// <summary>Waits for the lobby to exit, then keeps waiting while a table it launched (and the lobby it restarts) runs.</summary>
+    static async Task WaitForLobbySessionAsync(System.Diagnostics.Process lobby, string godotProcessName)
+    {
+        var lobbyStarted = lobby.StartTime;
+        await lobby.WaitForExitAsync();
+        var self = Environment.ProcessId;
+        bool StartedSinceLobby(System.Diagnostics.Process p)
+        {
+            try { return p.Id != self && p.StartTime >= lobbyStarted; } catch { return false; }
+        }
+        bool Busy() =>
+            System.Diagnostics.Process.GetProcessesByName(godotProcessName).Length > 0
+            // "VrTableManager.exe --play …" is how the lobby launches a table (another manager window
+            // you opened yourself started earlier, so it doesn't count).
+            || System.Diagnostics.Process.GetProcessesByName("VrTableManager").Any(StartedSinceLobby);
+        // Allow a few seconds for the hand-over between the lobby quitting and the table (or lobby) starting.
+        var idleSince = DateTime.UtcNow;
+        while (DateTime.UtcNow - idleSince < TimeSpan.FromSeconds(4))
+        {
+            await Task.Delay(500);
+            if (Busy()) idleSince = DateTime.UtcNow;
+        }
+    }
+
     void TrySaveStats(Action<PlayStats> change)
     {
         try { _stats = PlayStats.Mutate(change); }

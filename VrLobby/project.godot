@@ -8,6 +8,7 @@ config/name="VR Pinball Lobby"
 config/description="Pick a table in VR, play it, come back."
 run/main_scene="res://main.tscn"
 config/features=PackedStringArray("4.7", "C#", "Mobile")
+config/icon="res://icon.png"
 
 [display]
 
@@ -21,6 +22,10 @@ project/assembly_name="VrLobby"
 [rendering]
 
 renderer/rendering_method="mobile"
+; 4x MSAA: smooth cabinet edges and neon lines (cheap on a PC GPU, also applies in the headset).
+anti_aliasing/quality/msaa_3d=2
+; 16x anisotropic filtering: playfields stay sharp when seen at a low angle.
+textures/default_filters/anisotropic_filtering_level=4
 
 [xr]
 

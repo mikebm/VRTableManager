@@ -3,45 +3,75 @@
              x:Class="VrTableManager.App"
              RequestedThemeVariant="Dark">
 
-  <!-- Arcade / synthwave look, after vpxtablemanager.com:
-       near-black navy, cyan accent, magenta highlights, Orbitron headings, Manrope body. -->
+  <!-- "DMD & lamps": the look of a real machine, not a website.
+       Cabinet black and charcoal; the orange plasma dot-matrix display (DMD) for counts and big
+       headings; incandescent lamp amber for anything lit or selected; playfield-insert colours
+       (blue, red, green) for badges; chrome-lockbar main buttons.
+       Type: Doto (dot matrix), Big Shoulders Display (drawn for Chicago, home of Williams, Bally
+       and Gottlieb) for headings, Archivo for text, JetBrains Mono for details. -->
   <Application.Resources>
-    <FontFamily x:Key="Display">avares://VrTableManager/Assets/Fonts#Orbitron</FontFamily>
-    <FontFamily x:Key="Body">avares://VrTableManager/Assets/Fonts#Manrope</FontFamily>
+    <FontFamily x:Key="DmdFont">avares://VrTableManager/Assets/Fonts#Doto</FontFamily>
+    <FontFamily x:Key="Display">avares://VrTableManager/Assets/Fonts#Big Shoulders Display</FontFamily>
+    <FontFamily x:Key="Body">avares://VrTableManager/Assets/Fonts#Archivo</FontFamily>
     <FontFamily x:Key="Mono">avares://VrTableManager/Assets/Fonts#JetBrains Mono</FontFamily>
 
-    <Color x:Key="BgColor">#080B14</Color>
-    <SolidColorBrush x:Key="Bg" Color="#080B14" />
-    <SolidColorBrush x:Key="Surface" Color="#0E1424" />
-    <SolidColorBrush x:Key="SurfaceHi" Color="#141C30" />
-    <SolidColorBrush x:Key="Line" Color="#1E2840" />
-    <SolidColorBrush x:Key="LineHi" Color="#2C3956" />
-    <SolidColorBrush x:Key="Text" Color="#E6EBF5" />
-    <SolidColorBrush x:Key="Muted" Color="#8C96AD" />
-    <SolidColorBrush x:Key="Cyan" Color="#4DE3FF" />
-    <SolidColorBrush x:Key="CyanSoft" Color="#144DE3FF" />
-    <SolidColorBrush x:Key="Magenta" Color="#F0287A" />
-    <SolidColorBrush x:Key="Green" Color="#5CF2A0" />
-    <SolidColorBrush x:Key="Orange" Color="#FFB547" />
-    <SolidColorBrush x:Key="Red" Color="#FF5C7A" />
+    <!-- Cabinet: neutral black and charcoal, so the lamps and display are the only warm light -->
+    <Color x:Key="BgColor">#0A0A0B</Color>
+    <SolidColorBrush x:Key="Bg" Color="#0A0A0B" />
+    <SolidColorBrush x:Key="Surface" Color="#141416" />
+    <SolidColorBrush x:Key="SurfaceHi" Color="#1E1E21" />
+    <SolidColorBrush x:Key="Line" Color="#2A2A2F" />
+    <SolidColorBrush x:Key="LineHi" Color="#3D3D44" />
+    <SolidColorBrush x:Key="Text" Color="#EEEEF1" />
+    <SolidColorBrush x:Key="Muted" Color="#9B9BA4" />
+
+    <!-- Lamps, display and inserts -->
+    <SolidColorBrush x:Key="Lamp" Color="#FFB23E" />
+    <SolidColorBrush x:Key="LampSoft" Color="#1FFFB23E" />
+    <SolidColorBrush x:Key="Dmd" Color="#FF7A1F" />
+    <SolidColorBrush x:Key="DmdPanel" Color="#120803" />
+    <SolidColorBrush x:Key="Insert" Color="#E5483B" />
+    <SolidColorBrush x:Key="Blue" Color="#3F95E8" />
+    <SolidColorBrush x:Key="Green" Color="#63C46E" />
+    <SolidColorBrush x:Key="Orange" Color="#FF9F43" />
+    <SolidColorBrush x:Key="Red" Color="#F0564A" />
+
+    <!-- Chrome lockbar -->
+    <LinearGradientBrush x:Key="Chrome" StartPoint="0%,0%" EndPoint="0%,100%">
+      <GradientStop Offset="0" Color="#FBFCFD" />
+      <GradientStop Offset="0.42" Color="#CBD1D7" />
+      <GradientStop Offset="0.5" Color="#9AA2AB" />
+      <GradientStop Offset="1" Color="#E3E7EB" />
+    </LinearGradientBrush>
+    <LinearGradientBrush x:Key="ChromeHot" StartPoint="0%,0%" EndPoint="0%,100%">
+      <GradientStop Offset="0" Color="#FFFFFF" />
+      <GradientStop Offset="0.42" Color="#E2E6EA" />
+      <GradientStop Offset="0.5" Color="#B6BDC4" />
+      <GradientStop Offset="1" Color="#F2F4F6" />
+    </LinearGradientBrush>
+
+    <!-- The DMD's dot grid, tiled over display panels (drawn by tools/IconGen). -->
+    <ImageBrush x:Key="DmdDots" Source="/Assets/dmd-dots.png" TileMode="Tile" Stretch="None"
+                DestinationRect="0,0,6,6" />
+
     <LinearGradientBrush x:Key="Stripes" StartPoint="0%,0%" EndPoint="4%,4%" SpreadMethod="Repeat">
-      <GradientStop Offset="0" Color="#10172A" />
-      <GradientStop Offset="0.5" Color="#10172A" />
-      <GradientStop Offset="0.5" Color="#0C1222" />
-      <GradientStop Offset="1" Color="#0C1222" />
+      <GradientStop Offset="0" Color="#18181B" />
+      <GradientStop Offset="0.5" Color="#18181B" />
+      <GradientStop Offset="0.5" Color="#121214" />
+      <GradientStop Offset="1" Color="#121214" />
     </LinearGradientBrush>
     <LinearGradientBrush x:Key="CardFade" StartPoint="0%,0%" EndPoint="0%,100%">
-      <GradientStop Offset="0.55" Color="#00080B14" />
-      <GradientStop Offset="1" Color="#E6080B14" />
+      <GradientStop Offset="0.55" Color="#000A0A0B" />
+      <GradientStop Offset="1" Color="#E60A0A0B" />
     </LinearGradientBrush>
   </Application.Resources>
 
   <Application.Styles>
     <FluentTheme>
       <FluentTheme.Palettes>
-        <ColorPaletteResources x:Key="Dark" Accent="#4DE3FF" RegionColor="#080B14" BaseHigh="#E6EBF5"
-                               ChromeMediumLow="#0E1424" ChromeMedium="#141C30" ChromeLow="#0E1424"
-                               AltHigh="#080B14" ErrorText="#FF5C7A" />
+        <ColorPaletteResources x:Key="Dark" Accent="#FFB23E" RegionColor="#0A0A0B" BaseHigh="#EEEEF1"
+                               ChromeMediumLow="#141416" ChromeMedium="#1E1E21" ChromeLow="#141416"
+                               AltHigh="#0A0A0B" ErrorText="#F0564A" />
       </FluentTheme.Palettes>
     </FluentTheme>
 
@@ -55,25 +85,33 @@
     <Style Selector="TextBlock.display">
       <Setter Property="FontFamily" Value="{StaticResource Display}" />
       <Setter Property="FontWeight" Value="Black" />
-      <Setter Property="FontSize" Value="34" />
-      <Setter Property="LetterSpacing" Value="1.4" />
+      <Setter Property="FontSize" Value="50" />
+      <Setter Property="LetterSpacing" Value="0.5" />
+    </Style>
+    <Style Selector="TextBlock.dmd">
+      <Setter Property="FontFamily" Value="{StaticResource DmdFont}" />
+      <Setter Property="FontWeight" Value="Black" />
+      <Setter Property="Foreground" Value="{StaticResource Dmd}" />
+      <Setter Property="Effect">
+        <DropShadowEffect Color="#FF6A00" BlurRadius="14" OffsetX="0" OffsetY="0" Opacity="0.65" />
+      </Setter>
     </Style>
     <Style Selector="TextBlock.h2">
       <Setter Property="FontFamily" Value="{StaticResource Display}" />
-      <Setter Property="FontWeight" Value="Bold" />
-      <Setter Property="FontSize" Value="17" />
-      <Setter Property="LetterSpacing" Value="1" />
+      <Setter Property="FontWeight" Value="ExtraBold" />
+      <Setter Property="FontSize" Value="25" />
+      <Setter Property="LetterSpacing" Value="0.4" />
     </Style>
     <Style Selector="TextBlock.eyebrow">
       <Setter Property="FontFamily" Value="{StaticResource Display}" />
       <Setter Property="FontWeight" Value="Bold" />
-      <Setter Property="FontSize" Value="10" />
-      <Setter Property="LetterSpacing" Value="2" />
-      <Setter Property="Foreground" Value="{StaticResource Cyan}" />
+      <Setter Property="FontSize" Value="14" />
+      <Setter Property="LetterSpacing" Value="2.4" />
+      <Setter Property="Foreground" Value="{StaticResource Lamp}" />
     </Style>
     <Style Selector="TextBlock.title">
       <Setter Property="FontWeight" Value="Bold" />
-      <Setter Property="FontSize" Value="14" />
+      <Setter Property="FontSize" Value="14.5" />
     </Style>
     <Style Selector="TextBlock.muted">
       <Setter Property="Foreground" Value="{StaticResource Muted}" />
@@ -85,7 +123,7 @@
       <Setter Property="Foreground" Value="{StaticResource Muted}" />
     </Style>
     <Style Selector="TextBlock.body">
-      <Setter Property="Foreground" Value="#B9C2D6" />
+      <Setter Property="Foreground" Value="#C8C8CF" />
       <Setter Property="FontSize" Value="13.5" />
       <Setter Property="LineHeight" Value="21" />
       <Setter Property="TextWrapping" Value="Wrap" />
@@ -96,8 +134,16 @@
       <Setter Property="Background" Value="{StaticResource Surface}" />
       <Setter Property="BorderBrush" Value="{StaticResource Line}" />
       <Setter Property="BorderThickness" Value="1" />
-      <Setter Property="CornerRadius" Value="12" />
+      <Setter Property="CornerRadius" Value="10" />
       <Setter Property="Padding" Value="20" />
+    </Style>
+    <!-- A DMD: dark plasma glass with its dot grid showing. -->
+    <Style Selector="Border.dmd">
+      <Setter Property="Background" Value="{StaticResource DmdPanel}" />
+      <Setter Property="BorderBrush" Value="#3A2412" />
+      <Setter Property="BorderThickness" Value="2" />
+      <Setter Property="CornerRadius" Value="8" />
+      <Setter Property="BoxShadow" Value="inset 0 0 40 0 #000000" />
     </Style>
     <Style Selector="Border.tile">
       <Setter Property="Background" Value="{StaticResource Surface}" />
@@ -109,56 +155,77 @@
       <Setter Property="Transitions">
         <Transitions>
           <BrushTransition Property="BorderBrush" Duration="0:0:0.15" />
-          <TransformOperationsTransition Property="RenderTransform" Duration="0:0:0.15" />
         </Transitions>
       </Setter>
     </Style>
+    <!-- Hover lights the card's edge like a lamp. No lift: in the grid there's no room above the
+         top row, so moving the card up clipped its top border. -->
     <Style Selector="Border.tile:pointerover">
-      <Setter Property="BorderBrush" Value="{StaticResource Cyan}" />
-      <Setter Property="RenderTransform" Value="translateY(-3px)" />
+      <Setter Property="BorderBrush" Value="{StaticResource Lamp}" />
+      <Setter Property="BoxShadow" Value="0 0 16 0 #59FFB23E" />
     </Style>
 
-    <!-- Small uppercase chips: VR / FP / INSTALLED / features -->
+    <!-- Badges look like lit round playfield inserts. -->
     <Style Selector="Border.chip">
-      <Setter Property="CornerRadius" Value="5" />
-      <Setter Property="Padding" Value="7,3" />
-      <Setter Property="Background" Value="{StaticResource CyanSoft}" />
-      <Setter Property="BorderBrush" Value="{StaticResource Cyan}" />
+      <Setter Property="CornerRadius" Value="99" />
+      <Setter Property="Padding" Value="9,3" />
+      <Setter Property="Background" Value="{StaticResource LampSoft}" />
+      <Setter Property="BorderBrush" Value="{StaticResource Lamp}" />
       <Setter Property="BorderThickness" Value="1" />
     </Style>
     <Style Selector="Border.chip > TextBlock">
       <Setter Property="FontFamily" Value="{StaticResource Display}" />
-      <Setter Property="FontWeight" Value="Bold" />
-      <Setter Property="FontSize" Value="9" />
+      <Setter Property="FontWeight" Value="ExtraBold" />
+      <Setter Property="FontSize" Value="12" />
       <Setter Property="LetterSpacing" Value="1.2" />
-      <Setter Property="Foreground" Value="{StaticResource Cyan}" />
+      <Setter Property="Foreground" Value="{StaticResource Lamp}" />
     </Style>
-    <Style Selector="Border.chip.solid">
-      <Setter Property="Background" Value="{StaticResource Cyan}" />
+    <Style Selector="Border.chip.lit">
+      <Setter Property="BorderBrush" Value="#9CCBF7" />
+      <Setter Property="BoxShadow" Value="0 0 10 0 #993F95E8" />
+      <Setter Property="Background">
+        <RadialGradientBrush>
+          <GradientStop Offset="0" Color="#7FB8F2" />
+          <GradientStop Offset="1" Color="#2A78C8" />
+        </RadialGradientBrush>
+      </Setter>
     </Style>
-    <Style Selector="Border.chip.solid > TextBlock">
-      <Setter Property="Foreground" Value="#061018" />
+    <Style Selector="Border.chip.lit > TextBlock">
+      <Setter Property="Foreground" Value="White" />
     </Style>
-    <Style Selector="Border.chip.magenta">
-      <Setter Property="Background" Value="{StaticResource Magenta}" />
-      <Setter Property="BorderBrush" Value="{StaticResource Magenta}" />
+    <Style Selector="Border.chip.hot">
+      <Setter Property="BorderBrush" Value="#F7A79F" />
+      <Setter Property="BoxShadow" Value="0 0 10 0 #99E5483B" />
+      <Setter Property="Background">
+        <RadialGradientBrush>
+          <GradientStop Offset="0" Color="#F2786D" />
+          <GradientStop Offset="1" Color="#C2342A" />
+        </RadialGradientBrush>
+      </Setter>
     </Style>
-    <Style Selector="Border.chip.magenta > TextBlock">
+    <Style Selector="Border.chip.hot > TextBlock">
       <Setter Property="Foreground" Value="White" />
     </Style>
     <Style Selector="Border.chip.green">
-      <Setter Property="Background" Value="#1A5CF2A0" />
-      <Setter Property="BorderBrush" Value="{StaticResource Green}" />
+      <Setter Property="BorderBrush" Value="#A9E2AF" />
+      <Setter Property="BoxShadow" Value="0 0 10 0 #9963C46E" />
+      <Setter Property="Background">
+        <RadialGradientBrush>
+          <GradientStop Offset="0" Color="#8CD894" />
+          <GradientStop Offset="1" Color="#3E9A49" />
+        </RadialGradientBrush>
+      </Setter>
     </Style>
     <Style Selector="Border.chip.green > TextBlock">
-      <Setter Property="Foreground" Value="{StaticResource Green}" />
+      <Setter Property="Foreground" Value="#0E2410" />
     </Style>
     <Style Selector="Border.chip.quiet">
       <Setter Property="Background" Value="{StaticResource SurfaceHi}" />
       <Setter Property="BorderBrush" Value="{StaticResource LineHi}" />
+      <Setter Property="BoxShadow" Value="none" />
     </Style>
     <Style Selector="Border.chip.quiet > TextBlock">
-      <Setter Property="Foreground" Value="#AEB8CC" />
+      <Setter Property="Foreground" Value="#C4C4CB" />
       <Setter Property="FontFamily" Value="{StaticResource Body}" />
       <Setter Property="FontSize" Value="11" />
       <Setter Property="LetterSpacing" Value="0" />
@@ -169,48 +236,47 @@
     <Style Selector="Button">
       <Setter Property="FontFamily" Value="{StaticResource Display}" />
       <Setter Property="FontWeight" Value="Bold" />
-      <Setter Property="FontSize" Value="10.5" />
-      <Setter Property="LetterSpacing" Value="1.2" />
-      <Setter Property="CornerRadius" Value="8" />
-      <Setter Property="Padding" Value="16,10" />
-      <Setter Property="Background" Value="Transparent" />
+      <Setter Property="FontSize" Value="15" />
+      <Setter Property="LetterSpacing" Value="1.3" />
+      <Setter Property="CornerRadius" Value="6" />
+      <Setter Property="Padding" Value="16,8" />
+      <Setter Property="Background" Value="{StaticResource Surface}" />
       <Setter Property="BorderBrush" Value="{StaticResource LineHi}" />
       <Setter Property="BorderThickness" Value="1" />
       <Setter Property="Foreground" Value="{StaticResource Text}" />
       <Setter Property="Cursor" Value="Hand" />
     </Style>
     <Style Selector="Button:pointerover /template/ ContentPresenter#PART_ContentPresenter">
-      <Setter Property="Background" Value="{StaticResource CyanSoft}" />
-      <Setter Property="BorderBrush" Value="{StaticResource Cyan}" />
-      <Setter Property="Foreground" Value="{StaticResource Cyan}" />
+      <Setter Property="Background" Value="{StaticResource LampSoft}" />
+      <Setter Property="BorderBrush" Value="{StaticResource Lamp}" />
+      <Setter Property="Foreground" Value="{StaticResource Lamp}" />
     </Style>
     <Style Selector="Button:pressed /template/ ContentPresenter#PART_ContentPresenter">
-      <Setter Property="Background" Value="#264DE3FF" />
+      <Setter Property="Background" Value="#33FFB23E" />
     </Style>
     <Style Selector="Button:disabled /template/ ContentPresenter#PART_ContentPresenter">
       <Setter Property="Background" Value="Transparent" />
       <Setter Property="Opacity" Value="0.4" />
     </Style>
 
+    <!-- Main actions: a chrome lockbar. -->
     <Style Selector="Button.primary">
-      <Setter Property="Background" Value="{StaticResource Cyan}" />
-      <Setter Property="BorderBrush" Value="{StaticResource Cyan}" />
-      <Setter Property="Foreground" Value="#061018" />
-      <Setter Property="Effect">
-        <DropShadowEffect Color="#4DE3FF" BlurRadius="22" OffsetX="0" OffsetY="0" Opacity="0.45" />
-      </Setter>
+      <Setter Property="Background" Value="{StaticResource Chrome}" />
+      <Setter Property="BorderBrush" Value="#6E767F" />
+      <Setter Property="Foreground" Value="#17120E" />
+      <Setter Property="FontWeight" Value="Black" />
     </Style>
     <Style Selector="Button.primary:pointerover /template/ ContentPresenter#PART_ContentPresenter">
-      <Setter Property="Background" Value="#86EDFF" />
-      <Setter Property="BorderBrush" Value="#86EDFF" />
-      <Setter Property="Foreground" Value="#061018" />
+      <Setter Property="Background" Value="{StaticResource ChromeHot}" />
+      <Setter Property="BorderBrush" Value="{StaticResource Lamp}" />
+      <Setter Property="Foreground" Value="#17120E" />
     </Style>
     <Style Selector="Button.primary:pressed /template/ ContentPresenter#PART_ContentPresenter">
-      <Setter Property="Background" Value="#2CC4E0" />
+      <Setter Property="Background" Value="#9AA2AB" />
     </Style>
 
     <Style Selector="Button.danger:pointerover /template/ ContentPresenter#PART_ContentPresenter">
-      <Setter Property="Background" Value="#1FFF5C7A" />
+      <Setter Property="Background" Value="#1FF0564A" />
       <Setter Property="BorderBrush" Value="{StaticResource Red}" />
       <Setter Property="Foreground" Value="{StaticResource Red}" />
     </Style>
@@ -222,15 +288,15 @@
       <Setter Property="LetterSpacing" Value="0" />
     </Style>
     <Style Selector="Button.small">
-      <Setter Property="Padding" Value="11,7" />
-      <Setter Property="FontSize" Value="9.5" />
+      <Setter Property="Padding" Value="11,5" />
+      <Setter Property="FontSize" Value="13" />
     </Style>
 
     <!-- ===== Inputs ===== -->
     <Style Selector="TextBox">
       <Setter Property="Background" Value="{StaticResource Surface}" />
       <Setter Property="BorderBrush" Value="{StaticResource Line}" />
-      <Setter Property="CornerRadius" Value="8" />
+      <Setter Property="CornerRadius" Value="6" />
       <Setter Property="Padding" Value="12,9" />
       <Setter Property="FontSize" Value="13.5" />
     </Style>
@@ -240,33 +306,33 @@
     </Style>
     <Style Selector="TextBox:focus /template/ Border#PART_BorderElement">
       <Setter Property="Background" Value="{StaticResource Surface}" />
-      <Setter Property="BorderBrush" Value="{StaticResource Cyan}" />
+      <Setter Property="BorderBrush" Value="{StaticResource Lamp}" />
       <Setter Property="BorderThickness" Value="1" />
     </Style>
     <Style Selector="ComboBox">
       <Setter Property="Background" Value="{StaticResource Surface}" />
       <Setter Property="BorderBrush" Value="{StaticResource Line}" />
-      <Setter Property="CornerRadius" Value="8" />
+      <Setter Property="CornerRadius" Value="6" />
     </Style>
 
-    <!-- Segmented control (engine filter): a horizontal ListBox -->
+    <!-- Segmented control: a row of lamp switches. -->
     <Style Selector="ListBox.segmented">
       <Setter Property="Background" Value="{StaticResource Surface}" />
       <Setter Property="BorderBrush" Value="{StaticResource Line}" />
       <Setter Property="BorderThickness" Value="1" />
-      <Setter Property="CornerRadius" Value="10" />
+      <Setter Property="CornerRadius" Value="8" />
       <Setter Property="Padding" Value="3" />
       <Setter Property="ItemsPanel">
         <ItemsPanelTemplate><StackPanel Orientation="Horizontal" Spacing="2" /></ItemsPanelTemplate>
       </Setter>
     </Style>
     <Style Selector="ListBox.segmented ListBoxItem">
-      <Setter Property="Padding" Value="14,8" />
-      <Setter Property="CornerRadius" Value="7" />
+      <Setter Property="Padding" Value="14,6" />
+      <Setter Property="CornerRadius" Value="6" />
       <Setter Property="FontFamily" Value="{StaticResource Display}" />
       <Setter Property="FontWeight" Value="Bold" />
-      <Setter Property="FontSize" Value="10" />
-      <Setter Property="LetterSpacing" Value="1.2" />
+      <Setter Property="FontSize" Value="15" />
+      <Setter Property="LetterSpacing" Value="1" />
       <Setter Property="Foreground" Value="{StaticResource Muted}" />
       <Setter Property="Cursor" Value="Hand" />
       <Setter Property="BorderThickness" Value="1" />
@@ -277,12 +343,12 @@
       <Setter Property="Foreground" Value="{StaticResource Text}" />
     </Style>
     <Style Selector="ListBox.segmented ListBoxItem:selected /template/ ContentPresenter#PART_ContentPresenter">
-      <Setter Property="Background" Value="{StaticResource CyanSoft}" />
-      <Setter Property="BorderBrush" Value="{StaticResource Cyan}" />
-      <Setter Property="Foreground" Value="{StaticResource Cyan}" />
+      <Setter Property="Background" Value="{StaticResource LampSoft}" />
+      <Setter Property="BorderBrush" Value="{StaticResource Lamp}" />
+      <Setter Property="Foreground" Value="{StaticResource Lamp}" />
     </Style>
 
-    <!-- ===== Top navigation (TabControl) ===== -->
+    <!-- ===== Top navigation (TabControl): the selected tab is a lit lamp. ===== -->
     <Style Selector="TabControl.nav">
       <Setter Property="Padding" Value="0" />
     </Style>
@@ -291,14 +357,14 @@
     </Style>
     <Style Selector="TabControl.nav TabItem">
       <Setter Property="FontFamily" Value="{StaticResource Display}" />
-      <Setter Property="FontWeight" Value="Bold" />
-      <Setter Property="FontSize" Value="11" />
-      <Setter Property="LetterSpacing" Value="1.6" />
+      <Setter Property="FontWeight" Value="ExtraBold" />
+      <Setter Property="FontSize" Value="18" />
+      <Setter Property="LetterSpacing" Value="1.8" />
       <Setter Property="Foreground" Value="{StaticResource Muted}" />
       <Setter Property="Padding" Value="16,0" />
-      <Setter Property="Margin" Value="0,0,6,0" />
-      <Setter Property="MinHeight" Value="36" />
-      <Setter Property="CornerRadius" Value="8" />
+      <Setter Property="Margin" Value="0,0,4,0" />
+      <Setter Property="MinHeight" Value="38" />
+      <Setter Property="CornerRadius" Value="6" />
       <Setter Property="BorderThickness" Value="1" />
       <Setter Property="BorderBrush" Value="Transparent" />
       <Setter Property="VerticalContentAlignment" Value="Center" />
@@ -313,18 +379,15 @@
       <Setter Property="Foreground" Value="{StaticResource Text}" />
     </Style>
     <Style Selector="TabControl.nav TabItem:selected">
-      <Setter Property="Foreground" Value="{StaticResource Cyan}" />
-      <Setter Property="Background" Value="{StaticResource CyanSoft}" />
+      <Setter Property="Foreground" Value="{StaticResource Lamp}" />
     </Style>
     <Style Selector="TabControl.nav TabItem:selected /template/ Border#PART_LayoutRoot">
-      <Setter Property="Background" Value="{StaticResource CyanSoft}" />
-    </Style>
-    <Style Selector="TabControl.nav TabItem:selected:pointerover /template/ Border#PART_LayoutRoot">
-      <Setter Property="Background" Value="#204DE3FF" />
+      <Setter Property="Background" Value="{StaticResource LampSoft}" />
+      <Setter Property="BoxShadow" Value="0 0 18 0 #40FFB23E" />
     </Style>
 
     <Style Selector="ProgressBar">
-      <Setter Property="Foreground" Value="{StaticResource Cyan}" />
+      <Setter Property="Foreground" Value="{StaticResource Lamp}" />
       <Setter Property="Background" Value="{StaticResource SurfaceHi}" />
       <Setter Property="MinHeight" Value="4" />
       <Setter Property="CornerRadius" Value="2" />
