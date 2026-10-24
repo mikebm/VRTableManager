@@ -41,7 +41,9 @@ public partial class Main : Node3D
     readonly Node3D _ring = new();
     readonly Node3D _rail = new();
     readonly List<(Label3D Label, int Group)> _railItems = [];
-    readonly Label3D _header = new(), _status = new(), _hint = new(), _flash = new();
+    readonly Label3D _header = new(), _status = new(), _hint = new(), _flash = new(), _scores = new();
+    readonly MeshInstance3D _scoresPanel = new();   // dark DMD glass behind the high scores
+    readonly Dictionary<string, IReadOnlyList<string>> _scoreLines = [];   // per table id; .nv files only change while a table runs, and the lobby restarts after that
     readonly Dictionary<string, double> _held = new() { ["x"] = 0, ["jump"] = 0 };
     readonly Dictionary<string, double> _cool = new() { ["x"] = 0, ["jump"] = 0 };
     readonly AudioStreamPlayer3D _attract = new() { VolumeDb = -12f, UnitSize = 3f };
@@ -90,6 +92,17 @@ public partial class Main : Node3D
         }
 
         var args = UserArgs();
+        // --dump-cabinet=<table.vpx>: write that table's VR cabinet as the default cabinet, then quit.
+        if (args.GetValueOrDefault("dump-cabinet") is { Length: > 0 } dumpVpx)
+        {
+            var ok = RealCabinetLoader.DumpDefault(dumpVpx, ProjectSettings.GlobalizePath(DefaultCabinetFile));
+            GD.Print(ok ? $"Default cabinet written from {dumpVpx}" : $"No VR cabinet in {dumpVpx}");
+            GetTree().Quit(ok ? 0 : 1);
+            return;
+        }
+        // The default cabinet before any table shows, so nothing ever appears in the drawn one first.
+        _template = RealCabinetLoader.LoadDefault(ProjectSettings.GlobalizePath(DefaultCabinetFile));
+        if (_template == null) GD.PushWarning($"No default cabinet at {DefaultCabinetFile}: tables without their own use the drawn cabinet.");
         // --settings / --state (or VRLOBBY_SETTINGS / VRLOBBY_STATE) point elsewhere; used by the self-test.
         _settingsPath = args.GetValueOrDefault("settings") ?? NullIfEmpty(System.Environment.GetEnvironmentVariable("VRLOBBY_SETTINGS"));
         _statePath = args.GetValueOrDefault("state") ?? NullIfEmpty(System.Environment.GetEnvironmentVariable("VRLOBBY_STATE"));
@@ -105,10 +118,10 @@ public partial class Main : Node3D
         State = LobbyState.Load(_statePath);
         ApplyHeight(); // the lobby restarts after every table, so this is where the saved height comes back
         Library = LobbyLibrary.Load(Settings);
+        _borrowAll = args.ContainsKey("borrow-all");
         Rebuild(args.GetValueOrDefault("select", ""));
         LoadBackglassIndex();
-        _borrowAll = args.ContainsKey("borrow-all");
-        PickTemplate();
+        if (!selfTest) RefreshHighScoreMaps();
 
         if (selfTest)
             Callable.From(() => { _ = SelfTest.RunAsync(this); }).CallDeferred();
@@ -294,7 +307,7 @@ public partial class Main : Node3D
 
         // Title (DMD orange, dot-matrix) and stats float above the selected cabinet's backbox;
         // the hint sits under the rail.
-        foreach (var label in new[] { _header, _status, _hint, _flash })
+        foreach (var label in new[] { _header, _status, _hint, _flash, _scores })
         {
             label.PixelSize = 0.0012f;
             label.OutlineSize = 12;
@@ -314,6 +327,18 @@ public partial class Main : Node3D
         _status.VerticalAlignment = VerticalAlignment.Top;
         _status.Position = new Vector3(0, 2.29f, -1.8f);
         _status.Modulate = Palette.Text;
+        // High scores read from the table's PinMAME .nv file, in DMD orange dot-matrix under the stats; placed by ShowScores.
+        _scores.Font = _dmdFont;
+        _scores.FontSize = 32;
+        _scores.Modulate = Palette.Dmd;
+        _scores.OutlineModulate = Palette.DmdPanel;
+        _scores.VerticalAlignment = VerticalAlignment.Top;
+        _scores.Position = _status.Position;
+        _scoresPanel.Mesh = new QuadMesh();
+        _scoresPanel.MaterialOverride = new StandardMaterial3D { ShadingMode = BaseMaterial3D.ShadingModeEnum.Unshaded, AlbedoColor = Palette.DmdPanel };
+        _scoresPanel.CastShadow = GeometryInstance3D.ShadowCastingSetting.Off;
+        _scoresPanel.Visible = false;
+        AddChild(_scoresPanel);
         _hint.Font = _bodyFont;
         _hint.FontSize = 26;
         _hint.Width = 1150;
@@ -470,39 +495,22 @@ public partial class Main : Node3D
 
     // ---- Cabinets: the table's own, else the template, else the drawn one --------------
 
+    /// <summary>
+    /// The default cabinet: Medieval Madness's VR cabinet, dumped once from the table (--dump-cabinet) and
+    /// shipped with the lobby, so every table without its own wears it from the first frame.
+    /// </summary>
+    public const string DefaultCabinetFile = "res://cabinet/default.cab";
+
     RealCabinet? _template;
-    readonly Queue<string> _templateCandidates = new();
-    string? _templateVpx;
     bool _borrowAll;
 
-    /// <summary>The cabinet tables without their own VR cabinet borrow (null: the drawn one is used).</summary>
+    /// <summary>The cabinet tables without their own VR cabinet borrow (null: the default file is missing, the drawn one is used).</summary>
     public RealCabinet? TemplateCabinet => _template;
-    public string? TemplateTable => _template != null ? _templateVpx : null;
-
-    /// <summary>
-    /// The template: an installed table's own VR cabinet, Medieval Madness first (the user's pick), then
-    /// any other installed VPX table with one. Read from the user's own table file at run time.
-    /// </summary>
-    void PickTemplate()
-    {
-        foreach (var t in Library
-                     .Where(t => VpxFile(t) != null)
-                     .OrderBy(t => t.Title.Contains("Medieval Madness", StringComparison.OrdinalIgnoreCase) ? 0 : 1))
-            _templateCandidates.Enqueue(VpxFile(t)!);
-        TryNextTemplate();
-    }
-
-    void TryNextTemplate()
-    {
-        _templateVpx = _templateCandidates.Count > 0 ? _templateCandidates.Dequeue() : null;
-        if (_templateVpx != null) _cabs.Request(_templateVpx);
-    }
 
     /// <summary>For tests: use this cabinet as the template.</summary>
-    public void SetTemplate(RealCabinet? template, string? vpx = null)
+    public void SetTemplate(RealCabinet? template)
     {
         _template = template;
-        _templateVpx = vpx;
         foreach (var cab in _pool) if (cab.Table != null) ShowCabinetFor(cab);
     }
 
@@ -519,11 +527,6 @@ public partial class Main : Node3D
 
     void OnCabinetReady(string vpx, RealCabinet? real)
     {
-        if (string.Equals(vpx, _templateVpx, StringComparison.OrdinalIgnoreCase) && _template == null)
-        {
-            if (real != null) _template = real;
-            else TryNextTemplate(); // that table has no VR cabinet: try the next one
-        }
         foreach (var cab in _pool) ShowCabinetFor(cab);
     }
 
@@ -671,6 +674,8 @@ public partial class Main : Node3D
             _header.Text = "No tables here";
             _status.Text = LobbyText.Empty(State.Filter, Library.Count);
             _status.Modulate = Palette.Text;
+            _scores.Text = "";
+            _scoresPanel.Visible = false;
             return;
         }
         var t = Shown[Selected];
@@ -683,7 +688,65 @@ public partial class Main : Node3D
         if (t.MissingRoms.Count > 0) lines.Add("Needs ROM: " + string.Join(", ", t.MissingRoms) + ".zip (add it in VR Table Manager)");
         _status.Text = string.Join("\n", lines);
         _status.Modulate = t.MissingRoms.Count > 0 ? Palette.Red.Lightened(0.25f) : Palette.Text;
+        ShowScores(t);
     }
+
+    // ---- High scores ------------------------------------------------------------------
+
+    /// <summary>
+    /// Grand Champion and the top four from the table's PinMAME .nv file, under the stats. Read off
+    /// the main thread (a map plus up to 128 KB of NVRAM) and remembered per table; nothing is shown
+    /// for tables without a ROM, an .nv file or a known memory map.
+    /// </summary>
+    void ShowScores(LobbyTable t)
+    {
+        _scores.Text = "";
+        _scoresPanel.Visible = false;
+        if (t.Engine != VrTableManager.Models.TableManifest.Vpx) return;
+        if (_scoreLines.TryGetValue(t.Id, out var lines)) { PlaceScores(lines); return; }
+        var id = t.Id;
+        Task.Run(() => LobbyText.HighScoreLines(HighScores.Read(t.Source))).ContinueWith(task =>
+        {
+            if (!IsInstanceValid(this)) return;
+            var result = task.IsCompletedSuccessfully ? task.Result : [];
+            Callable.From(() =>
+            {
+                _scoreLines[id] = result;
+                if (Shown.Count > 0 && Shown[Selected].Id == id) PlaceScores(result);
+            }).CallDeferred();
+        });
+    }
+
+    void PlaceScores(IReadOnlyList<string> lines)
+    {
+        _scores.Text = string.Join("\n", lines);
+        _scoresPanel.Visible = lines.Count > 0;
+        if (lines.Count == 0) return;
+        // Just under however many lines the stats text wrapped to, on a dark DMD-glass panel so the
+        // lamps on the far wall don't run through the dots.
+        var statusSize = (_status.Font ?? ThemeDB.FallbackFont).GetMultilineStringSize(_status.Text, HorizontalAlignment.Center, _status.Width, _status.FontSize);
+        _scores.Position = _status.Position + Vector3.Down * (statusSize.Y * _status.PixelSize + 0.035f);
+        var size = (_scores.Font ?? ThemeDB.FallbackFont).GetMultilineStringSize(_scores.Text, HorizontalAlignment.Center, -1, _scores.FontSize) * _scores.PixelSize;
+        ((QuadMesh)_scoresPanel.Mesh).Size = size + new Vector2(0.06f, 0.025f);
+        _scoresPanel.Position = _scores.Position + new Vector3(0, -size.Y / 2, -0.004f);
+    }
+
+    /// <summary>Fetches the community NVRAM maps once a month, in the background; re-reads scores if they just arrived.</summary>
+    void RefreshHighScoreMaps()
+    {
+        var had = File.Exists(Path.Combine(HighScores.MapsDir, "index.json"));
+        HighScores.EnsureMapsAsync(CancellationToken.None).ContinueWith(task =>
+        {
+            if (had || !task.IsCompletedSuccessfully || !task.Result || !IsInstanceValid(this)) return;
+            Callable.From(() =>
+            {
+                _scoreLines.Clear();
+                if (Shown.Count > 0) ShowScores(Shown[Selected]);
+            }).CallDeferred();
+        });
+    }
+
+    public string ScoresText => _scores.Text;
 
     public void Select(int i)
     {

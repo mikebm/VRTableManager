@@ -88,6 +88,33 @@ public partial class RealCabinetLoader : Node
         });
     }
 
+    /// <summary>
+    /// The lobby's default cabinet, worn by every table without its own: a cabinet dumped once from a
+    /// table (<see cref="DumpDefault"/>) and shipped with the lobby, so it's there at once, table installed or not.
+    /// </summary>
+    public static RealCabinet? LoadDefault(string file) =>
+        CabinetCache.TryLoadDump(file, out var parsed) && parsed != null ? Build(parsed) : null;
+
+    /// <summary>
+    /// Reads this table's VR cabinet and writes it as the default cabinet file; false if it has none.
+    /// Its pictures (the table's printed art) are left out: tables borrowing the cabinet cover every
+    /// textured surface with their own look (Cabinet.DressBorrowed), so each becomes a plain grey stand-in
+    /// that only keeps the surface counted as textured.
+    /// </summary>
+    public static bool DumpDefault(string vpx, string file)
+    {
+        var parsed = Parse(vpx);
+        if (parsed == null) return false;
+        foreach (var name in parsed.Images.Keys.ToList())
+        {
+            var blank = Image.CreateEmpty(4, 4, false, Image.Format.Rgb8);
+            blank.Fill(new Color(0.5f, 0.5f, 0.5f));
+            parsed.Images[name] = blank;
+            parsed.Alpha[name] = Image.AlphaMode.None;
+        }
+        return CabinetCache.SaveDump(parsed, file);
+    }
+
     /// <summary>One surface to be: the parts sharing a look, merged into plain arrays.</summary>
     internal sealed record SurfaceData(string Name, Vector3[] Verts, Vector3[] Norms, Vector2[] Uvs, int[] Indices,
         string? Image, VpxMaterial? Material, float Lit, bool Backglass);

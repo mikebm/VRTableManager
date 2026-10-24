@@ -65,3 +65,8 @@ The smoke tests may access online catalogs or release/site endpoints, so some ch
 
 - [Desktop manager: features, engine setup, installation, and updates](VrTableManager/README.md)
 - [VR lobby: setup, controls, behavior, and test coverage](VrLobby/README.md)
+
+## Credits
+
+- Table data from the [Virtual Pinball Spreadsheet](https://virtualpinballspreadsheet.github.io/).
+- High scores are read with maps from the [Pinball Memory Maps](https://github.com/tomlogic/pinball-memory-maps) project. This program makes use of content from the Pinball Memory Maps project.

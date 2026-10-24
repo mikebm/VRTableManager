@@ -24,6 +24,12 @@ public sealed class AppSettings
     public bool HideAdult { get; set; } = true;
     /// <summary>0 = runtime default, otherwise 72/80/90/120.</summary>
     public int VrRefreshRate { get; set; }
+    /// <summary>Meta Quest Link's spacewarp before VR launches: "Leave as is", "Off" or "Auto" (<see cref="MetaAsw"/>).</summary>
+    public string MetaAswMode { get; set; } = "Leave as is";
+    /// <summary>Before a VR launch, warn when the active OpenXR runtime is SteamVR (an extra layer for a Quest).</summary>
+    public bool WarnSteamVrRuntime { get; set; } = true;
+    /// <summary>After a VPX table closes, show its log's errors when it crashed or ended within seconds.</summary>
+    public bool ExplainFailedLaunches { get; set; } = true;
     /// <summary>Restore this window after a table exits so you can pick the next one.</summary>
     public bool ReturnAfterPlay { get; set; } = true;
     /// <summary>Path of VrTableManager.exe, recorded at startup so the VR lobby can launch tables through it.</summary>

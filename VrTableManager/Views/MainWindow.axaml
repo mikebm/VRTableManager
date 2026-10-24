@@ -2,6 +2,7 @@
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         xmlns:vm="using:VrTableManager.ViewModels"
         xmlns:v="using:VrTableManager.Views"
+        xmlns:services="using:VrTableManager.Services"
         x:Class="VrTableManager.Views.MainWindow"
         x:DataType="vm:MainViewModel"
         Title="VR Table Manager"
@@ -116,6 +117,25 @@
                         Command="{Binding RefreshCatalogCommand}" VerticalAlignment="Center" />
                 <TextBlock Grid.Column="4" Classes="mono" Margin="16,0,4,0" VerticalAlignment="Center" Text="{Binding CountLabel}" />
               </Grid>
+
+              <!-- Narrow down: maker, era, type, order -->
+              <WrapPanel Margin="0,-6,0,0">
+                <WrapPanel.Styles>
+                  <Style Selector="ComboBox">
+                    <Setter Property="Margin" Value="0,0,10,6" />
+                    <Setter Property="MinWidth" Value="150" />
+                  </Style>
+                </WrapPanel.Styles>
+                <ComboBox ItemsSource="{Binding Manufacturers}" SelectedItem="{Binding ManufacturerFilter}" MaxDropDownHeight="420" ToolTip.Tip="Manufacturer" />
+                <ComboBox ItemsSource="{Binding Eras}" SelectedItem="{Binding EraFilter}" ToolTip.Tip="When the real machine came out" />
+                <ComboBox ItemsSource="{Binding MachineTypes}" SelectedItem="{Binding TypeFilter}" ToolTip.Tip="Solid state (1977 on), electro-mechanical, or original designs" />
+                <StackPanel Orientation="Horizontal" Spacing="8" Margin="8,0,10,6">
+                  <TextBlock Classes="eyebrow" Foreground="{StaticResource Muted}" Text="SORT" VerticalAlignment="Center" />
+                  <ComboBox ItemsSource="{Binding CatalogSorts}" SelectedItem="{Binding CatalogSort}" Margin="0" />
+                </StackPanel>
+                <Button Classes="small" Content="CLEAR FILTERS" Margin="0,0,0,6" VerticalAlignment="Center"
+                        IsVisible="{Binding HasCatalogFilters}" Command="{Binding ClearCatalogFiltersCommand}" />
+              </WrapPanel>
 
               <StackPanel Orientation="Horizontal" Spacing="10" IsVisible="{Binding IsLoading}">
                 <ProgressBar IsIndeterminate="True" Width="120" />
@@ -284,11 +304,22 @@
               </Grid>
             </Border>
 
-            <StackPanel Orientation="Horizontal" Spacing="14" IsVisible="{Binding InstalledTotal, Converter={x:Static v:Converters.NonZero}}">
-              <ListBox Classes="segmented" ItemsSource="{Binding InstalledFilters}" SelectedItem="{Binding InstalledFilter}" />
-              <TextBlock Classes="mono" VerticalAlignment="Center"
-                         Text="Favourites and plays are shared with the VR lobby" />
-            </StackPanel>
+            <WrapPanel IsVisible="{Binding InstalledTotal, Converter={x:Static v:Converters.NonZero}}">
+              <TextBox Text="{Binding InstalledSearch}" PlaceholderText="Search your tables" Width="260" Margin="0,0,12,8">
+                <TextBox.InnerLeftContent>
+                  <PathIcon Classes="search" Margin="12,0,0,0" />
+                </TextBox.InnerLeftContent>
+              </TextBox>
+              <ListBox Classes="segmented" ItemsSource="{Binding InstalledFilters}" SelectedItem="{Binding InstalledFilter}" Margin="0,0,12,8" />
+              <ComboBox ItemsSource="{Binding InstalledEngines}" SelectedItem="{Binding InstalledEngine}" MinWidth="150" Margin="0,0,12,8" VerticalAlignment="Center" />
+              <StackPanel Orientation="Horizontal" Spacing="8" Margin="0,0,16,8" VerticalAlignment="Center">
+                <TextBlock Classes="eyebrow" Foreground="{StaticResource Muted}" Text="SORT" VerticalAlignment="Center" />
+                <ComboBox ItemsSource="{Binding InstalledSorts}" SelectedItem="{Binding InstalledSort}" MinWidth="170"
+                          ToolTip.Tip="Used with All; the other lists have their own order" />
+              </StackPanel>
+              <TextBlock Classes="mono" VerticalAlignment="Center" Margin="0,0,0,8"
+                         Text="{Binding InstalledSizeText, StringFormat='{}{0} on disk · favourites and plays are shared with the VR lobby'}" />
+            </WrapPanel>
             <TextBlock Classes="body" Text="{Binding InstalledEmptyText}"
                        IsVisible="{Binding InstalledEmptyText, Converter={x:Static StringConverters.IsNotNullOrEmpty}}" />
 
@@ -333,6 +364,12 @@
                         </Grid>
                         <TextBlock Classes="mono" Text="{Binding Subtitle}" TextTrimming="CharacterEllipsis" />
                         <TextBlock Classes="mono" Foreground="{StaticResource Lamp}" Text="{Binding PlayInfo}" TextTrimming="CharacterEllipsis" />
+                        <Border Classes="dmd" Padding="8,4" Margin="0,2,0,2" HorizontalAlignment="Left" IsVisible="{Binding HasHighScore}"
+                                ToolTip.Tip="{Binding MoreScores}">
+                          <TextBlock Classes="dmd" FontSize="13" Text="{Binding TopScore}" TextTrimming="CharacterEllipsis" />
+                        </Border>
+                        <TextBlock Classes="mono" Text="{Binding DiskInfo}" TextTrimming="CharacterEllipsis"
+                                   IsVisible="{Binding DiskInfo, Converter={x:Static StringConverters.IsNotNullOrEmpty}}" />
                         <TextBlock FontSize="12" Foreground="{StaticResource Orange}" Text="{Binding RomStatus}" TextWrapping="Wrap"
                                    IsVisible="{Binding NeedsRom}" />
                         <TextBlock Classes="muted" FontSize="11.5" TextWrapping="Wrap" Text="{Binding RomUnavailableText}"
@@ -368,6 +405,30 @@
                                   Command="{ReflectionBinding $parent[Window].DataContext.AddRomCommand}" CommandParameter="{Binding}" />
                           <Button Classes="small" Content="FOLDER" Margin="0,0,6,6"
                                   Command="{ReflectionBinding $parent[Window].DataContext.OpenTableFolderCommand}" CommandParameter="{Binding}" />
+                          <Button Classes="small" Content="MORE ▾" Margin="0,0,6,6" ToolTip.Tip="Folders, per-table settings and cache">
+                            <Button.Flyout>
+                              <MenuFlyout Placement="BottomEdgeAlignedLeft">
+                                <MenuItem Header="Open ROM folder" IsVisible="{Binding IsVpx}" Command="{Binding Owner.OpenRomFolderCommand}" CommandParameter="{Binding}" />
+                                <MenuItem Header="Open high score (NVRAM) folder" IsVisible="{Binding IsVpx}" Command="{Binding Owner.OpenNvramFolderCommand}" CommandParameter="{Binding}" />
+                                <MenuItem Header="Edit this table's VPX settings (.ini)" IsVisible="{Binding IsVpx}" Command="{Binding Owner.OpenTableIniCommand}" CommandParameter="{Binding}" />
+                                <MenuItem Header="{Binding ScaleMenuHeader}" IsVisible="{Binding IsVpx}" ItemsSource="{Binding ScaleChoices}">
+                                  <MenuItem.ItemTemplate>
+                                    <DataTemplate x:DataType="vm:TableScaleChoice">
+                                      <TextBlock Text="{Binding Label}" />
+                                    </DataTemplate>
+                                  </MenuItem.ItemTemplate>
+                                  <MenuItem.Styles>
+                                    <Style Selector="MenuItem > MenuItem" x:DataType="vm:TableScaleChoice">
+                                      <Setter Property="Command" Value="{Binding Item.Owner.SetTableScaleCommand}" />
+                                      <Setter Property="CommandParameter" Value="{Binding}" />
+                                    </Style>
+                                  </MenuItem.Styles>
+                                </MenuItem>
+                                <Separator IsVisible="{Binding IsVpx}" />
+                                <MenuItem Header="Clear texture cache" IsVisible="{Binding IsVpx}" Command="{Binding Owner.ClearTableCacheCommand}" CommandParameter="{Binding}" />
+                              </MenuFlyout>
+                            </Button.Flyout>
+                          </Button>
                           <Button Classes="small danger" Content="REMOVE" Margin="0,0,6,6" IsVisible="{Binding CanRemove}"
                                   Command="{ReflectionBinding $parent[Window].DataContext.RemoveCommand}" CommandParameter="{Binding}" />
                         </WrapPanel>
@@ -484,12 +545,156 @@
                   <TextBlock Classes="h2" Text="Quest 3 connection" />
                   <TextBlock Classes="body"
                              Text="VPX talks to your headset through the PC's OpenXR runtime. Easiest: install the Meta Quest Link app, connect with a USB-C cable or Air Link, and make Meta Quest Link the active OpenXR runtime (Link app → Settings → General). Virtual Desktop (VDXR) and SteamVR also work." />
-                  <StackPanel Orientation="Horizontal" Spacing="10">
-                    <TextBlock Text="Headset refresh rate" VerticalAlignment="Center" FontWeight="SemiBold" />
-                    <ComboBox ItemsSource="{Binding RefreshRates}" SelectedItem="{Binding RefreshRate}" Width="190" />
-                    <Button Classes="small" Content="RECHECK" Command="{Binding RecheckSetupCommand}" VerticalAlignment="Center" />
-                  </StackPanel>
                   <CheckBox Content="Hide this window while playing and bring it back when the table closes" IsChecked="{Binding ReturnAfterPlay}" />
+                  <TextBlock Classes="muted" TextWrapping="Wrap" Text="The OpenXR runtime, refresh rate and graphics are under VR &amp; graphics below." />
+                </StackPanel>
+              </Grid>
+            </Border>
+
+            <!-- VR & graphics -->
+            <Border Classes="panel" BorderBrush="{StaticResource LineHi}">
+              <Grid ColumnDefinitions="72,*">
+                <TextBlock Classes="display" FontSize="28" Foreground="{StaticResource Lamp}" Text="◉" />
+                <StackPanel Grid.Column="1" Spacing="12">
+                  <TextBlock Classes="h2" Text="VR &amp; graphics" />
+                  <TextBlock Classes="body"
+                             Text="Pinball needs a steady frame rate more than anything: the ball moves fast, so one late frame shows as a skip. Start with Performance, then raise things while it stays smooth." />
+
+                  <!-- OpenXR runtime -->
+                  <Border Background="{StaticResource Bg}" BorderBrush="{StaticResource Line}" BorderThickness="1" CornerRadius="10" Padding="16">
+                    <StackPanel Spacing="8">
+                      <StackPanel Orientation="Horizontal" Spacing="10">
+                        <TextBlock Classes="eyebrow" Text="OPENXR RUNTIME" VerticalAlignment="Center" />
+                        <Border Classes="chip hot" VerticalAlignment="Center" IsVisible="{Binding IsRuntimeWarning}"><TextBlock Text="CHECK THIS" /></Border>
+                      </StackPanel>
+                      <TextBlock Classes="title" Text="{Binding RuntimeTitle}" />
+                      <TextBlock Classes="body" Text="{Binding RuntimeAdvice}" />
+                      <ItemsControl ItemsSource="{Binding Runtimes}">
+                        <ItemsControl.ItemsPanel>
+                          <ItemsPanelTemplate><WrapPanel /></ItemsPanelTemplate>
+                        </ItemsControl.ItemsPanel>
+                        <ItemsControl.ItemTemplate>
+                          <DataTemplate x:DataType="services:OpenXrRuntime">
+                            <Panel Margin="0,0,8,8">
+                              <Border Classes="chip green" Padding="10,6" IsVisible="{Binding IsActive}">
+                                <TextBlock Text="{Binding Name, StringFormat='● {0} (ACTIVE)'}" />
+                              </Border>
+                              <Button Classes="small" IsVisible="{Binding !IsActive}"
+                                      Content="{Binding Name, StringFormat='USE {0}'}"
+                                      Command="{ReflectionBinding $parent[Window].DataContext.MakeRuntimeActiveCommand}" CommandParameter="{Binding}" />
+                            </Panel>
+                          </DataTemplate>
+                        </ItemsControl.ItemTemplate>
+                      </ItemsControl>
+                      <CheckBox Content="Warn me before a VR launch when SteamVR is the active runtime" IsChecked="{Binding WarnSteamVrRuntime}" />
+                      <WrapPanel>
+                        <Button Classes="small" Content="OPEN META QUEST LINK" Margin="0,0,8,8" IsVisible="{Binding HasMetaLinkApp}" Command="{Binding OpenMetaLinkAppCommand}" />
+                        <Button Classes="small" Content="RECHECK" Margin="0,0,8,8" Command="{Binding RecheckSetupCommand}" />
+                      </WrapPanel>
+                    </StackPanel>
+                  </Border>
+
+                  <!-- Headset timing -->
+                  <Border Background="{StaticResource Bg}" BorderBrush="{StaticResource Line}" BorderThickness="1" CornerRadius="10" Padding="16">
+                    <StackPanel Spacing="10">
+                      <TextBlock Classes="eyebrow" Text="SMOOTHNESS" />
+                      <Grid ColumnDefinitions="210,Auto,*" RowDefinitions="Auto,Auto" RowSpacing="10">
+                        <TextBlock Text="Headset refresh rate" VerticalAlignment="Center" FontWeight="SemiBold" />
+                        <ComboBox Grid.Column="1" ItemsSource="{Binding RefreshRates}" SelectedItem="{Binding RefreshRate}" Width="190" />
+                        <TextBlock Grid.Column="2" Classes="muted" Margin="12,0,0,0" VerticalAlignment="Center" TextWrapping="Wrap"
+                                   Text="Pick the highest rate your PC holds without drops. 90 Hz is a good start; 72 Hz gives a slower PC more time per frame." />
+                        <TextBlock Grid.Row="1" Text="Spacewarp (ASW, Quest Link)" VerticalAlignment="Center" FontWeight="SemiBold" />
+                        <ComboBox Grid.Row="1" Grid.Column="1" ItemsSource="{Binding AswModes}" SelectedItem="{Binding AswMode}" Width="190" VerticalAlignment="Center"
+                                  IsEnabled="{Binding IsAswAvailable}" />
+                        <TextBlock Grid.Row="1" Grid.Column="2" Classes="muted" Margin="12,0,0,0" VerticalAlignment="Center" TextWrapping="Wrap"
+                                   Text="When a frame is late, ASW shows a guessed one, which smears a fast ball. Off is usually better for pinball if your PC keeps up. Applied before each VR launch through the Oculus Debug Tool (it resets when the Oculus service restarts)." />
+                      </Grid>
+                      <TextBlock Classes="muted" TextWrapping="Wrap" IsVisible="{Binding !IsAswAvailable}"
+                                 Text="ASW can only be set when the Meta Quest Link app is installed. Virtual Desktop and SteamVR have their own setting (Synchronous Spacewarp / Motion Smoothing)." />
+                      <WrapPanel IsVisible="{Binding HasOculusDebugTool}">
+                        <Button Classes="small" Content="OPEN OCULUS DEBUG TOOL" Margin="0,0,8,0" Command="{Binding OpenOculusDebugToolCommand}"
+                                ToolTip.Tip="Encode bitrate, resolution and more for Quest Link" />
+                      </WrapPanel>
+                    </StackPanel>
+                  </Border>
+
+                  <!-- VPX graphics -->
+                  <Border Background="{StaticResource Bg}" BorderBrush="{StaticResource Line}" BorderThickness="1" CornerRadius="10" Padding="16">
+                    <StackPanel Spacing="10">
+                      <Grid ColumnDefinitions="*,Auto">
+                        <StackPanel Spacing="2">
+                          <TextBlock Classes="eyebrow" Text="VPX GRAPHICS IN VR" />
+                          <TextBlock Classes="mono" Text="{Binding GraphicsPresetLabel}" />
+                        </StackPanel>
+                        <ItemsControl Grid.Column="1" ItemsSource="{Binding GraphicsPresets}" VerticalAlignment="Center">
+                          <ItemsControl.ItemsPanel>
+                            <ItemsPanelTemplate><StackPanel Orientation="Horizontal" Spacing="8" /></ItemsPanelTemplate>
+                          </ItemsControl.ItemsPanel>
+                          <ItemsControl.ItemTemplate>
+                            <DataTemplate x:DataType="x:String">
+                              <Button Classes="small" Content="{Binding}"
+                                      Command="{ReflectionBinding $parent[Window].DataContext.ApplyGraphicsPresetCommand}" CommandParameter="{Binding}" />
+                            </DataTemplate>
+                          </ItemsControl.ItemTemplate>
+                        </ItemsControl>
+                      </Grid>
+                      <Grid ColumnDefinitions="210,Auto,*" RowDefinitions="Auto,Auto,Auto,Auto,Auto,Auto,Auto,Auto">
+                        <Grid.Styles>
+                          <Style Selector="Grid > TextBlock.k">
+                            <Setter Property="FontWeight" Value="SemiBold" />
+                            <Setter Property="VerticalAlignment" Value="Center" />
+                            <Setter Property="Margin" Value="0,5" />
+                          </Style>
+                          <Style Selector="Grid > ComboBox">
+                            <Setter Property="Width" Value="210" />
+                            <Setter Property="Margin" Value="0,5" />
+                          </Style>
+                          <Style Selector="Grid > TextBlock.muted">
+                            <Setter Property="Margin" Value="12,0,0,0" />
+                            <Setter Property="VerticalAlignment" Value="Center" />
+                            <Setter Property="TextWrapping" Value="Wrap" />
+                          </Style>
+                        </Grid.Styles>
+                        <TextBlock Classes="k" Text="Render scale" />
+                        <ComboBox Grid.Column="1" ItemsSource="{Binding RenderScales}" SelectedItem="{Binding GfxRenderScale}" />
+                        <TextBlock Grid.Column="2" Classes="muted" Text="Biggest effect on speed and sharpness. 100% = the headset's own resolution. Heavy tables can have their own (My Tables → More)." />
+
+                        <TextBlock Grid.Row="1" Classes="k" Text="Anti-aliasing (MSAA)" />
+                        <ComboBox Grid.Row="1" Grid.Column="1" ItemsSource="{Binding MsaaNames}" SelectedIndex="{Binding GfxMsaa}" />
+                        <TextBlock Grid.Row="1" Grid.Column="2" Classes="muted" Text="Smooths edges of ramps and rails. 4× is plenty; costs GPU time and memory." />
+
+                        <TextBlock Grid.Row="2" Classes="k" Text="Post-process AA" />
+                        <ComboBox Grid.Row="2" Grid.Column="1" ItemsSource="{Binding PostAaNames}" SelectedIndex="{Binding GfxPostAa}" />
+                        <TextBlock Grid.Row="2" Grid.Column="2" Classes="muted" Text="Cheap edge smoothing when MSAA is off. Fast FXAA costs almost nothing." />
+
+                        <TextBlock Grid.Row="3" Classes="k" Text="Reflections" />
+                        <ComboBox Grid.Row="3" Grid.Column="1" ItemsSource="{Binding ReflectionNames}" SelectedIndex="{Binding GfxReflections}" />
+                        <TextBlock Grid.Row="3" Grid.Column="2" Classes="muted" Text="Playfield reflections. Dynamic looks best but costs the most in VR (everything is drawn twice)." />
+
+                        <TextBlock Grid.Row="4" Classes="k" Text="Ambient occlusion" />
+                        <ComboBox Grid.Row="4" Grid.Column="1" ItemsSource="{Binding AoNames}" SelectedIndex="{Binding GfxAo}" />
+                        <TextBlock Grid.Row="4" Grid.Column="2" Classes="muted" Text="Soft shadows in corners. Static is nearly free; Dynamic follows moving parts." />
+
+                        <TextBlock Grid.Row="5" Classes="k" Text="Sharpening" />
+                        <ComboBox Grid.Row="5" Grid.Column="1" ItemsSource="{Binding SharpenNames}" SelectedIndex="{Binding GfxSharpen}" />
+                        <TextBlock Grid.Row="5" Grid.Column="2" Classes="muted" Text="CAS sharpens text and art, useful below 100% render scale or over Wi-Fi." />
+
+                        <TextBlock Grid.Row="6" Classes="k" Text="Bloom" />
+                        <CheckBox Grid.Row="6" Grid.Column="1" Content="Glow around lit inserts" IsChecked="{Binding GfxBloom}" Margin="0,5" />
+
+                        <TextBlock Grid.Row="7" Classes="k" Text="Frame rate overlay" />
+                        <ComboBox Grid.Row="7" Grid.Column="1" ItemsSource="{Binding FpsNames}" SelectedIndex="{Binding GfxFps}" />
+                        <TextBlock Grid.Row="7" Grid.Column="2" Classes="muted" Text="Shows VPX's frame rate in the headset while you tune. (F11 toggles it in a game.)" />
+                      </Grid>
+                      <TextBlock Classes="body" Foreground="{StaticResource Lamp}" Text="{Binding GraphicsStatus}"
+                                 IsVisible="{Binding GraphicsStatus, Converter={x:Static StringConverters.IsNotNullOrEmpty}}" />
+                      <TextBlock Classes="muted" TextWrapping="Wrap"
+                                 Text="Saved in VPX's VR settings file only, so desktop play keeps its own settings. A table's own .ini can still override these." />
+                      <WrapPanel>
+                        <Button Classes="small" Content="OPEN VR SETTINGS FILE" Margin="0,0,8,0" Command="{Binding OpenVrIniCommand}" />
+                      </WrapPanel>
+                    </StackPanel>
+                  </Border>
                 </StackPanel>
               </Grid>
             </Border>
@@ -604,15 +809,25 @@
                 <StackPanel Grid.Column="1" Spacing="10">
                   <TextBlock Classes="h2" Text="Folders" />
                   <TextBlock Classes="eyebrow" Foreground="{StaticResource Muted}" Text="VPX INSTALL FOLDER" />
-                  <Grid ColumnDefinitions="*,Auto">
+                  <Grid ColumnDefinitions="*,Auto,Auto">
                     <TextBox Text="{Binding VpxDir}" />
                     <Button Grid.Column="1" Content="BROWSE" Margin="8,0,0,0" Command="{Binding BrowseVpxDirCommand}" />
+                    <Button Grid.Column="2" Content="OPEN" Margin="8,0,0,0" Command="{Binding OpenVpxFolderCommand}" />
                   </Grid>
                   <TextBlock Classes="eyebrow" Foreground="{StaticResource Muted}" Text="VPX TABLES FOLDER · ONE SUB-FOLDER PER TABLE" Margin="0,6,0,0" />
-                  <Grid ColumnDefinitions="*,Auto">
+                  <Grid ColumnDefinitions="*,Auto,Auto">
                     <TextBox Text="{Binding TablesDir}" />
                     <Button Grid.Column="1" Content="BROWSE" Margin="8,0,0,0" Command="{Binding BrowseTablesDirCommand}" />
+                    <Button Grid.Column="2" Content="OPEN" Margin="8,0,0,0" Command="{Binding OpenTablesFolderCommand}" />
                   </Grid>
+                  <WrapPanel Margin="0,4,0,0">
+                    <Button Classes="small" Content="APP DATA" Margin="0,0,8,8" Command="{Binding OpenDataFolderCommand}"
+                            ToolTip.Tip="Settings, favourites, play stats, catalog and caches" />
+                    <Button Classes="small" Content="VPX SETTINGS &amp; LOGS" Margin="0,0,8,8" Command="{Binding OpenVpxPrefsFolderCommand}"
+                            ToolTip.Tip="%APPDATA%\VPinballX: VPX's own settings, log and caches" />
+                    <Button Classes="small" Content="UEVR" Margin="0,0,8,8" Command="{Binding OpenUevrFolderCommand}" />
+                    <Button Classes="small" Content="FUTURE PINBALL" Margin="0,0,8,8" Command="{Binding OpenFpFolderCommand}" />
+                  </WrapPanel>
                   <CheckBox Content="Hide adult-themed tables" IsChecked="{Binding HideAdult}" />
                   <StackPanel Orientation="Horizontal" Spacing="10">
                     <TextBlock Text="Downloads at once" VerticalAlignment="Center" FontWeight="SemiBold" />
@@ -623,8 +838,87 @@
               </Grid>
             </Border>
 
+            <!-- Troubleshooting -->
+            <Border Classes="panel">
+              <Grid ColumnDefinitions="72,*">
+                <TextBlock Classes="display" FontSize="28" Foreground="{StaticResource Muted}" Text="?" />
+                <StackPanel Grid.Column="1" Spacing="10">
+                  <TextBlock Classes="h2" Text="Troubleshooting" />
+                  <TextBlock Classes="body" Text="When a table crashes, closes straight away or opens on the monitor instead of the headset, VPX's log usually says why." />
+                  <CheckBox Content="When a VPX table crashes or closes within seconds, show what its log says" IsChecked="{Binding ExplainFailedLaunches}" />
+                  <WrapPanel>
+                    <Button Classes="small primary" Content="VIEW LAST VPX RUN" Margin="0,0,8,8" Command="{Binding ViewLastVpxLogCommand}" />
+                    <Button Classes="small" Content="OPEN VR SETTINGS FILE" Margin="0,0,8,8" Command="{Binding OpenVrIniCommand}" />
+                    <Button Classes="small" Content="OPEN LOBBY PLAY LOG" Margin="0,0,8,8" Command="{Binding OpenPlayLogCommand}"
+                            ToolTip.Tip="What happened when tables were launched from the VR lobby" />
+                  </WrapPanel>
+                </StackPanel>
+              </Grid>
+            </Border>
+
+            <!-- Storage -->
+            <Border Classes="panel">
+              <Grid ColumnDefinitions="72,*">
+                <TextBlock Classes="display" FontSize="28" Foreground="{StaticResource Muted}" Text="▤" />
+                <StackPanel Grid.Column="1" Spacing="10">
+                  <Grid ColumnDefinitions="*,Auto">
+                    <StackPanel Spacing="2">
+                      <TextBlock Classes="h2" Text="Storage" />
+                      <TextBlock Classes="mono" Text="{Binding StorageStatus}" />
+                    </StackPanel>
+                    <Button Grid.Column="1" Classes="small" Content="⟳  CHECK SIZES" VerticalAlignment="Center"
+                            Command="{Binding RefreshStorageCommand}" IsEnabled="{Binding !IsSurveyingStorage}" />
+                  </Grid>
+                  <ProgressBar IsIndeterminate="True" IsVisible="{Binding IsSurveyingStorage}" />
+                  <TextBlock Classes="muted" Text="Press Check sizes to see what's using space." IsVisible="{Binding Storage.Count, Converter={x:Static v:Converters.IsZero}}" />
+                  <ItemsControl ItemsSource="{Binding Storage}">
+                    <ItemsControl.ItemsPanel>
+                      <ItemsPanelTemplate><StackPanel Spacing="6" /></ItemsPanelTemplate>
+                    </ItemsControl.ItemsPanel>
+                    <ItemsControl.ItemTemplate>
+                      <DataTemplate x:DataType="services:StorageEntry">
+                        <Border Background="{StaticResource Bg}" BorderBrush="{StaticResource Line}" BorderThickness="1" CornerRadius="8" Padding="12,8">
+                          <Grid ColumnDefinitions="90,*,Auto,Auto">
+                            <TextBlock Classes="dmd" FontSize="16" VerticalAlignment="Center" Text="{Binding SizeText}" />
+                            <StackPanel Grid.Column="1" Spacing="1" VerticalAlignment="Center">
+                              <TextBlock Classes="title" FontSize="13.5" Text="{Binding Name}" />
+                              <TextBlock Classes="muted" FontSize="12" TextWrapping="Wrap" Text="{Binding Description}" />
+                            </StackPanel>
+                            <Button Grid.Column="2" Classes="small" Content="OPEN" Margin="8,0,0,0" VerticalAlignment="Center"
+                                    Command="{ReflectionBinding $parent[Window].DataContext.OpenStorageCommand}" CommandParameter="{Binding}" />
+                            <Button Grid.Column="3" Classes="small danger" Content="CLEAR" Margin="8,0,0,0" VerticalAlignment="Center"
+                                    IsVisible="{Binding CanClear}"
+                                    Command="{ReflectionBinding $parent[Window].DataContext.ClearStorageCommand}" CommandParameter="{Binding}" />
+                          </Grid>
+                        </Border>
+                      </DataTemplate>
+                    </ItemsControl.ItemTemplate>
+                  </ItemsControl>
+                </StackPanel>
+              </Grid>
+            </Border>
+
+            <!-- Backup -->
+            <Border Classes="panel">
+              <Grid ColumnDefinitions="72,*">
+                <TextBlock Classes="display" FontSize="28" Foreground="{StaticResource Muted}" Text="⇅" />
+                <StackPanel Grid.Column="1" Spacing="10">
+                  <TextBlock Classes="h2" Text="Backup &amp; restore" />
+                  <TextBlock Classes="body"
+                             Text="Saves what you can't download again: favourites and play stats, app and VPX settings, each table's settings and high scores, and your UEVR profiles. Tables and ROMs aren't included (they can be downloaded again), so backups stay small." />
+                  <WrapPanel>
+                    <Button Classes="small primary" Content="BACK UP NOW" Margin="0,0,8,8" Command="{Binding CreateBackupCommand}" />
+                    <Button Classes="small" Content="RESTORE…" Margin="0,0,8,8" Command="{Binding RestoreBackupCommand}" />
+                    <Button Classes="small" Content="OPEN BACKUPS FOLDER" Margin="0,0,8,8" Command="{Binding OpenBackupsFolderCommand}" />
+                  </WrapPanel>
+                  <TextBlock Classes="body" Foreground="{StaticResource Lamp}" Text="{Binding BackupStatus}" TextWrapping="Wrap"
+                             IsVisible="{Binding BackupStatus, Converter={x:Static StringConverters.IsNotNullOrEmpty}}" />
+                </StackPanel>
+              </Grid>
+            </Border>
+
             <TextBlock Classes="mono" TextWrapping="Wrap" Margin="0,8,0,0"
-                       Text="Table data from the Virtual Pinball Spreadsheet (virtualpinballspreadsheet.github.io). This app doesn't host tables. Thank the authors on the sites you download from." />
+                       Text="Table data from the Virtual Pinball Spreadsheet (virtualpinballspreadsheet.github.io). This app doesn't host tables. Thank the authors on the sites you download from. High scores: this program makes use of content from the Pinball Memory Maps project (github.com/tomlogic/pinball-memory-maps)." />
           </StackPanel>
         </ScrollViewer>
       </TabItem>

@@ -92,9 +92,38 @@ public sealed class TableVersionItem
 
 public sealed partial class InstalledItem : ObservableObject
 {
-    public InstalledItem(InstalledTable table) => Table = table;
+    public InstalledItem(InstalledTable table, MainViewModel? owner = null)
+    {
+        Table = table;
+        Owner = owner;
+        ScaleChoices = [new(this, "Same as all tables", null), .. new[] { 0.6, 0.7, 0.8, 0.9, 1.1, 1.2, 1.3 }.Select(s => new TableScaleChoice(this, $"{s * 100:0}%", s))];
+    }
 
     public InstalledTable Table { get; }
+    /// <summary>For the card's menu: flyouts sit outside the window's visual tree, so they bind commands through this.</summary>
+    public MainViewModel? Owner { get; }
+    public bool IsVpx => Table.IsVpx;
+
+    // ---- Disk use and per-table render scale ----
+
+    [ObservableProperty, NotifyPropertyChangedFor(nameof(DiskInfo))] public partial long SizeBytes { get; set; }
+    /// <summary>This table's own render scale (its .ini), or null for the global one.</summary>
+    [ObservableProperty, NotifyPropertyChangedFor(nameof(DiskInfo), nameof(ScaleMenuHeader))] public partial double? TableScale { get; set; }
+    public IReadOnlyList<TableScaleChoice> ScaleChoices { get; }
+    public string ScaleMenuHeader => TableScale is { } s ? $"Render scale: {s * 100:0}% (this table)" : "Render scale: same as all tables";
+
+    /// <summary>"GRAND CHAMPION  ABC  1,234,567,890" from the table's NVRAM, or "" (no ROM, never played, no map).</summary>
+    [ObservableProperty, NotifyPropertyChangedFor(nameof(HasHighScore))] public partial string TopScore { get; set; } = "";
+    /// <summary>The rest of the table (ranks 1–4), for the tooltip.</summary>
+    [ObservableProperty] public partial string MoreScores { get; set; } = "";
+    public bool HasHighScore => TopScore != "";
+
+    /// <summary>"1.2 GB · renders at 80%"</summary>
+    public string DiskInfo => string.Join(" · ", new[]
+    {
+        SizeBytes > 0 ? DiskUsage.Format(SizeBytes) : null,
+        TableScale is { } s ? $"renders at {s * 100:0}%" : null,
+    }.Where(x => x != null));
     public string Title => Table.Manifest.GameName;
     public string? ImgUrl => Table.Manifest.ImgUrl;
     public bool HasImage => !string.IsNullOrEmpty(ImgUrl);

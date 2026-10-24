@@ -48,6 +48,8 @@ public static class SelfTest
         var mmFolder = lobby.Shown[mmIndex].Source.Folder;
         Directory.CreateDirectory(Path.Combine(mmFolder, "music"));
         File.WriteAllBytes(Path.Combine(mmFolder, "music", "attract.wav"), TinyWav());
+        // And a PinMAME .nv for its ROM with a Grand Champion in it (needs the NVRAM maps already cached).
+        var nvWritten = WriteHighScoreNv(mmFolder, "mm_109c");
 
         // Pinball FX / Pinball M appear only if they're installed on this PC.
         var files = lobby.Library.Count(t => t.Engine is not ("PFX" or "PM"));
@@ -98,10 +100,16 @@ public static class SelfTest
         Check(tall.GetWidth() == 512 && tall.GetHeight() == 1024, "art is capped at 1024 px on the longest side");
 
         // ---- The tables' own VR cabinets -----------------------------------------------
-        // The fixture's .vpx files are empty, so their cabinets can't be read: they stay generic.
+        // The bundled default cabinet (Medieval Madness's) is there from the start, table installed or not.
+        var standard = lobby.TemplateCabinet;
+        GD.Print($"      default cabinet: {standard?.Surfaces} surfaces, {standard?.Textures} textures, size {standard?.Bounds.Size}");
+        Check(standard != null && standard.Surfaces > 3 && standard.Textures > 0 && standard.Bounds.Size.Y is > 1.7f and < 2.2f
+              && standard.PlayfieldSize.X is > 0.45f and < 0.6f,
+            "the bundled default cabinet loads: real-size, textured, with its playfield located");
+        // The fixture's .vpx files are empty, so their cabinets can't be read: they wear the default one.
         await Seconds(lobby, 1.0);
-        Check(lobby.Cabinets.Where(c => c.Visible).All(c => !c.ShowsRealCabinet),
-            "tables without a VR cabinet in their .vpx keep the generic cabinet");
+        Check(lobby.Cabinets.Where(c => c.Visible).All(c => c.ShowsRealCabinet && c.Borrowed && c.Real == standard),
+            "tables without a VR cabinet in their .vpx wear the default cabinet, never the drawn one");
         var realVpx = Directory.Exists(@"C:\Users\mikem\VPinball\Tables")
             ? Directory.GetFiles(@"C:\Users\mikem\VPinball\Tables", "*.vpx", SearchOption.AllDirectories).FirstOrDefault(f => f.Contains("Attack from Mars"))
             : null;
@@ -141,15 +149,16 @@ public static class SelfTest
                 "a second load comes from the cabinet cache, identical");
             Check(warmMs < coldMs, $"and is faster ({warmMs} ms vs {coldMs} ms)");
 
-            // Tables without their own cabinet borrow the template (normally Medieval Madness), with their own art.
-            lobby.SetTemplate(got, realVpx);
+            // Any cabinet can be the one tables without their own borrow, with their own art.
+            lobby.SetTemplate(got);
             var shown = lobby.Cabinets.Where(c => c.Visible).ToList();
             Check(shown.All(c => c.ShowsRealCabinet && c.Borrowed && c.Real == got),
                 "tables without a VR cabinet borrow the template cabinet");
-            lobby.SetTemplate(null);
-            Check(lobby.Cabinets.Where(c => c.Visible).All(c => !c.ShowsRealCabinet && !c.Borrowed),
-                "no template (no VR tables installed): the drawn cabinet");
         }
+        lobby.SetTemplate(null);
+        Check(lobby.Cabinets.Where(c => c.Visible).All(c => !c.ShowsRealCabinet && !c.Borrowed),
+            "default cabinet file missing: the drawn cabinet, as a last resort");
+        lobby.SetTemplate(standard);
 
         // ---- Random --------------------------------------------------------------------
         var was = lobby.Selected;
@@ -167,8 +176,15 @@ public static class SelfTest
         await Seconds(lobby, 2.5); // ring settles (~0.8 s), then the sound waits 0.8 s
         Check(lobby.AttractPlaying?.EndsWith("attract.wav") == true,
             $"selected table's own attract sound plays after a moment (found: {LobbyArt.AttractSound(lobby.Shown[mmIndex]) ?? "none"}, playing: {lobby.AttractPlaying ?? "nothing"})");
+        if (nvWritten)
+            Check(lobby.ScoresText.StartsWith("GRAND CHAMPION  VRT  1,234,567,890"),
+                $"high scores from the table's pinmame/nvram .nv, as DMD lines ({lobby.ScoresText.Split('\n')[0]})");
+        else
+            GD.Print("SKIP  high scores (no cached NVRAM map for mm_109c)");
         lobby.Select(mmIndex + 1);
         Check(lobby.AttractPlaying == null, "and stops when you move on");
+        await Seconds(lobby, 0.5);
+        Check(lobby.ScoresText == "", "no high scores shown for a table without an .nv file");
 
         // ---- Filters -------------------------------------------------------------------
         lobby.CycleFilter();
@@ -227,6 +243,30 @@ public static class SelfTest
 
         GD.Print(_failures == 0 ? "ALL PASSED" : $"{_failures} FAILED");
         tree.Quit(_failures);
+    }
+
+    /// <summary>
+    /// Writes &lt;folder&gt;/pinmame/nvram/&lt;rom&gt;.nv with "VRT 1,234,567,890" as Grand Champion, at the
+    /// addresses the cached NVRAM map gives (WPC: NVRAM at address 0). False when the map isn't cached.
+    /// </summary>
+    static bool WriteHighScoreNv(string folder, string rom)
+    {
+        try
+        {
+            var index = System.Text.Json.Nodes.JsonNode.Parse(File.ReadAllText(Path.Combine(HighScores.MapsDir, "index.json")));
+            var map = System.Text.Json.Nodes.JsonNode.Parse(File.ReadAllText(Path.Combine(HighScores.MapsDir, (string)index![rom]!)));
+            var gc = map!["high_scores"]![0]!;
+            int Addr(string key) => gc[key]!["start"]!.ToString() is var s && s.StartsWith("0x") ? Convert.ToInt32(s, 16) : int.Parse(s);
+            var nv = new byte[0x2000 + 6];
+            "VRT"u8.CopyTo(nv.AsSpan(Addr("initials")));
+            var score = new byte[] { 0x00, 0x12, 0x34, 0x56, 0x78, 0x90 };
+            var len = (int)gc["score"]!["length"]!;
+            score.AsSpan(score.Length - len).CopyTo(nv.AsSpan(Addr("score")));
+            Directory.CreateDirectory(Path.Combine(folder, "pinmame", "nvram"));
+            File.WriteAllBytes(Path.Combine(folder, "pinmame", "nvram", rom + ".nv"), nv);
+            return true;
+        }
+        catch { return false; }
     }
 
     /// <summary>0.2 s of 8-bit mono silence as a valid WAV file.</summary>

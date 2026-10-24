@@ -86,13 +86,27 @@ public partial class MainWindow : Window, IUiHost
         return result;
     }
 
-    public async Task<int> ChoiceAsync(string title, string message, string[] buttons)
+    public async Task<string?> PickSaveFileAsync(string title, string suggestedName, string pattern, string? startFolder = null)
+    {
+        var options = new FilePickerSaveOptions
+        {
+            Title = title,
+            SuggestedFileName = suggestedName,
+            DefaultExtension = Path.GetExtension(pattern),
+            FileTypeChoices = [new FilePickerFileType(pattern) { Patterns = [pattern] }],
+        };
+        if (startFolder != null) options.SuggestedStartLocation = await StorageProvider.TryGetFolderFromPathAsync(startFolder);
+        var file = await StorageProvider.SaveFilePickerAsync(options);
+        return file?.TryGetLocalPath();
+    }
+
+    public async Task<int> ChoiceAsync(string title, string message, string[] buttons, string? details = null)
     {
         var result = -1;
         var dialog = new Window
         {
             Title = title,
-            Width = 560,
+            Width = details == null ? 560 : 760,
             SizeToContent = SizeToContent.Height,
             CanResize = false,
             WindowStartupLocation = WindowStartupLocation.CenterOwner,
@@ -107,7 +121,7 @@ public partial class MainWindow : Window, IUiHost
             b.Click += (_, _) => { result = index; dialog.Close(); };
             row.Children.Add(b);
         }
-        dialog.Content = new StackPanel
+        var panel = new StackPanel
         {
             Margin = new(24),
             Spacing = 14,
@@ -115,9 +129,22 @@ public partial class MainWindow : Window, IUiHost
             {
                 new TextBlock { Text = title, Classes = { "h2" } },
                 new TextBlock { Text = message, TextWrapping = TextWrapping.Wrap, Classes = { "body" } },
-                row,
             },
         };
+        if (details != null)
+            panel.Children.Add(new Border
+            {
+                Classes = { "panel" },
+                Padding = new(12),
+                MaxHeight = 320,
+                Child = new ScrollViewer
+                {
+                    HorizontalScrollBarVisibility = Avalonia.Controls.Primitives.ScrollBarVisibility.Auto,
+                    Content = new SelectableTextBlock { Text = details, Classes = { "mono" }, FontSize = 11.5 },
+                },
+            });
+        panel.Children.Add(row);
+        dialog.Content = panel;
         await dialog.ShowDialog(this);
         return result;
     }
