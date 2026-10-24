@@ -98,12 +98,7 @@ public static class VpxSetup
             using var key = Microsoft.Win32.Registry.LocalMachine.OpenSubKey(@"SOFTWARE\Khronos\OpenXR\1");
             var path = key?.GetValue("ActiveRuntime") as string;
             if (string.IsNullOrEmpty(path)) return "No OpenXR runtime found. Install the Meta Quest Link app (or SteamVR / Virtual Desktop).";
-            var p = path.ToLowerInvariant();
-            var name = p.Contains("oculus") || p.Contains("meta") ? "Meta Quest Link"
-                : p.Contains("steamvr") ? "SteamVR"
-                : p.Contains("virtualdesktop") || p.Contains("vdxr") ? "Virtual Desktop (VDXR)"
-                : Path.GetFileNameWithoutExtension(path);
-            return $"Active OpenXR runtime: {name}";
+            return $"Active OpenXR runtime: {OpenXrRuntimes.NameFor(path)}";
         }
         catch (Exception e)
         {

@@ -661,6 +661,97 @@ Console.WriteLine($"   gamepad connected: {Gamepad.IsConnected()?.ToString() ?? 
     Check(!redone.IsIncomplete && !File.Exists(Path.Combine(cutLate, TableInstaller.InstallingMarker)), "reinstalling completes it and clears the marker");
 }
 
+foreach (var (ok, name) in HighScoreChecks.Run()) Check(ok, name);
+
+// ---- VR graphics, logs, storage, backup ----
+{
+    var gs = new AppSettings { TablesDir = Path.Combine(root, "gfx-tables"), VpxDir = Path.Combine(root, "gfx-vpx") };
+    var vrIni = VpxSetup.VrIniPath(gs);
+    Check(VpxGraphics.Read(vrIni) == new VpxGraphics(), "no VR ini yet: VPX's defaults");
+    VpxSetup.EnsureVrIni(gs);
+    VpxGraphics.Performance.Write(vrIni);
+    var back = VpxGraphics.Read(vrIni);
+    Check(back == VpxGraphics.Performance && back.PresetName == "Performance", "graphics preset round-trips through the VR ini");
+    var text = File.ReadAllText(vrIni);
+    Check(text.Contains("AAFactor = 1.0") && text.Contains("FXAA = 1") && text.Contains("ForceBloomOff = 1") && text.Contains("AskToTurnOn = 0"),
+        "writes VPX's own [Player] keys and keeps [PlayerVR]");
+    (VpxGraphics.Balanced with { FpsOverlay = 2 }).Write(vrIni);
+    Check(VpxGraphics.Read(vrIni).PresetName == "Balanced", "the FPS overlay doesn't break preset matching");
+    Check(VpxGraphics.Read(vrIni) with { Msaa = 3 } is { PresetName: null }, "changed settings show as custom");
+
+    var gTable = Path.Combine(root, "gfx-tables", "Heavy (Stern 2020)", "Heavy.vpx");
+    Directory.CreateDirectory(Path.GetDirectoryName(gTable)!);
+    File.WriteAllText(gTable, "x");
+    VpxGraphics.WriteTableScale(gTable, 0.8);
+    Check(VpxGraphics.ReadTableScale(gTable) == 0.8 && File.ReadAllText(Path.ChangeExtension(gTable, ".ini")).Contains("AAFactor = 0.8"),
+        "per-table render scale goes in the table's own .ini");
+    VpxGraphics.WriteTableScale(gTable, null);
+    Check(VpxGraphics.ReadTableScale(gTable) == null, "clearing it falls back to the global scale");
+    Check(OpenXrRuntimes.NameFor(@"C:\Program Files\Oculus\Support\oculus-runtime\oculus_openxr_64.json") == "Meta Quest Link"
+          && OpenXrRuntimes.NameFor(@"C:\Steam\steamapps\common\SteamVR\steamxr_win64.json") == "SteamVR", "names OpenXR runtimes");
+    Check(OpenXrRuntimes.List().Count(r => r.IsActive) <= 1, "at most one active OpenXR runtime");
+
+    var log = Path.Combine(root, "vpinball.log");
+    File.WriteAllLines(log,
+    [
+        "2026-10-18 11:00:00.000 INFO  [Main] [VPApp::InitInstance@332] Starting VPX - old run",
+        "2026-10-18 11:00:05.000 ERROR [Main] [Old::Thing@1] old error",
+        "2026-10-18 11:00:09.000 INFO  [Main] [WinMain@227] Closing VPX...",
+        "2026-10-18 12:00:00.000 INFO  [Main] [VPApp::InitInstance@332] Starting VPX - v10.8.1",
+        @"2026-10-18 12:00:00.100 INFO  [Main] [PinTable::LoadGameFromFilename@1419] LoadGameFromFilename C:\T\AFM\afm.vpx",
+        "2026-10-18 12:00:01.000 ERROR [1] [Texture::GetRawBitmap@1130] Corrupted file: image 'a' width (2048) does not match the width (1024) of the image datablock.",
+        "2026-10-18 12:00:01.000 ERROR [2] [Texture::GetRawBitmap@1130] Corrupted file: image 'b' width (100) does not match the width (50) of the image datablock.",
+        "2026-10-18 12:00:02.000 WARN  [RenderThread] [VRDevice::Init@1] xrGetSystem failed: XR_ERROR_FORM_FACTOR_UNAVAILABLE",
+    ]);
+    var session = VpxLog.LastSession(log);
+    Check(session is { ClosedCleanly: false, Table: @"C:\T\AFM\afm.vpx" } && session.Started == new DateTime(2026, 10, 18, 12, 0, 0),
+        "log: last run only, its table, and that it didn't close normally");
+    Check(session!.Problems.Count == 2 && !session.Problems.Any(p => p.Contains("old error")), "log: repeated errors collapse; earlier runs ignored");
+    Check(session.Hints.Any(h => h.Contains("headset wasn't connected")), "log: explains a missing headset");
+
+    var cacheDir = Path.Combine(Path.GetDirectoryName(gTable)!, "cache", "Heavy");
+    Directory.CreateDirectory(cacheDir);
+    File.WriteAllBytes(Path.Combine(cacheDir, "tex.bin"), new byte[5000]);
+    var cacheEntry = AppFolders.Survey(gs).Single(e => e.Name == "VPX texture caches");
+    Check(cacheEntry.Paths.Contains(Path.Combine(Path.GetDirectoryName(gTable)!, "cache")) && cacheEntry.Bytes >= 5000, "storage finds per-table texture caches");
+    var freed = AppFolders.Clear(cacheEntry with { Paths = [Path.Combine(Path.GetDirectoryName(gTable)!, "cache")] });
+    Check(freed >= 5000 && !File.Exists(Path.Combine(cacheDir, "tex.bin")) && File.Exists(gTable), "clearing a cache keeps the table");
+    Check(DiskUsage.Format(1536L * 1024 * 1024) == "1.5 GB" && DiskUsage.Format(5 * 1048576) == "5 MB", "sizes read nicely");
+
+    // Backup: table settings and high scores in, nothing else from the table folder.
+    var nv = Path.Combine(Path.GetDirectoryName(gTable)!, "pinmame", "nvram", "heavy.nv");
+    Directory.CreateDirectory(Path.GetDirectoryName(nv)!);
+    File.WriteAllBytes(nv, [1, 2, 3]);
+    VpxGraphics.WriteTableScale(gTable, 0.7);
+    var zipPath = Path.Combine(root, "backup.zip");
+    var made = Backup.Create(zipPath, gs);
+    using (var z = ZipFile.OpenRead(zipPath))
+    {
+        var names = z.Entries.Select(e => e.FullName).ToList();
+        Check(names.Contains("tables/Heavy (Stern 2020)/pinmame/nvram/heavy.nv") && names.Contains("tables/Heavy (Stern 2020)/Heavy.ini")
+              && names.Contains("vpx/VrTableManager-VR.ini") && !names.Any(n => n.EndsWith(".vpx")), $"backup has scores and settings, not tables ({made.Files} files)");
+    }
+    File.Delete(nv);
+    // Restore only the table part into this test's folder (the app/ part would write to the real data folder).
+    var tablesOnly = Path.Combine(root, "tables-only.zip");
+    using (var src2 = ZipFile.OpenRead(zipPath))
+    using (var dst = ZipFile.Open(tablesOnly, ZipArchiveMode.Create))
+    {
+        foreach (var e in src2.Entries.Where(e => e.FullName.StartsWith("tables/")))
+        {
+            using var from = e.Open();
+            using var to = dst.CreateEntry(e.FullName).Open();
+            from.CopyTo(to);
+        }
+        dst.CreateEntry("tables/Not Installed (Bally 1990)/x.ini");
+        dst.CreateEntry("tables/../../escaped.ini");
+    }
+    var restored = Backup.Restore(tablesOnly, gs);
+    Check(File.ReadAllBytes(nv).SequenceEqual(new byte[] { 1, 2, 3 }), "restore puts high scores back");
+    Check(restored.Skipped.Contains("Not Installed (Bally 1990)") && !File.Exists(Path.Combine(root, "..", "escaped.ini")),
+        "restore skips tables that aren't installed and paths outside the folder");
+}
+
 static string JsonEsc(string s) => System.Text.Json.JsonSerializer.Serialize(s);
 
 Directory.Delete(root, true);

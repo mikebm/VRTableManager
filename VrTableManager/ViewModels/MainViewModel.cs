@@ -14,7 +14,9 @@ public interface IUiHost
     Task<string?> PickFileAsync(string title, string pattern);
     Task<bool> ConfirmAsync(string title, string message);
     /// <summary>Shows a message with several buttons; returns the index pressed, or -1 if the window was closed.</summary>
-    Task<int> ChoiceAsync(string title, string message, string[] buttons);
+    /// <param name="details">Optional monospaced text (e.g. log lines) shown in a scrolling box under the message.</param>
+    Task<int> ChoiceAsync(string title, string message, string[] buttons, string? details = null);
+    Task<string?> PickSaveFileAsync(string title, string suggestedName, string pattern, string? startFolder = null);
     void HideForPlay();
     void ShowAfterPlay();
     void OpenExternal(string pathOrUrl);
@@ -58,6 +60,10 @@ public sealed partial class MainViewModel : ObservableObject, IAsyncDisposable
         // kept and offered again once the catalog has loaded.)
         PendingDownloads.CleanDownloadsFolder();
         RefreshRate = RefreshRates.FirstOrDefault(r => r.StartsWith(Settings.VrRefreshRate.ToString())) ?? RefreshRates[0];
+        AswMode = AswModes.Contains(Settings.MetaAswMode) ? Settings.MetaAswMode : AswModes[0];
+        WarnSteamVrRuntime = Settings.WarnSteamVrRuntime;
+        ExplainFailedLaunches = Settings.ExplainFailedLaunches;
+        LoadGraphics();
         RefreshInstalled();
         RefreshSetupStatus();
     }
@@ -91,6 +97,7 @@ public sealed partial class MainViewModel : ObservableObject, IAsyncDisposable
             ApplyFilter();
             ApplyTableUpdates();
             _ = CheckUpdatesAsync(); // VPX / UEVR / BAM, in the background
+            _ = RefreshHighScoreMapsAsync();
             if (!_offeredResume) { _offeredResume = true; _ = OfferResumeAsync(); }
         }
         catch (Exception e)
@@ -133,12 +140,20 @@ public sealed partial class MainViewModel : ObservableObject, IAsyncDisposable
     {
         _installedIds = _allInstalled.Select(i => i.Table.Manifest.GameId).ToHashSet();
         var q = SearchText.Trim();
-        _filtered = _allGames
+        var matches = _allGames
             .Where(g => g.TableFiles!.Any(IsVisible))
             .Where(g => q == "" || g.Name.Contains(q, StringComparison.OrdinalIgnoreCase)
                         || (g.Manufacturer?.Contains(q, StringComparison.OrdinalIgnoreCase) ?? false)
                         || (g.TableFiles?.Any(t => t.Authors?.Any(a => a.Contains(q, StringComparison.OrdinalIgnoreCase)) == true) ?? false))
-            .ToList();
+            .Where(MatchesCatalogFilters);
+        _filtered = (CatalogSort switch
+        {
+            "Recently updated" => matches.OrderByDescending(g => g.TableFiles!.Where(IsVisible).Max(t => t.UpdatedAt ?? 0)),
+            "Newest machines" => matches.OrderByDescending(g => g.Year ?? 0).ThenBy(g => g.Name),
+            "Oldest machines" => matches.OrderBy(g => g.Year is > 0 ? g.Year : int.MaxValue).ThenBy(g => g.Name),
+            _ => matches,
+        }).ToList();
+        UpdateManufacturers();
 
         var selectedId = SelectedGame?.Game.Id;
         Games.Clear();
@@ -147,6 +162,62 @@ public sealed partial class MainViewModel : ObservableObject, IAsyncDisposable
         CatalogStatus = $"{_filtered.Count} of {_allGames.Count} machines";
         MatchCount = _filtered.Count;
         TotalCount = _allGames.Count;
+    }
+
+    // ---- Catalog filters: maker, era, type, order ----
+
+    const string AnyMaker = "Any maker", AnyEra = "Any era", AnyType = "Any type";
+    public ObservableCollection<string> Manufacturers { get; } = [AnyMaker];
+    public string[] Eras { get; } = [AnyEra, "1930s–50s", "1960s", "1970s", "1980s", "1990s", "2000s", "2010s", "2020s"];
+    public string[] MachineTypes { get; } = [AnyType, "Solid state", "Electro-mechanical", "Pure mechanical", "Originals"];
+    public string[] CatalogSorts { get; } = ["A–Z", "Recently updated", "Newest machines", "Oldest machines"];
+    [ObservableProperty] public partial string ManufacturerFilter { get; set; } = AnyMaker;
+    [ObservableProperty] public partial string EraFilter { get; set; } = AnyEra;
+    [ObservableProperty] public partial string TypeFilter { get; set; } = AnyType;
+    [ObservableProperty] public partial string CatalogSort { get; set; } = "A–Z";
+    [ObservableProperty] public partial bool HasCatalogFilters { get; set; }
+    partial void OnManufacturerFilterChanged(string value) { if (value != null) ApplyFilter(); }
+    partial void OnEraFilterChanged(string value) => ApplyFilter();
+    partial void OnTypeFilterChanged(string value) => ApplyFilter();
+    partial void OnCatalogSortChanged(string value) => ApplyFilter();
+
+    bool MatchesCatalogFilters(VpsGame g)
+    {
+        if (ManufacturerFilter is { } m && m != AnyMaker && !string.Equals(g.Manufacturer, m, StringComparison.OrdinalIgnoreCase)) return false;
+        if (EraFilter != AnyEra)
+        {
+            if (g.Year is not > 0) return false;
+            var decade = g.Year.Value / 10 * 10;
+            var ok = EraFilter == "1930s–50s" ? decade <= 1950 : EraFilter.StartsWith(decade.ToString());
+            if (!ok) return false;
+        }
+        return TypeFilter switch
+        {
+            "Solid state" => g.Type == "SS",
+            "Electro-mechanical" => g.Type == "EM",
+            "Pure mechanical" => g.Type == "PM",
+            "Originals" => string.Equals(g.Manufacturer, "Original", StringComparison.OrdinalIgnoreCase),
+            _ => true,
+        };
+    }
+
+    /// <summary>Makers with at least 3 machines, most first (built once the catalog has loaded).</summary>
+    void UpdateManufacturers()
+    {
+        HasCatalogFilters = ManufacturerFilter != AnyMaker || EraFilter != AnyEra || TypeFilter != AnyType;
+        if (Manufacturers.Count > 1 || _allGames.Count == 0) return;
+        foreach (var m in _allGames.Where(g => !string.IsNullOrWhiteSpace(g.Manufacturer))
+                     .GroupBy(g => g.Manufacturer!.Trim(), StringComparer.OrdinalIgnoreCase)
+                     .Where(g => g.Count() >= 3).OrderByDescending(g => g.Count()).Select(g => g.Key))
+            Manufacturers.Add(m);
+    }
+
+    [RelayCommand]
+    void ClearCatalogFilters()
+    {
+        ManufacturerFilter = AnyMaker;
+        EraFilter = AnyEra;
+        TypeFilter = AnyType;
     }
 
     void AddPage()
@@ -459,30 +530,61 @@ public sealed partial class MainViewModel : ObservableObject, IAsyncDisposable
     {
         // Re-read stats every time: the VR lobby and its launcher write them too.
         _stats = PlayStats.Load();
-        _allInstalled = TableInstaller.Scan(Settings).Select(t => new InstalledItem(t)).ToList();
+        _allInstalled = TableInstaller.Scan(Settings).Select(t => new InstalledItem(t, this)).ToList();
         foreach (var item in _allInstalled)
         {
             item.ApplyStats(_stats);
             item.IsBusy = _busyTables.Contains(item.Table.TablePath); // keep a running fetch's button greyed after a rescan
+            if (item.Table.IsVpx) item.TableScale = VpxGraphics.ReadTableScale(item.Table.TablePath);
         }
         ShowInstalled();
+        _ = RefreshSizesAsync();
     }
+
+    public string[] InstalledEngines { get; } = ["All engines", "VPX", "Future Pinball", "Pinball FX", "Pinball M"];
+    public string[] InstalledSorts { get; } = ["A–Z", "Recently installed", "Largest first"];
+    [ObservableProperty] public partial string InstalledSearch { get; set; } = "";
+    [ObservableProperty] public partial string InstalledEngine { get; set; } = "All engines";
+    [ObservableProperty] public partial string InstalledSort { get; set; } = "A–Z";
+    partial void OnInstalledSearchChanged(string value) => ShowInstalled();
+    partial void OnInstalledEngineChanged(string value) => ShowInstalled();
+    partial void OnInstalledSortChanged(string value) => ShowInstalled();
+
+    bool MatchesInstalledEngine(InstalledItem i) => InstalledEngine switch
+    {
+        "VPX" => i.Table.Manifest.Engine == TableManifest.Vpx,
+        "Future Pinball" => i.Table.Manifest.Engine == TableManifest.FuturePinball,
+        "Pinball FX" => i.Table.Manifest.Engine == TableManifest.PinballFx,
+        "Pinball M" => i.Table.Manifest.Engine == TableManifest.PinballM,
+        _ => true,
+    };
 
     /// <summary>Fills the My Tables grid from the scan, using the chosen filter and order.</summary>
     void ShowInstalled()
     {
+        var q0 = InstalledSearch.Trim();
+        var pool = _allInstalled.Where(MatchesInstalledEngine)
+            .Where(i => q0 == "" || i.Title.Contains(q0, StringComparison.OrdinalIgnoreCase)
+                        || (i.Table.Manifest.Manufacturer?.Contains(q0, StringComparison.OrdinalIgnoreCase) ?? false)
+                        || i.Table.Manifest.Authors.Any(a => a.Contains(q0, StringComparison.OrdinalIgnoreCase)));
         IEnumerable<InstalledItem> q = InstalledFilter switch
         {
-            "Favourites" => _allInstalled.Where(i => i.IsFavourite),
-            "Most played" => _allInstalled.Where(i => i.Plays > 0).OrderByDescending(i => i.Plays).ThenByDescending(i => i.LastPlayed),
-            "Recently played" => _allInstalled.Where(i => i.LastPlayed != null).OrderByDescending(i => i.LastPlayed),
-            // Favourites first, then A–Z.
-            _ => _allInstalled.OrderByDescending(i => i.IsFavourite).ThenBy(i => i.Title, StringComparer.OrdinalIgnoreCase),
+            "Favourites" => pool.Where(i => i.IsFavourite),
+            "Most played" => pool.Where(i => i.Plays > 0).OrderByDescending(i => i.Plays).ThenByDescending(i => i.LastPlayed),
+            "Recently played" => pool.Where(i => i.LastPlayed != null).OrderByDescending(i => i.LastPlayed),
+            _ => InstalledSort switch
+            {
+                "Recently installed" => pool.OrderByDescending(i => i.Table.Manifest.InstalledAt),
+                "Largest first" => pool.OrderByDescending(i => i.SizeBytes),
+                // Favourites first, then A–Z.
+                _ => pool.OrderByDescending(i => i.IsFavourite).ThenBy(i => i.Title, StringComparer.OrdinalIgnoreCase),
+            },
         };
         Installed.Clear();
         foreach (var i in q) Installed.Add(i);
         InstalledTotal = _allInstalled.Count;
         InstalledEmptyText = Installed.Count > 0 || _allInstalled.Count == 0 ? ""
+            : q0 != "" || InstalledEngine != InstalledEngines[0] ? "No installed tables match the search."
             : InstalledFilter switch
             {
                 "Favourites" => "No favourites yet. Tap the ☆ on a table (or press the right grip on it in the VR lobby).",
@@ -512,7 +614,7 @@ public sealed partial class MainViewModel : ObservableObject, IAsyncDisposable
         var engine = Engines.For(item.Table.Manifest.Engine);
         try
         {
-            if (vr && !await EnsureHeadsetAsync()) { PlayStatus = ""; return; }
+            if (vr && !await PreflightAsync(item, engine)) { PlayStatus = ""; return; }
             if (vr && ZenGames.For(engine.Id) is { } zen && Settings.ShowZenReminder && !await ZenReminderAsync(zen)) { PlayStatus = ""; return; }
             PlayStatus = $"Starting {item.Title}…";
             using var proc = await engine.LaunchAsync(Settings, item.Table, vr, CancellationToken.None);
@@ -533,6 +635,8 @@ public sealed partial class MainViewModel : ObservableObject, IAsyncDisposable
             TrySaveStats(st => st.AddTime(path, DateTime.Now - started));
             item.ApplyStats(_stats);
             PlayStatus = $"Finished {item.Title}. Pick your next table.";
+            _ui.ShowAfterPlay();
+            await ExplainVpxExitAsync(item, started);
         }
         catch (System.ComponentModel.Win32Exception e) when (e.NativeErrorCode == 1223)
         {
@@ -767,9 +871,13 @@ public sealed partial class MainViewModel : ObservableObject, IAsyncDisposable
             case nameof(ApplyPinballUevrProfile): Settings.ApplyPinballUevrProfile = ApplyPinballUevrProfile; RefreshSetupStatus(); break;
             case nameof(ShowZenReminder): Settings.ShowZenReminder = ShowZenReminder; break;
             case nameof(RefreshRate): Settings.VrRefreshRate = int.TryParse(RefreshRate?.Split(' ')[0], out var r) ? r : 0; break;
+            case nameof(AswMode): Settings.MetaAswMode = AswMode; break;
+            case nameof(WarnSteamVrRuntime): Settings.WarnSteamVrRuntime = WarnSteamVrRuntime; break;
+            case nameof(ExplainFailedLaunches): Settings.ExplainFailedLaunches = ExplainFailedLaunches; break;
             default: return;
         }
         Settings.Save();
+        if (e.PropertyName == nameof(VpxDir)) LoadGraphics();
         if (e.PropertyName is nameof(VpxDir) or nameof(TablesDir) or nameof(FpDir) or nameof(UevrDir))
         {
             RefreshSetupStatus();
@@ -787,6 +895,7 @@ public sealed partial class MainViewModel : ObservableObject, IAsyncDisposable
         PmProfileStatus = DescribeUevrProfile(ZenGames.PinballM);
         PfxHasUevrBackup = UevrPinballProfile.HasBackup(ZenGames.PinballFx);
         PmHasUevrBackup = UevrPinballProfile.HasBackup(ZenGames.PinballM);
+        RefreshVrStatus();
     }
 
     [ObservableProperty] public partial bool PfxHasUevrBackup { get; set; }

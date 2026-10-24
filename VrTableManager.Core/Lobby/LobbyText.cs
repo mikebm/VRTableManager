@@ -38,6 +38,28 @@ public static class LobbyText
         return when.ToString("d MMM yyyy");
     }
 
+    /// <summary>
+    /// The selected table's high scores as two DMD lines: the top entry with its label
+    /// ("GRAND CHAMPION  ABC  1,234,567,890"), then the next ones by rank ("1 DEF 900,000,000  ·  2 …").
+    /// Up to <paramref name="max"/> entries; ones without a score (initials-only mode champions) are
+    /// left out. Empty when there are none.
+    /// </summary>
+    public static IReadOnlyList<string> HighScoreLines(IReadOnlyList<HighScore> scores, int max = 5)
+    {
+        var top = scores.Where(s => s.Score > 0).Take(max).ToList();
+        if (top.Count == 0) return [];
+        var lines = new List<string> { Join(top[0].Label.ToUpperInvariant(), top[0], "  ") };
+        // After a champion the rest are 1st–4th; otherwise the top entry was #1 and the rest follow on.
+        var rank = top[0].Label.Contains("champ", StringComparison.OrdinalIgnoreCase) ? 1 : 2;
+        if (top.Count > 1) lines.Add(string.Join("  ·  ", top.Skip(1).Select((s, k) => Join((rank + k).ToString(), s, " "))));
+        return lines;
+
+        static string Join(string label, HighScore s, string gap) => string.Join(gap, new[]
+        {
+            label, s.Initials.Trim().ToUpperInvariant(), s.Score.ToString("N0", System.Globalization.CultureInfo.InvariantCulture),
+        }.Where(x => x != ""));
+    }
+
     /// <summary>What to say when a filter has nothing in it.</summary>
     public static string Empty(string filter, int libraryCount) => libraryCount == 0
         ? "Install tables with VR Table Manager, then open the lobby again."

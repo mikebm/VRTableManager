@@ -14,12 +14,14 @@ namespace VrLobby;
 /// mipmapped pictures and the placement, one file per table under %APPDATA%\VrTableManager\cabinet-cache.
 /// A file holds the table's size and date; an updated table (or a newer <see cref="Version"/>) is read again
 /// and overwrites it. Tables without a cabinet are remembered too. Reading and writing never throw.
+/// The same layout, without the table stamp, is the lobby's bundled default cabinet (<see cref="TryLoadDump"/>).
 /// </summary>
 static class CabinetCache
 {
     /// <summary>Bump when what Parse makes changes (texture size, merging, materials), so old files are re-read.</summary>
     const int Version = 1;
     static readonly byte[] Magic = "VTMCAB"u8.ToArray();
+    static readonly byte[] DumpMagic = "VTMDEF"u8.ToArray();
 
     public static string DefaultDir => Path.Combine(AppSettings.DataDir, "cabinet-cache");
 
@@ -39,43 +41,7 @@ static class CabinetCache
             if (!r.ReadBytes(Magic.Length).AsSpan().SequenceEqual(Magic) || r.ReadInt32() != Version
                 || r.ReadInt64() != fi.Length || r.ReadInt64() != fi.LastWriteTimeUtc.Ticks) return false;
             if (!r.ReadBoolean()) return true; // known: no VR cabinet in this table
-
-            var centre = ReadVector3(r);
-            var size = new Vector2(r.ReadSingle(), r.ReadSingle());
-            var bounds = new Aabb(ReadVector3(r), ReadVector3(r));
-            Aabb? backbox = r.ReadBoolean() ? new Aabb(ReadVector3(r), ReadVector3(r)) : null;
-
-            var images = new Dictionary<string, Image>(StringComparer.OrdinalIgnoreCase);
-            var alpha = new Dictionary<string, Image.AlphaMode>(StringComparer.OrdinalIgnoreCase);
-            for (int i = 0, n = r.ReadInt32(); i < n; i++)
-            {
-                var name = r.ReadString();
-                alpha[name] = (Image.AlphaMode)r.ReadInt32();
-                int w = r.ReadInt32(), h = r.ReadInt32();
-                var mips = r.ReadBoolean();
-                var format = (Image.Format)r.ReadInt32();
-                images[name] = Image.CreateFromData(w, h, mips, format, r.ReadBytes(r.ReadInt32()));
-            }
-
-            var surfaces = new List<SurfaceData>();
-            for (int i = 0, n = r.ReadInt32(); i < n; i++)
-            {
-                var name = r.ReadString();
-                var image = r.ReadBoolean() ? r.ReadString() : null;
-                var material = r.ReadBoolean()
-                    ? new VpxMaterial(r.ReadString(), r.ReadUInt32(), r.ReadBoolean(), r.ReadSingle(), r.ReadSingle(), r.ReadBoolean())
-                    : null;
-                var lit = r.ReadSingle();
-                var bg = r.ReadBoolean();
-                surfaces.Add(new SurfaceData(name, ReadArray<Vector3>(r), ReadArray<Vector3>(r), ReadArray<Vector2>(r), ReadArray<int>(r),
-                    image, material, lit, bg));
-            }
-
-            parsed = new Parsed
-            {
-                Surfaces = surfaces, Images = images, Alpha = alpha,
-                PlayfieldCentre = centre, PlayfieldSize = size, Bounds = bounds, Backbox = backbox,
-            };
+            parsed = ReadBody(r);
             return true;
         }
         catch
@@ -102,50 +68,124 @@ static class CabinetCache
                 w.Write(fi.Length);
                 w.Write(fi.LastWriteTimeUtc.Ticks);
                 w.Write(parsed != null);
-                if (parsed != null)
-                {
-                    WriteVector3(w, parsed.PlayfieldCentre);
-                    w.Write(parsed.PlayfieldSize.X); w.Write(parsed.PlayfieldSize.Y);
-                    WriteVector3(w, parsed.Bounds.Position); WriteVector3(w, parsed.Bounds.Size);
-                    w.Write(parsed.Backbox.HasValue);
-                    if (parsed.Backbox is { } box) { WriteVector3(w, box.Position); WriteVector3(w, box.Size); }
-
-                    w.Write(parsed.Images.Count);
-                    foreach (var (name, img) in parsed.Images)
-                    {
-                        w.Write(name);
-                        w.Write((int)parsed.Alpha.GetValueOrDefault(name));
-                        w.Write(img.GetWidth()); w.Write(img.GetHeight());
-                        w.Write(img.HasMipmaps());
-                        w.Write((int)img.GetFormat());
-                        var data = img.GetData();
-                        w.Write(data.Length);
-                        w.Write(data);
-                    }
-
-                    w.Write(parsed.Surfaces.Count);
-                    foreach (var s in parsed.Surfaces)
-                    {
-                        w.Write(s.Name);
-                        w.Write(s.Image != null);
-                        if (s.Image != null) w.Write(s.Image);
-                        w.Write(s.Material != null);
-                        if (s.Material is { } m)
-                        {
-                            w.Write(m.Name); w.Write(m.BaseColour); w.Write(m.IsMetal);
-                            w.Write(m.Roughness); w.Write(m.Opacity); w.Write(m.OpacityActive);
-                        }
-                        w.Write(s.Lit);
-                        w.Write(s.Backglass);
-                        WriteArray<Vector3>(w, s.Verts); WriteArray<Vector3>(w, s.Norms); WriteArray<Vector2>(w, s.Uvs); WriteArray<int>(w, s.Indices);
-                    }
-                }
+                if (parsed != null) WriteBody(w, parsed);
             }
             File.Move(tmp, file, overwrite: true);
         }
         catch
         {
             try { File.Delete(tmp); } catch { } // full disk or read-only folder: just no cache this time
+        }
+    }
+
+    /// <summary>A cabinet on its own, not tied to a table file: the lobby's default cabinet (see RealCabinetLoader.LoadDefault).</summary>
+    public static bool TryLoadDump(string file, out Parsed? parsed)
+    {
+        parsed = null;
+        try
+        {
+            using var r = new BinaryReader(new BufferedStream(File.OpenRead(file), 1 << 16));
+            if (!r.ReadBytes(DumpMagic.Length).AsSpan().SequenceEqual(DumpMagic) || r.ReadInt32() != Version) return false;
+            parsed = ReadBody(r);
+            return true;
+        }
+        catch
+        {
+            parsed = null;
+            return false;
+        }
+    }
+
+    public static bool SaveDump(Parsed parsed, string file)
+    {
+        try
+        {
+            Directory.CreateDirectory(Path.GetDirectoryName(Path.GetFullPath(file))!);
+            using var w = new BinaryWriter(new BufferedStream(File.Create(file), 1 << 16));
+            w.Write(DumpMagic);
+            w.Write(Version);
+            WriteBody(w, parsed);
+            return true;
+        }
+        catch { return false; }
+    }
+
+    static Parsed ReadBody(BinaryReader r)
+    {
+        var centre = ReadVector3(r);
+        var size = new Vector2(r.ReadSingle(), r.ReadSingle());
+        var bounds = new Aabb(ReadVector3(r), ReadVector3(r));
+        Aabb? backbox = r.ReadBoolean() ? new Aabb(ReadVector3(r), ReadVector3(r)) : null;
+
+        var images = new Dictionary<string, Image>(StringComparer.OrdinalIgnoreCase);
+        var alpha = new Dictionary<string, Image.AlphaMode>(StringComparer.OrdinalIgnoreCase);
+        for (int i = 0, n = r.ReadInt32(); i < n; i++)
+        {
+            var name = r.ReadString();
+            alpha[name] = (Image.AlphaMode)r.ReadInt32();
+            int w = r.ReadInt32(), h = r.ReadInt32();
+            var mips = r.ReadBoolean();
+            var format = (Image.Format)r.ReadInt32();
+            images[name] = Image.CreateFromData(w, h, mips, format, r.ReadBytes(r.ReadInt32()));
+        }
+
+        var surfaces = new List<SurfaceData>();
+        for (int i = 0, n = r.ReadInt32(); i < n; i++)
+        {
+            var name = r.ReadString();
+            var image = r.ReadBoolean() ? r.ReadString() : null;
+            var material = r.ReadBoolean()
+                ? new VpxMaterial(r.ReadString(), r.ReadUInt32(), r.ReadBoolean(), r.ReadSingle(), r.ReadSingle(), r.ReadBoolean())
+                : null;
+            var lit = r.ReadSingle();
+            var bg = r.ReadBoolean();
+            surfaces.Add(new SurfaceData(name, ReadArray<Vector3>(r), ReadArray<Vector3>(r), ReadArray<Vector2>(r), ReadArray<int>(r),
+                image, material, lit, bg));
+        }
+
+        return new Parsed
+        {
+            Surfaces = surfaces, Images = images, Alpha = alpha,
+            PlayfieldCentre = centre, PlayfieldSize = size, Bounds = bounds, Backbox = backbox,
+        };
+    }
+
+    static void WriteBody(BinaryWriter w, Parsed parsed)
+    {
+        WriteVector3(w, parsed.PlayfieldCentre);
+        w.Write(parsed.PlayfieldSize.X); w.Write(parsed.PlayfieldSize.Y);
+        WriteVector3(w, parsed.Bounds.Position); WriteVector3(w, parsed.Bounds.Size);
+        w.Write(parsed.Backbox.HasValue);
+        if (parsed.Backbox is { } box) { WriteVector3(w, box.Position); WriteVector3(w, box.Size); }
+
+        w.Write(parsed.Images.Count);
+        foreach (var (name, img) in parsed.Images)
+        {
+            w.Write(name);
+            w.Write((int)parsed.Alpha.GetValueOrDefault(name));
+            w.Write(img.GetWidth()); w.Write(img.GetHeight());
+            w.Write(img.HasMipmaps());
+            w.Write((int)img.GetFormat());
+            var data = img.GetData();
+            w.Write(data.Length);
+            w.Write(data);
+        }
+
+        w.Write(parsed.Surfaces.Count);
+        foreach (var s in parsed.Surfaces)
+        {
+            w.Write(s.Name);
+            w.Write(s.Image != null);
+            if (s.Image != null) w.Write(s.Image);
+            w.Write(s.Material != null);
+            if (s.Material is { } m)
+            {
+                w.Write(m.Name); w.Write(m.BaseColour); w.Write(m.IsMetal);
+                w.Write(m.Roughness); w.Write(m.Opacity); w.Write(m.OpacityActive);
+            }
+            w.Write(s.Lit);
+            w.Write(s.Backglass);
+            WriteArray<Vector3>(w, s.Verts); WriteArray<Vector3>(w, s.Norms); WriteArray<Vector2>(w, s.Uvs); WriteArray<int>(w, s.Indices);
         }
     }
 
