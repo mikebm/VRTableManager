@@ -11,7 +11,9 @@ namespace VrTableManager.ViewModels;
 public interface IUiHost
 {
     Task<string?> PickFolderAsync(string title);
-    Task<string?> PickFileAsync(string title, string pattern);
+    /// <param name="preferredName">A file name to filter to first (e.g. "afm_113b.zip"); <paramref name="pattern"/> stays as the other choice.</param>
+    /// <param name="startFolder">Folder the picker opens in, when it exists.</param>
+    Task<string?> PickFileAsync(string title, string pattern, string? preferredName = null, string? startFolder = null);
     Task<bool> ConfirmAsync(string title, string message);
     /// <summary>Shows a message with several buttons; returns the index pressed, or -1 if the window was closed.</summary>
     /// <param name="details">Optional monospaced text (e.g. log lines) shown in a scrolling box under the message.</param>
@@ -63,6 +65,8 @@ public sealed partial class MainViewModel : ObservableObject, IAsyncDisposable
         AswMode = AswModes.Contains(Settings.MetaAswMode) ? Settings.MetaAswMode : AswModes[0];
         WarnSteamVrRuntime = Settings.WarnSteamVrRuntime;
         ExplainFailedLaunches = Settings.ExplainFailedLaunches;
+        UseBuiltInPinmame = Settings.UseBuiltInPinmame;
+        LobbyRecordsRomAudio = Settings.LobbyRecordsRomAudio;
         LoadGraphics();
         RefreshInstalled();
         RefreshSetupStatus();
@@ -360,32 +364,64 @@ public sealed partial class MainViewModel : ObservableObject, IAsyncDisposable
     {
         // Missing ROM first; otherwise the one the table already uses (to fetch its whole ROM family).
         var missing = t.MissingRoms.Count > 0 ? t.MissingRoms : t.Manifest.RomNames;
-        if (missing.Count == 0 || t.Manifest.GameId == "") return null;
+        if (missing.Count == 0) return null;
         var game = _allGames.FirstOrDefault(g => g.Id == t.Manifest.GameId);
-        var roms = game?.RomFiles?.Where(r => UsableRomUrl(r) != null).ToList() ?? [];
+        bool Matches(VpsFile r, string name) => string.Equals(r.Version, name, StringComparison.OrdinalIgnoreCase) && UsableRomUrl(r) != null;
         foreach (var name in missing)
-            if (roms.FirstOrDefault(r => string.Equals(r.Version, name, StringComparison.OrdinalIgnoreCase)) is { } hit) return hit;
+        {
+            // This table's own catalog entry first; a parent set or a borrowed ROM (an original running
+            // Attack from Mars's ROM) is often only listed under the machine it came from.
+            if (game?.RomFiles?.FirstOrDefault(r => Matches(r, name)) is { } own) return own;
+            if (_allGames.SelectMany(g => g.RomFiles ?? []).FirstOrDefault(r => Matches(r, name)) is { } other) return other;
+        }
         return null;
     }
 
+    /// <summary>Stern-made machine, or the catalog points at Stern's game code for it.</summary>
+    bool IsSternTable(InstalledTable t)
+    {
+        if (!t.IsVpx) return false;
+        var game = _allGames.FirstOrDefault(g => g.Id == t.Manifest.GameId);
+        return string.Equals(t.Manifest.Manufacturer ?? game?.Manufacturer, "Stern", StringComparison.OrdinalIgnoreCase)
+               || (game?.RomFiles ?? []).Any(r => r.Urls?.Any(u => !u.Broken && SternGameCode.IsSternUrl(u.Url)) == true);
+    }
+
+    /// <summary>The catalog's links to Stern's game code search, or a search by the machine's name.</summary>
+    List<string> SternSearchUrls(InstalledTable t)
+    {
+        var game = _allGames.FirstOrDefault(g => g.Id == t.Manifest.GameId);
+        var urls = (game?.RomFiles ?? []).SelectMany(r => r.Urls ?? [])
+            .Where(u => !u.Broken && SternGameCode.IsSternUrl(u.Url)).Select(u => u.Url).Distinct().ToList();
+        if (urls.Count == 0)
+        {
+            // PinMAME's name for the machine searches better than the catalog's ("Avatar" vs "James Cameron's Avatar").
+            var rom = t.Manifest.RomNames.FirstOrDefault();
+            var name = rom != null ? PinmameInfo.Get(Settings, Path.Combine(t.Folder, "pinmame"), rom)?.Description : null;
+            name = name?.Split(" (")[0].Replace(", The", "") ?? t.Manifest.GameName;
+            urls.Add(SternGameCode.SearchUrl(name));
+        }
+        return urls;
+    }
+
     readonly HashSet<string> _romRechecked = new(StringComparer.OrdinalIgnoreCase);
+    readonly SemaphoreSlim _romCheckOne = new(1);
 
     /// <summary>
-    /// Tables installed before the app checked for PinMAME may list a ROM they don't use (originals
-    /// that set cGameName for other things). Re-reads the script once per table and corrects it.
+    /// Works out once per table what its ROM really needs (see <see cref="RomRequirements"/>): tables
+    /// installed by older versions may list a commented-out ROM name, miss an alias or a parent set.
+    /// Reading a big table file takes a moment, so it's done in the background, one table at a time.
     /// </summary>
     async Task RecheckRomNeedAsync(InstalledTable t)
     {
-        if (t.Manifest.GameId == "" || !File.Exists(t.TablePath) || !_romRechecked.Add(t.TablePath)) return;
-        var info = await Task.Run(() => RomDetector.Inspect(t.TablePath));
-        List<string>? fixedNames =
-            info.NoRomNeeded ? [] :
-            info.GameName is { } g && !t.Manifest.RomNames.SequenceEqual([g], StringComparer.OrdinalIgnoreCase) ? [g] :
-            null;
-        if (fixedNames == null) return;
-        t.Manifest.RomNames = fixedNames;
+        if (!t.IsVpx || t.Manifest.RomCheck >= RomRequirements.Version || !File.Exists(t.TablePath) || !_romRechecked.Add(t.TablePath)) return;
+        // A loose .vpx straight in the tables folder has no folder (or manifest) of its own to update.
+        if (string.Equals(Path.GetFullPath(t.Folder).TrimEnd('\\', '/'), Path.GetFullPath(Settings.TablesDir).TrimEnd('\\', '/'), StringComparison.OrdinalIgnoreCase)) return;
+        await _romCheckOne.WaitAsync();
+        bool changed;
+        try { changed = await Task.Run(() => RomRequirements.Update(t, Settings)); }
+        finally { _romCheckOne.Release(); }
         try { TableInstaller.SaveManifest(t); } catch { /* still corrected for this session */ }
-        RefreshInstalled();
+        if (changed) RefreshInstalled();
     }
 
     [RelayCommand]
@@ -460,6 +496,28 @@ public sealed partial class MainViewModel : ObservableObject, IAsyncDisposable
         string? file = null;
         try
         {
+            // Stern tables: Stern's own free game code first (no sign-in, checked by PinMAME before it's kept).
+            if (IsSternTable(table) && table.MissingRoms.Count > 0)
+            {
+                var urls = SternSearchUrls(table);
+                var fromStern = new List<string>();
+                foreach (var rom in table.MissingRoms.ToList())
+                    if (await WithDownloadSlotAsync(job, () => SternGameCode.InstallAsync(table, rom, urls, Settings, job.Report, job.ProgressReporter, job.Cts.Token)) is { } zip)
+                        fromStern.Add(zip);
+                if (fromStern.Count > 0)
+                {
+                    await Task.Run(() => RomRequirements.RefreshParents(table, Settings));
+                    try { TableInstaller.SaveManifest(table); } catch { }
+                    if (table.MissingRoms.Count == 0)
+                    {
+                        job.Finish($"✓ Installed {string.Join(", ", fromStern.Select(Path.GetFileName))} from Stern's site. Ready to play.");
+                        RefreshInstalled();
+                        return;
+                    }
+                }
+                job.Report("Stern's site doesn't have it; trying the catalog's other sources…");
+            }
+
             var src = FindRomSource(table)
                 ?? throw new InvalidOperationException($"The catalog has no download for {string.Join(" / ", table.MissingRoms)}.zip. Use Add ROM with a file you have.");
             var url = UsableRomUrl(src)!;
@@ -470,6 +528,10 @@ public sealed partial class MainViewModel : ObservableObject, IAsyncDisposable
                 : await WithDownloadSlotAsync(job, () => _browser.DownloadAllAsync(url, JobDownloadDir(job), job.Report, job.Cts.Token));
             job.Report("Installing ROM…");
             var placed = await Task.Run(() => RomInstaller.InstallAll(files, table, src.Version!));
+            // With the files in place PinMAME can tell whether the set is complete (parents included).
+            job.Report("Checking the ROM set…");
+            await Task.Run(() => RomRequirements.RefreshParents(table, Settings));
+            try { TableInstaller.SaveManifest(table); } catch { }
             var stillMissing = table.MissingRoms.Count > 0;
             job.Finish(stillMissing
                 ? $"Installed {placed.Count} ROM file(s), but none is {string.Join(" / ", table.MissingRoms)}.zip. Use Add ROM if you have it."
@@ -818,7 +880,10 @@ public sealed partial class MainViewModel : ObservableObject, IAsyncDisposable
     [RelayCommand]
     async Task AddRomAsync(InstalledItem item)
     {
-        var file = await _ui.PickFileAsync($"Choose the ROM zip for {item.Title}", "*.zip");
+        // Filter to the file it needs, starting where browsers save downloads.
+        var wanted = item.Table.MissingRoms.FirstOrDefault() ?? item.Table.Manifest.RomNames.FirstOrDefault();
+        var downloads = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.UserProfile), "Downloads");
+        var file = await _ui.PickFileAsync($"Choose the ROM zip for {item.Title}", "*.zip", wanted != null ? wanted + ".zip" : null, downloads);
         if (file == null) return;
         TableInstaller.AddRom(item.Table, file);
         RefreshInstalled();
@@ -879,6 +944,8 @@ public sealed partial class MainViewModel : ObservableObject, IAsyncDisposable
             case nameof(AswMode): Settings.MetaAswMode = AswMode; break;
             case nameof(WarnSteamVrRuntime): Settings.WarnSteamVrRuntime = WarnSteamVrRuntime; break;
             case nameof(ExplainFailedLaunches): Settings.ExplainFailedLaunches = ExplainFailedLaunches; break;
+            case nameof(UseBuiltInPinmame): Settings.UseBuiltInPinmame = UseBuiltInPinmame; break;
+            case nameof(LobbyRecordsRomAudio): Settings.LobbyRecordsRomAudio = LobbyRecordsRomAudio; break;
             default: return;
         }
         Settings.Save();
@@ -967,11 +1034,9 @@ public sealed partial class MainViewModel : ObservableObject, IAsyncDisposable
     {
         try
         {
-            var rel = await VpxSetup.FindLatestAsync(CancellationToken.None);
-            var current = VpxSetup.InstalledVersion(Settings);
-            LatestVpx = rel == null ? "No VPX release found for this OS."
-                : current == rel.Tag ? $"Up to date ({rel.Tag})."
-                : $"Latest: {rel.Tag} ({rel.Size / 1_048_576} MB)";
+            var releases = await VpxSetup.FindReleasesAsync(CancellationToken.None);
+            var (text, hasUpdate) = VpxSetup.DescribeUpdate(releases, VpxSetup.InstalledVersion(Settings));
+            LatestVpx = hasUpdate ? $"{text} ({releases.Latest!.Size / 1_048_576} MB)" : text;
         }
         catch (Exception e)
         {
@@ -985,8 +1050,15 @@ public sealed partial class MainViewModel : ObservableObject, IAsyncDisposable
         IsInstallingVpx = true;
         try
         {
-            var rel = await VpxSetup.FindLatestAsync(CancellationToken.None)
-                ?? throw new InvalidOperationException("No VPX release found for this OS.");
+            var releases = await VpxSetup.FindReleasesAsync(CancellationToken.None);
+            var installed = VpxSetup.InstalledVersion(Settings);
+            var (text, hasUpdate) = VpxSetup.DescribeUpdate(releases, installed);
+            // Only install what's offered: never a "DO NOT USE" build, never an older one over a newer install.
+            if (releases.Latest is not { } rel || (installed != null && !hasUpdate))
+            {
+                LatestVpx = text;
+                return;
+            }
             var progress = new Progress<double>(p => VpxProgress = p * 100);
             await VpxSetup.InstallAsync(Settings, rel, progress, s => Avalonia.Threading.Dispatcher.UIThread.Post(() => LatestVpx = s), CancellationToken.None);
             LatestVpx = $"Installed {rel.Tag}.";
@@ -1076,8 +1148,9 @@ public sealed partial class MainViewModel : ObservableObject, IAsyncDisposable
         {
             item.Update = updates.GetValueOrDefault(item.Table.TablePath);
             item.RomSource = FindRomSource(item.Table);
+            item.HasSternSource = IsSternTable(item.Table);
             item.AttractAudioSources = AttractAudioSourcesFor(item.Table);
-            if (item.NeedsRom && item.RomSource == null) _ = RecheckRomNeedAsync(item.Table);
+            _ = RecheckRomNeedAsync(item.Table);
         }
         TableUpdateCount = updates.Count;
         var tracked = _allInstalled.Count(i => i.Table.Manifest.TableFileId != "");
@@ -1099,20 +1172,16 @@ public sealed partial class MainViewModel : ObservableObject, IAsyncDisposable
         try
         {
             var ct = CancellationToken.None;
-            var vpxTask = Try(() => VpxSetup.FindLatestAsync(ct));
+            var vpxTask = Try<VpxReleases>(async () => await VpxSetup.FindReleasesAsync(ct));
             var uevrTask = Try(() => UevrSetup.FindLatestAsync(ct));
             var bamTask = Try(() => BamCheck.LatestAsync(ct));
             await Task.WhenAll(vpxTask, uevrTask, bamTask);
 
             // VPX
             var (vpx, vpxErr) = vpxTask.Result;
-            var vpxHave = VpxSetup.InstalledVersion(Settings);
-            HasVpxUpdate = vpx != null && vpxHave != null && vpxHave != vpx.Tag;
-            VpxUpdateText = vpxErr != null ? "Couldn't check GitHub: " + vpxErr
-                : vpx == null ? "No VPX release found for this OS."
-                : vpxHave == null ? $"Not installed. Latest is {vpx.Tag}."
-                : HasVpxUpdate ? $"{vpxHave} → {vpx.Tag}"
-                : $"Up to date ({vpxHave}).";
+            var (vpxText, vpxUpdate) = vpx == null ? ("", false) : VpxSetup.DescribeUpdate(vpx, VpxSetup.InstalledVersion(Settings));
+            HasVpxUpdate = vpxUpdate;
+            VpxUpdateText = vpxErr != null ? "Couldn't check GitHub: " + vpxErr : vpxText;
 
             // UEVR
             var (uevr, uevrErr) = uevrTask.Result;

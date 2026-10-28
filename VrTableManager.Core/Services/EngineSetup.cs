@@ -6,6 +6,10 @@ namespace VrTableManager.Services;
 
 public sealed record VpxRelease(string Tag, string AssetName, string Url, long Size);
 
+/// <param name="Latest">Newest BGFX build that's fine to use.</param>
+/// <param name="Withdrawn">Newest BGFX build renamed "DO NOT USE", when it's newer than <paramref name="Latest"/>.</param>
+public sealed record VpxReleases(VpxRelease? Latest, VpxRelease? Withdrawn);
+
 /// <summary>Installs Visual Pinball X (BGFX build, which does VR through OpenXR) and prepares a VR settings file.</summary>
 public static class VpxSetup
 {
@@ -18,23 +22,76 @@ public static class VpxSetup
         : OperatingSystem.IsMacOS() ? (RuntimeInformation.OSArchitecture == Architecture.Arm64 ? "-macos-arm64-Release.dmg" : "-macos-x64-Release.dmg")
         : "-linux-x64-Release.tar.gz";
 
-    public static async Task<VpxRelease?> FindLatestAsync(CancellationToken ct)
+    /// <summary>The newest usable BGFX build, or null.</summary>
+    public static async Task<VpxRelease?> FindLatestAsync(CancellationToken ct) => (await FindReleasesAsync(ct)).Latest;
+
+    /// <summary>
+    /// What GitHub offers: the newest BGFX build that's fine to use, and the newest one the VPX team has
+    /// since renamed "DO NOT USE" when that's newer still. Those are never installed or offered as
+    /// updates; the app keeps whatever VPX is installed and says why.
+    /// </summary>
+    public static async Task<VpxReleases> FindReleasesAsync(CancellationToken ct) =>
+        ParseReleases(await Http.Client.GetStringAsync(ReleasesApi, ct));
+
+    public static VpxReleases ParseReleases(string json)
     {
-        using var doc = JsonDocument.Parse(await Http.Client.GetStringAsync(ReleasesApi, ct));
+        using var doc = JsonDocument.Parse(json);
+        VpxRelease? withdrawn = null;
         foreach (var rel in doc.RootElement.EnumerateArray())
         {
             if (rel.GetProperty("draft").GetBoolean()) continue;
             var name = rel.TryGetProperty("name", out var n) ? n.GetString() ?? "" : "";
-            if (name.StartsWith("DO NOT USE", StringComparison.OrdinalIgnoreCase)) continue;
-            foreach (var asset in rel.GetProperty("assets").EnumerateArray())
-            {
-                var an = asset.GetProperty("name").GetString() ?? "";
-                if (an.StartsWith("VPinballX_BGFX-") && an.EndsWith(AssetSuffix))
-                    return new VpxRelease(rel.GetProperty("tag_name").GetString()!, an,
-                        asset.GetProperty("browser_download_url").GetString()!, asset.GetProperty("size").GetInt64());
-            }
+            var asset = BgfxAsset(rel);
+            if (asset == null) continue;
+            if (!name.StartsWith("DO NOT USE", StringComparison.OrdinalIgnoreCase)) return new VpxReleases(asset, withdrawn);
+            withdrawn ??= asset;
+        }
+        return new VpxReleases(null, withdrawn);
+    }
+
+    static VpxRelease? BgfxAsset(JsonElement rel)
+    {
+        foreach (var asset in rel.GetProperty("assets").EnumerateArray())
+        {
+            var an = asset.GetProperty("name").GetString() ?? "";
+            if (an.StartsWith("VPinballX_BGFX-") && an.EndsWith(AssetSuffix))
+                return new VpxRelease(rel.GetProperty("tag_name").GetString()!, an,
+                    asset.GetProperty("browser_download_url").GetString()!, asset.GetProperty("size").GetInt64());
         }
         return null;
+    }
+
+    /// <summary>The Setup tab's line about VPX updates, and whether to offer one.</summary>
+    public static (string Text, bool HasUpdate) DescribeUpdate(VpxReleases r, string? installed)
+    {
+        var note = r.Withdrawn is { } w
+            ? $" The VPX team has marked newer builds (up to {w.Tag}) \"DO NOT USE\" on GitHub, so they aren't offered."
+            : "";
+        if (r.Latest == null)
+            return (installed != null
+                ? $"Keeping your installed {installed}.{note}"
+                : r.Withdrawn != null
+                    ? $"No VR (BGFX) build is available to install right now.{note} Check github.com/vpinball/vpinball/releases."
+                    : "No VPX release found for this OS.", false);
+        if (installed == null) return ($"Not installed. Latest is {r.Latest.Tag}.{note}", false);
+        if (installed == r.Latest.Tag) return ($"Up to date ({installed}).{note}", false);
+        // Installed something newer than the newest usable build (e.g. a build later marked DO NOT USE): keep it.
+        if (installed == r.Withdrawn?.Tag || IsNewer(installed, r.Latest.Tag)) return ($"Keeping your installed {installed}.{note}", false);
+        return ($"{installed} → {r.Latest.Tag}", true);
+    }
+
+    /// <summary>Compares tags like "v10.8.1-5436-af26b2d93" by their version and build number.</summary>
+    static bool IsNewer(string a, string b)
+    {
+        static (Version v, int build) Parse(string t)
+        {
+            var parts = t.TrimStart('v').Split('-');
+            return (Version.TryParse(parts[0], out var v) ? v : new Version(0, 0),
+                parts.Length > 1 && int.TryParse(parts[1], out var n) ? n : 0);
+        }
+        var (va, ba) = Parse(a);
+        var (vb, bb) = Parse(b);
+        return va != vb ? va > vb : ba > bb;
     }
 
     public static string? InstalledVersion(AppSettings s)
@@ -87,7 +144,14 @@ public static class VpxSetup
         IniFile.Set(ini, "PlayerVR", "AskToTurnOn", "0");
         var rate = s.VrRefreshRate switch { 72 => 1, 80 => 2, 90 => 3, 120 => 4, _ => 0 };
         IniFile.Set(ini, "PlayerVR", "DisplayRefreshRate", rate.ToString());
+        // VPX's built-in PinMAME reads each table's own pinmame\roms, nvram and alias.txt (where this app
+        // puts them); without it VPX falls back to a separately installed VPinMAME and its global roms
+        // folder. Serum and AltSound are its colorization and sound companions, read from the table folder.
+        var on = s.UseBuiltInPinmame ? "1" : "0";
+        foreach (var plugin in BuiltInPinmamePlugins) IniFile.Set(ini, "Plugin." + plugin, "Enable", on);
     }
+
+    public static readonly string[] BuiltInPinmamePlugins = ["PinMAME", "Serum", "AltSound"];
 
     /// <summary>Which OpenXR runtime VPX will talk to (Windows only).</summary>
     public static string DescribeOpenXrRuntime()

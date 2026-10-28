@@ -203,7 +203,8 @@ public static partial class RomAudio
 
     // ---- libpinmame -------------------------------------------------------------------
 
-    static readonly object OneAtATime = new();
+    /// <summary>libpinmame has one global state: one user at a time (also <see cref="PinmameInfo"/>).</summary>
+    internal static readonly object OneAtATime = new();
 
     [StructLayout(LayoutKind.Sequential, CharSet = CharSet.Ansi)]
     struct Config

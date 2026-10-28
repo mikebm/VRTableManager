@@ -141,9 +141,24 @@ Check(BrowserDownloader.IsDirectFileUrl("https://github.com/a/b/releases/downloa
 Check(!BrowserDownloader.IsDirectFileUrl("https://vpuniverse.com/files/file/24896-rise-against/"), "VPU page goes through browser");
 
 // 6. Latest VPX release
-var rel = await VpxSetup.FindLatestAsync(CancellationToken.None);
-Console.WriteLine($"latest VPX: {rel?.Tag} {rel?.AssetName} {rel?.Size / 1_048_576} MB");
-Check(rel?.AssetName.StartsWith("VPinballX_BGFX-") == true, "finds BGFX Windows build");
+var vpxReleases = await VpxSetup.FindReleasesAsync(CancellationToken.None);
+var rel = vpxReleases.Latest;
+Console.WriteLine($"latest VPX: {rel?.Tag} {rel?.AssetName} {rel?.Size / 1_048_576} MB; newest marked DO NOT USE: {vpxReleases.Withdrawn?.Tag}");
+Check((rel ?? vpxReleases.Withdrawn)?.AssetName.StartsWith("VPinballX_BGFX-") == true, "finds the BGFX Windows build (usable or marked DO NOT USE)");
+{
+    static string Rel(string tag, string name) =>
+        $$"""{"draft":false,"name":"{{name}}","tag_name":"{{tag}}","assets":[{"name":"VPinballX_BGFX-{{tag.TrimStart('v')}}-windows-x64-Release.zip","browser_download_url":"https://x/{{tag}}.zip","size":1}]}""";
+    var allWithdrawn = VpxSetup.ParseReleases($"[{Rel("v10.8.1-5436-a", "DO NOT USE - v10.8.1-5436-a")},{Rel("v10.8.1-3788-b", "DO NOT USE - v10.8.1-3788-b")}]");
+    Check(allWithdrawn.Latest == null && allWithdrawn.Withdrawn?.Tag == "v10.8.1-5436-a", "DO NOT USE builds are never picked to install");
+    var keep = VpxSetup.DescribeUpdate(allWithdrawn, "v10.8.1-5436-a");
+    Check(!keep.HasUpdate && keep.Text.StartsWith("Keeping your installed v10.8.1-5436-a") && keep.Text.Contains("DO NOT USE"),
+        "installed build is kept and the reason is shown");
+    Check(!VpxSetup.DescribeUpdate(allWithdrawn, null).HasUpdate, "nothing to install when every build is marked DO NOT USE");
+    var mixed = VpxSetup.ParseReleases($"[{Rel("v10.8.2-100-c", "DO NOT USE - v10.8.2-100-c")},{Rel("v10.8.1-5436-a", "v10.8.1")}]");
+    Check(mixed.Latest?.Tag == "v10.8.1-5436-a" && mixed.Withdrawn?.Tag == "v10.8.2-100-c", "falls back to the newest usable build");
+    Check(VpxSetup.DescribeUpdate(mixed, "v10.8.1-3788-b").HasUpdate, "older install: offers the newest usable build");
+    Check(!VpxSetup.DescribeUpdate(mixed, "v10.8.2-100-c").HasUpdate, "never offers an older build over a newer install");
+}
 Console.WriteLine(VpxSetup.DescribeOpenXrRuntime());
 
 // 7. Pinball FX + UEVR engine
@@ -461,6 +476,51 @@ Check(uevrRel?.Url.EndsWith("/UEVR.zip") == true, "finds the latest UEVR release
     }
     Check(RomDetector.FromVpx(vpxPath) == "mm_109c", "reads cGameName from the table script (across a chunk boundary)");
     Check(RomDetector.FromScript("x = 1") == null, "no cGameName → no ROM");
+    Check(RomDetector.FromScript("dim x\r\n'Const cGameName = \"mm_10\" 'official\r\n'Const cGameName=\"mm_109b\"\r\nConst cGameName=\"mm_109c\" 'profanity\r\n") == "mm_109c"
+          && RomDetector.FromScript("'Const cGameName = \"mtl_180hc\"\t' LE\r\n\tConst cGameName = \"mtl_180h\"\t' LE\r") == "mtl_180h",
+        "commented-out cGameName lines are skipped (Medieval Madness, Metallica)");
+    Check(RomDetector.AliasTargetsIn("Const cGameName = \"afm_113b_me\"\r\nEnsureVPMAlias cGameName, \"afm_113b\"\r\n' alias \"not_this\"\r\n").SequenceEqual(["afm_113b"]),
+        "alias target read from the script (Mass Effect), not from comments");
+
+    // Alias file, Serum folder and parent sets
+    var rq = Path.Combine(root, "romreq", "Mass Effect (Original 2026)");
+    Directory.CreateDirectory(Path.Combine(rq, "altcolor", "afm_113b_me"));
+    File.WriteAllText(Path.Combine(rq, "altcolor", "afm_113b_me", "afm_113b_me.cROMc"), "x");
+    RomRequirements.MoveSerum(rq);
+    Check(File.Exists(Path.Combine(rq, "serum", "afm_113b_me", "afm_113b_me.cROMc")) && !Directory.Exists(Path.Combine(rq, "altcolor")),
+        "Serum colorization moved from altcolor\\ to serum\\ (where VPX 10.8.1 looks)");
+    RomRequirements.WriteAlias(Path.Combine(rq, "pinmame"), "afm_113b_me", "afm_113b");
+    RomRequirements.WriteAlias(Path.Combine(rq, "pinmame"), "afm_113b_me", "afm_113b");
+    Check(File.ReadAllLines(Path.Combine(rq, "pinmame", "alias.txt")).SequenceEqual(["afm_113b_me,afm_113b"]), "alias.txt gets the line once");
+    var rqTable = new InstalledTable(new TableManifest { RomNames = ["afm_113b"], RomParents = ["afm_113"] }, Path.Combine(rq, "x.vpx"), rq);
+    Directory.CreateDirectory(Path.Combine(rq, "pinmame", "roms"));
+    Check(rqTable.MissingRoms.SequenceEqual(["afm_113b"]), "missing ROM first");
+    File.WriteAllText(Path.Combine(rq, "pinmame", "roms", "afm_113b.zip"), "x");
+    Check(rqTable.MissingRoms.SequenceEqual(["afm_113"]), "then the parent set a clone needs");
+    File.WriteAllText(Path.Combine(rq, "pinmame", "roms", "afm_113.zip"), "x");
+    Check(rqTable.MissingRoms.Count == 0, "complete once both are there");
+
+    // Stern's game code site: results from the page's JSON, matched to PinMAME's description.
+    var sternPage = """<script>var x={"posts":[{"title":"Avatar LE 1.20 Game Code","download_type":"link","download_file":"","download_link":"https:\/\/f002.backblazeb2.com\/file\/gamecode\/AV_PRE_english.zip"},{"title":"Avatar Pro 2.00 Game Code Read Me","download_type":"file","download_file":"https:\/\/wp.sternpinball.com\/r.txt","download_link":""},{"title":"Avatar Pro 2.00 Game Code","download_type":"link","download_file":"","download_link":"https:\/\/f002.backblazeb2.com\/file\/gamecode\/AVenglish02.zip"},{"title":"Avatar Pro 1.10 Game Code","download_type":"link","download_file":"","download_link":"https:\/\/f002.backblazeb2.com\/file\/gamecode\/AVenglish.zip"}]}</script>""";
+    var sternCodes = SternGameCode.ParseResults(sternPage);
+    Check(sternCodes.Count == 3 && !sternCodes.Any(c => c.Title.Contains("Read Me")), "Stern: reads the game code list, skips read-me files");
+    Check(SternGameCode.Rank(sternCodes, "Avatar (V2.0)").Select(c => c.Url).SequenceEqual(["https://f002.backblazeb2.com/file/gamecode/AVenglish02.zip"]),
+        "Stern: Avatar (V2.0) → the Pro 2.00 file");
+    Check(SternGameCode.Rank(sternCodes, "Avatar Limited Edition (V1.2)").First().Title == "Avatar LE 1.20 Game Code", "Stern: LE ROM (…h) → the LE file");
+    Check(SternGameCode.Rank(sternCodes, "Avatar (V3.1)").Count == 0, "Stern: no file of that version → nothing tried");
+    Check(SternGameCode.Rank([new SternCode("The Lord of the Rings 10.0 Game Code", "https://x/lotr.zip")], "Lord of the Rings, The (10.00)").Count == 1,
+        "Stern: 10.0 matches PinMAME's 10.00");
+
+    // VPX's own PinMAME, when installed on this PC: clone/parent facts straight from it.
+    var realSettings = AppSettings.Load();
+    if (File.Exists(RomAudio.PinmameDll(realSettings)))
+    {
+        var fam = PinmameInfo.Family(realSettings, Path.Combine(rq, "pinmame"), "afm_113b");
+        Check(fam.Select(g => g.Name).SequenceEqual(["afm_113b", "afm_113"]), "PinMAME: afm_113b is a clone of afm_113");
+        Check(PinmameInfo.Get(realSettings, Path.Combine(rq, "pinmame"), "afm_113b_me") is { Name: "afm_113b" }, "PinMAME follows the table's alias.txt");
+        Check(PinmameInfo.Get(realSettings, Path.Combine(root, "nowhere"), "not_a_rom_xyz") == null, "unknown names aren't games");
+    }
+    else Console.WriteLine("SKIP  PinMAME checks (VPX isn't installed here)");
 
     var rt = new InstalledTable(new TableManifest { Engine = TableManifest.Vpx, RomNames = ["mm_109", "mm_109c"] },
         Path.Combine(root, "romtable", "t.vpx"), Path.Combine(root, "romtable"));

@@ -158,19 +158,27 @@ public sealed partial class InstalledItem : ObservableObject
     [ObservableProperty, NotifyPropertyChangedFor(nameof(CanGetRom), nameof(CanGetAllRoms), nameof(RomUnavailable), nameof(RomUnavailableText))]
     public partial VpsFile? RomSource { get; set; }
 
-    /// <summary>Needs a ROM the catalog has no download for.</summary>
-    public bool RomUnavailable => NeedsRom && RomSource == null;
+    /// <summary>A Stern machine: Get ROM tries Stern's own free game code first (set by the view model).</summary>
+    [ObservableProperty, NotifyPropertyChangedFor(nameof(CanGetRom), nameof(RomUnavailable), nameof(RomUnavailableText))]
+    public partial bool HasSternSource { get; set; }
+
+    /// <summary>Needs a ROM nobody we know of offers.</summary>
+    public bool RomUnavailable => NeedsRom && RomSource == null && !HasSternSource;
 
     public string RomUnavailableText => !RomUnavailable ? "" :
         $"The catalog has no download for {string.Join(" / ", Table.MissingRoms.Select(r => r + ".zip"))}. " +
-        "Some ROMs (often …h or …hc versions) are made by players from Stern's code rather than downloaded. " +
+        "Some ROMs (often modified ones ending in c, like …hc) are made by players rather than published. " +
         "Search VPUniverse for it, or use Add ROM if you have the file.";
 
     /// <summary>ROM missing and the catalog has a download for it.</summary>
-    public bool CanGetRom => NeedsRom && RomSource != null;
+    public bool CanGetRom => NeedsRom && (RomSource != null || HasSternSource);
 
     /// <summary>ROM present; offer to fetch every version from its ROM page (clones need their parent).</summary>
-    public bool CanGetAllRoms => !NeedsRom && RomSource != null;
+    /// <remarks>
+    /// Once PinMAME has checked the set (<see cref="RomRequirements"/>), a complete set needs nothing
+    /// more and a missing parent shows as Needs ROM, so this is only for tables it couldn't check.
+    /// </remarks>
+    public bool CanGetAllRoms => !NeedsRom && RomSource != null && Table.Manifest.RomCheck < RomRequirements.Version;
 
     public bool NeedsRom => Table.MissingRoms.Count > 0;
 

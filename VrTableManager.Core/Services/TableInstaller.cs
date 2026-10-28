@@ -13,11 +13,17 @@ public sealed record InstalledTable(TableManifest Manifest, string TablePath, st
     /// script's cGameName was found this is that one name; otherwise it's VPS's candidates, any of
     /// which will do.
     /// </summary>
-    public IReadOnlyList<string> MissingRoms =>
-        IsVpx && Manifest.RomNames.Count > 0
-              && !Manifest.RomNames.Any(r => File.Exists(Path.Combine(Folder, "pinmame", "roms", r + ".zip")))
-            ? Manifest.RomNames
-            : [];
+    public IReadOnlyList<string> MissingRoms
+    {
+        get
+        {
+            if (!IsVpx || Manifest.RomNames.Count == 0) return [];
+            bool Has(string r) => File.Exists(Path.Combine(Folder, "pinmame", "roms", r + ".zip"));
+            if (!Manifest.RomNames.Any(Has)) return Manifest.RomNames;
+            // The ROM is there; a clone may still need its parent set.
+            return Manifest.RomParents.Where(p => !Has(p)).ToList();
+        }
+    }
 
     /// <summary>
     /// An install into this folder started but never finished (app closed or crashed mid-copy),
@@ -125,10 +131,13 @@ public static class TableInstaller
                 if (isFp && File.Exists(ManifestPathFor(replacing.TablePath, true))) File.Delete(ManifestPathFor(replacing.TablePath, true));
             }
 
+            var table = new InstalledTable(manifest, installed.tablePath, installed.folder);
+            // Ask PinMAME what the ROM really is (aliases, parent sets) before the manifest is saved.
+            if (!isFp && !rom.NoRomNeeded) await Task.Run(() => RomRequirements.Update(table, settings), ct);
             await File.WriteAllTextAsync(ManifestPathFor(installed.tablePath, isFp), JsonSerializer.Serialize(manifest, Json), ct);
             // Everything's in place: the folder is no longer half-installed.
             if (!isFp) File.Delete(Path.Combine(installed.folder, InstallingMarker));
-            return new InstalledTable(manifest, installed.tablePath, installed.folder);
+            return table;
         }
         finally
         {

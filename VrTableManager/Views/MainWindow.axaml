@@ -537,6 +537,12 @@
                   <TextBlock Classes="mono" Text="{Binding LatestVpx}" TextWrapping="Wrap" />
                   <TextBlock Classes="muted" TextWrapping="Wrap"
                              Text="Installs the official BGFX build from github.com/vpinball (VR through OpenXR). Tables launch with a separate VR settings file, so desktop settings stay as they are." />
+                  <CheckBox IsChecked="{Binding UseBuiltInPinmame}"
+                            Content="Use VPX's built-in PinMAME in VR (recommended)"
+                            ToolTip.Tip="Reads each table's ROMs, scores, ROM aliases and Serum colours from its own folder. Off: VPX uses a separately installed VPinMAME and its own roms folder." />
+                  <CheckBox IsChecked="{Binding LobbyRecordsRomAudio}"
+                            Content="Record a table's music from its ROM in the VR lobby"
+                            ToolTip.Tip="Runs the ROM for about 50 s in the background the first time you stop on a table. Off: only audio files already there play." />
                 </StackPanel>
               </Grid>
             </Border>

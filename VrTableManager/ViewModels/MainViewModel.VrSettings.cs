@@ -19,6 +19,10 @@ public sealed partial class MainViewModel
     [ObservableProperty] public partial bool IsMetaRuntime { get; set; }
     [ObservableProperty] public partial bool WarnSteamVrRuntime { get; set; }
     [ObservableProperty] public partial bool ExplainFailedLaunches { get; set; }
+    /// <summary>VR play uses VPX's built-in PinMAME, which reads ROMs from each table's own folder.</summary>
+    [ObservableProperty] public partial bool UseBuiltInPinmame { get; set; }
+    /// <summary>The VR lobby records a ROM table's start-up music in the background the first time you stop on it.</summary>
+    [ObservableProperty] public partial bool LobbyRecordsRomAudio { get; set; }
 
     public bool HasMetaLinkApp => File.Exists(MetaLinkApp);
     public bool HasOculusDebugTool => File.Exists(MetaAsw.DebugToolPath);

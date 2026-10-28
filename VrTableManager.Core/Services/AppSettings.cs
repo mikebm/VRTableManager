@@ -28,6 +28,16 @@ public sealed class AppSettings
     public string MetaAswMode { get; set; } = "Leave as is";
     /// <summary>Before a VR launch, warn when the active OpenXR runtime is SteamVR (an extra layer for a Quest).</summary>
     public bool WarnSteamVrRuntime { get; set; } = true;
+    /// <summary>
+    /// VR play uses VPX's built-in PinMAME (plugin) rather than a separately installed VPinMAME, so ROMs,
+    /// aliases and Serum files come from each table's own folder.
+    /// </summary>
+    public bool UseBuiltInPinmame { get; set; } = true;
+    /// <summary>
+    /// The VR lobby records a ROM table's start-up music the first time you settle on it (RomAudio): a
+    /// background PinMAME run of about 50 s, once per table. Off: only audio files already there play.
+    /// </summary>
+    public bool LobbyRecordsRomAudio { get; set; } = true;
     /// <summary>After a VPX table closes, show its log's errors when it crashed or ended within seconds.</summary>
     public bool ExplainFailedLaunches { get; set; } = true;
     /// <summary>Restore this window after a table exits so you can pick the next one.</summary>
