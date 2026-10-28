@@ -187,6 +187,8 @@ public sealed partial class MainViewModel
         AswMode = s.MetaAswMode;
         WarnSteamVrRuntime = s.WarnSteamVrRuntime;
         ExplainFailedLaunches = s.ExplainFailedLaunches;
+        UseBuiltInPinmame = s.UseBuiltInPinmame;
+        LobbyRecordsRomAudio = s.LobbyRecordsRomAudio;
         LoadGraphics();
         RefreshInstalled();
         RefreshSetupStatus();

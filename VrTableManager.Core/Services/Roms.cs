@@ -27,29 +27,73 @@ public static partial class RomDetector
         var carry = 0;
         string? gameName = null;
         var pinMame = false;
+        var aliasTargets = new List<string>();
         using var fs = File.OpenRead(vpxPath);
-        int read;
-        while ((gameName == null || !pinMame) && (read = fs.Read(buffer, carry, Chunk)) > 0)
+        int read, chunksAfter = 0;
+        // Alias lines sit near cGameName (Mass Effect's is six lines on), so read one more chunk after
+        // both answers are in rather than the whole file (tables run to hundreds of MB).
+        while (chunksAfter < 2 && (read = fs.Read(buffer, carry, Chunk)) > 0)
         {
+            if (gameName != null && pinMame) chunksAfter++;
             var total = carry + read;
             var text = Encoding.Latin1.GetString(buffer, 0, total);
-            if (gameName == null && GameNameRegex().Match(text) is { Success: true } m) gameName = m.Groups[1].Value;
-            pinMame |= PinMameRegex().IsMatch(text);
+            gameName ??= FromScript(text);
+            pinMame = pinMame || PinMameRegex().IsMatch(text);
+            foreach (var a in AliasTargetsIn(text))
+                if (!aliasTargets.Contains(a, StringComparer.OrdinalIgnoreCase)) aliasTargets.Add(a);
             // Keep the tail so a match split across chunks is still found.
             var keep = Math.Min(Overlap, total);
             Buffer.BlockCopy(buffer, total - keep, buffer, 0, keep);
             carry = keep;
         }
-        return new(gameName, pinMame);
+        return new(gameName, pinMame) { AliasTargets = aliasTargets };
     }
 
-    public static string? FromScript(string script) =>
-        GameNameRegex().Match(script) is { Success: true } m ? m.Groups[1].Value : null;
+    /// <summary>
+    /// The cGameName the script actually uses. Tables often list alternatives commented out
+    /// (<c>' Const cGameName = "afm_113"</c>), so only a line that isn't a comment counts.
+    /// </summary>
+    public static string? FromScript(string script)
+    {
+        foreach (var line in CodeLinesWith(script, "cGameName"))
+            if (GameNameRegex().Match(line) is { Success: true } m) return m.Groups[1].Value;
+        return null;
+    }
+
+    /// <summary>ROM names on (uncommented) script lines that mention an alias, e.g. <c>EnsureVPMAlias cGameName, "afm_113b"</c>.</summary>
+    public static List<string> AliasTargetsIn(string script) =>
+        CodeLinesWith(script, "alias").Select(l => AliasRegex().Match(l)).Where(m => m.Success)
+            .Select(m => m.Groups[1].Value).Distinct(StringComparer.OrdinalIgnoreCase).ToList();
 
     public static bool UsesPinMame(string script) => PinMameRegex().IsMatch(script);
 
-    [GeneratedRegex("cGameName\\s*=\\s*\"([A-Za-z0-9_]{2,32})\"", RegexOptions.IgnoreCase)]
+    /// <summary>
+    /// The code part of each line containing <paramref name="word"/> (scripts end lines with \r\n or a
+    /// lone \r): up to the word, nothing after a ' comment mark. A plain search finds the few lines
+    /// first, so this stays fast over the hundreds of MB of a table file.
+    /// </summary>
+    static IEnumerable<string> CodeLinesWith(string text, string word)
+    {
+        for (var i = text.IndexOf(word, StringComparison.OrdinalIgnoreCase); i >= 0; i = text.IndexOf(word, i + word.Length, StringComparison.OrdinalIgnoreCase))
+        {
+            var start = text.LastIndexOfAny(['\r', '\n'], i) + 1;
+            var end = text.IndexOfAny(['\r', '\n'], i);
+            if (end < 0) end = text.Length;
+            // A "line" can run through binary data; only look nearby.
+            start = Math.Max(start, i - 300);
+            end = Math.Min(end, i + 300);
+            var line = text[start..end];
+            var comment = line.IndexOf('\'');
+            if (comment >= 0 && comment < i - start) continue; // the word is inside a comment
+            yield return comment >= 0 ? line[..comment] : line;
+        }
+    }
+
+    [GeneratedRegex("\\bcGameName[ \\t]*=[ \\t]*\"([A-Za-z0-9_]{2,32})\"", RegexOptions.IgnoreCase)]
     private static partial Regex GameNameRegex();
+
+    [GeneratedRegex("alias[^\"]*\"([a-z0-9_]{2,32})\"", RegexOptions.IgnoreCase)]
+    private static partial Regex AliasRegex();
 
     [GeneratedRegex("LoadVPM|VPinMAME\\.Controller", RegexOptions.IgnoreCase)]
     private static partial Regex PinMameRegex();
@@ -59,6 +103,12 @@ public static partial class RomDetector
 /// <param name="UsesPinMame">The script loads PinMAME, so it needs a ROM.</param>
 public sealed record VpxRomInfo(string? GameName, bool UsesPinMame)
 {
+    /// <summary>
+    /// ROM names the script ties to an alias. When cGameName isn't a real PinMAME game (Mass Effect
+    /// runs "afm_113b_me"), one of these is what it stands for; PinMAME learns that from alias.txt.
+    /// </summary>
+    public IReadOnlyList<string> AliasTargets { get; init; } = [];
+
     /// <summary>The script was read and it doesn't use PinMAME: no ROM needed, whatever cGameName says.</summary>
     public bool NoRomNeeded => GameName != null && !UsesPinMame;
 }

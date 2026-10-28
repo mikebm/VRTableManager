@@ -132,7 +132,7 @@ public partial class Main : Node3D
             GetTree().Quit(file != null ? 0 : 1);
             return;
         }
-        _recordRoms = !selfTest;
+        _recordRoms = !selfTest && Settings.LobbyRecordsRomAudio;
         _recorder.SettingsPath = _settingsPath;
         _borrowAll = args.ContainsKey("borrow-all");
         Rebuild(args.GetValueOrDefault("select", ""));

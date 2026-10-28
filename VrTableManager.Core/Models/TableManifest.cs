@@ -27,6 +27,15 @@ public sealed class TableManifest
     public string VpxFile { get; set; } = "";
     /// <summary>ROM names the table expects in pinmame/roms (from VPS).</summary>
     public List<string> RomNames { get; set; } = [];
+    /// <summary>
+    /// Parent ROM sets the table's ROM also needs (a clone takes files from its parent, e.g. afm_113b
+    /// needs afm_113). Only listed when PinMAME said the set isn't complete without them.
+    /// </summary>
+    public List<string> RomParents { get; set; } = [];
+    /// <summary>The script's own name for the ROM when it's an alias ("afm_113b_me" for afm_113b), written to pinmame\alias.txt.</summary>
+    public string? RomAlias { get; set; }
+    /// <summary>Which version of the ROM check last ran on this table (see RomRequirements.Version); 0 = never.</summary>
+    public int RomCheck { get; set; }
     public DateTime InstalledAt { get; set; }
     /// <summary>VPS UpdatedAt (epoch ms) of the table file when it was installed; used for update checks.</summary>
     public long? SourceUpdatedAt { get; set; }

@@ -47,13 +47,18 @@ public partial class MainWindow : Window, IUiHost
         return res.FirstOrDefault()?.TryGetLocalPath();
     }
 
-    public async Task<string?> PickFileAsync(string title, string pattern)
+    public async Task<string?> PickFileAsync(string title, string pattern, string? preferredName = null, string? startFolder = null)
     {
-        var res = await StorageProvider.OpenFilePickerAsync(new FilePickerOpenOptions
+        var all = new FilePickerFileType(pattern == "*.zip" ? "All ROM zips (*.zip)" : pattern) { Patterns = [pattern] };
+        var options = new FilePickerOpenOptions
         {
             Title = title,
-            FileTypeFilter = [new FilePickerFileType(pattern) { Patterns = [pattern] }],
-        });
+            // The first filter is the one selected when the dialog opens.
+            FileTypeFilter = preferredName != null ? [new FilePickerFileType(preferredName) { Patterns = [preferredName] }, all] : [all],
+        };
+        if (startFolder != null && Directory.Exists(startFolder))
+            options.SuggestedStartLocation = await StorageProvider.TryGetFolderFromPathAsync(startFolder);
+        var res = await StorageProvider.OpenFilePickerAsync(options);
         return res.FirstOrDefault()?.TryGetLocalPath();
     }
 
