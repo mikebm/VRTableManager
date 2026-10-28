@@ -1,4 +1,5 @@
 using VrTableManager.Models;
+using VrTableManager.Services;
 
 namespace VrTableManager.Lobby;
 
@@ -58,9 +59,13 @@ public static class LobbyArt
     /// <summary>
     /// A short sound to play when the cabinet is selected: an .ogg/.mp3/.wav in the VPX table's own
     /// folder or its music/ subfolder (names with "attract", "intro", "theme"… first). Never for
-    /// Future Pinball (its Tables folder is shared) or store games. Null when there's nothing suitable.
+    /// Future Pinball (its Tables folder is shared) or store games. Without such a file, the sound
+    /// recorded from the table's ROM (<see cref="RomAudio"/>), if it has been. Null when there's nothing suitable.
     /// </summary>
-    public static string? AttractSound(LobbyTable t)
+    public static string? AttractSound(LobbyTable t) =>
+        LooseSound(t) ?? (t.Engine == TableManifest.Vpx ? RomAudio.Cached(t.Source) : null);
+
+    static string? LooseSound(LobbyTable t)
     {
         if (t.Engine != TableManifest.Vpx) return null;
         var folder = t.Source.Folder;

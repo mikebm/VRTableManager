@@ -425,6 +425,10 @@
                                   </MenuItem.Styles>
                                 </MenuItem>
                                 <Separator IsVisible="{Binding IsVpx}" />
+                                <MenuItem Header="{Binding AttractAudioMenuHeader}" IsVisible="{Binding CanGetAttractAudio}"
+                                          ToolTip.Tip="Download this table's sound file or media pack and keep only its audio, as music\attract (the pack's videos are deleted)"
+                                          IsEnabled="{Binding !IsBusy}" Command="{Binding Owner.GetAttractAudioCommand}" CommandParameter="{Binding}" />
+                                <MenuItem Header="Remove attract audio" IsVisible="{Binding HasAttractAudio}" Command="{Binding Owner.RemoveAttractAudioCommand}" CommandParameter="{Binding}" />
                                 <MenuItem Header="Clear texture cache" IsVisible="{Binding IsVpx}" Command="{Binding Owner.ClearTableCacheCommand}" CommandParameter="{Binding}" />
                               </MenuFlyout>
                             </Button.Flyout>

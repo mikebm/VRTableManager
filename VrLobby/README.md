@@ -66,7 +66,9 @@ Each table stands in **its own VR cabinet**, the 3D cabinet its author built int
 - **`cabinet/default.cab` missing:** a drawn cabinet, as a last resort only. An export build needs `cabinet/*.cab` in the preset's "include non-resource files" filter.
 - **Playfield:** read straight out of the table's `.vpx`, at up to 2048 px, extracted once per table version into `%APPDATA%\VrTableManager\img-cache`. If a table has no usable flat playfield picture, its VPS picture is used instead. Metallica (Premium Monsters) is one: its playfield is baked into lighting atlases.
 - **Backglass:** the cabinet's own backglass when it has one. Otherwise the game's picture from the cached VPS catalog (`vpsdb.json`, no network), on the cabinet's backglass or on a panel on its backbox. With no picture at all, a lit title plate shows the table's name.
-- **Attract sound:** if a VPX table's folder (or its `music` folder) has an `.ogg` / `.mp3` / `.wav`, about 10 seconds of it plays quietly from the backbox when you settle on that cabinet. Names with "attract", "intro" or "theme" are preferred. None of the tables on this PC have one, so the self-test checks it with a test file.
+- **Attract sound:** about 10 seconds plays quietly from the backbox when you settle on a VPX cabinet, from the first of:
+  1. An `.ogg` / `.mp3` / `.wav` in the table's folder or its `music` folder (names with "attract", "intro" or "theme" first). VR Table Manager's **Get attract audio** (a table's MORE menu) saves one there as `music\attract.mp3` from the table's community media pack, when VPS lists one that has audio.
+  2. Otherwise, the table's own ROM, recorded once: the first time you settle on a ROM table, a headless copy of the lobby (`-- --record-audio=<table path>`) runs the ROM in VPX's PinMAME for about 50 s. It drops coins, presses Start with balls in the trough (switch numbers read from the table script) and keeps the game-start music in `%APPDATA%\VrTableManager\attract-audio\<rom>.wav`. It works on a scratch copy of the ROM with empty nvram, so your scores and settings are never touched. It's stopped when a table starts. ROMs that give nothing are remembered and not tried again.
 
 ![Every table in the borrowed Medieval Madness cabinet (--borrow-all): Attack from Mars, The Addams Family, Black Knight 2000](screenshot-borrowed.png)
 
@@ -151,7 +153,7 @@ Verified on this PC (no headset connected):
 - **Controls:** stick, trigger, Y (random), B, grips, the laser on cabinets and rail letters, and haptics.
 - **Performance:** a full ring of real cabinets is roughly 0.3–1.5 million triangles (Fish Tales alone is 235k vertices) plus DXT textures; fine for a PC GPU, but check the frame rate over Link when turning the ring quickly. Also watch the moment a cabinet switches from the default cabinet to its own as it finishes loading.
 - **The OpenXR handover:** the lobby quitting, the table starting in VR, then the lobby coming back. Expect a few seconds of black or loading view.
-- **Attract sounds:** with a real table folder that has music (none here).
+- **Attract sounds:** the recorded clips and the two media-pack files have not been listened to in the headset. Recorded so far: Medieval Madness, Black Knight 2000, Fish Tales, Avatar and X-Men (~25 s each); Attack from Mars gives only ~3 s (its game probably waits on another switch), but it now has a media-pack file.
 - **Future Pinball (BAM-OpenVR + SteamVR), and Pinball FX / M through UEVR:** UEVR isn't installed on this PC.
 - **Height:** that Local Floor puts you at the right height, and the left-grip height control.
 

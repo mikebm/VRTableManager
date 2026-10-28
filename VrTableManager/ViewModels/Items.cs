@@ -174,6 +174,18 @@ public sealed partial class InstalledItem : ObservableObject
 
     public bool NeedsRom => Table.MissingRoms.Count > 0;
 
+    /// <summary>Where the catalog has attract audio for this table (set by the view model); empty when it has none.</summary>
+    [ObservableProperty, NotifyPropertyChangedFor(nameof(CanGetAttractAudio))]
+    public partial IReadOnlyList<MediaPackAudio.Source> AttractAudioSources { get; set; } = [];
+
+    public bool CanGetAttractAudio => Table.IsVpx && AttractAudioSources.Count > 0;
+
+    /// <summary>A music\attract.* is in the table folder (the VR lobby plays it when the cabinet is selected).</summary>
+    [ObservableProperty, NotifyPropertyChangedFor(nameof(AttractAudioMenuHeader))]
+    public partial bool HasAttractAudio { get; set; }
+
+    public string AttractAudioMenuHeader => HasAttractAudio ? "Replace attract audio (from media pack)" : "Get attract audio for the VR lobby";
+
     /// <summary>Its install was cut off (app closed mid-copy): offer Reinstall instead of Play.</summary>
     public bool IsIncomplete => Table.IsIncomplete;
 

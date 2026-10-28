@@ -662,6 +662,8 @@ Console.WriteLine($"   gamepad connected: {Gamepad.IsConnected()?.ToString() ?? 
 }
 
 foreach (var (ok, name) in HighScoreChecks.Run()) Check(ok, name);
+foreach (var (ok, name) in RomAudioChecks.Run()) Check(ok, name);
+foreach (var (ok, name) in MediaPackAudioChecks.Run(root)) Check(ok, name);
 
 // ---- VR graphics, logs, storage, backup ----
 {

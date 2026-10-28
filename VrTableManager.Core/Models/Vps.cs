@@ -19,6 +19,10 @@ public sealed class VpsGame
     public List<VpsTableFile>? TableFiles { get; set; }
     public List<VpsFile>? RomFiles { get; set; }
     public List<VpsFile>? B2sFiles { get; set; }
+    /// <summary>Front-end media packs (PinUP Popper / PinballX videos, art and table audio).</summary>
+    public List<VpsFile>? MediaPackFiles { get; set; }
+    /// <summary>Table audio: mostly direct .mp3 links (Dropbox), sometimes sound-replacement packs.</summary>
+    public List<VpsFile>? SoundFiles { get; set; }
 
     [JsonIgnore]
     public string DisplayTitle => Year is > 0
