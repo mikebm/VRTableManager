@@ -66,6 +66,24 @@ The smoke tests may access online catalogs or release/site endpoints, so some ch
 - [Desktop manager: features, engine setup, installation, and updates](VrTableManager/README.md)
 - [VR lobby: setup, controls, behavior, and test coverage](VrLobby/README.md)
 
+## Releasing
+
+[`scripts/release.ps1`](scripts/release.ps1) builds a Windows release and publishes it on GitHub:
+
+```powershell
+.\scripts\release.ps1 -Version 1.0.0 -NoPublish   # build and zip only, into artifacts\release
+.\scripts\release.ps1 -Version 1.0.0              # also tag v1.0.0 and create the GitHub release
+```
+
+It runs the smoke test, publishes the manager self-contained for win-x64, bundles the VR lobby
+(already compiled, so players don't need the .NET SDK) and attaches
+`VrTableManager-<version>-win-x64.zip` and its `.sha256` to the release, with GitHub's generated
+change list. The working tree must be clean and pushed. Other options: `-Draft`, `-Prerelease`,
+`-Notes "…"` or `-NotesFile notes.md`, `-SkipTests`, `-Repo owner/name`.
+
+For GitHub access it uses `GITHUB_TOKEN` or `GH_TOKEN` if set, then the GitHub CLI's sign-in, then
+the credential Git already uses for github.com. The token needs `contents: write` on the repository.
+
 ## Credits
 
 - Table data from the [Virtual Pinball Spreadsheet](https://virtualpinballspreadsheet.github.io/).
