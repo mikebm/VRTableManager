@@ -535,7 +535,12 @@ public sealed partial class MainViewModel : ObservableObject, IAsyncDisposable
         {
             item.ApplyStats(_stats);
             item.IsBusy = _busyTables.Contains(item.Table.TablePath); // keep a running fetch's button greyed after a rescan
-            if (item.Table.IsVpx) item.TableScale = VpxGraphics.ReadTableScale(item.Table.TablePath);
+            if (item.Table.IsVpx)
+            {
+                item.TableScale = VpxGraphics.ReadTableScale(item.Table.TablePath);
+                item.HasAttractAudio = MediaPackAudio.Existing(item.Table.Folder) != null;
+                item.AttractAudioSources = AttractAudioSourcesFor(item.Table);
+            }
         }
         ShowInstalled();
         _ = RefreshSizesAsync();
@@ -1071,6 +1076,7 @@ public sealed partial class MainViewModel : ObservableObject, IAsyncDisposable
         {
             item.Update = updates.GetValueOrDefault(item.Table.TablePath);
             item.RomSource = FindRomSource(item.Table);
+            item.AttractAudioSources = AttractAudioSourcesFor(item.Table);
             if (item.NeedsRom && item.RomSource == null) _ = RecheckRomNeedAsync(item.Table);
         }
         TableUpdateCount = updates.Count;

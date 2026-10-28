@@ -34,12 +34,24 @@ public partial class Cabinet : Node3D
     readonly Label3D _star = new();
     readonly Label3D _dmd = new();
 
+    readonly Node3D _body = new();                // everything drawn, hidden while the table's own cabinet loads
     readonly List<Node3D> _generic = [];          // the generic cabinet's parts (hidden while a real cabinet shows)
     readonly QuadMesh _playfieldQuad = new();
     readonly QuadMesh _backglassQuad = new();
     MeshInstance3D _backglassPanel = null!;
     MeshInstance3D _playfield = null!;
     MeshInstance3D _real = null!;
+
+    /// <summary>True while the slot shows nothing: its table has a VR cabinet that's still being read.</summary>
+    public bool Loading => !_body.Visible;
+
+    /// <summary>Shows nothing until the table's own cabinet is ready, rather than a stand-in that then swaps.</summary>
+    public void ShowLoading()
+    {
+        Real = null;
+        Borrowed = false;
+        _body.Visible = false;
+    }
 
     /// <summary>True while this slot shows the table's own cabinet from its .vpx.</summary>
     public bool ShowsRealCabinet => _real.Visible && _real.Mesh != null;
@@ -58,7 +70,8 @@ public partial class Cabinet : Node3D
     public void Build(int slot, Font? displayFont, Font? dmdFont)
     {
         Slot = slot;
-        AddChild(new MeshInstance3D { Mesh = CabinetKit.Shadow, MaterialOverride = CabinetKit.ShadowMaterial, CastShadow = GeometryInstance3D.ShadowCastingSetting.Off });
+        AddChild(_body);
+        _body.AddChild(new MeshInstance3D { Mesh = CabinetKit.Shadow, MaterialOverride = CabinetKit.ShadowMaterial, CastShadow = GeometryInstance3D.ShadowCastingSetting.Off });
         Generic(new MeshInstance3D { Mesh = CabinetKit.Body, MaterialOverride = _bodyMat });
         Generic(new MeshInstance3D { Mesh = CabinetKit.Metal, MaterialOverride = CabinetKit.MetalMaterial });
         Generic(new MeshInstance3D { Mesh = CabinetKit.Chrome, MaterialOverride = CabinetKit.ChromeMaterial });
@@ -76,11 +89,11 @@ public partial class Cabinet : Node3D
             MaterialOverride = _playfieldMat,
             CastShadow = GeometryInstance3D.ShadowCastingSetting.Off,
         };
-        AddChild(_playfield);
+        _body.AddChild(_playfield);
         PlaceGenericPlayfield();
         // The table's own cabinet, when it has one (see ShowReal).
         _real = new MeshInstance3D { Visible = false };
-        AddChild(_real);
+        _body.AddChild(_real);
         // Glass lid, just under the rail tops, spanning the well.
         Generic(new MeshInstance3D
         {
@@ -110,7 +123,7 @@ public partial class Cabinet : Node3D
         _plate.OutlineSize = 0;
         _plate.Modulate = Palette.Lamp;
 
-        AddChild(_plate);
+        _body.AddChild(_plate);
         _generic.Add(_plate);
 
         // Dot-matrix display between the speakers: the table's name in DMD orange, in the Doto dot-matrix font.
@@ -122,7 +135,7 @@ public partial class Cabinet : Node3D
         _dmd.HorizontalAlignment = HorizontalAlignment.Center;
         _dmd.OutlineSize = 0;
         _dmd.Position = new Vector3(0, CabinetKit.PanelCentreY, CabinetKit.BoxFront + 0.0065f);
-        AddChild(_dmd);
+        _body.AddChild(_dmd);
         _generic.Add(_dmd);
 
         _star.Text = "★";
@@ -132,7 +145,7 @@ public partial class Cabinet : Node3D
         _star.Modulate = Palette.Lamp;
         _star.Billboard = BaseMaterial3D.BillboardModeEnum.Enabled;
         _star.Position = new Vector3(0, CabinetKit.Height + 0.12f, CabinetKit.Back + 0.13f);
-        AddChild(_star);
+        _body.AddChild(_star);
 
         // One collider for the whole cabinet, so pointing anywhere at it selects it.
         var area = new Area3D();
@@ -149,7 +162,7 @@ public partial class Cabinet : Node3D
 
     void Generic(Node3D part)
     {
-        AddChild(part);
+        _body.AddChild(part);
         _generic.Add(part);
     }
 
@@ -168,6 +181,7 @@ public partial class Cabinet : Node3D
     /// </summary>
     public void ShowReal(RealCabinet? real, bool borrowed = false)
     {
+        _body.Visible = true;
         Real = real;
         Borrowed = real != null && borrowed;
         if (real == null)

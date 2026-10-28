@@ -48,6 +48,8 @@ public partial class Main : Node3D
     readonly Dictionary<string, double> _cool = new() { ["x"] = 0, ["jump"] = 0 };
     readonly AudioStreamPlayer3D _attract = new() { VolumeDb = -12f, UnitSize = 3f };
     readonly Dictionary<string, string?> _attractFiles = [];
+    readonly RomRecorder _recorder = new();
+    bool _recordRoms;
     Dictionary<string, string>? _backglass;
     Font? _dmdFont, _displayFont, _bodyFont;   // Doto (dot-matrix), Big Shoulders Display, Archivo
 
@@ -83,6 +85,8 @@ public partial class Main : Node3D
         AddChild(_ring);
         AddChild(_rail);
         AddChild(_attract);
+        AddChild(_recorder);
+        _recorder.Recorded += id => _attractFiles.Remove(id); // look again: it plays if the table is still selected
         for (var s = 0; s < PoolSize; s++)
         {
             var cab = new Cabinet();
@@ -118,6 +122,18 @@ public partial class Main : Node3D
         State = LobbyState.Load(_statePath);
         ApplyHeight(); // the lobby restarts after every table, so this is where the saved height comes back
         Library = LobbyLibrary.Load(Settings);
+        // --record-audio=<table id>: record that table's ROM sound (see RomRecorder), then quit.
+        if (args.GetValueOrDefault("record-audio") is { Length: > 0 } recordId)
+        {
+            var file = Library.FirstOrDefault(x => x.Id == recordId) is { } rt
+                ? RomAudio.Record(rt.Source, RomAudio.PinmameDll(Settings), m => GD.Print(m))
+                : null;
+            GD.Print(file != null ? $"Recorded {file}" : $"No sound recorded for {recordId}");
+            GetTree().Quit(file != null ? 0 : 1);
+            return;
+        }
+        _recordRoms = !selfTest;
+        _recorder.SettingsPath = _settingsPath;
         _borrowAll = args.ContainsKey("borrow-all");
         Rebuild(args.GetValueOrDefault("select", ""));
         LoadBackglassIndex();
@@ -298,6 +314,9 @@ public partial class Main : Node3D
         {
             SpotAngle = 30, SpotRange = 6, LightEnergy = 6, LightColor = Colors.White.Lerp(Palette.Lamp, 0.3f),
             ShadowEnabled = true, SpotAngleAttenuation = 0.6f,
+            // Godot's default offsets (3 cm, plus a normal offset) let a strip of light through just under a
+            // lockdown bar onto the cabinet front, which should sit in the bar's shadow.
+            ShadowBias = 0.004f, ShadowNormalBias = 0.3f,
         };
         AddChild(spot);
         var cabCentre = -(SelectedFront + CabinetKit.Length / 2);
@@ -521,7 +540,9 @@ public partial class Main : Node3D
         // --borrow-all (diagnostic): every table borrows the template, to preview how it dresses other tables.
         var own = vpx != null && !_borrowAll ? _cabs.Get(vpx) : null;
         if (own != null) cab.ShowReal(own);
-        else if (_template != null) cab.ShowReal(_template, borrowed: true); // also while its own is still loading
+        // Not read yet: it may have its own, so show nothing rather than the default cabinet swapping out.
+        else if (vpx != null && !_borrowAll && !_cabs.IsKnown(vpx)) cab.ShowLoading();
+        else if (_template != null) cab.ShowReal(_template, borrowed: true);
         else cab.ShowReal(null);
     }
 
@@ -821,7 +842,12 @@ public partial class Main : Node3D
         if (Shown.Count == 0 || AttractPlaying != null) return;
         var t = Shown[Selected];
         if (!_attractFiles.TryGetValue(t.Id, out var file)) _attractFiles[t.Id] = file = LobbyArt.AttractSound(t);
-        if (file == null) return;
+        if (file == null)
+        {
+            // A ROM table: record its own sound in the background, once; it plays when ready.
+            if (_recordRoms) _recorder.Request(t);
+            return;
+        }
         try
         {
             AudioStream? stream = Path.GetExtension(file).ToLowerInvariant() switch
@@ -1036,6 +1062,7 @@ public partial class Main : Node3D
         }
         _launching = true;
         StopAttract();
+        _recorder.StopAll();
         _header.Text = "Starting " + t.Title;
         _status.Text = "The lobby closes now and comes back when you exit the table.";
         await ToSignal(GetTree().CreateTimer(0.8), SceneTreeTimer.SignalName.Timeout);
