@@ -65,201 +65,6 @@
         </Style>
       </TabControl.Styles>
 
-      <!-- ================= Get tables ================= -->
-      <TabItem Header="GET TABLES">
-        <Grid ColumnDefinitions="*,Auto">
-
-          <ScrollViewer Grid.Column="0">
-            <StackPanel Margin="28,22,12,28" Spacing="20">
-
-              <!-- Hero -->
-              <Grid ColumnDefinitions="*,Auto">
-                <StackPanel Spacing="8" MaxWidth="660" HorizontalAlignment="Left" VerticalAlignment="Center">
-                  <TextBlock Classes="eyebrow" Text="VIRTUAL PINBALL SPREADSHEET · ONE-CLICK INSTALL" />
-                  <TextBlock Classes="display" Text="Get Tables" />
-                  <TextBlock Classes="body"
-                             Text="Every VPX and Future Pinball table on the Virtual Pinball Spreadsheet. Pick one, hit Install, and it's downloaded, unpacked and ready to play in your headset. Sign in to the table site once; the app does the clicking after that." />
-                </StackPanel>
-
-                <!-- The score display: count in dot-matrix plasma, dot grid showing through -->
-                <Border Grid.Column="1" Classes="dmd" Width="380" Height="150" Margin="24,0,4,0" ClipToBounds="True">
-                  <Grid>
-                    <Border Background="{StaticResource DmdDots}" />
-                    <StackPanel VerticalAlignment="Center" HorizontalAlignment="Center" Spacing="0">
-                      <TextBlock Classes="dmd" FontSize="72" HorizontalAlignment="Center" LineHeight="70"
-                                 Text="{Binding MatchCount, StringFormat='{}{0:N0}'}" />
-                      <TextBlock Classes="dmd" FontSize="17" LetterSpacing="2" HorizontalAlignment="Center"
-                                 Text="{Binding TotalCount, StringFormat='TABLES MATCH · OF {0:N0}'}" />
-                    </StackPanel>
-                  </Grid>
-                </Border>
-              </Grid>
-
-              <!-- Toolbar -->
-              <Grid>
-                <Grid.ColumnDefinitions>
-                  <ColumnDefinition Width="*" MaxWidth="460" />
-                  <ColumnDefinition Width="Auto" />
-                  <ColumnDefinition Width="Auto" />
-                  <ColumnDefinition Width="Auto" />
-                  <ColumnDefinition Width="Auto" />
-                </Grid.ColumnDefinitions>
-                <TextBox Grid.Column="0" Text="{Binding SearchText}" PlaceholderText="Search name, manufacturer or author">
-                  <TextBox.InnerLeftContent>
-                    <PathIcon Classes="search" Margin="12,0,0,0" />
-                  </TextBox.InnerLeftContent>
-                </TextBox>
-                <ListBox Grid.Column="1" Classes="segmented" Margin="14,0,0,0" VerticalAlignment="Center"
-                         ItemsSource="{Binding EngineFilters}" SelectedItem="{Binding EngineFilter}" />
-                <ToggleSwitch Grid.Column="2" Margin="18,0,0,0" IsChecked="{Binding VrOnly}" OnContent="VR-ready only" OffContent="VR-ready only"
-                              FontWeight="SemiBold" VerticalAlignment="Center" />
-                <Button Grid.Column="3" Classes="icon" Content="⟳" ToolTip.Tip="Refresh catalog" Margin="12,0,0,0"
-                        Command="{Binding RefreshCatalogCommand}" VerticalAlignment="Center" />
-                <TextBlock Grid.Column="4" Classes="mono" Margin="16,0,4,0" VerticalAlignment="Center" Text="{Binding CountLabel}" />
-              </Grid>
-
-              <!-- Narrow down: maker, era, type, order -->
-              <WrapPanel Margin="0,-6,0,0">
-                <WrapPanel.Styles>
-                  <Style Selector="ComboBox">
-                    <Setter Property="Margin" Value="0,0,10,6" />
-                    <Setter Property="MinWidth" Value="150" />
-                  </Style>
-                </WrapPanel.Styles>
-                <ComboBox ItemsSource="{Binding Manufacturers}" SelectedItem="{Binding ManufacturerFilter}" MaxDropDownHeight="420" ToolTip.Tip="Manufacturer" />
-                <ComboBox ItemsSource="{Binding Eras}" SelectedItem="{Binding EraFilter}" ToolTip.Tip="When the real machine came out" />
-                <ComboBox ItemsSource="{Binding MachineTypes}" SelectedItem="{Binding TypeFilter}" ToolTip.Tip="Solid state (1977 on), electro-mechanical, or original designs" />
-                <StackPanel Orientation="Horizontal" Spacing="8" Margin="8,0,10,6">
-                  <TextBlock Classes="eyebrow" Foreground="{StaticResource Muted}" Text="SORT" VerticalAlignment="Center" />
-                  <ComboBox ItemsSource="{Binding CatalogSorts}" SelectedItem="{Binding CatalogSort}" Margin="0" />
-                </StackPanel>
-                <Button Classes="small" Content="CLEAR FILTERS" Margin="0,0,0,6" VerticalAlignment="Center"
-                        IsVisible="{Binding HasCatalogFilters}" Command="{Binding ClearCatalogFiltersCommand}" />
-              </WrapPanel>
-
-              <StackPanel Orientation="Horizontal" Spacing="10" IsVisible="{Binding IsLoading}">
-                <ProgressBar IsIndeterminate="True" Width="120" />
-                <TextBlock Classes="mono" Text="Loading tables…" />
-              </StackPanel>
-
-              <!-- Card grid -->
-              <ListBox Classes="grid" ItemsSource="{Binding Games}" SelectedItem="{Binding SelectedGame}">
-                <ListBox.ItemTemplate>
-                  <DataTemplate x:DataType="vm:GameItem">
-                    <Border Classes="tile" Width="214">
-                      <StackPanel>
-                        <Grid Height="276">
-                          <Border Background="{StaticResource Stripes}" />
-                          <TextBlock Classes="mono" Text="NO ARTWORK" HorizontalAlignment="Center" VerticalAlignment="Center"
-                                     IsVisible="{Binding !HasImage}" />
-                          <Image v:ImageLoader.Url="{Binding ImgUrl}" Stretch="UniformToFill" />
-                          <Border Background="{StaticResource CardFade}" />
-                          <StackPanel Orientation="Horizontal" Spacing="5" Margin="10" VerticalAlignment="Top">
-                            <Border Classes="chip lit" IsVisible="{Binding IsVr}"><TextBlock Text="VR" /></Border>
-                            <Border Classes="chip hot" IsVisible="{Binding HasFp}"><TextBlock Text="FP" /></Border>
-                          </StackPanel>
-                          <Border Classes="chip green" Margin="10" HorizontalAlignment="Right" VerticalAlignment="Top"
-                                  IsVisible="{Binding IsInstalled}">
-                            <TextBlock Text="INSTALLED" />
-                          </Border>
-                        </Grid>
-                        <StackPanel Margin="14,12,14,14" Spacing="3">
-                          <TextBlock Classes="title" Text="{Binding Title}" TextWrapping="Wrap" MaxLines="2" TextTrimming="CharacterEllipsis" />
-                          <TextBlock Classes="muted" Text="{Binding MakerYear}" />
-                          <TextBlock Classes="mono" Margin="0,6,0,0" TextTrimming="CharacterEllipsis"
-                                     Text="{Binding AuthorsShort, StringFormat='✎  {0}'}" />
-                        </StackPanel>
-                      </StackPanel>
-                    </Border>
-                  </DataTemplate>
-                </ListBox.ItemTemplate>
-              </ListBox>
-
-              <Button HorizontalAlignment="Center" Content="SHOW MORE TABLES" IsVisible="{Binding HasMore}"
-                      Command="{Binding ShowMoreCommand}" />
-            </StackPanel>
-          </ScrollViewer>
-
-          <!-- Detail drawer -->
-          <Border Grid.Column="1" Width="470" Background="{StaticResource Surface}"
-                  BorderBrush="{StaticResource Line}" BorderThickness="1,0,0,0"
-                  IsVisible="{Binding SelectedGame, Converter={x:Static ObjectConverters.IsNotNull}}">
-            <ScrollViewer>
-              <StackPanel>
-                <Grid Height="250">
-                  <Border Background="{StaticResource Stripes}" />
-                  <Image v:ImageLoader.Url="{Binding SelectedGame.ImgUrl}" Stretch="UniformToFill" />
-                  <Border>
-                    <Border.Background>
-                      <LinearGradientBrush StartPoint="0%,0%" EndPoint="0%,100%">
-                        <GradientStop Offset="0.35" Color="#00141416" />
-                        <GradientStop Offset="1" Color="#FF141416" />
-                      </LinearGradientBrush>
-                    </Border.Background>
-                  </Border>
-                  <Button Classes="icon" Content="✕" HorizontalAlignment="Right" VerticalAlignment="Top" Margin="12"
-                          Background="#B30A0A0B" Command="{Binding CloseDetailsCommand}" />
-                </Grid>
-
-                <StackPanel Margin="24,0,24,28" Spacing="16">
-                  <StackPanel Spacing="6">
-                    <TextBlock Classes="h2" FontSize="22" Text="{Binding SelectedGame.Title}" TextWrapping="Wrap" />
-                    <TextBlock Classes="muted" FontSize="13.5" Text="{Binding SelectedGame.MakerYear}" />
-                    <StackPanel Orientation="Horizontal" Spacing="6" Margin="0,4,0,0">
-                      <Border Classes="chip lit" IsVisible="{Binding SelectedGame.IsVr}"><TextBlock Text="VR READY" /></Border>
-                      <Border Classes="chip hot" IsVisible="{Binding SelectedGame.HasFp}"><TextBlock Text="FUTURE PINBALL" /></Border>
-                      <Border Classes="chip green" IsVisible="{Binding SelectedGame.IsInstalled}"><TextBlock Text="INSTALLED" /></Border>
-                    </StackPanel>
-                  </StackPanel>
-
-                  <TextBlock Classes="eyebrow" Text="VERSIONS" Margin="0,6,0,0" />
-
-                  <ItemsControl ItemsSource="{Binding Versions}">
-                    <ItemsControl.ItemsPanel>
-                      <ItemsPanelTemplate><StackPanel Spacing="12" /></ItemsPanelTemplate>
-                    </ItemsControl.ItemsPanel>
-                    <ItemsControl.ItemTemplate>
-                      <DataTemplate x:DataType="vm:TableVersionItem">
-                        <Border Background="{StaticResource Bg}" BorderBrush="{StaticResource Line}" BorderThickness="1"
-                                CornerRadius="10" Padding="16">
-                          <StackPanel Spacing="8">
-                            <StackPanel Orientation="Horizontal" Spacing="6">
-                              <Border Classes="chip lit" IsVisible="{Binding IsVr}"><TextBlock Text="VR" /></Border>
-                              <Border Classes="chip"><TextBlock Text="{Binding Engine}" /></Border>
-                            </StackPanel>
-                            <TextBlock Classes="title" Text="{Binding Heading}" TextWrapping="Wrap" />
-                            <TextBlock Classes="mono" Text="{Binding Details}" TextWrapping="Wrap" />
-                            <ItemsControl ItemsSource="{Binding FeatureList}">
-                              <ItemsControl.ItemsPanel>
-                                <ItemsPanelTemplate><WrapPanel /></ItemsPanelTemplate>
-                              </ItemsControl.ItemsPanel>
-                              <ItemsControl.ItemTemplate>
-                                <DataTemplate x:DataType="x:String">
-                                  <Border Classes="chip quiet" Margin="0,0,5,5"><TextBlock Text="{Binding}" /></Border>
-                                </DataTemplate>
-                              </ItemsControl.ItemTemplate>
-                            </ItemsControl>
-                            <TextBlock Classes="muted" Text="{Binding Comment}" TextWrapping="Wrap" FontStyle="Italic"
-                                       IsVisible="{Binding Comment, Converter={x:Static StringConverters.IsNotNullOrEmpty}}" />
-                            <StackPanel Orientation="Horizontal" Spacing="8" Margin="0,4,0,0">
-                              <Button Classes="primary" Content="INSTALL" Command="{Binding Install}" IsEnabled="{Binding HasUrl}" />
-                              <Button Content="OPEN PAGE" IsEnabled="{Binding HasUrl}"
-                                      Command="{ReflectionBinding $parent[Window].DataContext.OpenPageCommand}"
-                                      CommandParameter="{Binding Url}" />
-                            </StackPanel>
-                          </StackPanel>
-                        </Border>
-                      </DataTemplate>
-                    </ItemsControl.ItemTemplate>
-                  </ItemsControl>
-                </StackPanel>
-              </StackPanel>
-            </ScrollViewer>
-          </Border>
-
-        </Grid>
-      </TabItem>
-
       <!-- ================= My tables ================= -->
       <TabItem>
         <TabItem.Header>
@@ -473,6 +278,201 @@
             </ItemsControl>
           </StackPanel>
         </ScrollViewer>
+      </TabItem>
+
+      <!-- ================= Get tables ================= -->
+      <TabItem Header="GET TABLES">
+        <Grid ColumnDefinitions="*,Auto">
+
+          <ScrollViewer Grid.Column="0">
+            <StackPanel Margin="28,22,12,28" Spacing="20">
+
+              <!-- Hero -->
+              <Grid ColumnDefinitions="*,Auto">
+                <StackPanel Spacing="8" MaxWidth="660" HorizontalAlignment="Left" VerticalAlignment="Center">
+                  <TextBlock Classes="eyebrow" Text="VIRTUAL PINBALL SPREADSHEET · ONE-CLICK INSTALL" />
+                  <TextBlock Classes="display" Text="Get Tables" />
+                  <TextBlock Classes="body"
+                             Text="Every VPX and Future Pinball table on the Virtual Pinball Spreadsheet. Pick one, hit Install, and it's downloaded, unpacked and ready to play in your headset. Sign in to the table site once; the app does the clicking after that." />
+                </StackPanel>
+
+                <!-- The score display: count in dot-matrix plasma, dot grid showing through -->
+                <Border Grid.Column="1" Classes="dmd" Width="380" Height="150" Margin="24,0,4,0" ClipToBounds="True">
+                  <Grid>
+                    <Border Background="{StaticResource DmdDots}" />
+                    <StackPanel VerticalAlignment="Center" HorizontalAlignment="Center" Spacing="0">
+                      <TextBlock Classes="dmd" FontSize="72" HorizontalAlignment="Center" LineHeight="70"
+                                 Text="{Binding MatchCount, StringFormat='{}{0:N0}'}" />
+                      <TextBlock Classes="dmd" FontSize="17" LetterSpacing="2" HorizontalAlignment="Center"
+                                 Text="{Binding TotalCount, StringFormat='TABLES MATCH · OF {0:N0}'}" />
+                    </StackPanel>
+                  </Grid>
+                </Border>
+              </Grid>
+
+              <!-- Toolbar -->
+              <Grid>
+                <Grid.ColumnDefinitions>
+                  <ColumnDefinition Width="*" MaxWidth="460" />
+                  <ColumnDefinition Width="Auto" />
+                  <ColumnDefinition Width="Auto" />
+                  <ColumnDefinition Width="Auto" />
+                  <ColumnDefinition Width="Auto" />
+                </Grid.ColumnDefinitions>
+                <TextBox Grid.Column="0" Text="{Binding SearchText}" PlaceholderText="Search name, manufacturer or author">
+                  <TextBox.InnerLeftContent>
+                    <PathIcon Classes="search" Margin="12,0,0,0" />
+                  </TextBox.InnerLeftContent>
+                </TextBox>
+                <ListBox Grid.Column="1" Classes="segmented" Margin="14,0,0,0" VerticalAlignment="Center"
+                         ItemsSource="{Binding EngineFilters}" SelectedItem="{Binding EngineFilter}" />
+                <ToggleSwitch Grid.Column="2" Margin="18,0,0,0" IsChecked="{Binding VrOnly}" OnContent="VR-ready only" OffContent="VR-ready only"
+                              FontWeight="SemiBold" VerticalAlignment="Center" />
+                <Button Grid.Column="3" Classes="icon" Content="⟳" ToolTip.Tip="Refresh catalog" Margin="12,0,0,0"
+                        Command="{Binding RefreshCatalogCommand}" VerticalAlignment="Center" />
+                <TextBlock Grid.Column="4" Classes="mono" Margin="16,0,4,0" VerticalAlignment="Center" Text="{Binding CountLabel}" />
+              </Grid>
+
+              <!-- Narrow down: maker, era, type, order -->
+              <WrapPanel Margin="0,-6,0,0">
+                <WrapPanel.Styles>
+                  <Style Selector="ComboBox">
+                    <Setter Property="Margin" Value="0,0,10,6" />
+                    <Setter Property="MinWidth" Value="150" />
+                  </Style>
+                </WrapPanel.Styles>
+                <ComboBox ItemsSource="{Binding Manufacturers}" SelectedItem="{Binding ManufacturerFilter}" MaxDropDownHeight="420" ToolTip.Tip="Manufacturer" />
+                <ComboBox ItemsSource="{Binding Eras}" SelectedItem="{Binding EraFilter}" ToolTip.Tip="When the real machine came out" />
+                <ComboBox ItemsSource="{Binding MachineTypes}" SelectedItem="{Binding TypeFilter}" ToolTip.Tip="Solid state (1977 on), electro-mechanical, or original designs" />
+                <StackPanel Orientation="Horizontal" Spacing="8" Margin="8,0,10,6">
+                  <TextBlock Classes="eyebrow" Foreground="{StaticResource Muted}" Text="SORT" VerticalAlignment="Center" />
+                  <ComboBox ItemsSource="{Binding CatalogSorts}" SelectedItem="{Binding CatalogSort}" Margin="0" />
+                </StackPanel>
+                <Button Classes="small" Content="CLEAR FILTERS" Margin="0,0,0,6" VerticalAlignment="Center"
+                        IsVisible="{Binding HasCatalogFilters}" Command="{Binding ClearCatalogFiltersCommand}" />
+              </WrapPanel>
+
+              <StackPanel Orientation="Horizontal" Spacing="10" IsVisible="{Binding IsLoading}">
+                <ProgressBar IsIndeterminate="True" Width="120" />
+                <TextBlock Classes="mono" Text="Loading tables…" />
+              </StackPanel>
+
+              <!-- Card grid -->
+              <ListBox Classes="grid" ItemsSource="{Binding Games}" SelectedItem="{Binding SelectedGame}">
+                <ListBox.ItemTemplate>
+                  <DataTemplate x:DataType="vm:GameItem">
+                    <Border Classes="tile" Width="214">
+                      <StackPanel>
+                        <Grid Height="276">
+                          <Border Background="{StaticResource Stripes}" />
+                          <TextBlock Classes="mono" Text="NO ARTWORK" HorizontalAlignment="Center" VerticalAlignment="Center"
+                                     IsVisible="{Binding !HasImage}" />
+                          <Image v:ImageLoader.Url="{Binding ImgUrl}" Stretch="UniformToFill" />
+                          <Border Background="{StaticResource CardFade}" />
+                          <StackPanel Orientation="Horizontal" Spacing="5" Margin="10" VerticalAlignment="Top">
+                            <Border Classes="chip lit" IsVisible="{Binding IsVr}"><TextBlock Text="VR" /></Border>
+                            <Border Classes="chip hot" IsVisible="{Binding HasFp}"><TextBlock Text="FP" /></Border>
+                          </StackPanel>
+                          <Border Classes="chip green" Margin="10" HorizontalAlignment="Right" VerticalAlignment="Top"
+                                  IsVisible="{Binding IsInstalled}">
+                            <TextBlock Text="INSTALLED" />
+                          </Border>
+                        </Grid>
+                        <StackPanel Margin="14,12,14,14" Spacing="3">
+                          <TextBlock Classes="title" Text="{Binding Title}" TextWrapping="Wrap" MaxLines="2" TextTrimming="CharacterEllipsis" />
+                          <TextBlock Classes="muted" Text="{Binding MakerYear}" />
+                          <TextBlock Classes="mono" Margin="0,6,0,0" TextTrimming="CharacterEllipsis"
+                                     Text="{Binding AuthorsShort, StringFormat='✎  {0}'}" />
+                        </StackPanel>
+                      </StackPanel>
+                    </Border>
+                  </DataTemplate>
+                </ListBox.ItemTemplate>
+              </ListBox>
+
+              <Button HorizontalAlignment="Center" Content="SHOW MORE TABLES" IsVisible="{Binding HasMore}"
+                      Command="{Binding ShowMoreCommand}" />
+            </StackPanel>
+          </ScrollViewer>
+
+          <!-- Detail drawer -->
+          <Border Grid.Column="1" Width="470" Background="{StaticResource Surface}"
+                  BorderBrush="{StaticResource Line}" BorderThickness="1,0,0,0"
+                  IsVisible="{Binding SelectedGame, Converter={x:Static ObjectConverters.IsNotNull}}">
+            <ScrollViewer>
+              <StackPanel>
+                <Grid Height="250">
+                  <Border Background="{StaticResource Stripes}" />
+                  <Image v:ImageLoader.Url="{Binding SelectedGame.ImgUrl}" Stretch="UniformToFill" />
+                  <Border>
+                    <Border.Background>
+                      <LinearGradientBrush StartPoint="0%,0%" EndPoint="0%,100%">
+                        <GradientStop Offset="0.35" Color="#00141416" />
+                        <GradientStop Offset="1" Color="#FF141416" />
+                      </LinearGradientBrush>
+                    </Border.Background>
+                  </Border>
+                  <Button Classes="icon" Content="✕" HorizontalAlignment="Right" VerticalAlignment="Top" Margin="12"
+                          Background="#B30A0A0B" Command="{Binding CloseDetailsCommand}" />
+                </Grid>
+
+                <StackPanel Margin="24,0,24,28" Spacing="16">
+                  <StackPanel Spacing="6">
+                    <TextBlock Classes="h2" FontSize="22" Text="{Binding SelectedGame.Title}" TextWrapping="Wrap" />
+                    <TextBlock Classes="muted" FontSize="13.5" Text="{Binding SelectedGame.MakerYear}" />
+                    <StackPanel Orientation="Horizontal" Spacing="6" Margin="0,4,0,0">
+                      <Border Classes="chip lit" IsVisible="{Binding SelectedGame.IsVr}"><TextBlock Text="VR READY" /></Border>
+                      <Border Classes="chip hot" IsVisible="{Binding SelectedGame.HasFp}"><TextBlock Text="FUTURE PINBALL" /></Border>
+                      <Border Classes="chip green" IsVisible="{Binding SelectedGame.IsInstalled}"><TextBlock Text="INSTALLED" /></Border>
+                    </StackPanel>
+                  </StackPanel>
+
+                  <TextBlock Classes="eyebrow" Text="VERSIONS" Margin="0,6,0,0" />
+
+                  <ItemsControl ItemsSource="{Binding Versions}">
+                    <ItemsControl.ItemsPanel>
+                      <ItemsPanelTemplate><StackPanel Spacing="12" /></ItemsPanelTemplate>
+                    </ItemsControl.ItemsPanel>
+                    <ItemsControl.ItemTemplate>
+                      <DataTemplate x:DataType="vm:TableVersionItem">
+                        <Border Background="{StaticResource Bg}" BorderBrush="{StaticResource Line}" BorderThickness="1"
+                                CornerRadius="10" Padding="16">
+                          <StackPanel Spacing="8">
+                            <StackPanel Orientation="Horizontal" Spacing="6">
+                              <Border Classes="chip lit" IsVisible="{Binding IsVr}"><TextBlock Text="VR" /></Border>
+                              <Border Classes="chip"><TextBlock Text="{Binding Engine}" /></Border>
+                            </StackPanel>
+                            <TextBlock Classes="title" Text="{Binding Heading}" TextWrapping="Wrap" />
+                            <TextBlock Classes="mono" Text="{Binding Details}" TextWrapping="Wrap" />
+                            <ItemsControl ItemsSource="{Binding FeatureList}">
+                              <ItemsControl.ItemsPanel>
+                                <ItemsPanelTemplate><WrapPanel /></ItemsPanelTemplate>
+                              </ItemsControl.ItemsPanel>
+                              <ItemsControl.ItemTemplate>
+                                <DataTemplate x:DataType="x:String">
+                                  <Border Classes="chip quiet" Margin="0,0,5,5"><TextBlock Text="{Binding}" /></Border>
+                                </DataTemplate>
+                              </ItemsControl.ItemTemplate>
+                            </ItemsControl>
+                            <TextBlock Classes="muted" Text="{Binding Comment}" TextWrapping="Wrap" FontStyle="Italic"
+                                       IsVisible="{Binding Comment, Converter={x:Static StringConverters.IsNotNullOrEmpty}}" />
+                            <StackPanel Orientation="Horizontal" Spacing="8" Margin="0,4,0,0">
+                              <Button Classes="primary" Content="INSTALL" Command="{Binding Install}" IsEnabled="{Binding HasUrl}" />
+                              <Button Content="OPEN PAGE" IsEnabled="{Binding HasUrl}"
+                                      Command="{ReflectionBinding $parent[Window].DataContext.OpenPageCommand}"
+                                      CommandParameter="{Binding Url}" />
+                            </StackPanel>
+                          </StackPanel>
+                        </Border>
+                      </DataTemplate>
+                    </ItemsControl.ItemTemplate>
+                  </ItemsControl>
+                </StackPanel>
+              </StackPanel>
+            </ScrollViewer>
+          </Border>
+
+        </Grid>
       </TabItem>
 
       <!-- ================= Setup ================= -->
