@@ -39,4 +39,23 @@ public sealed class TableManifest
     public DateTime InstalledAt { get; set; }
     /// <summary>VPS UpdatedAt (epoch ms) of the table file when it was installed; used for update checks.</summary>
     public long? SourceUpdatedAt { get; set; }
+    /// <summary>The PuP pack folder the table script opens (<c>PuPlayer.Init …, "name"</c>), if it uses PinUP Player.</summary>
+    public string? PupName { get; set; }
+    /// <summary>The PuP pack this app installed into pupvideos\, for update checks; null when none was.</summary>
+    public InstalledPupPack? PupPack { get; set; }
+}
+
+/// <summary>A PuP pack from the catalog, installed as <c>&lt;table folder&gt;\pupvideos\&lt;Folder&gt;</c>.</summary>
+public sealed class InstalledPupPack
+{
+    /// <summary>VPS id of the pack (pupPackFiles[].id).</summary>
+    public string FileId { get; set; } = "";
+    public string? Version { get; set; }
+    public List<string> Authors { get; set; } = [];
+    /// <summary>Folder name under pupvideos\.</summary>
+    public string Folder { get; set; } = "";
+    public string? SourceUrl { get; set; }
+    public DateTime InstalledAt { get; set; }
+    /// <summary>VPS UpdatedAt (epoch ms) of the pack when it was installed.</summary>
+    public long? SourceUpdatedAt { get; set; }
 }

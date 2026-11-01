@@ -194,6 +194,34 @@ public sealed partial class InstalledItem : ObservableObject
 
     public string AttractAudioMenuHeader => HasAttractAudio ? "Replace attract audio (from media pack)" : "Get attract audio for the VR lobby";
 
+    // ---- PuP pack (pupvideos\ in the table folder) ----
+
+    /// <summary>The catalog's PuP packs for this table (set by the view model); empty when it has none.</summary>
+    [ObservableProperty, NotifyPropertyChangedFor(nameof(HasPupChoices), nameof(PupMenuHeader))]
+    public partial IReadOnlyList<PupChoice> PupChoices { get; set; } = [];
+
+    /// <summary>What's in pupvideos\ (set by the view model).</summary>
+    [ObservableProperty, NotifyPropertyChangedFor(nameof(HasPup), nameof(PupStatus), nameof(PupMenuHeader))]
+    public partial PupState PupState { get; set; } = PupState.None;
+
+    /// <summary>A newer catalog version of the installed pack.</summary>
+    [ObservableProperty, NotifyPropertyChangedFor(nameof(HasPupUpdate), nameof(PupStatus))]
+    public partial PupUpdate? PupUpdate { get; set; }
+
+    public bool HasPupChoices => PupChoices.Count > 0;
+    public bool ShowPupButton => HasPupChoices || HasPup;
+    partial void OnPupChoicesChanged(IReadOnlyList<PupChoice> value) => OnPropertyChanged(nameof(ShowPupButton));
+    partial void OnPupStateChanged(PupState value) => OnPropertyChanged(nameof(ShowPupButton));
+    public bool HasPup => PupState.IsInstalled;
+    public bool HasPupUpdate => PupUpdate != null;
+    public string PupMenuHeader => HasPup ? "Replace PuP pack" : PupChoices.Count == 1 ? "Get PuP pack" : $"Get PuP pack ({PupChoices.Count} in the catalog)";
+
+    /// <summary>"PuP pack v1.1 installed" / "PuP pack: new version v1.0 → v1.1" / "" (none).</summary>
+    public string PupStatus => PupUpdate is { } u ? $"PuP pack: new version {u.Label}"
+        : PupState.Tracked is { } t ? $"PuP pack{(t.Version is { } v ? " v" + v.Trim().TrimStart('v', 'V') : "")} installed"
+        : PupState.IsInstalled ? $"PuP pack installed ({string.Join(", ", PupState.Folders)})"
+        : "";
+
     /// <summary>Its install was cut off (app closed mid-copy): offer Reinstall instead of Play.</summary>
     public bool IsIncomplete => Table.IsIncomplete;
 

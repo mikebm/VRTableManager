@@ -23,6 +23,8 @@ public sealed class VpsGame
     public List<VpsFile>? MediaPackFiles { get; set; }
     /// <summary>Table audio: mostly direct .mp3 links (Dropbox), sometimes sound-replacement packs.</summary>
     public List<VpsFile>? SoundFiles { get; set; }
+    /// <summary>PinUP Player packs: videos for the backglass/DMD/topper, almost all on VPUniverse (sign-in).</summary>
+    public List<VpsFile>? PupPackFiles { get; set; }
 
     [JsonIgnore]
     public string DisplayTitle => Year is > 0

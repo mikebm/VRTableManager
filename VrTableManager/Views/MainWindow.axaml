@@ -351,6 +351,7 @@
                           <Border Classes="chip hot" IsVisible="{Binding IsIncomplete}"><TextBlock Text="INCOMPLETE" /></Border>
                           <Border Classes="chip hot" IsVisible="{Binding HasUpdate}"><TextBlock Text="UPDATE" /></Border>
                           <Border Classes="chip hot" IsVisible="{Binding NeedsRom}"><TextBlock Text="NEEDS ROM" /></Border>
+                          <Border Classes="chip" IsVisible="{Binding HasPup}" ToolTip.Tip="{Binding PupStatus}"><TextBlock Text="PUP" /></Border>
                         </StackPanel>
                       </Grid>
                       <StackPanel Margin="14,12,14,14" Spacing="4">
@@ -380,6 +381,12 @@
                           <Button Grid.Column="1" Classes="small" Content="UPDATE" Margin="8,0,0,0"
                                   IsEnabled="{Binding !IsBusy}" Command="{ReflectionBinding $parent[Window].DataContext.UpdateTableCommand}" CommandParameter="{Binding}" />
                         </Grid>
+                        <Grid ColumnDefinitions="*,Auto" Margin="0,2,0,0" IsVisible="{Binding HasPup}">
+                          <TextBlock Classes="mono" Text="{Binding PupStatus}" TextWrapping="Wrap" VerticalAlignment="Center" />
+                          <Button Grid.Column="1" Classes="small" Content="UPDATE PUP" Margin="8,0,0,0" IsVisible="{Binding HasPupUpdate}"
+                                  ToolTip.Tip="Download the catalog's newer version of this PuP pack and replace the installed one"
+                                  IsEnabled="{Binding !IsBusy}" Command="{ReflectionBinding $parent[Window].DataContext.UpdatePupPackCommand}" CommandParameter="{Binding}" />
+                        </Grid>
                         <TextBlock FontSize="12" Foreground="{StaticResource Insert}" TextWrapping="Wrap" IsVisible="{Binding IsIncomplete}"
                                    Text="This install was cut off before it finished, so files may be missing. Reinstall it." />
                         <Button Classes="primary" Content="⟳  REINSTALL" Margin="0,8,0,0" IsVisible="{Binding IsIncomplete}"
@@ -403,6 +410,28 @@
                           <Button Classes="small" Content="ADD ROM" Margin="0,0,6,6" IsVisible="{Binding NeedsRom}"
                                   ToolTip.Tip="Install a ROM zip you already have"
                                   Command="{ReflectionBinding $parent[Window].DataContext.AddRomCommand}" CommandParameter="{Binding}" />
+                          <Button Classes="small" Content="PUP ▾" Margin="0,0,6,6" IsVisible="{Binding ShowPupButton}" IsEnabled="{Binding !IsBusy}"
+                                  ToolTip.Tip="PinUP Player pack: videos for the cabinet's backglass and DMD, from the catalog">
+                            <Button.Flyout>
+                              <MenuFlyout Placement="BottomEdgeAlignedLeft">
+                                <MenuItem Header="{Binding PupMenuHeader}" IsVisible="{Binding HasPupChoices}" ItemsSource="{Binding PupChoices}">
+                                  <MenuItem.ItemTemplate>
+                                    <DataTemplate x:DataType="vm:PupChoice">
+                                      <TextBlock Text="{Binding Label}" />
+                                    </DataTemplate>
+                                  </MenuItem.ItemTemplate>
+                                  <MenuItem.Styles>
+                                    <Style Selector="MenuItem > MenuItem" x:DataType="vm:PupChoice">
+                                      <Setter Property="Command" Value="{Binding Item.Owner.GetPupPackCommand}" />
+                                      <Setter Property="CommandParameter" Value="{Binding}" />
+                                    </Style>
+                                  </MenuItem.Styles>
+                                </MenuItem>
+                                <MenuItem Header="Open PuP folder" IsVisible="{Binding HasPup}" Command="{Binding Owner.OpenPupFolderCommand}" CommandParameter="{Binding}" />
+                                <MenuItem Header="Remove PuP pack" IsVisible="{Binding HasPup}" Command="{Binding Owner.RemovePupPackCommand}" CommandParameter="{Binding}" />
+                              </MenuFlyout>
+                            </Button.Flyout>
+                          </Button>
                           <Button Classes="small" Content="FOLDER" Margin="0,0,6,6"
                                   Command="{ReflectionBinding $parent[Window].DataContext.OpenTableFolderCommand}" CommandParameter="{Binding}" />
                           <Button Classes="small" Content="MORE ▾" Margin="0,0,6,6" ToolTip.Tip="Folders, per-table settings and cache">
@@ -477,7 +506,7 @@
                 </Grid>
                 <ProgressBar IsIndeterminate="True" IsVisible="{Binding IsCheckingUpdates}" />
 
-                <Grid ColumnDefinitions="170,*,Auto" RowDefinitions="Auto,Auto,Auto,Auto,Auto">
+                <Grid ColumnDefinitions="170,*,Auto" RowDefinitions="Auto,Auto,Auto,Auto,Auto,Auto">
                   <Grid.Styles>
                     <Style Selector="Grid > TextBlock.k">
                       <Setter Property="FontFamily" Value="{StaticResource Display}" />
@@ -501,22 +530,27 @@
                   <Button Grid.Row="0" Grid.Column="2" Classes="small" Content="UPDATE TABLES" Command="{Binding UpdateAllTablesCommand}"
                           IsVisible="{Binding TableUpdateCount, Converter={x:Static v:Converters.NonZero}}" />
 
-                  <TextBlock Grid.Row="1" Classes="k" Text="VISUAL PINBALL X" />
-                  <TextBlock Grid.Row="1" Grid.Column="1" Classes="v" Text="{Binding VpxUpdateText}" />
-                  <Button Grid.Row="1" Grid.Column="2" Classes="small" Content="UPDATE VPX" Command="{Binding InstallVpxCommand}"
+                  <TextBlock Grid.Row="1" Classes="k" Text="PUP PACKS" />
+                  <TextBlock Grid.Row="1" Grid.Column="1" Classes="v" Text="{Binding PupUpdateText}" />
+                  <Button Grid.Row="1" Grid.Column="2" Classes="small" Content="UPDATE PUP PACKS" Command="{Binding UpdateAllPupPacksCommand}"
+                          IsVisible="{Binding PupUpdateCount, Converter={x:Static v:Converters.NonZero}}" />
+
+                  <TextBlock Grid.Row="2" Classes="k" Text="VISUAL PINBALL X" />
+                  <TextBlock Grid.Row="2" Grid.Column="1" Classes="v" Text="{Binding VpxUpdateText}" />
+                  <Button Grid.Row="2" Grid.Column="2" Classes="small" Content="UPDATE VPX" Command="{Binding InstallVpxCommand}"
                           IsVisible="{Binding HasVpxUpdate}" />
 
-                  <TextBlock Grid.Row="2" Classes="k" Text="UEVR" />
-                  <TextBlock Grid.Row="2" Grid.Column="1" Classes="v" Text="{Binding UevrUpdateText}" />
-                  <Button Grid.Row="2" Grid.Column="2" Classes="small" Content="{Binding UevrButtonText}" Command="{Binding InstallUevrCommand}" />
+                  <TextBlock Grid.Row="3" Classes="k" Text="UEVR" />
+                  <TextBlock Grid.Row="3" Grid.Column="1" Classes="v" Text="{Binding UevrUpdateText}" />
+                  <Button Grid.Row="3" Grid.Column="2" Classes="small" Content="{Binding UevrButtonText}" Command="{Binding InstallUevrCommand}" />
 
-                  <TextBlock Grid.Row="3" Classes="k" Text="BAM" />
-                  <TextBlock Grid.Row="3" Grid.Column="1" Classes="v" Text="{Binding BamUpdateText}" />
-                  <Button Grid.Row="3" Grid.Column="2" Classes="small" Content="BAM PAGE" Command="{Binding OpenPageCommand}"
+                  <TextBlock Grid.Row="4" Classes="k" Text="BAM" />
+                  <TextBlock Grid.Row="4" Grid.Column="1" Classes="v" Text="{Binding BamUpdateText}" />
+                  <Button Grid.Row="4" Grid.Column="2" Classes="small" Content="BAM PAGE" Command="{Binding OpenPageCommand}"
                           CommandParameter="https://www.ravarcade.pl/" />
 
-                  <TextBlock Grid.Row="4" Classes="k" Text="FUTURE PINBALL" />
-                  <TextBlock Grid.Row="4" Grid.Column="1" Classes="v" Foreground="{StaticResource Muted}"
+                  <TextBlock Grid.Row="5" Classes="k" Text="FUTURE PINBALL" />
+                  <TextBlock Grid.Row="5" Grid.Column="1" Classes="v" Foreground="{StaticResource Muted}"
                              Text="No updates. The final release came out in 2010; BAM is what keeps it current." />
                 </Grid>
               </StackPanel>
@@ -540,6 +574,9 @@
                   <CheckBox IsChecked="{Binding UseBuiltInPinmame}"
                             Content="Use VPX's built-in PinMAME in VR (recommended)"
                             ToolTip.Tip="Reads each table's ROMs, scores, ROM aliases and Serum colours from its own folder. Off: VPX uses a separately installed VPinMAME and its own roms folder." />
+                  <CheckBox IsChecked="{Binding UsePupPlugin}"
+                            Content="Show PuP packs in VR (VPX's PinUP Player plugin)"
+                            ToolTip.Tip="Plays a table's PuP pack (pupvideos in its folder) on the cabinet's backglass and DMD. Tables without one are unaffected." />
                   <CheckBox IsChecked="{Binding LobbyRecordsRomAudio}"
                             Content="Record a table's music from its ROM in the VR lobby"
                             ToolTip.Tip="Runs the ROM for about 50 s in the background the first time you stop on a table. Off: only audio files already there play." />

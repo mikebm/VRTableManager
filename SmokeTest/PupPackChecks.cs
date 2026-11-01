@@ -1,0 +1,121 @@
+using System.IO.Compression;
+using VrTableManager.Models;
+using VrTableManager.Services;
+
+/// <summary>
+/// PuP packs (PupPacks): reading which pack a script opens, picking links from the catalog, installing
+/// synthetic packs laid out the ways real ones are, version tracking and removal. Downloading is the browser's job.
+/// </summary>
+public static class PupPackChecks
+{
+    public static IEnumerable<(bool ok, string name)> Run(string root)
+    {
+        // Script: a literal, a variable set elsewhere, cGameName, and commented-out lines.
+        yield return (RomDetector.PupNameFromScript("Set PuPlayer = CreateObject(\"PinUpPlayer.PinDisplay\")\nPuPlayer.Init pBackglass, \"jaws50\"\n") == "jaws50",
+            "PuP name from PuPlayer.Init with a literal");
+        yield return (RomDetector.PupNameFromScript("Const cPuPPack = \"ME_PuP\"\n' PuPlayer.Init pBackglass, \"old\"\nPuPlayer.Init pBackglass, cPuPPack\n") == "ME_PuP",
+            "PuP name from a variable (commented-out Init ignored)");
+        yield return (RomDetector.PupNameFromScript("Const cGameName = \"avr_200\"\nPuPlayer.Init pBackglass, cGameName\n") == "avr_200",
+            "PuP name from cGameName (the ROM)");
+        // JP's template (Jaws 50th): B2SInit with an empty first argument, the pack in a variable, PuP off by default.
+        const string jp = "usePUP   = False               ' enable Pinup Player functions\r\ncPuPPack = \"JAWS_50Th_Anniversary\"    ' name of the PuP-Pack\r\n"
+            + "Sub PuPStart(cPuPPack)\r\n    If usePUP=true then\r\n        Set PuPlayer = CreateObject(\"PinUpPlayer.PinDisplay\")\r\n        If PuPlayer is Nothing Then\r\n            usePUP=false\r\n"
+            + "        Else\r\n            PuPlayer.B2SInit \"\",cPuPPack 'start the Pup-Pack\r\n";
+        yield return (RomDetector.PupNameFromScript(jp) == "JAWS_50Th_Anniversary" && RomDetector.PupSwitch(jp) == false
+                && RomDetector.PupSwitch("usePUP = True\r\nusePUP=false\r\n") == true && RomDetector.PupSwitch("Const cGameName = \"x\"") == null,
+            "JP template: PuPlayer.B2SInit with the pack in a variable; usePUP = False is spotted (later fallbacks ignored)");
+        yield return (RomDetector.UsesPup("CreateObject(\"PinUpPlayer.PinDisplay\")") && !RomDetector.UsesPup("Const cGameName = \"mm_109c\""),
+            "PinUP Player use is spotted in the script");
+
+        // Catalog: front-page links, Mega and broken links can't be fetched; newest first.
+        var game = new VpsGame
+        {
+            Id = "g", Name = "Jaws",
+            PupPackFiles =
+            [
+                new VpsFile { Id = "old", Version = "1.0a", UpdatedAt = 1, Urls = [new VpsUrl { Url = "https://vpuniverse.com/" }] },
+                new VpsFile { Id = "mini", Version = "1.0.0", UpdatedAt = 2, Comment = "Mini PUP-pack", Authors = ["Nicolainuke"], Urls = [new VpsUrl { Url = "https://vpuniverse.com/files/file/25983-jaws-mini/" }] },
+                new VpsFile { Id = "full", Version = "3.0.1", UpdatedAt = 3, Authors = ["A", "B", "C", "D", "E"], Urls = [new VpsUrl { Url = "https://vpuniverse.com/files/file/1-dead/", Broken = true }, new VpsUrl { Url = "https://vpuniverse.com/files/file/26016-jaws-50th/" }] },
+                new VpsFile { Id = "mega", Version = "1", UpdatedAt = 4, Urls = [new VpsUrl { Url = "https://mega.nz/file/abc" }] },
+            ],
+        };
+        var sources = PupPacks.SourcesFor(game);
+        yield return (sources.Select(s => s.Id).SequenceEqual(["full", "mini"]) && PupPacks.UsableUrl(sources[0]) == "https://vpuniverse.com/files/file/26016-jaws-50th/",
+            "catalog packs: newest first; site front pages, Mega and broken links left out");
+        yield return (PupPacks.Describe(sources[1]) == "v1.0.0 by Nicolainuke — Mini PUP-pack" && PupPacks.Describe(sources[0]) == "v3.0.1 by A, B, C +2",
+            "menu labels show version, authors and the catalog's note");
+
+        // Install: the usual PinUPSystem\PUPVideos\<name>\ layout, into the table's pupvideos\.
+        var folder = Path.Combine(root, "pup-tables", "Jaws (Original 2025)");
+        Directory.CreateDirectory(folder);
+        File.WriteAllText(Path.Combine(folder, "Jaws.vpx"), "Set PuPlayer = CreateObject(\"PinUpPlayer.PinDisplay\")\r\nPuPlayer.Init pBackglass, \"jaws50\"\r\n");
+        var settings = new AppSettings { TablesDir = Path.Combine(root, "pup-tables") };
+        var table = new InstalledTable(new TableManifest { GameId = "g", GameName = "Jaws", VpxFile = "Jaws.vpx" }, Path.Combine(folder, "Jaws.vpx"), folder);
+        var loose = new InstalledTable(new TableManifest { GameName = "Loose", VpxFile = "x.vpx" }, Path.Combine(settings.TablesDir, "x.vpx"), settings.TablesDir);
+        yield return (PupPacks.CanHold(table, settings) && !PupPacks.CanHold(loose, settings), "only tables in their own folder get a PuP pack");
+
+        var names = PupPacks.ExpectedNames(table);
+        yield return (names.Script == "jaws50", "expected pack name read from an older install's script");
+
+        var zip1 = Zip(root, "pup1.zip",
+            ("PinUPSystem/PUPVideos/Jaws50/screens.pup", "s"), ("PinUPSystem/PUPVideos/Jaws50/playlists.pup", "p"),
+            ("PinUPSystem/PUPVideos/Jaws50/Backglass/intro.mp4", "v1"), ("PinUPSystem/PUPVideos/Jaws50/Backup/screens.pup", "old"),
+            ("Option 1 - Full DMD.bat", "copy x y"));
+        var rec = PupPacks.Install(zip1, table, sources[1], names);
+        var dest = Path.Combine(folder, "pupvideos", "Jaws50");
+        yield return (rec.Folder == "Jaws50" && File.ReadAllText(Path.Combine(dest, "Backglass", "intro.mp4")) == "v1" && File.Exists(Path.Combine(dest, "Backup", "screens.pup")),
+            "pack lands in pupvideos\\<folder> (same name as the script's, any case), with its sub-folders");
+        yield return (!File.Exists(Path.Combine(folder, "Option 1 - Full DMD.bat")) && rec is { FileId: "mini", Version: "1.0.0" },
+            "only the pack folder is installed; the version is recorded");
+
+        table.Manifest.PupPack = rec;
+        var state = PupPacks.StateOf(table);
+        yield return (state.Tracked?.FileId == "mini" && state.Folders.SequenceEqual(["Jaws50"]), "installed pack is tracked");
+
+        // A new catalog version of the same pack is an update; another pack is not.
+        game.PupPackFiles[1].Version = "1.1.0";
+        var updates = PupPacks.FindUpdates([table], [game]);
+        yield return (updates.Count == 1 && updates[0].Label == "v1.0.0 → v1.1.0", "a new version of the installed pack shows as an update");
+
+        // Update with a pack at the top of the archive (no folder of its own): named from the script, the old folder replaced.
+        var zip2 = Zip(root, "pup2.zip", ("screens.pup", "s2"), ("playlists.pup", "p2"), ("Backglass/intro.mp4", "v2"));
+        var rec2 = PupPacks.Install(zip2, table, game.PupPackFiles[1], names);
+        yield return (rec2.Folder == "jaws50" && File.ReadAllText(Path.Combine(folder, "pupvideos", "jaws50", "Backglass", "intro.mp4")) == "v2"
+                && Directory.EnumerateDirectories(Path.Combine(folder, "pupvideos")).Count() == 1 && !File.Exists(Path.Combine(folder, "pupvideos", "jaws50", "Backup", "screens.pup")),
+            "updating replaces the old pack; an unnamed pack takes the script's name");
+        table.Manifest.PupPack = rec2;
+        yield return (PupPacks.FindUpdates([table], [game]).Count == 0, "no update once the new version is in");
+
+        // ROM table without its own PuP code: the pack's folder name is kept.
+        var romTable = new InstalledTable(new TableManifest { GameName = "MB", RomNames = ["mb_106b"] }, Path.Combine(root, "pup-tables", "MB", "mb.vpx"), Path.Combine(root, "pup-tables", "MB"));
+        var roots = new[] { Path.Combine(root, "x", "mb_106") };
+        yield return (PupPacks.Choose(roots, Path.Combine(root, "x"), new PupNames(null, romTable.Manifest.RomNames)).name == "mb_106",
+            "without a name in the script, the pack keeps its own folder name");
+        bool threw;
+        try { PupPacks.Install(Zip(root, "addon.zip", ("Bonus/clip.mp4", "v")), table, game.PupPackFiles[1], names); threw = false; }
+        catch (InvalidDataException) { threw = true; }
+        yield return (threw && File.Exists(Path.Combine(folder, "pupvideos", "jaws50", "screens.pup")), "an archive with no pack in it is refused and leaves the installed pack alone");
+
+        PupPacks.Remove(table);
+        yield return (!Directory.Exists(Path.Combine(folder, "pupvideos")) && File.Exists(table.TablePath), "removing deletes the pack (and the empty pupvideos), not the table");
+
+        // VR ini turns the PinUP Player plugin on (or off).
+        var vs = new AppSettings { VpxDir = Path.Combine(root, "pup-vpx") };
+        VpxSetup.EnsureVrIni(vs);
+        var on = IniFile.Read(VpxSetup.VrIniPath(vs)).GetValueOrDefault(("Plugin.PUP", "Enable"));
+        vs.UsePupPlugin = false;
+        VpxSetup.EnsureVrIni(vs);
+        var off = IniFile.Read(VpxSetup.VrIniPath(vs)).GetValueOrDefault(("Plugin.PUP", "Enable"));
+        yield return (on == "1" && off == "0", "VR ini enables VPX's PUP plugin, and the setting turns it off");
+    }
+
+    static string Zip(string root, string name, params (string path, string text)[] entries)
+    {
+        var path = Path.Combine(root, name);
+        Directory.CreateDirectory(root);
+        using var z = ZipFile.Open(path, ZipArchiveMode.Create);
+        foreach (var (p, t) in entries)
+            using (var w = new StreamWriter(z.CreateEntry(p).Open())) w.Write(t);
+        return path;
+    }
+}
