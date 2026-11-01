@@ -7,16 +7,19 @@ public sealed class PendingDownload
 {
     public const string TableKind = "Table";
     public const string RomKind = "Rom";
+    public const string PupKind = "Pup";
 
     /// <summary>Matches the download job's id while the app is running.</summary>
     public string Id { get; set; } = "";
-    /// <summary>"Table" (install or update a table) or "Rom" (fetch a table's ROMs).</summary>
+    /// <summary>"Table" (install or update a table), "Rom" (fetch a table's ROMs) or "Pup" (a table's PuP pack).</summary>
     public string Kind { get; set; } = TableKind;
     public string Title { get; set; } = "";
     /// <summary>Catalog ids of the table to install (Kind = Table).</summary>
     public string GameId { get; set; } = "";
     public string TableFileId { get; set; } = "";
-    /// <summary>The installed table being updated (Kind = Table) or getting ROMs (Kind = Rom).</summary>
+    /// <summary>Catalog id of the PuP pack to install (Kind = Pup).</summary>
+    public string? PupFileId { get; set; }
+    /// <summary>The installed table being updated (Kind = Table) or getting ROMs/a PuP pack (Kind = Rom/Pup).</summary>
     public string? TablePath { get; set; }
     public DateTime AddedAt { get; set; } = DateTime.Now;
 }

@@ -188,6 +188,7 @@ public sealed partial class MainViewModel
         WarnSteamVrRuntime = s.WarnSteamVrRuntime;
         ExplainFailedLaunches = s.ExplainFailedLaunches;
         UseBuiltInPinmame = s.UseBuiltInPinmame;
+        UsePupPlugin = s.UsePupPlugin;
         LobbyRecordsRomAudio = s.LobbyRecordsRomAudio;
         LoadGraphics();
         RefreshInstalled();

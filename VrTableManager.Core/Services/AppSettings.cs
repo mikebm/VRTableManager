@@ -34,6 +34,11 @@ public sealed class AppSettings
     /// </summary>
     public bool UseBuiltInPinmame { get; set; } = true;
     /// <summary>
+    /// VR play turns on VPX's PinUP Player plugin, which shows a table's PuP pack (pupvideos\ in its folder)
+    /// on the cabinet's backglass and DMD.
+    /// </summary>
+    public bool UsePupPlugin { get; set; } = true;
+    /// <summary>
     /// The VR lobby records a ROM table's start-up music the first time you settle on it (RomAudio): a
     /// background PinMAME run of about 50 s, once per table. Off: only audio files already there play.
     /// </summary>

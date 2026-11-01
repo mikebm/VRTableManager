@@ -25,8 +25,10 @@ public static partial class RomDetector
         const int Chunk = 4 << 20, Overlap = 256;
         var buffer = new byte[Chunk + Overlap];
         var carry = 0;
-        string? gameName = null;
+        string? gameName = null, pupName = null;
         var pinMame = false;
+        var pup = false;
+        bool? pupSwitch = null;
         var aliasTargets = new List<string>();
         using var fs = File.OpenRead(vpxPath);
         int read, chunksAfter = 0;
@@ -39,6 +41,9 @@ public static partial class RomDetector
             var text = Encoding.Latin1.GetString(buffer, 0, total);
             gameName ??= FromScript(text);
             pinMame = pinMame || PinMameRegex().IsMatch(text);
+            pup = pup || UsesPup(text);
+            pupName ??= PupNameFromScript(text, gameName);
+            pupSwitch ??= PupSwitch(text);
             foreach (var a in AliasTargetsIn(text))
                 if (!aliasTargets.Contains(a, StringComparer.OrdinalIgnoreCase)) aliasTargets.Add(a);
             // Keep the tail so a match split across chunks is still found.
@@ -46,7 +51,40 @@ public static partial class RomDetector
             Buffer.BlockCopy(buffer, total - keep, buffer, 0, keep);
             carry = keep;
         }
-        return new(gameName, pinMame) { AliasTargets = aliasTargets };
+        return new(gameName, pinMame) { AliasTargets = aliasTargets, UsesPup = pup, PupName = pupName, PupOff = pupSwitch == false };
+    }
+
+    public static bool UsesPup(string script) => PupRegex().IsMatch(script);
+
+    /// <summary>
+    /// The script's own PuP switch (<c>usePUP = False</c>, as JP's template ships it): false when it's off,
+    /// null when there's none. The first assignment is the setting; later ones are the script's fallbacks.
+    /// </summary>
+    public static bool? PupSwitch(string script)
+    {
+        foreach (var line in CodeLinesWith(script, "usePUP"))
+            if (UsePupSwitchRegex().Match(line) is { Success: true } m)
+                return m.Groups[1].Value is "1" || m.Groups[1].Value.Equals("True", StringComparison.OrdinalIgnoreCase);
+        return null;
+    }
+
+    /// <summary>
+    /// The PuP pack folder the script opens: the second argument of <c>PuPlayer.Init pBackglass, cGameName</c>,
+    /// either a literal or a variable set elsewhere (<c>Const cPuPPack = "jaws50"</c>; cGameName is the ROM).
+    /// </summary>
+    public static string? PupNameFromScript(string script, string? gameName = null)
+    {
+        foreach (var line in CodeLinesWith(script, "Init"))
+        {
+            if (PupInitRegex().Match(line) is not { Success: true } m) continue;
+            if (m.Groups[1].Success) return m.Groups[1].Value;
+            var variable = m.Groups[2].Value;
+            if (variable.Equals("cGameName", StringComparison.OrdinalIgnoreCase)) return gameName ?? FromScript(script);
+            foreach (var assign in CodeLinesWith(script, variable))
+                if (Regex.Match(assign, $@"\b{Regex.Escape(variable)}[ \t]*=[ \t]*""([^""\r\n]{{1,64}})""", RegexOptions.IgnoreCase) is { Success: true } a)
+                    return a.Groups[1].Value;
+        }
+        return null;
     }
 
     /// <summary>
@@ -97,6 +135,16 @@ public static partial class RomDetector
 
     [GeneratedRegex("LoadVPM|VPinMAME\\.Controller", RegexOptions.IgnoreCase)]
     private static partial Regex PinMameRegex();
+
+    [GeneratedRegex("PinUpPlayer\\.PinDisplay", RegexOptions.IgnoreCase)]
+    private static partial Regex PupRegex();
+
+    /// <summary><c>PuPlayer.Init pBackglass, "name"</c> or <c>PuPlayer.B2SInit "", variable</c>.</summary>
+    [GeneratedRegex("\\bPuPlayer\\.(?:B2S)?Init[ \\t(]+(?:[A-Za-z0-9_]+|\"[^\"\\r\\n]*\")[ \\t]*,[ \\t]*(?:\"([^\"\\r\\n]{1,64})\"|([A-Za-z_][A-Za-z0-9_]*))", RegexOptions.IgnoreCase)]
+    private static partial Regex PupInitRegex();
+
+    [GeneratedRegex("\\busePUP[ \\t]*=[ \\t]*(True|False|1|0)\\b", RegexOptions.IgnoreCase)]
+    private static partial Regex UsePupSwitchRegex();
 }
 
 /// <param name="GameName">cGameName from the script, if found.</param>
@@ -108,6 +156,13 @@ public sealed record VpxRomInfo(string? GameName, bool UsesPinMame)
     /// runs "afm_113b_me"), one of these is what it stands for; PinMAME learns that from alias.txt.
     /// </summary>
     public IReadOnlyList<string> AliasTargets { get; init; } = [];
+
+    /// <summary>The script creates PinUP Player (<c>PinUpPlayer.PinDisplay</c>), so it has a PuP pack.</summary>
+    public bool UsesPup { get; init; }
+    /// <summary>The pack folder it opens (pupvideos\&lt;name&gt;), when the script names it.</summary>
+    public string? PupName { get; init; }
+    /// <summary>The script has PuP turned off (<c>usePUP = False</c>): a pack won't show until it's set to True.</summary>
+    public bool PupOff { get; init; }
 
     /// <summary>The script was read and it doesn't use PinMAME: no ROM needed, whatever cGameName says.</summary>
     public bool NoRomNeeded => GameName != null && !UsesPinMame;

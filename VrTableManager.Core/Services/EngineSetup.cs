@@ -149,7 +149,12 @@ public static class VpxSetup
         // folder. Serum and AltSound are its colorization and sound companions, read from the table folder.
         var on = s.UseBuiltInPinmame ? "1" : "0";
         foreach (var plugin in BuiltInPinmamePlugins) IniFile.Set(ini, "Plugin." + plugin, "Enable", on);
+        // PinUP Player plugin: plays a table's pupvideos\<pack> on the backglass/DMD; tables without one are unaffected.
+        IniFile.Set(ini, "Plugin." + PupPlugin, "Enable", s.UsePupPlugin ? "1" : "0");
     }
+
+    /// <summary>Id of VPX's PinUP Player plugin (plugins\pup\plugin.cfg).</summary>
+    public const string PupPlugin = "PUP";
 
     public static readonly string[] BuiltInPinmamePlugins = ["PinMAME", "Serum", "AltSound"];
 

@@ -66,6 +66,7 @@ public sealed partial class MainViewModel : ObservableObject, IAsyncDisposable
         WarnSteamVrRuntime = Settings.WarnSteamVrRuntime;
         ExplainFailedLaunches = Settings.ExplainFailedLaunches;
         UseBuiltInPinmame = Settings.UseBuiltInPinmame;
+        UsePupPlugin = Settings.UsePupPlugin;
         LobbyRecordsRomAudio = Settings.LobbyRecordsRomAudio;
         LoadGraphics();
         RefreshInstalled();
@@ -601,6 +602,7 @@ public sealed partial class MainViewModel : ObservableObject, IAsyncDisposable
             {
                 item.TableScale = VpxGraphics.ReadTableScale(item.Table.TablePath);
                 item.HasAttractAudio = MediaPackAudio.Existing(item.Table.Folder) != null;
+                item.PupState = PupPacks.StateOf(item.Table);
                 item.AttractAudioSources = AttractAudioSourcesFor(item.Table);
             }
         }
@@ -945,6 +947,7 @@ public sealed partial class MainViewModel : ObservableObject, IAsyncDisposable
             case nameof(WarnSteamVrRuntime): Settings.WarnSteamVrRuntime = WarnSteamVrRuntime; break;
             case nameof(ExplainFailedLaunches): Settings.ExplainFailedLaunches = ExplainFailedLaunches; break;
             case nameof(UseBuiltInPinmame): Settings.UseBuiltInPinmame = UseBuiltInPinmame; break;
+            case nameof(UsePupPlugin): Settings.UsePupPlugin = UsePupPlugin; break;
             case nameof(LobbyRecordsRomAudio): Settings.LobbyRecordsRomAudio = LobbyRecordsRomAudio; break;
             default: return;
         }
@@ -1161,7 +1164,8 @@ public sealed partial class MainViewModel : ObservableObject, IAsyncDisposable
             1 => "1 table has a newer version.",
             _ => $"{updates.Count} tables have newer versions.",
         };
-        UpdateCount = TableUpdateCount + (HasVpxUpdate ? 1 : 0) + (HasUevrUpdate ? 1 : 0);
+        ApplyPupPacks();
+        UpdateCount = TableUpdateCount + PupUpdateCount + (HasVpxUpdate ? 1 : 0) + (HasUevrUpdate ? 1 : 0);
     }
 
     /// <summary>Checks GitHub (VPX, UEVR) and ravarcade.pl (BAM). Runs once at startup after the catalog loads.</summary>
@@ -1268,6 +1272,7 @@ public sealed partial class MainViewModel : ObservableObject, IAsyncDisposable
             if (HasVpxUpdate) await InstallVpxAsync();
             if (HasUevrUpdate) await InstallUevrAsync();
             await UpdateAllTablesAsync();
+            await UpdateAllPupPacksAsync();
             await CheckUpdatesAsync();
         }
         finally
@@ -1306,6 +1311,11 @@ public sealed partial class MainViewModel : ObservableObject, IAsyncDisposable
             {
                 if (Find(item.TablePath) is { } t) _ = GetRomAsync(t);
                 else skipped.Add(item.Title);
+                continue;
+            }
+            if (item.Kind == PendingDownload.PupKind)
+            {
+                ResumePup(item, Find, skipped);
                 continue;
             }
             var game = _allGames.FirstOrDefault(g => g.Id == item.GameId);

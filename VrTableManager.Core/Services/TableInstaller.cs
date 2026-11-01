@@ -119,6 +119,9 @@ public static class TableInstaller
                 RomNames = isFp ? [] : romNames,
                 InstalledAt = DateTime.Now,
                 SourceUpdatedAt = tf.UpdatedAt,
+                PupName = rom.UsesPup ? rom.PupName ?? rom.GameName : null,
+                // An update keeps the folder, so a PuP pack installed earlier stays tracked.
+                PupPack = replacing?.Manifest.PupPack,
             };
 
             // Updating: the new version usually has a new file name ("… v1.2.vpx"). Remove the old
@@ -172,6 +175,7 @@ public static class TableInstaller
                 "altcolor" => Path.Combine(folder, "pinmame", "altcolor"),
                 "roms" => Path.Combine(folder, "pinmame", "roms"),
                 "nvram" => Path.Combine(folder, "pinmame", "nvram"),
+                "pupvideos" => Path.Combine(folder, PupPacks.FolderName),
                 _ => null,
             };
             if (target != null) CopyTree(dir, target);
