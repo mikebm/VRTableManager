@@ -25,6 +25,10 @@ public sealed class VpsGame
     public List<VpsFile>? SoundFiles { get; set; }
     /// <summary>PinUP Player packs: videos for the backglass/DMD/topper, almost all on VPUniverse (sign-in).</summary>
     public List<VpsFile>? PupPackFiles { get; set; }
+    /// <summary>DMD colorizations: Serum (.cRZ) or Pin2DMD (.pal/.vni, or an encrypted .pac).</summary>
+    public List<VpsAltColorFile>? AltColorFiles { get; set; }
+    /// <summary>Replacement sound packs for PinMAME (AltSound / G-Sound / legacy PinSound layout).</summary>
+    public List<VpsFile>? AltSoundFiles { get; set; }
 
     [JsonIgnore]
     public string DisplayTitle => Year is > 0
@@ -48,6 +52,15 @@ public sealed class VpsTableFile : VpsFile
 {
     public string? TableFormat { get; set; }
     public string? Edition { get; set; }
+}
+
+public sealed class VpsAltColorFile : VpsFile
+{
+    /// <summary>Free text: "Serum", "Serum 2.0", "Pin2DMD", "Pin2DMD - PAC - 64 Colors", "PB Patch", …</summary>
+    public string? Type { get; set; }
+    /// <summary>The ROM it colours ("mm_109c").</summary>
+    public string? Folder { get; set; }
+    public string? FileName { get; set; }
 }
 
 public sealed class VpsUrl

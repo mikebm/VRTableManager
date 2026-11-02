@@ -9,6 +9,33 @@
         Icon="/Assets/app.ico"
         Width="1360" Height="880" MinWidth="980" MinHeight="640">
 
+  <Window.Resources>
+    <!-- A table card's add-on menu (PUP / COLOUR DMD / ALTSOUND): the catalog's files, open folder, remove. -->
+    <DataTemplate x:Key="AddonButton" x:DataType="vm:AddonSlot">
+      <Button Classes="small" Content="{Binding ButtonText}" Margin="0,0,6,6" IsEnabled="{Binding !Item.IsBusy}" ToolTip.Tip="{Binding Tip}">
+        <Button.Flyout>
+          <MenuFlyout Placement="BottomEdgeAlignedLeft">
+            <MenuItem Header="{Binding MenuHeader}" IsVisible="{Binding HasChoices}" ItemsSource="{Binding Choices}">
+              <MenuItem.ItemTemplate>
+                <DataTemplate x:DataType="vm:AddonChoice">
+                  <TextBlock Text="{Binding Label}" />
+                </DataTemplate>
+              </MenuItem.ItemTemplate>
+              <MenuItem.Styles>
+                <Style Selector="MenuItem > MenuItem" x:DataType="vm:AddonChoice">
+                  <Setter Property="Command" Value="{Binding Slot.Item.Owner.GetAddonCommand}" />
+                  <Setter Property="CommandParameter" Value="{Binding}" />
+                </Style>
+              </MenuItem.Styles>
+            </MenuItem>
+            <MenuItem Header="Open folder" IsVisible="{Binding IsInstalled}" Command="{Binding Item.Owner.OpenAddonFolderCommand}" CommandParameter="{Binding}" />
+            <MenuItem Header="Remove" IsVisible="{Binding IsInstalled}" Command="{Binding Item.Owner.RemoveAddonCommand}" CommandParameter="{Binding}" />
+          </MenuFlyout>
+        </Button.Flyout>
+      </Button>
+    </DataTemplate>
+  </Window.Resources>
+
   <Window.Styles>
     <!-- Card grids are ListBoxes with a WrapPanel; strip the default row chrome. -->
     <Style Selector="ListBox.grid">
@@ -156,7 +183,9 @@
                           <Border Classes="chip hot" IsVisible="{Binding IsIncomplete}"><TextBlock Text="INCOMPLETE" /></Border>
                           <Border Classes="chip hot" IsVisible="{Binding HasUpdate}"><TextBlock Text="UPDATE" /></Border>
                           <Border Classes="chip hot" IsVisible="{Binding NeedsRom}"><TextBlock Text="NEEDS ROM" /></Border>
-                          <Border Classes="chip" IsVisible="{Binding HasPup}" ToolTip.Tip="{Binding PupStatus}"><TextBlock Text="PUP" /></Border>
+                          <Border Classes="chip" IsVisible="{Binding Pup.IsInstalled}" ToolTip.Tip="{Binding Pup.Status}"><TextBlock Text="PUP" /></Border>
+                          <Border Classes="chip" IsVisible="{Binding Colour.IsInstalled}" ToolTip.Tip="{Binding Colour.Status}"><TextBlock Text="COLOUR" /></Border>
+                          <Border Classes="chip" IsVisible="{Binding Sound.IsInstalled}" ToolTip.Tip="{Binding Sound.Status}"><TextBlock Text="ALTSOUND" /></Border>
                         </StackPanel>
                       </Grid>
                       <StackPanel Margin="14,12,14,14" Spacing="4">
@@ -186,12 +215,18 @@
                           <Button Grid.Column="1" Classes="small" Content="UPDATE" Margin="8,0,0,0"
                                   IsEnabled="{Binding !IsBusy}" Command="{ReflectionBinding $parent[Window].DataContext.UpdateTableCommand}" CommandParameter="{Binding}" />
                         </Grid>
-                        <Grid ColumnDefinitions="*,Auto" Margin="0,2,0,0" IsVisible="{Binding HasPup}">
-                          <TextBlock Classes="mono" Text="{Binding PupStatus}" TextWrapping="Wrap" VerticalAlignment="Center" />
-                          <Button Grid.Column="1" Classes="small" Content="UPDATE PUP" Margin="8,0,0,0" IsVisible="{Binding HasPupUpdate}"
-                                  ToolTip.Tip="Download the catalog's newer version of this PuP pack and replace the installed one"
-                                  IsEnabled="{Binding !IsBusy}" Command="{ReflectionBinding $parent[Window].DataContext.UpdatePupPackCommand}" CommandParameter="{Binding}" />
-                        </Grid>
+                        <ItemsControl ItemsSource="{Binding Addons}">
+                          <ItemsControl.ItemTemplate>
+                            <DataTemplate x:DataType="vm:AddonSlot">
+                              <Grid ColumnDefinitions="*,Auto" Margin="0,2,0,0" IsVisible="{Binding IsInstalled}">
+                                <TextBlock Classes="mono" Text="{Binding Status}" TextWrapping="Wrap" VerticalAlignment="Center" />
+                                <Button Grid.Column="1" Classes="small" Content="UPDATE" Margin="8,0,0,0" IsVisible="{Binding HasUpdate}"
+                                        ToolTip.Tip="Download the catalog's newer version and replace the installed one"
+                                        IsEnabled="{Binding !Item.IsBusy}" Command="{Binding Item.Owner.UpdateAddonCommand}" CommandParameter="{Binding}" />
+                              </Grid>
+                            </DataTemplate>
+                          </ItemsControl.ItemTemplate>
+                        </ItemsControl>
                         <TextBlock FontSize="12" Foreground="{StaticResource Insert}" TextWrapping="Wrap" IsVisible="{Binding IsIncomplete}"
                                    Text="This install was cut off before it finished, so files may be missing. Reinstall it." />
                         <Button Classes="primary" Content="⟳  REINSTALL" Margin="0,8,0,0" IsVisible="{Binding IsIncomplete}"
@@ -215,28 +250,9 @@
                           <Button Classes="small" Content="ADD ROM" Margin="0,0,6,6" IsVisible="{Binding NeedsRom}"
                                   ToolTip.Tip="Install a ROM zip you already have"
                                   Command="{ReflectionBinding $parent[Window].DataContext.AddRomCommand}" CommandParameter="{Binding}" />
-                          <Button Classes="small" Content="PUP ▾" Margin="0,0,6,6" IsVisible="{Binding ShowPupButton}" IsEnabled="{Binding !IsBusy}"
-                                  ToolTip.Tip="PinUP Player pack: videos for the cabinet's backglass and DMD, from the catalog">
-                            <Button.Flyout>
-                              <MenuFlyout Placement="BottomEdgeAlignedLeft">
-                                <MenuItem Header="{Binding PupMenuHeader}" IsVisible="{Binding HasPupChoices}" ItemsSource="{Binding PupChoices}">
-                                  <MenuItem.ItemTemplate>
-                                    <DataTemplate x:DataType="vm:PupChoice">
-                                      <TextBlock Text="{Binding Label}" />
-                                    </DataTemplate>
-                                  </MenuItem.ItemTemplate>
-                                  <MenuItem.Styles>
-                                    <Style Selector="MenuItem > MenuItem" x:DataType="vm:PupChoice">
-                                      <Setter Property="Command" Value="{Binding Item.Owner.GetPupPackCommand}" />
-                                      <Setter Property="CommandParameter" Value="{Binding}" />
-                                    </Style>
-                                  </MenuItem.Styles>
-                                </MenuItem>
-                                <MenuItem Header="Open PuP folder" IsVisible="{Binding HasPup}" Command="{Binding Owner.OpenPupFolderCommand}" CommandParameter="{Binding}" />
-                                <MenuItem Header="Remove PuP pack" IsVisible="{Binding HasPup}" Command="{Binding Owner.RemovePupPackCommand}" CommandParameter="{Binding}" />
-                              </MenuFlyout>
-                            </Button.Flyout>
-                          </Button>
+                          <ContentControl Content="{Binding Pup}" ContentTemplate="{StaticResource AddonButton}" IsVisible="{Binding Pup.ShowButton}" />
+                          <ContentControl Content="{Binding Colour}" ContentTemplate="{StaticResource AddonButton}" IsVisible="{Binding Colour.ShowButton}" />
+                          <ContentControl Content="{Binding Sound}" ContentTemplate="{StaticResource AddonButton}" IsVisible="{Binding Sound.ShowButton}" />
                           <Button Classes="small" Content="FOLDER" Margin="0,0,6,6"
                                   Command="{ReflectionBinding $parent[Window].DataContext.OpenTableFolderCommand}" CommandParameter="{Binding}" />
                           <Button Classes="small" Content="MORE ▾" Margin="0,0,6,6" ToolTip.Tip="Folders, per-table settings and cache">
@@ -530,10 +546,10 @@
                   <Button Grid.Row="0" Grid.Column="2" Classes="small" Content="UPDATE TABLES" Command="{Binding UpdateAllTablesCommand}"
                           IsVisible="{Binding TableUpdateCount, Converter={x:Static v:Converters.NonZero}}" />
 
-                  <TextBlock Grid.Row="1" Classes="k" Text="PUP PACKS" />
-                  <TextBlock Grid.Row="1" Grid.Column="1" Classes="v" Text="{Binding PupUpdateText}" />
-                  <Button Grid.Row="1" Grid.Column="2" Classes="small" Content="UPDATE PUP PACKS" Command="{Binding UpdateAllPupPacksCommand}"
-                          IsVisible="{Binding PupUpdateCount, Converter={x:Static v:Converters.NonZero}}" />
+                  <TextBlock Grid.Row="1" Classes="k" Text="ADD-ONS" />
+                  <TextBlock Grid.Row="1" Grid.Column="1" Classes="v" Text="{Binding AddonUpdateText}" />
+                  <Button Grid.Row="1" Grid.Column="2" Classes="small" Content="UPDATE ADD-ONS" Command="{Binding UpdateAllAddonsCommand}"
+                          IsVisible="{Binding AddonUpdateCount, Converter={x:Static v:Converters.NonZero}}" />
 
                   <TextBlock Grid.Row="2" Classes="k" Text="VISUAL PINBALL X" />
                   <TextBlock Grid.Row="2" Grid.Column="1" Classes="v" Text="{Binding VpxUpdateText}" />

@@ -7,19 +7,24 @@ public sealed class PendingDownload
 {
     public const string TableKind = "Table";
     public const string RomKind = "Rom";
-    public const string PupKind = "Pup";
+
+    /// <summary>The Kind of an add-on download: "Pup", "AltColor" or "AltSound".</summary>
+    public static string KindFor(AddonKind kind) => kind.ToString();
+
+    /// <summary>The add-on a Kind stands for, or null for a table or ROM download.</summary>
+    public static AddonKind? AddonKindOf(string kind) => Enum.TryParse<AddonKind>(kind, out var k) ? k : null;
 
     /// <summary>Matches the download job's id while the app is running.</summary>
     public string Id { get; set; } = "";
-    /// <summary>"Table" (install or update a table), "Rom" (fetch a table's ROMs) or "Pup" (a table's PuP pack).</summary>
+    /// <summary>"Table" (install or update a table), "Rom" (fetch a table's ROMs) or an add-on (<see cref="KindFor"/>).</summary>
     public string Kind { get; set; } = TableKind;
     public string Title { get; set; } = "";
     /// <summary>Catalog ids of the table to install (Kind = Table).</summary>
     public string GameId { get; set; } = "";
     public string TableFileId { get; set; } = "";
-    /// <summary>Catalog id of the PuP pack to install (Kind = Pup).</summary>
-    public string? PupFileId { get; set; }
-    /// <summary>The installed table being updated (Kind = Table) or getting ROMs/a PuP pack (Kind = Rom/Pup).</summary>
+    /// <summary>Catalog id of the add-on to install (PuP pack, colorization or AltSound).</summary>
+    public string? AddonFileId { get; set; }
+    /// <summary>The installed table being updated (Kind = Table) or getting ROMs/an add-on.</summary>
     public string? TablePath { get; set; }
     public DateTime AddedAt { get; set; } = DateTime.Now;
 }

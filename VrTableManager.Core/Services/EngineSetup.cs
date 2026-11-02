@@ -146,7 +146,7 @@ public static class VpxSetup
         IniFile.Set(ini, "PlayerVR", "DisplayRefreshRate", rate.ToString());
         // VPX's built-in PinMAME reads each table's own pinmame\roms, nvram and alias.txt (where this app
         // puts them); without it VPX falls back to a separately installed VPinMAME and its global roms
-        // folder. Serum and AltSound are its colorization and sound companions, read from the table folder.
+        // folder. Serum, VNI and AltSound are its colorization and sound companions, read from the table folder.
         var on = s.UseBuiltInPinmame ? "1" : "0";
         foreach (var plugin in BuiltInPinmamePlugins) IniFile.Set(ini, "Plugin." + plugin, "Enable", on);
         // PinUP Player plugin: plays a table's pupvideos\<pack> on the backglass/DMD; tables without one are unaffected.
@@ -156,7 +156,7 @@ public static class VpxSetup
     /// <summary>Id of VPX's PinUP Player plugin (plugins\pup\plugin.cfg).</summary>
     public const string PupPlugin = "PUP";
 
-    public static readonly string[] BuiltInPinmamePlugins = ["PinMAME", "Serum", "AltSound"];
+    public static readonly string[] BuiltInPinmamePlugins = ["PinMAME", "Serum", "VNI", "AltSound"];
 
     /// <summary>Which OpenXR runtime VPX will talk to (Windows only).</summary>
     public static string DescribeOpenXrRuntime()

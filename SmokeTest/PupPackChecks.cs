@@ -40,7 +40,7 @@ public static class PupPackChecks
             ],
         };
         var sources = PupPacks.SourcesFor(game);
-        yield return (sources.Select(s => s.Id).SequenceEqual(["full", "mini"]) && PupPacks.UsableUrl(sources[0]) == "https://vpuniverse.com/files/file/26016-jaws-50th/",
+        yield return (sources.Select(s => s.Id).SequenceEqual(["full", "mini"]) && Addons.UsableUrl(sources[0]) == "https://vpuniverse.com/files/file/26016-jaws-50th/",
             "catalog packs: newest first; site front pages, Mega and broken links left out");
         yield return (PupPacks.Describe(sources[1]) == "v1.0.0 by Nicolainuke — Mini PUP-pack" && PupPacks.Describe(sources[0]) == "v3.0.1 by A, B, C +2",
             "menu labels show version, authors and the catalog's note");
@@ -52,7 +52,7 @@ public static class PupPackChecks
         var settings = new AppSettings { TablesDir = Path.Combine(root, "pup-tables") };
         var table = new InstalledTable(new TableManifest { GameId = "g", GameName = "Jaws", VpxFile = "Jaws.vpx" }, Path.Combine(folder, "Jaws.vpx"), folder);
         var loose = new InstalledTable(new TableManifest { GameName = "Loose", VpxFile = "x.vpx" }, Path.Combine(settings.TablesDir, "x.vpx"), settings.TablesDir);
-        yield return (PupPacks.CanHold(table, settings) && !PupPacks.CanHold(loose, settings), "only tables in their own folder get a PuP pack");
+        yield return (Addons.CanHold(table, settings) && !Addons.CanHold(loose, settings), "only tables in their own folder get a PuP pack");
 
         var names = PupPacks.ExpectedNames(table);
         yield return (names.Script == "jaws50", "expected pack name read from an older install's script");
@@ -74,7 +74,7 @@ public static class PupPackChecks
 
         // A new catalog version of the same pack is an update; another pack is not.
         game.PupPackFiles[1].Version = "1.1.0";
-        var updates = PupPacks.FindUpdates([table], [game]);
+        var updates = Addons.FindUpdates([table], [game]);
         yield return (updates.Count == 1 && updates[0].Label == "v1.0.0 → v1.1.0", "a new version of the installed pack shows as an update");
 
         // Update with a pack at the top of the archive (no folder of its own): named from the script, the old folder replaced.
@@ -84,7 +84,7 @@ public static class PupPackChecks
                 && Directory.EnumerateDirectories(Path.Combine(folder, "pupvideos")).Count() == 1 && !File.Exists(Path.Combine(folder, "pupvideos", "jaws50", "Backup", "screens.pup")),
             "updating replaces the old pack; an unnamed pack takes the script's name");
         table.Manifest.PupPack = rec2;
-        yield return (PupPacks.FindUpdates([table], [game]).Count == 0, "no update once the new version is in");
+        yield return (Addons.FindUpdates([table], [game]).Count == 0, "no update once the new version is in");
 
         // ROM table without its own PuP code: the pack's folder name is kept.
         var romTable = new InstalledTable(new TableManifest { GameName = "MB", RomNames = ["mb_106b"] }, Path.Combine(root, "pup-tables", "MB", "mb.vpx"), Path.Combine(root, "pup-tables", "MB"));

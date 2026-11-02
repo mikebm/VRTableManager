@@ -602,7 +602,7 @@ public sealed partial class MainViewModel : ObservableObject, IAsyncDisposable
             {
                 item.TableScale = VpxGraphics.ReadTableScale(item.Table.TablePath);
                 item.HasAttractAudio = MediaPackAudio.Existing(item.Table.Folder) != null;
-                item.PupState = PupPacks.StateOf(item.Table);
+                RefreshAddonState(item);
                 item.AttractAudioSources = AttractAudioSourcesFor(item.Table);
             }
         }
@@ -1164,8 +1164,8 @@ public sealed partial class MainViewModel : ObservableObject, IAsyncDisposable
             1 => "1 table has a newer version.",
             _ => $"{updates.Count} tables have newer versions.",
         };
-        ApplyPupPacks();
-        UpdateCount = TableUpdateCount + PupUpdateCount + (HasVpxUpdate ? 1 : 0) + (HasUevrUpdate ? 1 : 0);
+        ApplyAddons();
+        UpdateCount = TableUpdateCount + AddonUpdateCount + (HasVpxUpdate ? 1 : 0) + (HasUevrUpdate ? 1 : 0);
     }
 
     /// <summary>Checks GitHub (VPX, UEVR) and ravarcade.pl (BAM). Runs once at startup after the catalog loads.</summary>
@@ -1272,7 +1272,7 @@ public sealed partial class MainViewModel : ObservableObject, IAsyncDisposable
             if (HasVpxUpdate) await InstallVpxAsync();
             if (HasUevrUpdate) await InstallUevrAsync();
             await UpdateAllTablesAsync();
-            await UpdateAllPupPacksAsync();
+            await UpdateAllAddonsAsync();
             await CheckUpdatesAsync();
         }
         finally
@@ -1313,9 +1313,9 @@ public sealed partial class MainViewModel : ObservableObject, IAsyncDisposable
                 else skipped.Add(item.Title);
                 continue;
             }
-            if (item.Kind == PendingDownload.PupKind)
+            if (PendingDownload.AddonKindOf(item.Kind) != null)
             {
-                ResumePup(item, Find, skipped);
+                ResumeAddon(item, Find, skipped);
                 continue;
             }
             var game = _allGames.FirstOrDefault(g => g.Id == item.GameId);
