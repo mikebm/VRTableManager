@@ -116,7 +116,7 @@ VR Table Manager $Version
 
 Run VrTableManager.exe. Keep the VrLobby folder next to it (the VR lobby runs from there).
 
-Needs: Windows 10/11 x64, Microsoft Edge (signs in to table sites), a Quest with Meta Quest Link
+Needs: Windows 10/11 x64, a web browser (table sites are downloaded from in it), a Quest with Meta Quest Link
 or Virtual Desktop. The VR lobby also needs the .NET 10 Runtime (https://dotnet.microsoft.com/download/dotnet/10.0);
 the app itself does not.
 
@@ -177,7 +177,7 @@ if ($NotesFile) { $Notes = (Get-Content $NotesFile -Raw) + "`n`n" + $Notes }
 $requirements = @"
 **Download** ``$(Split-Path $zip -Leaf)``, unzip it anywhere and run ``VrTableManager.exe``.
 
-Needs Windows 10/11 x64 and Microsoft Edge. The VR lobby also needs the [.NET 10 Runtime](https://dotnet.microsoft.com/download/dotnet/10.0).
+Needs Windows 10/11 x64. The VR lobby also needs the [.NET 10 Runtime](https://dotnet.microsoft.com/download/dotnet/10.0).
 SHA-256: ``$hash``
 "@
 $body = @{

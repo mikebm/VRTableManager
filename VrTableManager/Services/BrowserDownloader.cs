@@ -3,10 +3,11 @@ using Microsoft.Playwright;
 namespace VrTableManager.Services;
 
 /// <summary>
-/// Drives a real browser window (Edge/Chrome via Playwright) to fetch files from
-/// sites that need a login, such as VPUniverse, VPForums and Pinball Nirvana.
-/// The user signs in themselves in that window; the app never sees credentials.
-/// Once signed in, it clicks through the download buttons and captures the file.
+/// Drives a real browser window (Edge/Chrome via Playwright) to fetch files from a site that has
+/// agreed to automated downloads (<see cref="SitePolicy"/>); every other site goes through
+/// <see cref="AssistedDownloader"/>, where you download in your own browser.
+/// The user signs in themselves in that window; the app never sees credentials. It identifies
+/// itself as automated, and never accepts a site's terms for you: on a terms page it waits for you.
 /// The browser profile is persistent, so sign-ins are remembered between runs.
 /// </summary>
 public sealed class BrowserDownloader : IAsyncDisposable
@@ -25,87 +26,6 @@ public sealed class BrowserDownloader : IAsyncDisposable
     {
         _profileDir = profileDir ?? Path.Combine(AppSettings.DataDir, "browser-profile");
         _headless = headless;
-    }
-
-    /// <summary>
-    /// Open your default browser (Edge, Chrome or Brave) with its own profile, so sign-ins and cookies are
-    /// shared with it. That profile can only be driven while the browser is closed; when it's open (or
-    /// refuses to be automated), downloads use the app's own profile instead. Read when the window opens.
-    /// </summary>
-    public bool UseDefaultBrowserProfile { get; set; }
-
-    /// <summary>Set once the default browser's profile couldn't be used, so it isn't retried every download.</summary>
-    string? _defaultProfileProblem;
-
-    /// <summary>A Chromium browser Playwright can drive: its channel (or exe) and its own profile folder.</summary>
-    sealed record SystemBrowser(string Name, string? Channel, string? Exe, string UserDataDir);
-
-    /// <summary>The Windows default browser for https links, when it's one whose profile can be shared.</summary>
-    static SystemBrowser? FindDefaultBrowser()
-    {
-        if (!OperatingSystem.IsWindows()) return null;
-        string? progId;
-        try
-        {
-            using var key = Microsoft.Win32.Registry.CurrentUser.OpenSubKey(
-                @"Software\Microsoft\Windows\Shell\Associations\UrlAssociations\https\UserChoice");
-            progId = key?.GetValue("ProgId") as string;
-        }
-        catch { return null; }
-        var local = Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData);
-        if (progId == null) return null;
-        if (progId.StartsWith("MSEdge", StringComparison.OrdinalIgnoreCase))
-            return new("Edge", "msedge", null, Path.Combine(local, "Microsoft", "Edge", "User Data"));
-        if (progId.StartsWith("ChromeHTML", StringComparison.OrdinalIgnoreCase))
-            return new("Chrome", "chrome", null, Path.Combine(local, "Google", "Chrome", "User Data"));
-        if (progId.StartsWith("BraveHTML", StringComparison.OrdinalIgnoreCase))
-        {
-            var exe = new[] { Environment.SpecialFolder.ProgramFiles, Environment.SpecialFolder.ProgramFilesX86, Environment.SpecialFolder.LocalApplicationData }
-                .Select(f => Path.Combine(Environment.GetFolderPath(f), "BraveSoftware", "Brave-Browser", "Application", "brave.exe"))
-                .FirstOrDefault(File.Exists);
-            return exe == null ? null : new("Brave", null, exe, Path.Combine(local, "BraveSoftware", "Brave-Browser", "User Data"));
-        }
-        return null; // Firefox and others: Playwright can't drive their real profile.
-    }
-
-    /// <summary>Opens the default browser's own profile, or returns null (and says why) to fall back to the app's.</summary>
-    async Task<IBrowserContext?> TryDefaultBrowserAsync(BrowserTypeLaunchPersistentContextOptions baseOpts, Action<string> status)
-    {
-        if (!UseDefaultBrowserProfile || _headless || _defaultProfileProblem != null) return null;
-        if (FindDefaultBrowser() is not { } b || !Directory.Exists(b.UserDataDir))
-        {
-            _defaultProfileProblem = "Your default browser isn't Edge, Chrome or Brave, so downloads use the app's own browser profile.";
-            status(_defaultProfileProblem);
-            return null;
-        }
-        if (ProfileInUse(b.UserDataDir))
-        {
-            // Not remembered: close the browser and the next download window can share its profile.
-            status($"{b.Name} is open, so this download uses the app's own browser profile. Close {b.Name} first to share its sign-ins.");
-            return null;
-        }
-        var opts = new BrowserTypeLaunchPersistentContextOptions
-        {
-            Headless = false,
-            AcceptDownloads = true,
-            ViewportSize = ViewportSize.NoViewport,
-            IgnoreDefaultArgs = baseOpts.IgnoreDefaultArgs,
-            Args = [.. baseOpts.Args ?? [], "--profile-directory=Default"],
-            Channel = b.Channel,
-            ExecutablePath = b.Exe,
-            // A browser that won't allow automating its main profile never answers; don't wait long for it.
-            Timeout = 30_000,
-        };
-        try
-        {
-            return await _pw!.Chromium.LaunchPersistentContextAsync(b.UserDataDir, opts);
-        }
-        catch (Exception e) when (e is PlaywrightException or TimeoutException)
-        {
-            _defaultProfileProblem = $"{b.Name} wouldn't open its own profile for downloads ({e.Message.Split('\n')[0]}), so downloads use the app's own browser profile.";
-            status(_defaultProfileProblem);
-            return null;
-        }
     }
 
     /// <summary>How long to give a site after a click before trying something else.</summary>
@@ -131,18 +51,12 @@ public sealed class BrowserDownloader : IAsyncDisposable
             Headless = _headless,
             AcceptDownloads = true,
             ViewportSize = ViewportSize.NoViewport,
-            // Don't announce "controlled by automated software" (navigator.webdriver, infobar):
-            // bot checks on the table sites can loop forever on login when they see it.
-            IgnoreDefaultArgs = ["--enable-automation"],
-            Args = ["--disable-blink-features=AutomationControlled"],
         };
-
-        _ctx = await TryDefaultBrowserAsync(opts, status);
 
         // Prefer a browser that's already on the machine (Edge ships with Windows),
         // and only fall back to downloading Playwright's Chromium if neither exists.
         PlaywrightException? firstError = null;
-        foreach (var channel in _ctx != null ? [] : new[] { "msedge", "chrome" })
+        foreach (var channel in new[] { "msedge", "chrome" })
         {
             try
             {
@@ -341,7 +255,6 @@ public sealed class BrowserDownloader : IAsyncDisposable
     // Ordered from most to least specific; each is tried until one leads to a download.
     static readonly string[] DownloadSelectors =
     [
-        "a[href*='confirm=1']",                       // Invision "agree to terms" step
         "a[href*='do=download'][href*='r=']",         // Invision multi-file picker rows
         "a[href*='do=download']",                     // Invision "Download this file"
         "a[href*='do=confirm_download']",             // IP.Board 3 (VPForums)
@@ -381,6 +294,15 @@ public sealed class BrowserDownloader : IAsyncDisposable
                         waitingForSignIn = true;
                         if (!broughtToFront) { await page.BringToFrontAsync(); broughtToFront = true; }
                     }
+                    await Task.Delay(1500, ct);
+                    continue;
+                }
+
+                // 1b. A terms page: accepting them is for you to do, never the app.
+                if (await IsTermsPageAsync(page))
+                {
+                    status($"Read and accept {new Uri(pageUrl).Host}'s terms in the browser window; the download is caught once it starts.");
+                    if (!broughtToFront) { await page.BringToFrontAsync(); broughtToFront = true; }
                     await Task.Delay(1500, ct);
                     continue;
                 }
@@ -487,6 +409,10 @@ public sealed class BrowserDownloader : IAsyncDisposable
             if (await passwords.Nth(i).IsVisibleAsync()) return true;
         return false;
     }
+
+    /// <summary>An "agree to the terms" step (Invision's confirm=1 link, or an agree checkbox).</summary>
+    static async Task<bool> IsTermsPageAsync(IPage page) =>
+        await page.Locator("a[href*='confirm=1'], input[type=checkbox][name*='agree' i], input[type=checkbox][id*='agree' i]").CountAsync() > 0;
 
     static async Task<bool> IsSignedOutAsync(IPage page)
     {

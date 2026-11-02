@@ -12,7 +12,7 @@ Built for Meta Quest (Link, Air Link or Virtual Desktop) with the official Visua
 
 ### Get tables in one click
 - **The whole catalog:** every VPX and Future Pinball table in the [Virtual Pinball Spreadsheet](https://virtualpinballspreadsheet.github.io/), filterable by VR-ready, maker, era and type, each with its versions, authors and features.
-- **One-click install:** downloads from VPUniverse, VPForums and other sites. Sign in once in the built-in browser and the app does the clicking from then on. Downloads queue up, run a few at a time, and are offered again if you close the app mid-download.
+- **One-click install:** for VPUniverse, VPForums and other community sites, the table's page opens in your own browser so you see the site and accept its terms yourself; click Download and the app picks the file up from your Downloads folder and does the rest. GitHub and direct links download by themselves. Installs queue up and are offered again if you close the app mid-download.
 - **Ready to play:** each table gets its own folder in the layout VPX 10.8.1 expects. The app reads the table's script to find the exact ROM it needs, then fetches it, including Stern's free game code. Its parent sets and aliases are handled for you.
 
 ### Make every table look and sound its best
@@ -57,10 +57,10 @@ Add-ons are matched to the table's ROM, installed where VPX's plugins look, and 
 
 1. Download the latest `VrTableManager-<version>-win-x64.zip` from [Releases](https://github.com/mikebm/VRTableManager/releases), unzip it anywhere and run `VrTableManager.exe`.
 2. On **Setup**, install Visual Pinball X with one click and make sure your headset's OpenXR runtime is active (Meta Quest Link or Virtual Desktop).
-3. On **Get Tables**, pick a VR-ready table and click **Install**. Sign in to the table site once when it asks.
+3. On **Get Tables**, pick a VR-ready table and click **Install**. Its page opens in your browser: sign in if asked, accept the site's terms and click Download. The app takes it from there.
 4. Put your headset on and hit **Play in VR**, or **Launch VR Lobby** to browse your collection in the headset.
 
-You'll need Windows 10/11 (64-bit) and Microsoft Edge (for signing in to table sites). The VR lobby also needs the [.NET 10 Runtime](https://dotnet.microsoft.com/download/dotnet/10.0). It downloads the Godot engine it runs on by itself the first time you start it.
+You'll need Windows 10/11 (64-bit) and a web browser. The VR lobby also needs the [.NET 10 Runtime](https://dotnet.microsoft.com/download/dotnet/10.0). It downloads the Godot engine it runs on by itself the first time you start it.
 
 ## Build from source
 

@@ -28,6 +28,8 @@ public sealed partial class MainViewModel : ObservableObject, IAsyncDisposable
 {
     readonly IUiHost _ui;
     readonly BrowserDownloader _browser = new();
+    /// <summary>Table sites: you download in your own browser, the app takes it from there (see SitePolicy).</summary>
+    readonly AssistedDownloader _assisted;
     /// <summary>Saved queue: downloads not finished when the app closed are offered again at the next launch.</summary>
     readonly PendingDownloads _pending = new();
     bool _offeredResume;
@@ -38,6 +40,7 @@ public sealed partial class MainViewModel : ObservableObject, IAsyncDisposable
     public MainViewModel(IUiHost ui)
     {
         _ui = ui;
+        _assisted = new AssistedDownloader(ui.OpenExternal);
         if (string.IsNullOrWhiteSpace(Settings.FpDir) && FpSetup.AutoDetect() is { } fp)
         {
             Settings.FpDir = fp;
@@ -54,7 +57,6 @@ public sealed partial class MainViewModel : ObservableObject, IAsyncDisposable
         UevrDir = Settings.UevrDir;
         HideAdult = Settings.HideAdult;
         ReturnAfterPlay = Settings.ReturnAfterPlay;
-        UseDefaultBrowserProfile = Settings.UseDefaultBrowserProfile;
         VpxUseDoNotUseBuilds = Settings.VpxUseDoNotUseBuilds;
         FpRunAsAdmin = Settings.FpRunAsAdmin;
         ApplyPinballUevrProfile = Settings.ApplyPinballUevrProfile;
@@ -107,7 +109,7 @@ public sealed partial class MainViewModel : ObservableObject, IAsyncDisposable
             _ = CheckUpdatesAsync(); // VPX / UEVR / BAM, in the background
             _ = LoadRuleSheetsAsync();
             _ = RefreshHighScoreMapsAsync();
-            if (!_offeredResume) { _offeredResume = true; _ = OfferResumeAsync(); }
+            if (!_offeredResume) { _offeredResume = true; _ = StartupPromptsAsync(); }
         }
         catch (Exception e)
         {
@@ -313,7 +315,20 @@ public sealed partial class MainViewModel : ObservableObject, IAsyncDisposable
         }
     }
 
-    /// <summary>Downloads a file straight (GitHub etc.) or through the sign-in browser (table sites).</summary>
+    public string DownloadsFolderText => $"Files are picked up from {_assisted.DownloadsDir}. Saved somewhere else? Use I SAVED IT on the download.";
+
+    /// <summary>A job waiting on you in the browser: you saved the file somewhere other than the Downloads folder.</summary>
+    [RelayCommand]
+    async Task PickDownloadedFileAsync(JobItem job)
+    {
+        if (await _ui.PickFileAsync("The file you downloaded", "*.*", startFolder: _assisted.DownloadsDir) is { } file)
+            job.HandOff(file);
+    }
+
+    /// <summary>
+    /// Downloads a file straight (GitHub etc.); from a table site, opens its page in your browser and
+    /// takes the file you download there (or drives the sign-in browser, for a site that allows it).
+    /// </summary>
     Task<string> FetchAsync(string url, JobItem job, string[] hint) => WithDownloadSlotAsync(job, async () =>
     {
         var downloads = JobDownloadDir(job);
@@ -324,7 +339,9 @@ public sealed partial class MainViewModel : ObservableObject, IAsyncDisposable
             await Http.DownloadFileAsync(url, file, job.ProgressReporter, job.Cts.Token);
             return file;
         }
-        return await _browser.DownloadAsync(url, downloads, hint, job.Report, job.Cts.Token);
+        return SitePolicy.AllowsAutomation(url)
+            ? await _browser.DownloadAsync(url, downloads, hint, job.Report, job.Cts.Token)
+            : await _assisted.DownloadAsync(url, downloads, job);
     });
 
     // ---- Download queue ----------------------------------------------------------
@@ -530,7 +547,9 @@ public sealed partial class MainViewModel : ObservableObject, IAsyncDisposable
             // so take them all (they're small).
             List<string> files = BrowserDownloader.IsDirectFileUrl(url)
                 ? [file = await FetchAsync(url, job, [src.Version!])]
-                : await WithDownloadSlotAsync(job, () => _browser.DownloadAllAsync(url, JobDownloadDir(job), job.Report, job.Cts.Token));
+                : await WithDownloadSlotAsync(job, () => SitePolicy.AllowsAutomation(url)
+                    ? _browser.DownloadAllAsync(url, JobDownloadDir(job), job.Report, job.Cts.Token)
+                    : _assisted.DownloadAllAsync(url, JobDownloadDir(job), job));
             job.Report("Installing ROM…");
             var placed = await Task.Run(() => RomInstaller.InstallAll(files, table, src.Version!));
             // With the files in place PinMAME can tell whether the set is complete (parents included).
@@ -571,7 +590,7 @@ public sealed partial class MainViewModel : ObservableObject, IAsyncDisposable
     [RelayCommand]
     async Task OpenSiteAsync(string url)
     {
-        try { await _browser.OpenForSignInAsync(url); }
+        try { if (SitePolicy.AllowsAutomation(url)) await _browser.OpenForSignInAsync(url); else _ui.OpenExternal(url); }
         catch (Exception e) { CatalogStatus = "Couldn't open the browser: " + e.Message; }
     }
 
@@ -921,7 +940,6 @@ public sealed partial class MainViewModel : ObservableObject, IAsyncDisposable
     [ObservableProperty] public partial string FpDir { get; set; }
     [ObservableProperty] public partial bool HideAdult { get; set; }
     [ObservableProperty] public partial bool ReturnAfterPlay { get; set; }
-    [ObservableProperty] public partial bool UseDefaultBrowserProfile { get; set; }
     [ObservableProperty] public partial bool VpxUseDoNotUseBuilds { get; set; }
     [ObservableProperty] public partial bool FpRunAsAdmin { get; set; }
     [ObservableProperty] public partial string RefreshRate { get; set; }
@@ -945,7 +963,6 @@ public sealed partial class MainViewModel : ObservableObject, IAsyncDisposable
             case nameof(UevrDir): Settings.UevrDir = UevrDir; break;
             case nameof(HideAdult): Settings.HideAdult = HideAdult; ApplyFilter(); break;
             case nameof(ReturnAfterPlay): Settings.ReturnAfterPlay = ReturnAfterPlay; break;
-            case nameof(UseDefaultBrowserProfile): Settings.UseDefaultBrowserProfile = _browser.UseDefaultBrowserProfile = UseDefaultBrowserProfile; break;
             case nameof(VpxUseDoNotUseBuilds): Settings.VpxUseDoNotUseBuilds = VpxUseDoNotUseBuilds; break;
             case nameof(FpRunAsAdmin): Settings.FpRunAsAdmin = FpRunAsAdmin; break;
             case nameof(ApplyPinballUevrProfile): Settings.ApplyPinballUevrProfile = ApplyPinballUevrProfile; RefreshSetupStatus(); break;
@@ -1208,7 +1225,7 @@ public sealed partial class MainViewModel : ObservableObject, IAsyncDisposable
         };
         ApplyAddons();
         ApplyRules();
-        UpdateCount = TableUpdateCount + AddonUpdateCount + (HasVpxUpdate ? 1 : 0) + (HasUevrUpdate ? 1 : 0);
+        UpdateCount = TableUpdateCount + AddonUpdateCount + (HasVpxUpdate ? 1 : 0) + (HasUevrUpdate ? 1 : 0) + (HasAppUpdate ? 1 : 0);
     }
 
     // ---- Rules: The Pinball Primer's page for the machine and the catalog's instruction cards (My Tables → RULES) ----
@@ -1244,7 +1261,8 @@ public sealed partial class MainViewModel : ObservableObject, IAsyncDisposable
             var vpxTask = Try<VpxReleases>(async () => await VpxSetup.FindReleasesAsync(ct, Settings.VpxUseDoNotUseBuilds));
             var uevrTask = Try(() => UevrSetup.FindLatestAsync(ct));
             var bamTask = Try(() => BamCheck.LatestAsync(ct));
-            await Task.WhenAll(vpxTask, uevrTask, bamTask);
+            var appTask = CheckAppUpdateAsync();
+            await Task.WhenAll(vpxTask, uevrTask, bamTask, appTask);
 
             // VPX
             var (vpx, vpxErr) = vpxTask.Result;
@@ -1354,6 +1372,13 @@ public sealed partial class MainViewModel : ObservableObject, IAsyncDisposable
     public int RunningJobCount => Jobs.Count(j => !j.IsDone && !j.IsError);
 
     /// <summary>Downloads still in the saved queue are offered again after the catalog loads.</summary>
+    /// <summary>One dialog at a time: a new app version first (updating closes the app), then unfinished downloads.</summary>
+    async Task StartupPromptsAsync()
+    {
+        try { await StartupAppUpdateAsync(); } catch { /* never block the resume offer */ }
+        if (!IsUpdatingApp) await OfferResumeAsync();
+    }
+
     async Task OfferResumeAsync()
     {
         var items = _pending.Items;
