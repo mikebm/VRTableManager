@@ -107,6 +107,9 @@ Copy-Item (Join-Path $binSrc '*') $binOut -Recurse -Force
 Get-ChildItem $binOut -File | ForEach-Object { $_.LastWriteTimeUtc = [DateTime]::UtcNow.AddMinutes(1) }
 
 Copy-Item (Join-Path $root 'README.md') $stage
+# The MIT license and the third-party notices (MPL-2.0 OpenMcdf, ODbL maps, OFL fonts) go with every copy.
+Copy-Item (Join-Path $root 'LICENSE') (Join-Path $stage 'LICENSE.txt')
+Copy-Item (Join-Path $root 'THIRD-PARTY-NOTICES.md') $stage
 @"
 VR Table Manager $Version
 =========================
