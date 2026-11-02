@@ -39,6 +39,11 @@ public sealed class AppSettings
     /// </summary>
     public bool UsePupPlugin { get; set; } = true;
     /// <summary>
+    /// VR play turns on VPX's FlexDMD plugin (DMDs drawn by the table script, as many originals do) and its B2S
+    /// plugin (the table's .directb2s backglass).
+    /// </summary>
+    public bool UseDisplayPlugins { get; set; } = true;
+    /// <summary>
     /// The VR lobby records a ROM table's start-up music the first time you settle on it (RomAudio): a
     /// background PinMAME run of about 50 s, once per table. Off: only audio files already there play.
     /// </summary>

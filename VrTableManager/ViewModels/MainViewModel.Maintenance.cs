@@ -189,6 +189,7 @@ public sealed partial class MainViewModel
         ExplainFailedLaunches = s.ExplainFailedLaunches;
         UseBuiltInPinmame = s.UseBuiltInPinmame;
         UsePupPlugin = s.UsePupPlugin;
+        UseDisplayPlugins = s.UseDisplayPlugins;
         LobbyRecordsRomAudio = s.LobbyRecordsRomAudio;
         LoadGraphics();
         RefreshInstalled();

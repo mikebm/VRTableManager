@@ -204,6 +204,12 @@ public sealed partial class InstalledItem : ObservableObject
     public AddonSlot Sound { get; }
     public IReadOnlyList<AddonSlot> Addons => [Pup, Colour, Sound];
 
+    /// <summary>Where to read the rules (set by the view model): The Pinball Primer, then instruction cards.</summary>
+    [ObservableProperty, NotifyPropertyChangedFor(nameof(HasRules))]
+    public partial IReadOnlyList<RuleChoice> Rules { get; set; } = [];
+
+    public bool HasRules => Rules.Count > 0;
+
     /// <summary>Its install was cut off (app closed mid-copy): offer Reinstall instead of Play.</summary>
     public bool IsIncomplete => Table.IsIncomplete;
 
@@ -362,3 +368,6 @@ public sealed partial class AddonSlot : ObservableObject
         _ => "",
     };
 }
+
+/// <summary>A rules page in a table card's RULES menu.</summary>
+public sealed record RuleChoice(InstalledItem Item, string Label, string Url);

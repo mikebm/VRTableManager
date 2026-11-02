@@ -14,6 +14,8 @@ public sealed partial class MainViewModel
     [ObservableProperty] public partial string AddonUpdateText { get; set; } = "Not checked yet.";
     /// <summary>VR play shows PuP packs through VPX's PinUP Player plugin.</summary>
     [ObservableProperty] public partial bool UsePupPlugin { get; set; }
+    /// <summary>VR play turns on VPX's FlexDMD and B2S plugins.</summary>
+    [ObservableProperty] public partial bool UseDisplayPlugins { get; set; }
 
     IReadOnlyList<AddonChoice> ChoicesFor(AddonSlot slot)
     {
