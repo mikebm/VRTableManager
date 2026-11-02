@@ -22,6 +22,16 @@ public sealed class AppSettings
     /// <summary>How many table/ROM downloads run at the same time (1–4); the rest queue.</summary>
     public int MaxParallelDownloads { get; set; } = 2;
     public bool HideAdult { get; set; } = true;
+    /// <summary>
+    /// Downloads open your default browser (Edge, Chrome or Brave) with its own profile, so its sign-ins and
+    /// cookies are shared. Needs that browser closed; otherwise the app's own profile is used.
+    /// </summary>
+    public bool UseDefaultBrowserProfile { get; set; } = true;
+    /// <summary>
+    /// Install and update to VPX builds the VPX team has labelled "DO NOT USE" on GitHub. Those are the current
+    /// BGFX builds with the newest VR work; off: only builds without that label are offered.
+    /// </summary>
+    public bool VpxUseDoNotUseBuilds { get; set; } = true;
     /// <summary>0 = runtime default, otherwise 72/80/90/120.</summary>
     public int VrRefreshRate { get; set; }
     /// <summary>Meta Quest Link's spacewarp before VR launches: "Leave as is", "Off" or "Auto" (<see cref="MetaAsw"/>).</summary>

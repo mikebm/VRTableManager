@@ -34,6 +34,7 @@ Add-ons are matched to the table's ROM, installed where VPX's plugins look, and 
 - **Pinball FX and Pinball M:** launched through UEVR, with pinball-tuned VR settings applied automatically.
 
 ### Setup made easy
+- Copies the tables of another VPX install (with their ROMs, NVRAM, AltSound, AltColor and PuP packs) into the per-table layout, leaving the other install untouched.
 - Installs the official VPX VR build, checks your OpenXR runtime (Meta Quest Link, Virtual Desktop, SteamVR), and sets refresh rate, spacewarp and graphics quality.
 - Explains what went wrong when a table crashes or exits early, using VPX's own log.
 - Shows disk use, sets render scale per table, clears caches, and backs up your settings and play history.

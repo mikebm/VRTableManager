@@ -56,15 +56,25 @@ public static class LobbyRunner
 
     static string LobbyDll(string lobbyDir) => Path.Combine(lobbyDir, ".godot", "mono", "temp", "bin", "Debug", "VrLobby.dll");
 
-    /// <summary>True when the lobby's compiled code is missing or older than any of its (or the shared library's) C# files.</summary>
+    /// <summary>The shared library's source, present in a checkout of the repo but not in a release.</summary>
+    static string CoreDir(string lobbyDir) => Path.Combine(Path.GetDirectoryName(lobbyDir)!, "VrTableManager.Core");
+
+    /// <summary>
+    /// True when the lobby's compiled code is missing or older than any of its (or the shared library's) C# files.
+    /// A release ships the lobby prebuilt without the shared library's source, so it can't be rebuilt there:
+    /// its code is used as is. (Godot's first-run import writes new .cs.uid files, which would otherwise look
+    /// like changed code.)
+    /// </summary>
     public static bool NeedsBuild(string lobbyDir)
     {
         var dll = LobbyDll(lobbyDir);
         if (!File.Exists(dll)) return true;
+        var core = CoreDir(lobbyDir);
+        if (!Directory.Exists(core)) return false;
         var built = File.GetLastWriteTimeUtc(dll);
-        var core = Path.Combine(Path.GetDirectoryName(lobbyDir)!, "VrTableManager.Core");
-        return new[] { lobbyDir, core }.Where(Directory.Exists)
+        return new[] { lobbyDir, core }
             .SelectMany(d => Directory.EnumerateFiles(d, "*.cs*", SearchOption.AllDirectories))
+            .Where(f => f.EndsWith(".cs", StringComparison.OrdinalIgnoreCase) || f.EndsWith(".csproj", StringComparison.OrdinalIgnoreCase))
             .Where(f => !f.Contains(Path.DirectorySeparatorChar + ".godot" + Path.DirectorySeparatorChar)
                         && !f.Contains(Path.DirectorySeparatorChar + "obj" + Path.DirectorySeparatorChar)
                         && !f.Contains(Path.DirectorySeparatorChar + "bin" + Path.DirectorySeparatorChar))
@@ -73,6 +83,8 @@ public static class LobbyRunner
 
     public static async Task BuildAsync(string lobbyDir, Action<string> status, CancellationToken ct)
     {
+        if (!Directory.Exists(CoreDir(lobbyDir)))
+            throw new InvalidOperationException("The lobby's compiled code is missing from the VrLobby folder. Unzip the release again, keeping VrLobby next to VrTableManager.exe.");
         status("Building the lobby…");
         var (code, output) = await RunAsync(DotnetExe(), ["build", Path.Combine(lobbyDir, "VrLobby.csproj"), "-nologo", "-v", "q"], lobbyDir, ct);
         if (code != 0)

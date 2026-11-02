@@ -602,6 +602,9 @@
                   <TextBlock Classes="mono" Text="{Binding LatestVpx}" TextWrapping="Wrap" />
                   <TextBlock Classes="muted" TextWrapping="Wrap"
                              Text="Installs the official BGFX build from github.com/vpinball (VR through OpenXR). Tables launch with a separate VR settings file, so desktop settings stay as they are." />
+                  <CheckBox IsChecked="{Binding VpxUseDoNotUseBuilds}"
+                            Content="Use the BGFX builds marked &quot;DO NOT USE&quot; on GitHub (recommended)"
+                            ToolTip.Tip="The VPX team labels its current BGFX builds &quot;DO NOT USE&quot;; they have the newest VR work. Off: only builds without that label are installed or offered as updates. Click CHECK FOR UPDATES after changing this." />
                   <CheckBox IsChecked="{Binding UseBuiltInPinmame}"
                             Content="Use VPX's built-in PinMAME in VR (recommended)"
                             ToolTip.Tip="Reads each table's ROMs, scores, ROM aliases and Serum colours from its own folder. Off: VPX uses a separately installed VPinMAME and its own roms folder." />
@@ -793,6 +796,9 @@
                     <Button Content="VPFORUMS" Margin="0,0,8,8" Command="{Binding OpenSiteCommand}" CommandParameter="https://www.vpforums.org/index.php?app=core&amp;module=global&amp;section=login" />
                     <Button Content="PINBALL NIRVANA" Margin="0,0,8,8" Command="{Binding OpenSiteCommand}" CommandParameter="https://pinballnirvana.com/forums/login/" />
                   </WrapPanel>
+                  <CheckBox IsChecked="{Binding UseDefaultBrowserProfile}"
+                            Content="Use my default browser's profile (shares its sign-ins and cookies)"
+                            ToolTip.Tip="Downloads open Edge, Chrome or Brave (whichever is your default) with your own profile, so sites you're signed in to there work here. That browser has to be closed when a download starts; if it's open, the app's own browser profile is used. Some browser versions don't allow this; the app then falls back and says so." />
                 </StackPanel>
               </Grid>
             </Border>
@@ -901,6 +907,11 @@
                     <Button Grid.Column="1" Content="BROWSE" Margin="8,0,0,0" Command="{Binding BrowseTablesDirCommand}" />
                     <Button Grid.Column="2" Content="OPEN" Margin="8,0,0,0" Command="{Binding OpenTablesFolderCommand}" />
                   </Grid>
+                  <StackPanel Orientation="Horizontal" Spacing="10">
+                    <Button Classes="small" Content="COPY TABLES FROM ANOTHER VPX INSTALL…" Command="{Binding ImportTablesCommand}"
+                            ToolTip.Tip="Pick another VPX folder (or its Tables folder). Its tables are copied here, one folder each, with their ROMs, NVRAM, AltSound, AltColor and PuP packs from that install's VPinMAME and PinUPSystem folders. Tables already here are skipped; the other install isn't changed." />
+                    <TextBlock Classes="muted" VerticalAlignment="Center" TextWrapping="Wrap" Text="{Binding ImportStatus}" />
+                  </StackPanel>
                   <WrapPanel Margin="0,4,0,0">
                     <Button Classes="small" Content="APP DATA" Margin="0,0,8,8" Command="{Binding OpenDataFolderCommand}"
                             ToolTip.Tip="Settings, favourites, play stats, catalog and caches" />
