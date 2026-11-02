@@ -163,6 +163,19 @@ Check((rel ?? vpxReleases.Withdrawn)?.AssetName.StartsWith("VPinballX_BGFX-") ==
         "DO NOT USE setting: the newest BGFX build is installed and offered as an update");
 }
 
+// 6a. VR Table Manager's own updates
+{
+    Check(AppUpdater.IsNewer("1.2.0", "1.1.9") && AppUpdater.IsNewer("1.2.0", "1.2.0-beta.1") && !AppUpdater.IsNewer("1.2.0-beta.1", "1.2.0")
+          && !AppUpdater.IsNewer("1.2.0", "1.2.0") && !AppUpdater.IsNewer("1.1.0", "1.10.0"), "app update: version order (releases above their betas)");
+    var appRel = AppUpdater.ParseLatest("""
+        {"draft":false,"prerelease":false,"tag_name":"v1.3.0","html_url":"https://github.com/x/y/releases/tag/v1.3.0","body":"notes",
+         "assets":[{"name":"VrTableManager-1.3.0-win-x64.zip","browser_download_url":"https://x/z.zip","size":5},
+                   {"name":"VrTableManager-1.3.0-win-x64.zip.sha256","browser_download_url":"https://x/z.sha256","size":1}]}
+        """);
+    Check(appRel is { Version: "1.3.0", Url: "https://x/z.zip", Sha256Url: "https://x/z.sha256" }, "app update: reads the release zip and its checksum");
+    Check(AppUpdater.IsDevBuild, "app update: a build from the repo is recognised (never self-updates)");
+}
+
 // 6b. Copy tables from another VPX install
 {
     var other = Path.Combine(root, "other-vpx");
@@ -760,6 +773,7 @@ foreach (var (ok, name) in MediaPackAudioChecks.Run(root)) Check(ok, name);
 foreach (var (ok, name) in PupPackChecks.Run(root)) Check(ok, name);
 foreach (var (ok, name) in AltPackChecks.Run(root)) Check(ok, name);
 foreach (var (ok, name) in RuleSheetChecks.Run(root)) Check(ok, name);
+foreach (var (ok, name) in await AssistedDownloadChecks.RunAsync(root)) Check(ok, name);
 
 // ---- VR graphics, logs, storage, backup ----
 {

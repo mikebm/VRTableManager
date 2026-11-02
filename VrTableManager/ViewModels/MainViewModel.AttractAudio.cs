@@ -38,7 +38,9 @@ public sealed partial class MainViewModel
                     var file = await WithDownloadSlotAsync(job, async () =>
                     {
                         var downloads = JobDownloadDir(job);
-                        if (!src.IsDirect) return await _browser.DownloadAsync(src.Url, downloads, [], job.Report, job.Cts.Token);
+                        if (!src.IsDirect) return SitePolicy.AllowsAutomation(src.Url)
+                            ? await _browser.DownloadAsync(src.Url, downloads, [], job.Report, job.Cts.Token)
+                            : await _assisted.DownloadAsync(src.Url, downloads, job);
                         var dest = Path.Combine(downloads, TableInstaller.SafeName(Uri.UnescapeDataString(Path.GetFileName(new Uri(src.Url).AbsolutePath))));
                         await Http.DownloadFileAsync(src.Url, dest, job.ProgressReporter, job.Cts.Token);
                         return dest;

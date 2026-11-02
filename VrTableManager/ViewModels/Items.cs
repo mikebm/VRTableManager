@@ -314,6 +314,60 @@ public sealed partial class JobItem : ObservableObject
 
     [RelayCommand]
     void Cancel() => Cts.Cancel();
+
+    // ---- Waiting for you to download in your browser (AssistedDownloader) ----
+
+    /// <summary>The file page you're downloading from in your browser; null when not waiting on you.</summary>
+    [ObservableProperty, NotifyPropertyChangedFor(nameof(IsWaitingForUser))]
+    public partial string? WaitingUrl { get; set; }
+    /// <summary>The page has several files to take (a ROM page): show DONE.</summary>
+    [ObservableProperty] public partial bool WaitingForMany { get; set; }
+    public bool IsWaitingForUser => WaitingUrl != null;
+
+    public sealed record Handoff(string? File, bool Done);
+    readonly object _handoffLock = new();
+    Handoff? _handoff;
+    TaskCompletionSource _handoffArrived = new(TaskCreationOptions.RunContinuationsAsynchronously);
+
+    /// <summary>Completes when you point at a file or press DONE.</summary>
+    public Task HandoffArrived { get { lock (_handoffLock) return _handoffArrived.Task; } }
+
+    public void BeginWaiting(string url, bool many) => OnUi(() => { WaitingUrl = url; WaitingForMany = many; });
+    public void EndWaiting() => OnUi(() => { WaitingUrl = null; WaitingForMany = false; });
+
+    /// <summary>A file you saved somewhere other than the Downloads folder.</summary>
+    public void HandOff(string file) => SetHandoff(new Handoff(file, false));
+
+    public Handoff? TakeHandoff()
+    {
+        lock (_handoffLock)
+        {
+            var h = _handoff;
+            if (h == null) return null;
+            _handoff = null;
+            _handoffArrived = new(TaskCreationOptions.RunContinuationsAsynchronously);
+            return h;
+        }
+    }
+
+    void SetHandoff(Handoff h)
+    {
+        lock (_handoffLock)
+        {
+            _handoff = h;
+            _handoffArrived.TrySetResult();
+        }
+    }
+
+    [RelayCommand]
+    void OpenWaitingPage()
+    {
+        if (WaitingUrl is { } url)
+            try { System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo(url) { UseShellExecute = true }); } catch { }
+    }
+
+    [RelayCommand]
+    void DoneWaiting() => SetHandoff(new Handoff(null, true));
 }
 
 /// <summary>One kind of add-on on a table card (PuP pack, DMD colours or AltSound): what the catalog has, what's installed, updates.</summary>

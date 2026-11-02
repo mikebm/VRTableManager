@@ -23,11 +23,6 @@ public sealed class AppSettings
     public int MaxParallelDownloads { get; set; } = 2;
     public bool HideAdult { get; set; } = true;
     /// <summary>
-    /// Downloads open your default browser (Edge, Chrome or Brave) with its own profile, so its sign-ins and
-    /// cookies are shared. Needs that browser closed; otherwise the app's own profile is used.
-    /// </summary>
-    public bool UseDefaultBrowserProfile { get; set; } = true;
-    /// <summary>
     /// Install and update to VPX builds the VPX team has labelled "DO NOT USE" on GitHub. Those are the current
     /// BGFX builds with the newest VR work; off: only builds without that label are offered.
     /// </summary>
@@ -62,6 +57,8 @@ public sealed class AppSettings
     public bool ExplainFailedLaunches { get; set; } = true;
     /// <summary>Restore this window after a table exits so you can pick the next one.</summary>
     public bool ReturnAfterPlay { get; set; } = true;
+    /// <summary>A VR Table Manager release the user chose to skip: not offered at startup (Setup still shows it).</summary>
+    public string SkippedAppVersion { get; set; } = "";
     /// <summary>Path of VrTableManager.exe, recorded at startup so the VR lobby can launch tables through it.</summary>
     public string ManagerExe { get; set; } = "";
 

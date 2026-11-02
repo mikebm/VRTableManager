@@ -537,7 +537,7 @@
                 </Grid>
                 <ProgressBar IsIndeterminate="True" IsVisible="{Binding IsCheckingUpdates}" />
 
-                <Grid ColumnDefinitions="170,*,Auto" RowDefinitions="Auto,Auto,Auto,Auto,Auto,Auto">
+                <Grid ColumnDefinitions="170,*,Auto" RowDefinitions="Auto,Auto,Auto,Auto,Auto,Auto,Auto">
                   <Grid.Styles>
                     <Style Selector="Grid > TextBlock.k">
                       <Setter Property="FontFamily" Value="{StaticResource Display}" />
@@ -556,32 +556,43 @@
                     </Style>
                   </Grid.Styles>
 
-                  <TextBlock Grid.Row="0" Classes="k" Text="YOUR TABLES" />
-                  <TextBlock Grid.Row="0" Grid.Column="1" Classes="v" Text="{Binding TableUpdateText}" />
-                  <Button Grid.Row="0" Grid.Column="2" Classes="small" Content="UPDATE TABLES" Command="{Binding UpdateAllTablesCommand}"
+                  <TextBlock Grid.Row="0" Classes="k" Text="VR TABLE MANAGER" />
+                  <StackPanel Grid.Row="0" Grid.Column="1" Spacing="4" VerticalAlignment="Center" Margin="0,0,12,0">
+                    <TextBlock Classes="v" Margin="0" Text="{Binding AppUpdateText}" />
+                    <ProgressBar Value="{Binding AppUpdateProgress}" IsVisible="{Binding IsUpdatingApp}" />
+                  </StackPanel>
+                  <StackPanel Grid.Row="0" Grid.Column="2" Orientation="Horizontal" Spacing="8" VerticalAlignment="Center">
+                    <Button Classes="small" Content="RELEASE NOTES" Command="{Binding OpenAppReleasesCommand}" />
+                    <Button Classes="small" Content="UPDATE APP" Command="{Binding UpdateAppCommand}"
+                            IsVisible="{Binding HasAppUpdate}" IsEnabled="{Binding !IsUpdatingApp}" />
+                  </StackPanel>
+
+                  <TextBlock Grid.Row="1" Classes="k" Text="YOUR TABLES" />
+                  <TextBlock Grid.Row="1" Grid.Column="1" Classes="v" Text="{Binding TableUpdateText}" />
+                  <Button Grid.Row="1" Grid.Column="2" Classes="small" Content="UPDATE TABLES" Command="{Binding UpdateAllTablesCommand}"
                           IsVisible="{Binding TableUpdateCount, Converter={x:Static v:Converters.NonZero}}" />
 
-                  <TextBlock Grid.Row="1" Classes="k" Text="ADD-ONS" />
-                  <TextBlock Grid.Row="1" Grid.Column="1" Classes="v" Text="{Binding AddonUpdateText}" />
-                  <Button Grid.Row="1" Grid.Column="2" Classes="small" Content="UPDATE ADD-ONS" Command="{Binding UpdateAllAddonsCommand}"
+                  <TextBlock Grid.Row="2" Classes="k" Text="ADD-ONS" />
+                  <TextBlock Grid.Row="2" Grid.Column="1" Classes="v" Text="{Binding AddonUpdateText}" />
+                  <Button Grid.Row="2" Grid.Column="2" Classes="small" Content="UPDATE ADD-ONS" Command="{Binding UpdateAllAddonsCommand}"
                           IsVisible="{Binding AddonUpdateCount, Converter={x:Static v:Converters.NonZero}}" />
 
-                  <TextBlock Grid.Row="2" Classes="k" Text="VISUAL PINBALL X" />
-                  <TextBlock Grid.Row="2" Grid.Column="1" Classes="v" Text="{Binding VpxUpdateText}" />
-                  <Button Grid.Row="2" Grid.Column="2" Classes="small" Content="UPDATE VPX" Command="{Binding InstallVpxCommand}"
+                  <TextBlock Grid.Row="3" Classes="k" Text="VISUAL PINBALL X" />
+                  <TextBlock Grid.Row="3" Grid.Column="1" Classes="v" Text="{Binding VpxUpdateText}" />
+                  <Button Grid.Row="3" Grid.Column="2" Classes="small" Content="UPDATE VPX" Command="{Binding InstallVpxCommand}"
                           IsVisible="{Binding HasVpxUpdate}" />
 
-                  <TextBlock Grid.Row="3" Classes="k" Text="UEVR" />
-                  <TextBlock Grid.Row="3" Grid.Column="1" Classes="v" Text="{Binding UevrUpdateText}" />
-                  <Button Grid.Row="3" Grid.Column="2" Classes="small" Content="{Binding UevrButtonText}" Command="{Binding InstallUevrCommand}" />
+                  <TextBlock Grid.Row="4" Classes="k" Text="UEVR" />
+                  <TextBlock Grid.Row="4" Grid.Column="1" Classes="v" Text="{Binding UevrUpdateText}" />
+                  <Button Grid.Row="4" Grid.Column="2" Classes="small" Content="{Binding UevrButtonText}" Command="{Binding InstallUevrCommand}" />
 
-                  <TextBlock Grid.Row="4" Classes="k" Text="BAM" />
-                  <TextBlock Grid.Row="4" Grid.Column="1" Classes="v" Text="{Binding BamUpdateText}" />
-                  <Button Grid.Row="4" Grid.Column="2" Classes="small" Content="BAM PAGE" Command="{Binding OpenPageCommand}"
+                  <TextBlock Grid.Row="5" Classes="k" Text="BAM" />
+                  <TextBlock Grid.Row="5" Grid.Column="1" Classes="v" Text="{Binding BamUpdateText}" />
+                  <Button Grid.Row="5" Grid.Column="2" Classes="small" Content="BAM PAGE" Command="{Binding OpenPageCommand}"
                           CommandParameter="https://www.ravarcade.pl/" />
 
-                  <TextBlock Grid.Row="5" Classes="k" Text="FUTURE PINBALL" />
-                  <TextBlock Grid.Row="5" Grid.Column="1" Classes="v" Foreground="{StaticResource Muted}"
+                  <TextBlock Grid.Row="6" Classes="k" Text="FUTURE PINBALL" />
+                  <TextBlock Grid.Row="6" Grid.Column="1" Classes="v" Foreground="{StaticResource Muted}"
                              Text="No updates. The final release came out in 2010; BAM is what keeps it current." />
                 </Grid>
               </StackPanel>
@@ -788,17 +799,15 @@
               <Grid ColumnDefinitions="72,*">
                 <TextBlock Classes="display" FontSize="28" Foreground="{StaticResource Lamp}" Text="03" />
                 <StackPanel Grid.Column="1" Spacing="10">
-                  <TextBlock Classes="h2" Text="Sign in to table sites" />
+                  <TextBlock Classes="h2" Text="Downloading from table sites" />
                   <TextBlock Classes="body"
-                             Text="Most tables are on sites that need a free account. Sign in once in the browser window and it remembers you. If you're ever signed out during an install, sign in and the app carries on. Your password goes only to the site, never to this app." />
+                             Text="Table sites are run by the community and paid for by their ads, and their terms ask that you download yourself. So when you install a table, its page opens in your own browser: sign in if asked, accept the site's terms, and click Download. The app picks the file up from your Downloads folder and does everything else (unpacking, ROMs, add-ons, layout). Your password goes only to the site, never to this app." />
+                  <TextBlock Classes="mono" TextWrapping="Wrap" Text="{Binding DownloadsFolderText}" />
                   <WrapPanel>
                     <Button Content="VPUNIVERSE" Margin="0,0,8,8" Command="{Binding OpenSiteCommand}" CommandParameter="https://vpuniverse.com/login/" />
                     <Button Content="VPFORUMS" Margin="0,0,8,8" Command="{Binding OpenSiteCommand}" CommandParameter="https://www.vpforums.org/index.php?app=core&amp;module=global&amp;section=login" />
                     <Button Content="PINBALL NIRVANA" Margin="0,0,8,8" Command="{Binding OpenSiteCommand}" CommandParameter="https://pinballnirvana.com/forums/login/" />
                   </WrapPanel>
-                  <CheckBox IsChecked="{Binding UseDefaultBrowserProfile}"
-                            Content="Use my default browser's profile (shares its sign-ins and cookies)"
-                            ToolTip.Tip="Downloads open Edge, Chrome or Brave (whichever is your default) with your own profile, so sites you're signed in to there work here. That browser has to be closed when a download starts; if it's open, the app's own browser profile is used. Some browser versions don't allow this; the app then falls back and says so." />
                 </StackPanel>
               </Grid>
             </Border>
@@ -1051,8 +1060,16 @@
                   <ProgressBar Grid.Column="1" Value="{Binding Progress}" IsIndeterminate="{Binding IsIndeterminate}" Margin="12,0" VerticalAlignment="Center" />
                   <TextBlock Grid.Column="2" FontSize="12.5" Text="{Binding Status}" TextWrapping="Wrap" VerticalAlignment="Center"
                              Foreground="{Binding IsError, Converter={x:Static v:Converters.ErrorBrush}}" />
-                  <Button Grid.Column="3" Classes="small danger" Content="CANCEL" Margin="12,0,0,0" Command="{Binding CancelCommand}"
-                          IsVisible="{Binding !IsDone}" />
+                  <StackPanel Grid.Column="3" Orientation="Horizontal" Spacing="8" Margin="12,0,0,0" VerticalAlignment="Center">
+                    <Button Classes="small" Content="OPEN PAGE AGAIN" Command="{Binding OpenWaitingPageCommand}"
+                            IsVisible="{Binding IsWaitingForUser}" ToolTip.Tip="Opens the file's page in your browser again" />
+                    <Button Classes="small" Content="I SAVED IT…" IsVisible="{Binding IsWaitingForUser}"
+                            Command="{Binding $parent[ItemsControl].((vm:MainViewModel)DataContext).PickDownloadedFileCommand}" CommandParameter="{Binding}"
+                            ToolTip.Tip="Saved the file somewhere other than your Downloads folder? Point to it." />
+                    <Button Classes="small primary" Content="DONE" Command="{Binding DoneWaitingCommand}" IsVisible="{Binding WaitingForMany}"
+                            ToolTip.Tip="Finished downloading the files you want from this page" />
+                    <Button Classes="small danger" Content="CANCEL" Command="{Binding CancelCommand}" IsVisible="{Binding !IsDone}" />
+                  </StackPanel>
                 </Grid>
               </DataTemplate>
             </ItemsControl.ItemTemplate>
