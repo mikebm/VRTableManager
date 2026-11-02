@@ -150,8 +150,16 @@ if (-not $token) { $token = $env:GH_TOKEN }
 if (-not $token -and (Get-Command gh -ErrorAction SilentlyContinue)) { $token = (& gh auth token 2>$null) }
 if (-not $token) {
     # The same credential git push uses (Git Credential Manager), asked for without prompting.
-    $env:GCM_INTERACTIVE = 'never'; $env:GIT_TERMINAL_PROMPT = '0'
-    $cred = "protocol=https`nhost=github.com`n`n" | git credential fill 2>$null
+    # Written straight to git's stdin: piping the request from Windows PowerShell reaches git
+    # mangled ("credential missing protocol field"), and its stderr would stop the script.
+    $psi = New-Object Diagnostics.ProcessStartInfo 'git', 'credential fill'
+    $psi.UseShellExecute = $false
+    $psi.RedirectStandardInput = $true; $psi.RedirectStandardOutput = $true; $psi.RedirectStandardError = $true
+    $psi.EnvironmentVariables['GCM_INTERACTIVE'] = 'never'; $psi.EnvironmentVariables['GIT_TERMINAL_PROMPT'] = '0'
+    $git = [Diagnostics.Process]::Start($psi)
+    $git.StandardInput.Write("protocol=https`nhost=github.com`n`n"); $git.StandardInput.Close()
+    $cred = $git.StandardOutput.ReadToEnd() -split "`r?`n"
+    $git.WaitForExit()
     $token = ($cred | Where-Object { $_ -like 'password=*' } | Select-Object -First 1) -replace '^password=', ''
 }
 if (-not $token) { throw "No GitHub token found. Set GITHUB_TOKEN (a token with contents: write on $Repo) or sign in with 'gh auth login'." }
