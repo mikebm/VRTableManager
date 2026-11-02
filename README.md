@@ -144,4 +144,10 @@ the credential Git already uses for github.com. The token needs `contents: write
 ## Credits
 
 - Table data from the [Virtual Pinball Spreadsheet](https://virtualpinballspreadsheet.github.io/).
-- High scores are read with maps from the [Pinball Memory Maps](https://github.com/tomlogic/pinball-memory-maps) project. This program makes use of content from the Pinball Memory Maps project.
+- High scores are read with maps from the [Pinball Memory Maps](https://github.com/tomlogic/pinball-memory-maps) project. This program makes use of content from the Pinball Memory Maps project, available under the [Open Database License (ODbL) v1.0](http://opendatacommons.org/licenses/odbl/1.0/).
+- Rules and strategy pages from [The Pinball Primer](https://pinballprimer.github.io/).
+
+## License
+
+VR Table Manager is released under the [MIT License](LICENSE). The libraries, fonts and data it uses are under their own
+licenses; see [THIRD-PARTY-NOTICES.md](THIRD-PARTY-NOTICES.md).

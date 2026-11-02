@@ -999,7 +999,7 @@
             </Border>
 
             <TextBlock Classes="mono" TextWrapping="Wrap" Margin="0,8,0,0"
-                       Text="Table data from the Virtual Pinball Spreadsheet (virtualpinballspreadsheet.github.io). This app doesn't host tables. Thank the authors on the sites you download from. High scores: this program makes use of content from the Pinball Memory Maps project (github.com/tomlogic/pinball-memory-maps)." />
+                       Text="Table data from the Virtual Pinball Spreadsheet (virtualpinballspreadsheet.github.io). This app doesn't host tables. Thank the authors on the sites you download from. High scores: this program makes use of content from the Pinball Memory Maps project (github.com/tomlogic/pinball-memory-maps), available under the Open Database License (ODbL) v1.0." />
           </StackPanel>
         </ScrollViewer>
       </TabItem>
