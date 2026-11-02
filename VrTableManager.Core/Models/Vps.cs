@@ -29,6 +29,8 @@ public sealed class VpsGame
     public List<VpsAltColorFile>? AltColorFiles { get; set; }
     /// <summary>Replacement sound packs for PinMAME (AltSound / G-Sound / legacy PinSound layout).</summary>
     public List<VpsFile>? AltSoundFiles { get; set; }
+    /// <summary>Instruction cards (images of the real machine's rule card), as VPUniverse pages.</summary>
+    public List<VpsFile>? RuleFiles { get; set; }
 
     [JsonIgnore]
     public string DisplayTitle => Year is > 0

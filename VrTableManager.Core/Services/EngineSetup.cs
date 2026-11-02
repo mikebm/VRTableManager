@@ -151,10 +151,17 @@ public static class VpxSetup
         foreach (var plugin in BuiltInPinmamePlugins) IniFile.Set(ini, "Plugin." + plugin, "Enable", on);
         // PinUP Player plugin: plays a table's pupvideos\<pack> on the backglass/DMD; tables without one are unaffected.
         IniFile.Set(ini, "Plugin." + PupPlugin, "Enable", s.UsePupPlugin ? "1" : "0");
+        // FlexDMD stands in for the FlexDMD/UltraDMD components many originals draw their DMD with (Jaws,
+        // Mass Effect); B2S shows a table's .directb2s backglass. Set explicitly rather than left to VPX's default.
+        var display = s.UseDisplayPlugins ? "1" : "0";
+        foreach (var plugin in DisplayPlugins) IniFile.Set(ini, "Plugin." + plugin, "Enable", display);
     }
 
     /// <summary>Id of VPX's PinUP Player plugin (plugins\pup\plugin.cfg).</summary>
     public const string PupPlugin = "PUP";
+
+    /// <summary>VPX's plugins for script-drawn DMDs and .directb2s backglasses.</summary>
+    public static readonly string[] DisplayPlugins = ["FlexDMD", "B2S"];
 
     public static readonly string[] BuiltInPinmamePlugins = ["PinMAME", "Serum", "VNI", "AltSound"];
 

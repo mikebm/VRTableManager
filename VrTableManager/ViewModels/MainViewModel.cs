@@ -67,6 +67,7 @@ public sealed partial class MainViewModel : ObservableObject, IAsyncDisposable
         ExplainFailedLaunches = Settings.ExplainFailedLaunches;
         UseBuiltInPinmame = Settings.UseBuiltInPinmame;
         UsePupPlugin = Settings.UsePupPlugin;
+        UseDisplayPlugins = Settings.UseDisplayPlugins;
         LobbyRecordsRomAudio = Settings.LobbyRecordsRomAudio;
         LoadGraphics();
         RefreshInstalled();
@@ -102,6 +103,7 @@ public sealed partial class MainViewModel : ObservableObject, IAsyncDisposable
             ApplyFilter();
             ApplyTableUpdates();
             _ = CheckUpdatesAsync(); // VPX / UEVR / BAM, in the background
+            _ = LoadRuleSheetsAsync();
             _ = RefreshHighScoreMapsAsync();
             if (!_offeredResume) { _offeredResume = true; _ = OfferResumeAsync(); }
         }
@@ -948,6 +950,7 @@ public sealed partial class MainViewModel : ObservableObject, IAsyncDisposable
             case nameof(ExplainFailedLaunches): Settings.ExplainFailedLaunches = ExplainFailedLaunches; break;
             case nameof(UseBuiltInPinmame): Settings.UseBuiltInPinmame = UseBuiltInPinmame; break;
             case nameof(UsePupPlugin): Settings.UsePupPlugin = UsePupPlugin; break;
+            case nameof(UseDisplayPlugins): Settings.UseDisplayPlugins = UseDisplayPlugins; break;
             case nameof(LobbyRecordsRomAudio): Settings.LobbyRecordsRomAudio = LobbyRecordsRomAudio; break;
             default: return;
         }
@@ -1165,7 +1168,30 @@ public sealed partial class MainViewModel : ObservableObject, IAsyncDisposable
             _ => $"{updates.Count} tables have newer versions.",
         };
         ApplyAddons();
+        ApplyRules();
         UpdateCount = TableUpdateCount + AddonUpdateCount + (HasVpxUpdate ? 1 : 0) + (HasUevrUpdate ? 1 : 0);
+    }
+
+    // ---- Rules: The Pinball Primer's page for the machine and the catalog's instruction cards (My Tables → RULES) ----
+
+    List<RuleSheets.PrimerEntry> _primer = [];
+
+    async Task LoadRuleSheetsAsync()
+    {
+        _primer = await Task.Run(() => RuleSheets.LoadAsync());
+        ApplyRules();
+    }
+
+    void ApplyRules()
+    {
+        // Store games (Pinball FX, Pinball M) are whole collections, not one machine.
+        foreach (var item in _allInstalled.Where(i => i.Table.Manifest.Engine is TableManifest.Vpx or TableManifest.FuturePinball))
+        {
+            var m = item.Table.Manifest;
+            var game = m.GameId == "" ? null : _allGames.FirstOrDefault(g => g.Id == m.GameId);
+            item.Rules = RuleSheets.LinksFor(game?.Name ?? m.GameName, game?.Year ?? m.Year, game, _primer)
+                .Select(l => new RuleChoice(item, l.Label, l.Url)).ToList();
+        }
     }
 
     /// <summary>Checks GitHub (VPX, UEVR) and ravarcade.pl (BAM). Runs once at startup after the catalog loads.</summary>

@@ -253,6 +253,21 @@
                           <ContentControl Content="{Binding Pup}" ContentTemplate="{StaticResource AddonButton}" IsVisible="{Binding Pup.ShowButton}" />
                           <ContentControl Content="{Binding Colour}" ContentTemplate="{StaticResource AddonButton}" IsVisible="{Binding Colour.ShowButton}" />
                           <ContentControl Content="{Binding Sound}" ContentTemplate="{StaticResource AddonButton}" IsVisible="{Binding Sound.ShowButton}" />
+                          <Button Classes="small" Content="RULES ▾" Margin="0,0,6,6" IsVisible="{Binding HasRules}"
+                                  ToolTip.Tip="How to play it: The Pinball Primer's rules and strategy, and instruction cards (opens in your browser)">
+                            <Button.Flyout>
+                              <Flyout Placement="BottomEdgeAlignedLeft">
+                                <ItemsControl ItemsSource="{Binding Rules}">
+                                  <ItemsControl.ItemTemplate>
+                                    <DataTemplate x:DataType="vm:RuleChoice">
+                                      <Button Classes="small" Content="{Binding Label}" Margin="0,0,0,4" HorizontalAlignment="Stretch" HorizontalContentAlignment="Left"
+                                              Command="{Binding Item.Owner.OpenPageCommand}" CommandParameter="{Binding Url}" />
+                                    </DataTemplate>
+                                  </ItemsControl.ItemTemplate>
+                                </ItemsControl>
+                              </Flyout>
+                            </Button.Flyout>
+                          </Button>
                           <Button Classes="small" Content="FOLDER" Margin="0,0,6,6"
                                   Command="{ReflectionBinding $parent[Window].DataContext.OpenTableFolderCommand}" CommandParameter="{Binding}" />
                           <Button Classes="small" Content="MORE ▾" Margin="0,0,6,6" ToolTip.Tip="Folders, per-table settings and cache">
@@ -593,6 +608,9 @@
                   <CheckBox IsChecked="{Binding UsePupPlugin}"
                             Content="Show PuP packs in VR (VPX's PinUP Player plugin)"
                             ToolTip.Tip="Plays a table's PuP pack (pupvideos in its folder) on the cabinet's backglass and DMD. Tables without one are unaffected." />
+                  <CheckBox IsChecked="{Binding UseDisplayPlugins}"
+                            Content="Use VPX's FlexDMD and backglass (B2S) plugins in VR (recommended)"
+                            ToolTip.Tip="FlexDMD draws the DMD for tables whose script makes it (many originals, such as Jaws and Mass Effect). B2S shows a table's .directb2s backglass." />
                   <CheckBox IsChecked="{Binding LobbyRecordsRomAudio}"
                             Content="Record a table's music from its ROM in the VR lobby"
                             ToolTip.Tip="Runs the ROM for about 50 s in the background the first time you stop on a table. Off: only audio files already there play." />
