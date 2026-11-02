@@ -97,6 +97,9 @@ public sealed partial class InstalledItem : ObservableObject
         Table = table;
         Owner = owner;
         ScaleChoices = [new(this, "Same as all tables", null), .. new[] { 0.6, 0.7, 0.8, 0.9, 1.1, 1.2, 1.3 }.Select(s => new TableScaleChoice(this, $"{s * 100:0}%", s))];
+        Pup = new AddonSlot(this, AddonKind.Pup);
+        Colour = new AddonSlot(this, AddonKind.AltColor);
+        Sound = new AddonSlot(this, AddonKind.AltSound);
     }
 
     public InstalledTable Table { get; }
@@ -194,33 +197,12 @@ public sealed partial class InstalledItem : ObservableObject
 
     public string AttractAudioMenuHeader => HasAttractAudio ? "Replace attract audio (from media pack)" : "Get attract audio for the VR lobby";
 
-    // ---- PuP pack (pupvideos\ in the table folder) ----
+    // ---- Add-ons: PuP pack, DMD colours, AltSound (each in its own folder of the table folder) ----
 
-    /// <summary>The catalog's PuP packs for this table (set by the view model); empty when it has none.</summary>
-    [ObservableProperty, NotifyPropertyChangedFor(nameof(HasPupChoices), nameof(PupMenuHeader))]
-    public partial IReadOnlyList<PupChoice> PupChoices { get; set; } = [];
-
-    /// <summary>What's in pupvideos\ (set by the view model).</summary>
-    [ObservableProperty, NotifyPropertyChangedFor(nameof(HasPup), nameof(PupStatus), nameof(PupMenuHeader))]
-    public partial PupState PupState { get; set; } = PupState.None;
-
-    /// <summary>A newer catalog version of the installed pack.</summary>
-    [ObservableProperty, NotifyPropertyChangedFor(nameof(HasPupUpdate), nameof(PupStatus))]
-    public partial PupUpdate? PupUpdate { get; set; }
-
-    public bool HasPupChoices => PupChoices.Count > 0;
-    public bool ShowPupButton => HasPupChoices || HasPup;
-    partial void OnPupChoicesChanged(IReadOnlyList<PupChoice> value) => OnPropertyChanged(nameof(ShowPupButton));
-    partial void OnPupStateChanged(PupState value) => OnPropertyChanged(nameof(ShowPupButton));
-    public bool HasPup => PupState.IsInstalled;
-    public bool HasPupUpdate => PupUpdate != null;
-    public string PupMenuHeader => HasPup ? "Replace PuP pack" : PupChoices.Count == 1 ? "Get PuP pack" : $"Get PuP pack ({PupChoices.Count} in the catalog)";
-
-    /// <summary>"PuP pack v1.1 installed" / "PuP pack: new version v1.0 → v1.1" / "" (none).</summary>
-    public string PupStatus => PupUpdate is { } u ? $"PuP pack: new version {u.Label}"
-        : PupState.Tracked is { } t ? $"PuP pack{(t.Version is { } v ? " v" + v.Trim().TrimStart('v', 'V') : "")} installed"
-        : PupState.IsInstalled ? $"PuP pack installed ({string.Join(", ", PupState.Folders)})"
-        : "";
+    public AddonSlot Pup { get; }
+    public AddonSlot Colour { get; }
+    public AddonSlot Sound { get; }
+    public IReadOnlyList<AddonSlot> Addons => [Pup, Colour, Sound];
 
     /// <summary>Its install was cut off (app closed mid-copy): offer Reinstall instead of Play.</summary>
     public bool IsIncomplete => Table.IsIncomplete;
@@ -326,4 +308,57 @@ public sealed partial class JobItem : ObservableObject
 
     [RelayCommand]
     void Cancel() => Cts.Cancel();
+}
+
+/// <summary>One kind of add-on on a table card (PuP pack, DMD colours or AltSound): what the catalog has, what's installed, updates.</summary>
+public sealed partial class AddonSlot : ObservableObject
+{
+    public AddonSlot(InstalledItem item, AddonKind kind)
+    {
+        Item = item;
+        Kind = kind;
+    }
+
+    public InstalledItem Item { get; }
+    public AddonKind Kind { get; }
+
+    public string Name => Kind switch { AddonKind.Pup => "PuP pack", AddonKind.AltColor => "DMD colours", _ => "AltSound" };
+    public string ButtonText => Kind switch { AddonKind.Pup => "PUP ▾", AddonKind.AltColor => "COLOUR DMD ▾", _ => "ALTSOUND ▾" };
+    public string Tip => Kind switch
+    {
+        AddonKind.Pup => "PinUP Player pack: videos for the cabinet's backglass and DMD, from the catalog",
+        AddonKind.AltColor => "Colour for the DMD (Serum or Pin2DMD colorization), from the catalog",
+        _ => "Replacement sounds and music for the ROM (AltSound / G-Sound), from the catalog",
+    };
+
+    /// <summary>The catalog's files of this kind for the table (set by the view model); empty when it has none.</summary>
+    [ObservableProperty, NotifyPropertyChangedFor(nameof(HasChoices), nameof(ShowButton), nameof(MenuHeader))]
+    public partial IReadOnlyList<AddonChoice> Choices { get; set; } = [];
+
+    /// <summary>What's installed (set by the view model).</summary>
+    [ObservableProperty, NotifyPropertyChangedFor(nameof(IsInstalled), nameof(ShowButton), nameof(MenuHeader), nameof(Status))]
+    public partial AddonState State { get; set; } = AddonState.None;
+
+    /// <summary>A newer catalog version of the installed one.</summary>
+    [ObservableProperty, NotifyPropertyChangedFor(nameof(HasUpdate), nameof(Status))]
+    public partial AddonUpdate? Update { get; set; }
+
+    public bool HasChoices => Choices.Count > 0;
+    public bool IsInstalled => State.IsInstalled;
+    public bool HasUpdate => Update != null;
+    public bool ShowButton => HasChoices || IsInstalled;
+    public string MenuHeader => IsInstalled ? $"Replace {Name}" : Choices.Count == 1 ? $"Get {Name}" : $"Get {Name} ({Choices.Count} in the catalog)";
+
+    /// <summary>"DMD colours v2.0 installed (Serum)" / "AltSound: new version v1.0 → v1.1" / "" (none).</summary>
+    public string Status => Update is { } u ? $"{Name}: new version {u.Label}"
+        : State.Tracked is { } t ? $"{Name}{(t.Version is { } v ? " v" + v.Trim().TrimStart('v', 'V') : "")} installed{Format(t.Location)}"
+        : State.IsInstalled ? $"{Name} installed ({string.Join(", ", State.Folders)})"
+        : "";
+
+    static string Format(string? location) => location switch
+    {
+        AltPacks.SerumFolder => " (Serum)",
+        AltPacks.VniFolder => " (Pin2DMD)",
+        _ => "",
+    };
 }

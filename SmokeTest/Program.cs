@@ -486,7 +486,7 @@ Check(uevrRel?.Url.EndsWith("/UEVR.zip") == true, "finds the latest UEVR release
     var rq = Path.Combine(root, "romreq", "Mass Effect (Original 2026)");
     Directory.CreateDirectory(Path.Combine(rq, "altcolor", "afm_113b_me"));
     File.WriteAllText(Path.Combine(rq, "altcolor", "afm_113b_me", "afm_113b_me.cROMc"), "x");
-    RomRequirements.MoveSerum(rq);
+    AltPacks.FixLayout(rq);
     Check(File.Exists(Path.Combine(rq, "serum", "afm_113b_me", "afm_113b_me.cROMc")) && !Directory.Exists(Path.Combine(rq, "altcolor")),
         "Serum colorization moved from altcolor\\ to serum\\ (where VPX 10.8.1 looks)");
     RomRequirements.WriteAlias(Path.Combine(rq, "pinmame"), "afm_113b_me", "afm_113b");
@@ -725,6 +725,7 @@ foreach (var (ok, name) in HighScoreChecks.Run()) Check(ok, name);
 foreach (var (ok, name) in RomAudioChecks.Run()) Check(ok, name);
 foreach (var (ok, name) in MediaPackAudioChecks.Run(root)) Check(ok, name);
 foreach (var (ok, name) in PupPackChecks.Run(root)) Check(ok, name);
+foreach (var (ok, name) in AltPackChecks.Run(root)) Check(ok, name);
 
 // ---- VR graphics, logs, storage, backup ----
 {

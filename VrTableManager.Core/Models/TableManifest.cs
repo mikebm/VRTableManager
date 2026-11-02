@@ -42,17 +42,25 @@ public sealed class TableManifest
     /// <summary>The PuP pack folder the table script opens (<c>PuPlayer.Init …, "name"</c>), if it uses PinUP Player.</summary>
     public string? PupName { get; set; }
     /// <summary>The PuP pack this app installed into pupvideos\, for update checks; null when none was.</summary>
-    public InstalledPupPack? PupPack { get; set; }
+    public InstalledAddon? PupPack { get; set; }
+    /// <summary>The DMD colorization this app installed (serum\ or vni\); null when none was.</summary>
+    public InstalledAddon? AltColor { get; set; }
+    /// <summary>The AltSound pack this app installed (altsound\); null when none was.</summary>
+    public InstalledAddon? AltSound { get; set; }
 }
 
-/// <summary>A PuP pack from the catalog, installed as <c>&lt;table folder&gt;\pupvideos\&lt;Folder&gt;</c>.</summary>
-public sealed class InstalledPupPack
+/// <summary>
+/// A catalog add-on (PuP pack, colorization, AltSound) installed as <c>&lt;table folder&gt;\&lt;Location&gt;\&lt;Folder&gt;</c>.
+/// </summary>
+public sealed class InstalledAddon
 {
-    /// <summary>VPS id of the pack (pupPackFiles[].id).</summary>
+    /// <summary>VPS id of the file (pupPackFiles[].id, altColorFiles[].id, …).</summary>
     public string FileId { get; set; } = "";
     public string? Version { get; set; }
     public List<string> Authors { get; set; } = [];
-    /// <summary>Folder name under pupvideos\.</summary>
+    /// <summary>Folder in the table folder holding it: pupvideos, serum, vni or altsound (null = pupvideos).</summary>
+    public string? Location { get; set; }
+    /// <summary>Folder name under <see cref="Location"/> (the pack name, or the ROM name for colour and sound).</summary>
     public string Folder { get; set; } = "";
     public string? SourceUrl { get; set; }
     public DateTime InstalledAt { get; set; }

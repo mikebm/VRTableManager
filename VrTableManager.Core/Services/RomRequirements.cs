@@ -8,13 +8,13 @@ namespace VrTableManager.Services;
 /// written to the table's pinmame\alias.txt so PinMAME finds it;</item>
 /// <item>parent sets a clone takes files from (afm_113b needs afm_113), when the set isn't complete without them.</item>
 /// </list>
-/// It also moves Serum colorizations from the old altcolor\ folder to serum\, where VPX 10.8.1 looks.
+/// It also moves colorizations and AltSound into the folders VPX 10.8.1 reads (<see cref="AltPacks.FixLayout"/>).
 /// Uses VPX's own PinMAME for the facts; without it (VPX not installed), only the script is used.
 /// </summary>
 public static class RomRequirements
 {
     /// <summary>Bump when the check learns something new, so installed tables are checked again.</summary>
-    public const int Version = 1;
+    public const int Version = 2;
 
     /// <summary>Updates the table's manifest (RomNames, RomParents, RomAlias). Returns true when anything changed.</summary>
     public static bool Update(InstalledTable t, AppSettings s)
@@ -24,7 +24,7 @@ public static class RomRequirements
         // Only counts as checked when PinMAME could be asked; otherwise try again once VPX is installed.
         if (File.Exists(RomAudio.PinmameDll(s))) m.RomCheck = Version;
         var before = (string.Join(",", m.RomNames), string.Join(",", m.RomParents), m.RomAlias);
-        MoveSerum(t.Folder);
+        AltPacks.FixLayout(t.Folder);
 
         var info = RomDetector.Inspect(t.TablePath);
         if (info.NoRomNeeded)
@@ -99,24 +99,5 @@ public static class RomRequirements
         if (existing >= 0) lines[existing] = line; else lines.Add(line);
         Directory.CreateDirectory(pinmameDir);
         File.WriteAllLines(file, lines);
-    }
-
-    /// <summary>Table downloads still ship colorizations as altcolor\&lt;rom&gt;\; VPX 10.8.1's Serum plugin reads serum\&lt;rom&gt;\.</summary>
-    public static void MoveSerum(string tableFolder)
-    {
-        var alt = Path.Combine(tableFolder, "altcolor");
-        if (!Directory.Exists(alt)) return;
-        try
-        {
-            foreach (var dir in Directory.EnumerateDirectories(alt))
-            {
-                var dest = Path.Combine(tableFolder, "serum", Path.GetFileName(dir));
-                if (Directory.Exists(dest)) continue;
-                Directory.CreateDirectory(Path.GetDirectoryName(dest)!);
-                Directory.Move(dir, dest);
-            }
-            if (!Directory.EnumerateFileSystemEntries(alt).Any()) Directory.Delete(alt);
-        }
-        catch { /* a file in use: try again next time */ }
     }
 }

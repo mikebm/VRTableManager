@@ -41,7 +41,7 @@ public sealed record InstallMarker(string GameId, string TableFileId, string Gam
 /// <summary>
 /// Turns a downloaded archive into a ready-to-play table:
 /// VPX tables get their own folder (the layout VPX 10.8.1 expects, with
-/// pinmame/roms, music and altsound inside it); Future Pinball tables go to
+/// pinmame/roms, music, altsound and serum inside it); Future Pinball tables go to
 /// the FP Tables folder with libraries in Libraries.
 /// </summary>
 public static class TableInstaller
@@ -120,8 +120,10 @@ public static class TableInstaller
                 InstalledAt = DateTime.Now,
                 SourceUpdatedAt = tf.UpdatedAt,
                 PupName = rom.UsesPup ? rom.PupName ?? rom.GameName : null,
-                // An update keeps the folder, so a PuP pack installed earlier stays tracked.
+                // An update keeps the folder, so add-ons installed earlier stay tracked.
                 PupPack = replacing?.Manifest.PupPack,
+                AltColor = replacing?.Manifest.AltColor,
+                AltSound = replacing?.Manifest.AltSound,
             };
 
             // Updating: the new version usually has a new file name ("… v1.2.vpx"). Remove the old
@@ -171,8 +173,11 @@ public static class TableInstaller
             var target = name switch
             {
                 "music" => Path.Combine(folder, "music"),
-                "altsound" => Path.Combine(folder, "pinmame", "altsound"),
-                "altcolor" => Path.Combine(folder, "pinmame", "altcolor"),
+                // Where VPX 10.8.1's plugins look; colorizations are sorted into serum\ / vni\ below.
+                "altsound" => Path.Combine(folder, AltPacks.SoundFolder),
+                "altcolor" => Path.Combine(folder, "altcolor"),
+                "serum" => Path.Combine(folder, AltPacks.SerumFolder),
+                "vni" => Path.Combine(folder, AltPacks.VniFolder),
                 "roms" => Path.Combine(folder, "pinmame", "roms"),
                 "nvram" => Path.Combine(folder, "pinmame", "nvram"),
                 "pupvideos" => Path.Combine(folder, PupPacks.FolderName),
@@ -199,6 +204,7 @@ public static class TableInstaller
                 MoveFile(zip, Path.Combine(folder, "pinmame", "roms", Path.GetFileName(zip)));
         }
 
+        AltPacks.FixLayout(folder);
         return (Path.Combine(folder, Path.GetFileName(main)), folder);
     }
 
