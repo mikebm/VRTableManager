@@ -179,6 +179,8 @@ public sealed partial class MainViewModel
         UevrDir = s.UevrDir;
         HideAdult = s.HideAdult;
         ReturnAfterPlay = s.ReturnAfterPlay;
+        UseDefaultBrowserProfile = s.UseDefaultBrowserProfile;
+        VpxUseDoNotUseBuilds = s.VpxUseDoNotUseBuilds;
         FpRunAsAdmin = s.FpRunAsAdmin;
         ApplyPinballUevrProfile = s.ApplyPinballUevrProfile;
         ShowZenReminder = s.ShowZenReminder;

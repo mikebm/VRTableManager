@@ -54,6 +54,8 @@ public sealed partial class MainViewModel : ObservableObject, IAsyncDisposable
         UevrDir = Settings.UevrDir;
         HideAdult = Settings.HideAdult;
         ReturnAfterPlay = Settings.ReturnAfterPlay;
+        UseDefaultBrowserProfile = Settings.UseDefaultBrowserProfile;
+        VpxUseDoNotUseBuilds = Settings.VpxUseDoNotUseBuilds;
         FpRunAsAdmin = Settings.FpRunAsAdmin;
         ApplyPinballUevrProfile = Settings.ApplyPinballUevrProfile;
         ShowZenReminder = Settings.ShowZenReminder;
@@ -919,6 +921,8 @@ public sealed partial class MainViewModel : ObservableObject, IAsyncDisposable
     [ObservableProperty] public partial string FpDir { get; set; }
     [ObservableProperty] public partial bool HideAdult { get; set; }
     [ObservableProperty] public partial bool ReturnAfterPlay { get; set; }
+    [ObservableProperty] public partial bool UseDefaultBrowserProfile { get; set; }
+    [ObservableProperty] public partial bool VpxUseDoNotUseBuilds { get; set; }
     [ObservableProperty] public partial bool FpRunAsAdmin { get; set; }
     [ObservableProperty] public partial string RefreshRate { get; set; }
     [ObservableProperty] public partial string VpxStatus { get; set; } = "";
@@ -941,6 +945,8 @@ public sealed partial class MainViewModel : ObservableObject, IAsyncDisposable
             case nameof(UevrDir): Settings.UevrDir = UevrDir; break;
             case nameof(HideAdult): Settings.HideAdult = HideAdult; ApplyFilter(); break;
             case nameof(ReturnAfterPlay): Settings.ReturnAfterPlay = ReturnAfterPlay; break;
+            case nameof(UseDefaultBrowserProfile): Settings.UseDefaultBrowserProfile = _browser.UseDefaultBrowserProfile = UseDefaultBrowserProfile; break;
+            case nameof(VpxUseDoNotUseBuilds): Settings.VpxUseDoNotUseBuilds = VpxUseDoNotUseBuilds; break;
             case nameof(FpRunAsAdmin): Settings.FpRunAsAdmin = FpRunAsAdmin; break;
             case nameof(ApplyPinballUevrProfile): Settings.ApplyPinballUevrProfile = ApplyPinballUevrProfile; RefreshSetupStatus(); break;
             case nameof(ShowZenReminder): Settings.ShowZenReminder = ShowZenReminder; break;
@@ -1040,7 +1046,7 @@ public sealed partial class MainViewModel : ObservableObject, IAsyncDisposable
     {
         try
         {
-            var releases = await VpxSetup.FindReleasesAsync(CancellationToken.None);
+            var releases = await VpxSetup.FindReleasesAsync(CancellationToken.None, Settings.VpxUseDoNotUseBuilds);
             var (text, hasUpdate) = VpxSetup.DescribeUpdate(releases, VpxSetup.InstalledVersion(Settings));
             LatestVpx = hasUpdate ? $"{text} ({releases.Latest!.Size / 1_048_576} MB)" : text;
         }
@@ -1056,10 +1062,10 @@ public sealed partial class MainViewModel : ObservableObject, IAsyncDisposable
         IsInstallingVpx = true;
         try
         {
-            var releases = await VpxSetup.FindReleasesAsync(CancellationToken.None);
+            var releases = await VpxSetup.FindReleasesAsync(CancellationToken.None, Settings.VpxUseDoNotUseBuilds);
             var installed = VpxSetup.InstalledVersion(Settings);
             var (text, hasUpdate) = VpxSetup.DescribeUpdate(releases, installed);
-            // Only install what's offered: never a "DO NOT USE" build, never an older one over a newer install.
+            // Only install what's offered: no "DO NOT USE" build unless allowed, never an older one over a newer install.
             if (releases.Latest is not { } rel || (installed != null && !hasUpdate))
             {
                 LatestVpx = text;
@@ -1086,6 +1092,39 @@ public sealed partial class MainViewModel : ObservableObject, IAsyncDisposable
 
     [RelayCommand]
     async Task BrowseTablesDirAsync() { if (await _ui.PickFolderAsync("Tables folder") is { } d) TablesDir = d; }
+
+    [ObservableProperty] public partial string ImportStatus { get; set; } = "";
+
+    /// <summary>Copies the tables of another VPX install (its folder or its Tables folder) into the tables folder.</summary>
+    [RelayCommand]
+    async Task ImportTablesAsync()
+    {
+        if (await _ui.PickFolderAsync("Another VPX install, or its Tables folder") is not { } src) return;
+        if (TableImport.FindTablesDir(src) == null)
+        {
+            ImportStatus = "No .vpx tables in that folder or its Tables folder.";
+            return;
+        }
+        var job = new JobItem("Copy tables from " + Path.GetFileName(src.TrimEnd(Path.DirectorySeparatorChar)));
+        Jobs.Insert(0, job);
+        ImportStatus = "Copying tables…";
+        try
+        {
+            var r = await Task.Run(() => TableImport.Import(src, Settings, job.Report, job.Cts.Token));
+            var text = $"✓ Copied {r.Copied.Count} table{(r.Copied.Count == 1 ? "" : "s")}."
+                + (r.Skipped.Count > 0 ? $" {r.Skipped.Count} already here, left as they are." : "")
+                + (r.Failed.Count > 0 ? $" Couldn't copy: {string.Join("; ", r.Failed)}" : "");
+            job.Finish(text, error: r.Copied.Count == 0 && r.Failed.Count > 0);
+            ImportStatus = text;
+        }
+        catch (OperationCanceledException) { job.Finish("Cancelled", error: true); ImportStatus = "Cancelled."; }
+        catch (Exception e)
+        {
+            job.Finish("Couldn't copy tables: " + e.Message, error: true);
+            ImportStatus = "Couldn't copy tables: " + e.Message;
+        }
+        finally { RefreshInstalled(); }
+    }
 
     [RelayCommand]
     async Task BrowseFpDirAsync() { if (await _ui.PickFolderAsync("Future Pinball folder") is { } d) FpDir = d; }
@@ -1202,7 +1241,7 @@ public sealed partial class MainViewModel : ObservableObject, IAsyncDisposable
         try
         {
             var ct = CancellationToken.None;
-            var vpxTask = Try<VpxReleases>(async () => await VpxSetup.FindReleasesAsync(ct));
+            var vpxTask = Try<VpxReleases>(async () => await VpxSetup.FindReleasesAsync(ct, Settings.VpxUseDoNotUseBuilds));
             var uevrTask = Try(() => UevrSetup.FindLatestAsync(ct));
             var bamTask = Try(() => BamCheck.LatestAsync(ct));
             await Task.WhenAll(vpxTask, uevrTask, bamTask);

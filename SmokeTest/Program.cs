@@ -158,6 +158,39 @@ Check((rel ?? vpxReleases.Withdrawn)?.AssetName.StartsWith("VPinballX_BGFX-") ==
     Check(mixed.Latest?.Tag == "v10.8.1-5436-a" && mixed.Withdrawn?.Tag == "v10.8.2-100-c", "falls back to the newest usable build");
     Check(VpxSetup.DescribeUpdate(mixed, "v10.8.1-3788-b").HasUpdate, "older install: offers the newest usable build");
     Check(!VpxSetup.DescribeUpdate(mixed, "v10.8.2-100-c").HasUpdate, "never offers an older build over a newer install");
+    var allowed = VpxSetup.ParseReleases($"[{Rel("v10.8.2-100-c", "DO NOT USE - v10.8.2-100-c")},{Rel("v10.8.1-5436-a", "v10.8.1")}]", useDoNotUse: true);
+    Check(allowed.Latest?.Tag == "v10.8.2-100-c" && VpxSetup.DescribeUpdate(allowed, "v10.8.1-5436-a").HasUpdate,
+        "DO NOT USE setting: the newest BGFX build is installed and offered as an update");
+}
+
+// 6b. Copy tables from another VPX install
+{
+    var other = Path.Combine(root, "other-vpx");
+    Directory.CreateDirectory(Path.Combine(other, "Tables", "Folder Table"));
+    File.WriteAllText(Path.Combine(other, "Tables", "Folder Table", "Folder Table.vpx"), "");
+    File.WriteAllText(Path.Combine(other, "Tables", "Loose Table.vpx"), "");
+    File.WriteAllText(Path.Combine(other, "Tables", "Loose Table.directb2s"), "b2s");
+    File.WriteAllText(Path.Combine(other, "Tables", "Unrelated.vpx"), "");
+    var into = new AppSettings { TablesDir = Path.Combine(root, "import-into"), VpxDir = Path.Combine(root, "no-vpx") };
+    Directory.CreateDirectory(Path.Combine(into.TablesDir, "Unrelated"));
+    Check(TableImport.FindTablesDir(other) == Path.Combine(other, "Tables"), "import: finds the Tables folder of a VPX install");
+    var imported = TableImport.Import(other, into, _ => { }, CancellationToken.None);
+    Check(imported.Copied.Count == 2 && imported.Skipped.SequenceEqual(["Unrelated"]) && imported.Failed.Count == 0,
+        $"import: copies new tables, skips ones already there ({imported.Copied.Count} copied, {imported.Skipped.Count} skipped)");
+    Check(File.Exists(Path.Combine(into.TablesDir, "Loose Table", "Loose Table.directb2s"))
+          && File.Exists(Path.Combine(into.TablesDir, "Folder Table", "vrtm.json")), "import: loose table gets its own folder with its backglass");
+    Check(TableInstaller.Scan(into).Count(t => t.Manifest.GameName is "Loose Table" or "Folder Table") == 2, "import: copied tables are listed");
+}
+
+// 6c. A release's lobby (no shared library source next to it) is never rebuilt
+{
+    var relLobby = Path.Combine(root, "release", "VrLobby");
+    var dll = Path.Combine(relLobby, ".godot", "mono", "temp", "bin", "Debug", "VrLobby.dll");
+    Directory.CreateDirectory(Path.GetDirectoryName(dll)!);
+    File.WriteAllText(dll, "");
+    File.WriteAllText(Path.Combine(relLobby, "Main.cs.uid"), "uid://x"); // written by Godot's first-run import, after the build
+    File.SetLastWriteTimeUtc(dll, DateTime.UtcNow.AddHours(-1));
+    Check(!LobbyRunner.NeedsBuild(relLobby), "release lobby: prebuilt code is used, not rebuilt");
 }
 Console.WriteLine(VpxSetup.DescribeOpenXrRuntime());
 

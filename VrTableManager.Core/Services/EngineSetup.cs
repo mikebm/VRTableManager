@@ -23,17 +23,19 @@ public static class VpxSetup
         : "-linux-x64-Release.tar.gz";
 
     /// <summary>The newest usable BGFX build, or null.</summary>
-    public static async Task<VpxRelease?> FindLatestAsync(CancellationToken ct) => (await FindReleasesAsync(ct)).Latest;
+    public static async Task<VpxRelease?> FindLatestAsync(CancellationToken ct, bool useDoNotUse = false) =>
+        (await FindReleasesAsync(ct, useDoNotUse)).Latest;
 
     /// <summary>
     /// What GitHub offers: the newest BGFX build that's fine to use, and the newest one the VPX team has
-    /// since renamed "DO NOT USE" when that's newer still. Those are never installed or offered as
-    /// updates; the app keeps whatever VPX is installed and says why.
+    /// since renamed "DO NOT USE" when that's newer still. Unless <paramref name="useDoNotUse"/> (the
+    /// "use DO NOT USE builds" setting), those are never installed or offered as updates; the app keeps
+    /// whatever VPX is installed and says why.
     /// </summary>
-    public static async Task<VpxReleases> FindReleasesAsync(CancellationToken ct) =>
-        ParseReleases(await Http.Client.GetStringAsync(ReleasesApi, ct));
+    public static async Task<VpxReleases> FindReleasesAsync(CancellationToken ct, bool useDoNotUse = false) =>
+        ParseReleases(await Http.Client.GetStringAsync(ReleasesApi, ct), useDoNotUse);
 
-    public static VpxReleases ParseReleases(string json)
+    public static VpxReleases ParseReleases(string json, bool useDoNotUse = false)
     {
         using var doc = JsonDocument.Parse(json);
         VpxRelease? withdrawn = null;
@@ -43,7 +45,7 @@ public static class VpxSetup
             var name = rel.TryGetProperty("name", out var n) ? n.GetString() ?? "" : "";
             var asset = BgfxAsset(rel);
             if (asset == null) continue;
-            if (!name.StartsWith("DO NOT USE", StringComparison.OrdinalIgnoreCase)) return new VpxReleases(asset, withdrawn);
+            if (useDoNotUse || !name.StartsWith("DO NOT USE", StringComparison.OrdinalIgnoreCase)) return new VpxReleases(asset, withdrawn);
             withdrawn ??= asset;
         }
         return new VpxReleases(null, withdrawn);

@@ -27,6 +27,87 @@ public sealed class BrowserDownloader : IAsyncDisposable
         _headless = headless;
     }
 
+    /// <summary>
+    /// Open your default browser (Edge, Chrome or Brave) with its own profile, so sign-ins and cookies are
+    /// shared with it. That profile can only be driven while the browser is closed; when it's open (or
+    /// refuses to be automated), downloads use the app's own profile instead. Read when the window opens.
+    /// </summary>
+    public bool UseDefaultBrowserProfile { get; set; }
+
+    /// <summary>Set once the default browser's profile couldn't be used, so it isn't retried every download.</summary>
+    string? _defaultProfileProblem;
+
+    /// <summary>A Chromium browser Playwright can drive: its channel (or exe) and its own profile folder.</summary>
+    sealed record SystemBrowser(string Name, string? Channel, string? Exe, string UserDataDir);
+
+    /// <summary>The Windows default browser for https links, when it's one whose profile can be shared.</summary>
+    static SystemBrowser? FindDefaultBrowser()
+    {
+        if (!OperatingSystem.IsWindows()) return null;
+        string? progId;
+        try
+        {
+            using var key = Microsoft.Win32.Registry.CurrentUser.OpenSubKey(
+                @"Software\Microsoft\Windows\Shell\Associations\UrlAssociations\https\UserChoice");
+            progId = key?.GetValue("ProgId") as string;
+        }
+        catch { return null; }
+        var local = Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData);
+        if (progId == null) return null;
+        if (progId.StartsWith("MSEdge", StringComparison.OrdinalIgnoreCase))
+            return new("Edge", "msedge", null, Path.Combine(local, "Microsoft", "Edge", "User Data"));
+        if (progId.StartsWith("ChromeHTML", StringComparison.OrdinalIgnoreCase))
+            return new("Chrome", "chrome", null, Path.Combine(local, "Google", "Chrome", "User Data"));
+        if (progId.StartsWith("BraveHTML", StringComparison.OrdinalIgnoreCase))
+        {
+            var exe = new[] { Environment.SpecialFolder.ProgramFiles, Environment.SpecialFolder.ProgramFilesX86, Environment.SpecialFolder.LocalApplicationData }
+                .Select(f => Path.Combine(Environment.GetFolderPath(f), "BraveSoftware", "Brave-Browser", "Application", "brave.exe"))
+                .FirstOrDefault(File.Exists);
+            return exe == null ? null : new("Brave", null, exe, Path.Combine(local, "BraveSoftware", "Brave-Browser", "User Data"));
+        }
+        return null; // Firefox and others: Playwright can't drive their real profile.
+    }
+
+    /// <summary>Opens the default browser's own profile, or returns null (and says why) to fall back to the app's.</summary>
+    async Task<IBrowserContext?> TryDefaultBrowserAsync(BrowserTypeLaunchPersistentContextOptions baseOpts, Action<string> status)
+    {
+        if (!UseDefaultBrowserProfile || _headless || _defaultProfileProblem != null) return null;
+        if (FindDefaultBrowser() is not { } b || !Directory.Exists(b.UserDataDir))
+        {
+            _defaultProfileProblem = "Your default browser isn't Edge, Chrome or Brave, so downloads use the app's own browser profile.";
+            status(_defaultProfileProblem);
+            return null;
+        }
+        if (ProfileInUse(b.UserDataDir))
+        {
+            // Not remembered: close the browser and the next download window can share its profile.
+            status($"{b.Name} is open, so this download uses the app's own browser profile. Close {b.Name} first to share its sign-ins.");
+            return null;
+        }
+        var opts = new BrowserTypeLaunchPersistentContextOptions
+        {
+            Headless = false,
+            AcceptDownloads = true,
+            ViewportSize = ViewportSize.NoViewport,
+            IgnoreDefaultArgs = baseOpts.IgnoreDefaultArgs,
+            Args = [.. baseOpts.Args ?? [], "--profile-directory=Default"],
+            Channel = b.Channel,
+            ExecutablePath = b.Exe,
+            // A browser that won't allow automating its main profile never answers; don't wait long for it.
+            Timeout = 30_000,
+        };
+        try
+        {
+            return await _pw!.Chromium.LaunchPersistentContextAsync(b.UserDataDir, opts);
+        }
+        catch (Exception e) when (e is PlaywrightException or TimeoutException)
+        {
+            _defaultProfileProblem = $"{b.Name} wouldn't open its own profile for downloads ({e.Message.Split('\n')[0]}), so downloads use the app's own browser profile.";
+            status(_defaultProfileProblem);
+            return null;
+        }
+    }
+
     /// <summary>How long to give a site after a click before trying something else.</summary>
     public TimeSpan ClickPatience { get; init; } = TimeSpan.FromSeconds(20);
 
@@ -56,10 +137,12 @@ public sealed class BrowserDownloader : IAsyncDisposable
             Args = ["--disable-blink-features=AutomationControlled"],
         };
 
+        _ctx = await TryDefaultBrowserAsync(opts, status);
+
         // Prefer a browser that's already on the machine (Edge ships with Windows),
         // and only fall back to downloading Playwright's Chromium if neither exists.
         PlaywrightException? firstError = null;
-        foreach (var channel in new[] { "msedge", "chrome" })
+        foreach (var channel in _ctx != null ? [] : new[] { "msedge", "chrome" })
         {
             try
             {
