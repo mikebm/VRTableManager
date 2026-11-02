@@ -1,10 +1,67 @@
 # VR Table Manager
 
-Browse, install, organize, and launch virtual pinball tables—with VR support. The Windows desktop manager handles VPX and Future Pinball tables, while a companion in-headset lobby lets you browse and launch your library in VR. Pinball FX and Pinball M can also be launched through UEVR.
+**Virtual pinball in VR, without the setup headaches.** Pick a table from the 2,000+ in the Virtual Pinball Spreadsheet, click Install, and play it in your headset a few minutes later. VR Table Manager downloads the table, finds its ROM, adds the extras (PuP videos, colour DMD, remastered sound), keeps everything up to date, and launches it in VR. Then you can walk up to your collection in a 3D arcade lobby inside the headset and pick the next one.
 
-The manager and lobby share the same .NET core library for table discovery, engine setup, play history, and launching.
+![My Tables: your collection, with updates, add-ons and one-click Play in VR](docs/screenshots/my-tables.jpg)
 
-## Get started
+![The VR lobby: your tables as 3D cabinets, picked from inside the headset](VrLobby/screenshot.png)
+
+Built for Meta Quest (Link, Air Link or Virtual Desktop) with the official Visual Pinball X 10.8.1 VR build. Future Pinball, Pinball FX and Pinball M are supported too.
+
+## Features
+
+### Get tables in one click
+- **The whole catalog:** every VPX and Future Pinball table in the [Virtual Pinball Spreadsheet](https://virtualpinballspreadsheet.github.io/), filterable by VR-ready, maker, era and type, each with its versions, authors and features.
+- **One-click install:** downloads from VPUniverse, VPForums and other sites. Sign in once in the built-in browser and the app does the clicking from then on. Downloads queue up, run a few at a time, and are offered again if you close the app mid-download.
+- **Ready to play:** each table gets its own folder in the layout VPX 10.8.1 expects. The app reads the table's script to find the exact ROM it needs, then fetches it, including Stern's free game code. Its parent sets and aliases are handled for you.
+
+### Make every table look and sound its best
+- **PuP packs:** PinUP Player videos on the cabinet's backglass and DMD, shown in VR by VPX's PinUP plugin.
+- **Colour DMDs:** Serum and Pin2DMD colorizations turn the orange dot-matrix display into full colour.
+- **AltSound:** remastered and re-orchestrated soundtracks that replace the ROM's original sounds.
+- **Rules:** The Pinball Primer's rules and strategy guide and the table's instruction cards, one click from each table.
+
+Add-ons are matched to the table's ROM, installed where VPX's plugins look, and tracked, so a new version shows up as an update.
+
+### Stay up to date
+- **Updates for everything:** new table versions, new add-on versions, Visual Pinball X itself and UEVR, checked every time the app starts. Update one, or update all with one button.
+- **Nothing lost:** updating a table keeps its ROMs, high scores and settings.
+
+### Play in VR
+- **One button:** **Play in VR** launches the table in your headset. The manager gets out of the way and comes back when you quit, ready for the next game.
+- **The VR lobby:** your tables stand around you as 3D cabinets with real backglass art. Browse with an alphabet wheel, play a table's attract music, and launch it without taking the headset off.
+- **Favourites, play history and high scores:** shared between the manager and the lobby. Grand champion scores are read straight from each table's saved memory.
+- **Pinball FX and Pinball M:** launched through UEVR, with pinball-tuned VR settings applied automatically.
+
+### Setup made easy
+- Installs the official VPX VR build, checks your OpenXR runtime (Meta Quest Link, Virtual Desktop, SteamVR), and sets refresh rate, spacewarp and graphics quality.
+- Explains what went wrong when a table crashes or exits early, using VPX's own log.
+- Shows disk use, sets render scale per table, clears caches, and backs up your settings and play history.
+
+## Screenshots
+
+| | |
+|---|---|
+| ![Table cards with PUP, COLOUR DMD, ALTSOUND and RULES menus](docs/screenshots/table-cards.jpg) | ![Get Tables: the whole Virtual Pinball Spreadsheet catalog](docs/screenshots/get-tables.jpg) |
+| **Add-ons and rules** on every table card | **Get Tables:** 2,000+ tables, filtered to what works in VR |
+| ![A table's versions, authors and features, each with Install](docs/screenshots/table-versions.jpg) | ![Setup: updates, Visual Pinball X and VR settings](docs/screenshots/setup.jpg) |
+| **Every version** of a table, with one-click Install | **Setup and updates** in one place |
+
+| | |
+|---|---|
+| ![Attack from Mars in the VR lobby](VrLobby/screenshot-afm.png) | ![The Addams Family in the VR lobby](VrLobby/screenshot-taf.png) |
+| **The VR lobby:** a backglass from the catalog fills in when a cabinet has none | Browse your collection with the alphabet wheel |
+
+## Try it
+
+1. Download the latest `VrTableManager-<version>-win-x64.zip` from [Releases](https://github.com/mikebm/VRTableManager/releases), unzip it anywhere and run `VrTableManager.exe`.
+2. On **Setup**, install Visual Pinball X with one click and make sure your headset's OpenXR runtime is active (Meta Quest Link or Virtual Desktop).
+3. On **Get Tables**, pick a VR-ready table and click **Install**. Sign in to the table site once when it asks.
+4. Put your headset on and hit **Play in VR**, or **Launch VR Lobby** to browse your collection in the headset.
+
+You'll need Windows 10/11 (64-bit) and Microsoft Edge (for signing in to table sites). The VR lobby also needs the [.NET 10 Runtime](https://dotnet.microsoft.com/download/dotnet/10.0). It downloads the Godot engine it runs on by itself the first time you start it.
+
+## Build from source
 
 ### Requirements
 
