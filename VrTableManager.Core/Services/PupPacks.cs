@@ -28,12 +28,26 @@ public static class PupPacks
     /// <summary>Folder names in packs that hold packs rather than being one.</summary>
     static readonly string[] Containers = ["pupvideos", "pinupsystem", "pinup", "pup", "puppack", "pup pack", "pup-pack"];
 
-    /// <summary>The catalog's packs for a game that can be downloaded, newest first.</summary>
-    public static List<VpsFile> SourcesFor(VpsGame game) =>
-        (game.PupPackFiles ?? []).Where(f => Addons.UsableUrl(f) != null).OrderByDescending(f => f.UpdatedAt ?? 0).ToList();
+    /// <summary>The catalog's tag for a table whose own page also offers its pack, as a file beside the .vpx.</summary>
+    public const string BundledFeature = "incl. PuP";
 
-    /// <summary>"v1.1 by Hawkeyez88, Xkane47 — Mini PUP-pack"</summary>
-    public static string Describe(VpsFile f) => Addons.Describe(f, "PuP pack");
+    /// <summary>
+    /// Packs for the table that can be downloaded: its own page first when the installed table file is tagged
+    /// <see cref="BundledFeature"/> (the catalog then often has no PuP entry for it), then the game's packs, newest first.
+    /// </summary>
+    public static List<VpsFile> SourcesFor(VpsGame game, InstalledTable? t = null)
+    {
+        var packs = (game.PupPackFiles ?? []).Where(f => Addons.UsableUrl(f) != null).OrderByDescending(f => f.UpdatedAt ?? 0).ToList();
+        if (t != null && game.TableFiles?.FirstOrDefault(f => f.Id == t.Manifest.TableFileId) is { } tf
+            && VpsCatalog.HasFeature(tf, BundledFeature) && Addons.UsableUrl(tf) != null)
+            packs.Insert(0, tf);
+        return packs;
+    }
+
+    /// <summary>"v1.1 by Hawkeyez88, Xkane47 — Mini PUP-pack", or for a table's own page "From the table's page (v1.0.1)".</summary>
+    public static string Describe(VpsFile f) => f is VpsTableFile
+        ? "From the table's page" + (string.IsNullOrWhiteSpace(f.Version) ? "" : $" (v{f.Version.Trim().TrimStart('v', 'V')})")
+        : Addons.Describe(f, "PuP pack");
 
     /// <summary>The pack folders in a table's pupvideos\, and which one this app installed.</summary>
     public static AddonState StateOf(InstalledTable t)

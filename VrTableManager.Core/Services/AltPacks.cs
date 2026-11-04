@@ -118,7 +118,8 @@ public static class AltPacks
     {
         List<string> Find(string[] exts) => Directory.EnumerateFiles(staging, "*", SearchOption.AllDirectories)
             .Where(f => exts.Contains(Path.GetExtension(f).ToLowerInvariant())).ToList();
-        Addons.Unpack(downloaded, staging, () => Find([.. SerumExts, .. VniExts]).Count > 0, "colorization");
+        // Some colorizations are posted as the bare file rather than in an archive.
+        Addons.Unpack(downloaded, staging, () => Find([.. SerumExts, .. VniExts]).Count > 0, "colorization", [.. SerumExts, .. VniExts, ".pac"]);
         var names = new[] { game, (file as VpsAltColorFile)?.Folder }.OfType<string>().ToList();
         bool Named(string f) => names.Contains(Path.GetFileNameWithoutExtension(f), StringComparer.OrdinalIgnoreCase);
 

@@ -54,6 +54,14 @@ public static class AltPackChecks
                 && File.Exists(Path.Combine(folder, "serum", "mm_109c", "mm_109c.pup.csv")) && !File.Exists(Path.Combine(folder, "serum", "mm_109c", "readme.txt")),
             "Serum lands in serum\\<rom>\\<rom>.cRZ, with its .pup.csv, renamed to the table's ROM");
         table.Manifest.AltColor = rec;
+
+        // Some are posted as the bare .cRZ, not in an archive.
+        var bareCrz = Path.Combine(root, "bare", "MM_Serum.cRZ");
+        Write(bareCrz);
+        rec = AltPacks.Install(AddonKind.AltColor, bareCrz, table, game.AltColorFiles[1]);
+        yield return (rec is { Location: "serum", Folder: "mm_109c" } && File.Exists(Path.Combine(folder, "serum", "mm_109c", "mm_109c.cRZ")),
+            "a bare .cRZ download installs like an archived one");
+        table.Manifest.AltColor = rec;
         yield return (AltPacks.StateOf(table, AddonKind.AltColor) is { Tracked.FileId: "serum" } s && s.Folders.SequenceEqual(["serum\\mm_109c"]),
             "installed colours are tracked");
 
@@ -73,6 +81,11 @@ public static class AltPackChecks
         yield return (Throws(() => AltPacks.Install(AddonKind.AltColor, Zip(root, "pac.zip", ("x/pin2dmd.pac", "p")), table, game.AltColorFiles[0]))
                 && File.Exists(Path.Combine(folder, "vni", "mm_109c", "pin2dmd.pal")),
             "a PAC-only colorization is refused (VPX can't read it) and the installed one stays");
+        var barePac = Path.Combine(root, "bare", "pin2dmd.pac");
+        Write(barePac);
+        string? pacError = null;
+        try { AltPacks.Install(AddonKind.AltColor, barePac, table, game.AltColorFiles[0]); } catch (InvalidDataException e) { pacError = e.Message; }
+        yield return (pacError?.Contains("encrypted") == true, "a bare .pac download says why it can't be used, not that it isn't an archive");
 
         // AltSound: the pack folder with altsound.csv, wherever it sits in the archive, into altsound\<rom>.
         var soundZip = Zip(root, "sound.zip", ("AltSound/mm_109c/altsound.csv", "csv"), ("AltSound/mm_109c/music/theme.ogg", "ogg"), ("Install.txt", "t"));

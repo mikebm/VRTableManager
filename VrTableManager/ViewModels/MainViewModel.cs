@@ -287,10 +287,13 @@ public sealed partial class MainViewModel : ObservableObject, IAsyncDisposable
             var installed = await TableInstaller.InstallAsync(file, game, tf, Settings, job.Report, job.Cts.Token, replacing);
             var done = replacing == null ? "Installed" : $"Updated to v{tf.Version}";
             var getRom = installed.MissingRoms.Count > 0 && FindRomSource(installed) != null;
+            // "incl. PuP" tables mostly offer the pack as a second file on their page, which the table download doesn't bring.
+            var pupNote = VpsCatalog.HasFeature(tf, PupPacks.BundledFeature) && !PupPacks.StateOf(installed).IsInstalled
+                ? " Its PuP pack is a separate file on the table's page: get it from PUP on its card." : "";
             // This job is done; the ROM (if any) gets its own entry in the downloads list.
-            job.Finish(installed.MissingRoms.Count == 0 ? $"✓ {done}. Ready to play."
+            job.Finish((installed.MissingRoms.Count == 0 ? $"✓ {done}. Ready to play."
                 : getRom ? $"✓ {done}. Getting its ROM next (see below)."
-                : $"✓ {done}. The catalog has no ROM download for it; use Add ROM in My Tables.");
+                : $"✓ {done}. The catalog has no ROM download for it; use Add ROM in My Tables.") + pupNote);
             RefreshInstalled();
             ApplyFilter();
             if (getRom) _ = GetRomAsync(installed);
@@ -329,7 +332,7 @@ public sealed partial class MainViewModel : ObservableObject, IAsyncDisposable
     /// Downloads a file straight (GitHub etc.); from a table site, opens its page in your browser and
     /// takes the file you download there (or drives the sign-in browser, for a site that allows it).
     /// </summary>
-    Task<string> FetchAsync(string url, JobItem job, string[] hint) => WithDownloadSlotAsync(job, async () =>
+    Task<string> FetchAsync(string url, JobItem job, string[] hint, string? what = null) => WithDownloadSlotAsync(job, async () =>
     {
         var downloads = JobDownloadDir(job);
         if (BrowserDownloader.IsDirectFileUrl(url))
@@ -341,7 +344,7 @@ public sealed partial class MainViewModel : ObservableObject, IAsyncDisposable
         }
         return SitePolicy.AllowsAutomation(url)
             ? await _browser.DownloadAsync(url, downloads, hint, job.Report, job.Cts.Token)
-            : await _assisted.DownloadAsync(url, downloads, job);
+            : await _assisted.DownloadAsync(url, downloads, job, what);
     });
 
     // ---- Download queue ----------------------------------------------------------
