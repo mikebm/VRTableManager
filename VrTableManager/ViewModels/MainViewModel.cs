@@ -72,6 +72,7 @@ public sealed partial class MainViewModel : ObservableObject, IAsyncDisposable
         UseBuiltInPinmame = Settings.UseBuiltInPinmame;
         UsePupPlugin = Settings.UsePupPlugin;
         UseDisplayPlugins = Settings.UseDisplayPlugins;
+        VrAddBackglass = Settings.VrAddBackglass;
         LobbyRecordsRomAudio = Settings.LobbyRecordsRomAudio;
         LoadGraphics();
         RefreshInstalled();
@@ -985,6 +986,7 @@ public sealed partial class MainViewModel : ObservableObject, IAsyncDisposable
             case nameof(UseBuiltInPinmame): Settings.UseBuiltInPinmame = UseBuiltInPinmame; break;
             case nameof(UsePupPlugin): Settings.UsePupPlugin = UsePupPlugin; break;
             case nameof(UseDisplayPlugins): Settings.UseDisplayPlugins = UseDisplayPlugins; break;
+            case nameof(VrAddBackglass): Settings.VrAddBackglass = VrAddBackglass; break;
             case nameof(LobbyRecordsRomAudio): Settings.LobbyRecordsRomAudio = LobbyRecordsRomAudio; break;
             default: return;
         }

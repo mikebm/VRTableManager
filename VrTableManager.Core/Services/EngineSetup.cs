@@ -157,6 +157,10 @@ public static class VpxSetup
         // Mass Effect); B2S shows a table's .directb2s backglass. Set explicitly rather than left to VPX's default.
         var display = s.UseDisplayPlugins ? "1" : "0";
         foreach (var plugin in DisplayPlugins) IniFile.Set(ini, "Plugin." + plugin, "Enable", display);
+        // The plugins draw the backglass (PuP, B2S) into a display VPX only puts in the VR scene when the table has
+        // its own VR backglass. Desktop and cabinet tables (most PuP tables) need VPX's default one added, or the PuP
+        // pack loads and plays with nothing showing it.
+        IniFile.Set(ini, "PlayerVR", "AddBackglass", s.VrAddBackglass ? "1" : "0");
         // A gamepad or cabinet already mapped in desktop VPX works in VR from the first launch.
         VpxInput.ImportIfVrHasNone(s);
     }

@@ -119,6 +119,13 @@ public static class PupPackChecks
         VpxSetup.EnsureVrIni(vs);
         var off = IniFile.Read(VpxSetup.VrIniPath(vs)).GetValueOrDefault(("Plugin.PUP", "Enable"));
         yield return (on == "1" && off == "0", "VR ini enables VPX's PUP plugin, and the setting turns it off");
+
+        // Without a backglass display in the VR scene, a desktop table's PuP pack plays unseen.
+        var bgOn = IniFile.Read(VpxSetup.VrIniPath(vs)).GetValueOrDefault(("PlayerVR", "AddBackglass"));
+        vs.VrAddBackglass = false;
+        VpxSetup.EnsureVrIni(vs);
+        var bgOff = IniFile.Read(VpxSetup.VrIniPath(vs)).GetValueOrDefault(("PlayerVR", "AddBackglass"));
+        yield return (bgOn == "1" && bgOff == "0", "VR ini adds VPX's default backglass for PuP, and the setting turns it off");
     }
 
     static string Zip(string root, string name, params (string path, string text)[] entries)

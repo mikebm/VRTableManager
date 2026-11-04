@@ -625,6 +625,9 @@
                   <CheckBox IsChecked="{Binding UseDisplayPlugins}"
                             Content="Use VPX's FlexDMD and backglass (B2S) plugins in VR (recommended)"
                             ToolTip.Tip="FlexDMD draws the DMD for tables whose script makes it (many originals, such as Jaws and Mass Effect). B2S shows a table's .directb2s backglass." />
+                  <CheckBox IsChecked="{Binding VrAddBackglass}"
+                            Content="Add a backglass in VR to tables that don't have one (needed for PuP packs)"
+                            ToolTip.Tip="Desktop and cabinet tables have no backglass in the VR scene, so their PuP pack or .directb2s plays with nothing to show it. This adds VPX's default backglass display. Turn it off if a VR table shows two backglasses." />
                   <CheckBox IsChecked="{Binding LobbyRecordsRomAudio}"
                             Content="Record a table's music from its ROM in the VR lobby"
                             ToolTip.Tip="Runs the ROM for about 50 s in the background the first time you stop on a table. Off: only audio files already there play." />
