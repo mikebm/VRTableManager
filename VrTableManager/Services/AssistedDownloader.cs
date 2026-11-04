@@ -20,17 +20,24 @@ public static class SitePolicy
 /// <summary>
 /// Downloads from table sites the way their terms ask: the file page opens in your own browser, you
 /// sign in, accept the terms and click Download there, and the app picks the finished file up from your
-/// Downloads folder (or you point it at the file). One page is open at a time, so each new file belongs
-/// to the job that's waiting.
+/// Downloads folder (or you point it at the file). Several pages can wait at once (VPUniverse makes you sit
+/// through a timer on each): a new file goes to the waiting job that takes its type and whose game or ROM
+/// its name carries (<see cref="Score"/>); when that can't be told, you hand it over with I SAVED IT.
 /// </summary>
 public sealed class AssistedDownloader
 {
-    readonly SemaphoreSlim _gate = new(1, 1);
     readonly Action<string> _openInBrowser;
+    readonly object _lock = new();
+    /// <summary>Jobs waiting on you, with when each began (a file saved before that isn't theirs).</summary>
+    readonly List<(JobItem job, DateTime started)> _waiting = [];
+    /// <summary>Files a job has taken (path and write time), so another waiting job doesn't take them too.</summary>
+    readonly HashSet<string> _taken = new(StringComparer.OrdinalIgnoreCase);
 
     /// <summary>File types a table, ROM, add-on or media pack comes as. Anything else that lands is ignored.</summary>
     static readonly string[] Wanted =
-        [".zip", ".7z", ".rar", ".tar", ".gz", ".vpx", ".fpt", ".directb2s", ".mp3", ".ogg", ".wav", ".crz", ".cromc", ".pac", ".vni", ".pal"];
+        [".zip", ".7z", ".rar", ".tar", ".gz", ".vpx", ".fpt", ".directb2s", ".mp3", ".ogg", ".wav", ".crz", ".crom", ".cromc", ".pac", ".vni", ".pal"];
+    /// <summary>Words too common in file names to tell games apart.</summary>
+    static readonly string[] Common = ["the", "and", "for", "of", "in", "a", "pinball", "table", "edition", "vr", "vpx", "original", "mod"];
     /// <summary>A multi-file page: stop waiting this long after the last file arrived (or when you press DONE).</summary>
     public TimeSpan QuietAfterLast { get; init; } = TimeSpan.FromSeconds(60);
     public TimeSpan PollInterval { get; init; } = TimeSpan.FromSeconds(1);
@@ -69,13 +76,12 @@ public sealed class AssistedDownloader
     async Task<List<string>> DownloadCoreAsync(string pageUrl, string destDir, bool many, JobItem job, string? what = null)
     {
         var ct = job.Cts.Token;
-        if (_gate.CurrentCount == 0) job.Report("Queued: another download is waiting for you in the browser first.");
-        await _gate.WaitAsync(ct);
+        var started = DateTime.UtcNow.AddSeconds(-2);
+        lock (_lock) _waiting.Add((job, started));
         try
         {
             Directory.CreateDirectory(destDir);
             var host = Uri.TryCreate(pageUrl, UriKind.Absolute, out var u) ? u.Host : "the site";
-            var started = DateTime.UtcNow.AddSeconds(-2);
             var seen = Snapshot();
             var sizes = new Dictionary<string, long>(StringComparer.OrdinalIgnoreCase);
             var got = new List<string>();
@@ -97,7 +103,15 @@ public sealed class AssistedDownloader
                 }
                 foreach (var file in FinishedNewFiles(seen, sizes, started))
                 {
+                    var owner = Claim(file, job);
+                    if (owner == Owner.Other) continue; // another waiting job's: it takes it
                     seen[file] = File.GetLastWriteTimeUtc(file);
+                    if (owner == Owner.Unsure)
+                    {
+                        job.Report($"Got {Path.GetFileName(file)}, but several downloads are waiting and it isn't clear which one it's for. "
+                                   + "If it's this one, use I SAVED IT and pick it.");
+                        continue;
+                    }
                     got.Add(CopyIn(file, destDir));
                     lastGot = DateTime.UtcNow;
                     if (!many) break;
@@ -117,9 +131,65 @@ public sealed class AssistedDownloader
         finally
         {
             job.EndWaiting();
-            _gate.Release();
+            lock (_lock) _waiting.RemoveAll(w => w.job == job);
         }
     }
+
+    enum Owner { Mine, Other, Unsure }
+
+    /// <summary>
+    /// Whose a finished file is among the jobs waiting: the only one that takes its type, else the one whose
+    /// names it carries best. Taking it marks it so no other job does.
+    /// </summary>
+    Owner Claim(string file, JobItem me)
+    {
+        var key = file + "|" + File.GetLastWriteTimeUtc(file).Ticks;
+        lock (_lock)
+        {
+            if (_taken.Contains(key)) return Owner.Other;
+            var written = File.GetLastWriteTimeUtc(file);
+            var ext = Path.GetExtension(file).ToLowerInvariant();
+            var candidates = _waiting.Where(w => w.started <= written && (w.job.FileTypes.Count == 0 || w.job.FileTypes.Contains(ext))).Select(w => w.job).ToList();
+            if (!candidates.Contains(me)) return Owner.Other;
+            var owner = candidates.Count == 1 ? me : null;
+            if (owner == null)
+            {
+                var scores = candidates.Select(j => (j, score: Score(Path.GetFileName(file), j.FileNames))).OrderByDescending(s => s.score).ToList();
+                if (scores[0].score > 0 && scores[0].score > scores[1].score) owner = scores[0].j;
+            }
+            if (owner == null) return Owner.Unsure;
+            if (owner != me) return Owner.Other;
+            _taken.Add(key);
+            return Owner.Mine;
+        }
+    }
+
+    /// <summary>
+    /// How well a file name carries a job's names (game, ROMs, "pup" …): a whole name ("mm_109c",
+    /// "BigTroubleInLittleChina") counts most, then its initials as a word ("BTILC"), then each distinctive word.
+    /// Summed over the names.
+    /// </summary>
+    public static int Score(string fileName, IEnumerable<string> names)
+    {
+        var stem = Path.GetFileNameWithoutExtension(fileName).ToLowerInvariant();
+        var compact = Compact(stem);
+        var words = Words(stem);
+        var total = 0;
+        foreach (var name in names)
+        {
+            var lower = name.ToLowerInvariant();
+            var nameWords = Words(lower);
+            var whole = Compact(lower);
+            var initials = string.Concat(nameWords.Select(w => w[0]));
+            total += whole.Length >= 3 && compact.Contains(whole) ? 100
+                : initials.Length >= 3 && words.Contains(initials) ? 50
+                : 10 * nameWords.Count(w => (w.Length >= 3 || nameWords.Length == 1) && !Common.Contains(w) && words.Contains(w));
+        }
+        return total;
+    }
+
+    static string Compact(string s) => string.Concat(s.Where(char.IsLetterOrDigit));
+    static string[] Words(string s) => s.Split(s.Where(c => !char.IsLetterOrDigit(c)).Distinct().ToArray(), StringSplitOptions.RemoveEmptyEntries);
 
     Dictionary<string, DateTime> Snapshot()
     {
@@ -151,7 +221,8 @@ public sealed class AssistedDownloader
 
     static bool IsClosed(string path)
     {
-        try { using var _ = new FileStream(path, FileMode.Open, FileAccess.Read, FileShare.None); return true; }
+        // Fails while the browser still has it open to write; other waiting jobs may be reading it at the same time.
+        try { using var _ = new FileStream(path, FileMode.Open, FileAccess.Read, FileShare.Read); return true; }
         catch (IOException) { return false; }
         catch (UnauthorizedAccessException) { return false; }
     }

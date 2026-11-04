@@ -323,6 +323,10 @@ public sealed partial class JobItem : ObservableObject
     /// <summary>The page has several files to take (a ROM page): show DONE.</summary>
     [ObservableProperty] public partial bool WaitingForMany { get; set; }
     public bool IsWaitingForUser => WaitingUrl != null;
+    /// <summary>Names the downloaded file may carry (the game, its ROMs, "pup"): tells files apart when several jobs wait.</summary>
+    public IReadOnlyList<string> FileNames { get; init; } = [];
+    /// <summary>The file types this job takes (".vpx", ".zip" …); empty for any.</summary>
+    public IReadOnlyList<string> FileTypes { get; init; } = [];
 
     public sealed record Handoff(string? File, bool Done);
     readonly object _handoffLock = new();

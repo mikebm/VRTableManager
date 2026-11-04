@@ -24,7 +24,7 @@ public sealed partial class MainViewModel
 
     async Task GetAttractAudioCoreAsync(InstalledTable table, IReadOnlyList<MediaPackAudio.Source> sources)
     {
-        var job = new JobItem($"Attract audio for {table.Manifest.GameName}");
+        var job = new JobItem($"Attract audio for {table.Manifest.GameName}") { FileNames = [table.Manifest.GameName] };
         Jobs.Insert(0, job);
         var problems = new List<string>();
         try
@@ -35,12 +35,12 @@ public sealed partial class MainViewModel
                 job.Report($"Getting the {src.Label}…");
                 try
                 {
-                    var file = await WithDownloadSlotAsync(job, async () =>
+                    var downloads = JobDownloadDir(job);
+                    // In your browser: no download slot (see FetchAsync).
+                    var file = !src.IsDirect && !SitePolicy.AllowsAutomation(src.Url) ? await _assisted.DownloadAsync(src.Url, downloads, job)
+                        : await WithDownloadSlotAsync(job, async () =>
                     {
-                        var downloads = JobDownloadDir(job);
-                        if (!src.IsDirect) return SitePolicy.AllowsAutomation(src.Url)
-                            ? await _browser.DownloadAsync(src.Url, downloads, [], job.Report, job.Cts.Token)
-                            : await _assisted.DownloadAsync(src.Url, downloads, job);
+                        if (!src.IsDirect) return await _browser.DownloadAsync(src.Url, downloads, [], job.Report, job.Cts.Token);
                         var dest = Path.Combine(downloads, TableInstaller.SafeName(Uri.UnescapeDataString(Path.GetFileName(new Uri(src.Url).AbsolutePath))));
                         await Http.DownloadFileAsync(src.Url, dest, job.ProgressReporter, job.Cts.Token);
                         return dest;
