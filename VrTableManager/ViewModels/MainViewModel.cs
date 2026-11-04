@@ -269,7 +269,10 @@ public sealed partial class MainViewModel : ObservableObject, IAsyncDisposable
         if (url == null) return false;
 
         var verb = replacing == null ? "" : "Update: ";
-        var job = new JobItem($"{verb}{game.Name} — {string.Join(", ", tf.Authors ?? [])}");
+        var job = new JobItem($"{verb}{game.Name} — {string.Join(", ", tf.Authors ?? [])}")
+        {
+            FileNames = [game.Name], FileTypes = [".vpx", ".zip", ".7z", ".rar"],
+        };
         Jobs.Insert(0, job);
         _pending.Add(new PendingDownload
         {
@@ -331,21 +334,23 @@ public sealed partial class MainViewModel : ObservableObject, IAsyncDisposable
     /// <summary>
     /// Downloads a file straight (GitHub etc.); from a table site, opens its page in your browser and
     /// takes the file you download there (or drives the sign-in browser, for a site that allows it).
+    /// Downloads in your browser don't take a download slot: the browser does the downloading, and you may
+    /// have several pages counting down at once.
     /// </summary>
-    Task<string> FetchAsync(string url, JobItem job, string[] hint, string? what = null) => WithDownloadSlotAsync(job, async () =>
+    Task<string> FetchAsync(string url, JobItem job, string[] hint, string? what = null)
     {
         var downloads = JobDownloadDir(job);
-        if (BrowserDownloader.IsDirectFileUrl(url))
+        if (!BrowserDownloader.IsDirectFileUrl(url) && !SitePolicy.AllowsAutomation(url))
+            return _assisted.DownloadAsync(url, downloads, job, what);
+        return WithDownloadSlotAsync(job, async () =>
         {
+            if (!BrowserDownloader.IsDirectFileUrl(url)) return await _browser.DownloadAsync(url, downloads, hint, job.Report, job.Cts.Token);
             var file = Path.Combine(downloads, TableInstaller.SafeName(Path.GetFileName(new Uri(url).LocalPath)));
             job.Report("Downloading…");
             await Http.DownloadFileAsync(url, file, job.ProgressReporter, job.Cts.Token);
             return file;
-        }
-        return SitePolicy.AllowsAutomation(url)
-            ? await _browser.DownloadAsync(url, downloads, hint, job.Report, job.Cts.Token)
-            : await _assisted.DownloadAsync(url, downloads, job, what);
-    });
+        });
+    }
 
     // ---- Download queue ----------------------------------------------------------
     // Downloads run a few at a time (Setup → "Downloads at once", default 2); the rest wait in the
@@ -511,7 +516,10 @@ public sealed partial class MainViewModel : ObservableObject, IAsyncDisposable
             try { TableInstaller.SaveManifest(table); } catch { /* still usable this session */ }
         }
 
-        var job = new JobItem($"ROM for {table.Manifest.GameName}");
+        var job = new JobItem($"ROM for {table.Manifest.GameName}")
+        {
+            FileNames = [.. table.MissingRoms, .. table.Manifest.RomNames, table.Manifest.GameName], FileTypes = [".zip", ".7z", ".rar"],
+        };
         Jobs.Insert(0, job);
         _pending.Add(new PendingDownload
         {
@@ -550,9 +558,9 @@ public sealed partial class MainViewModel : ObservableObject, IAsyncDisposable
             // so take them all (they're small).
             List<string> files = BrowserDownloader.IsDirectFileUrl(url)
                 ? [file = await FetchAsync(url, job, [src.Version!])]
-                : await WithDownloadSlotAsync(job, () => SitePolicy.AllowsAutomation(url)
-                    ? _browser.DownloadAllAsync(url, JobDownloadDir(job), job.Report, job.Cts.Token)
-                    : _assisted.DownloadAllAsync(url, JobDownloadDir(job), job));
+                : SitePolicy.AllowsAutomation(url)
+                    ? await WithDownloadSlotAsync(job, () => _browser.DownloadAllAsync(url, JobDownloadDir(job), job.Report, job.Cts.Token))
+                    : await _assisted.DownloadAllAsync(url, JobDownloadDir(job), job);
             job.Report("Installing ROM…");
             var placed = await Task.Run(() => RomInstaller.InstallAll(files, table, src.Version!));
             // With the files in place PinMAME can tell whether the set is complete (parents included).

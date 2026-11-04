@@ -79,7 +79,14 @@ public sealed partial class MainViewModel
     async Task GetAddonCoreAsync(AddonKind kind, InstalledTable table, VpsGame game, VpsFile file)
     {
         var updating = Addons.Record(table, kind) != null;
-        var job = new JobItem($"{(updating ? "Update: " : "")}{KindName(kind)} for {table.Manifest.GameName}");
+        string[] archives = [".zip", ".7z", ".rar"];
+        var job = new JobItem($"{(updating ? "Update: " : "")}{KindName(kind)} for {table.Manifest.GameName}")
+        {
+            // The kind's own word too: a table's page offers its .vpx and its PuP zip side by side.
+            FileNames = [table.Manifest.GameName, .. table.Manifest.RomNames, .. new[] { table.Manifest.RomAlias, table.Manifest.PupName }.OfType<string>(),
+                kind switch { AddonKind.Pup => "pup", AddonKind.AltColor => "serum", _ => "altsound" }],
+            FileTypes = kind == AddonKind.AltColor ? [.. archives, ".crz", ".crom", ".cromc", ".vni", ".pal", ".pac"] : archives,
+        };
         Jobs.Insert(0, job);
         _pending.Add(new PendingDownload
         {

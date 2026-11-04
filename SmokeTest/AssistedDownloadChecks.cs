@@ -75,6 +75,27 @@ public static class AssistedDownloadChecks
             .WaitAsync(TimeSpan.FromSeconds(15));
         results.Add((all.Select(Path.GetFileName).Order().SequenceEqual(["afm_11.zip", "afm_113.zip"]), "assisted: a ROM page takes each file until DONE"));
 
+        // Several pages waiting at once (VPUniverse's countdown): each file goes to the job it's for.
+        results.Add((AssistedDownloader.Score("BTILC_2026_Original_1.0.1.vpx", ["Big Trouble in Little China"]) > 0
+                && AssistedDownloader.Score("MedievalMadness_VR.zip", ["Medieval Madness"]) > AssistedDownloader.Score("MedievalMadness_VR.zip", ["Attack from Mars"])
+                && AssistedDownloader.Score("BTILC-PuP-v1.01.zip", ["Big Trouble in Little China", "pup"]) > AssistedDownloader.Score("BTILC-PuP-v1.01.zip", ["Big Trouble in Little China"]),
+            "assisted: file names are matched by game name, initials and kind"));
+        var multiDir = Path.Combine(root, "assisted", "Downloads-multi");
+        Directory.CreateDirectory(multiDir);
+        var multi = new AssistedDownloader(_ => { }, multiDir) { PollInterval = TimeSpan.FromMilliseconds(200) };
+        var tableJob = new JobItem("BTILC") { FileNames = ["Big Trouble in Little China"], FileTypes = [".vpx", ".zip"] };
+        var pupJob = new JobItem("BTILC PuP") { FileNames = ["Big Trouble in Little China", "pup"], FileTypes = [".zip"] };
+        var mmJob = new JobItem("MM") { FileNames = ["Medieval Madness", "mm_109c"], FileTypes = [".vpx", ".zip"] };
+        var waits = new[] { (tableJob, "t"), (pupJob, "p"), (mmJob, "m") }
+            .Select(x => multi.DownloadAsync("https://vpuniverse.com/files/file/1/", Path.Combine(root, "assisted", "multi-" + x.Item2), x.Item1)).ToList();
+        await Task.Delay(500);
+        // Saved in another order than the pages were opened.
+        foreach (var n in new[] { "Medieval_Madness_2.0.zip", "BTILC-PuP-v1.01.zip", "BTILC_2026_Original_1.0.1.vpx" })
+            File.WriteAllText(Path.Combine(multiDir, n), n);
+        var names = (await Task.WhenAll(waits).WaitAsync(TimeSpan.FromSeconds(15))).Select(Path.GetFileName).ToList();
+        results.Add((names.SequenceEqual(["BTILC_2026_Original_1.0.1.vpx", "BTILC-PuP-v1.01.zip", "Medieval_Madness_2.0.zip"]),
+            "assisted: with several pages waiting, each file goes to its own job"));
+
         results.Add((!SitePolicy.AllowsAutomation("https://vpuniverse.com/files/file/42-test/") && !SitePolicy.AllowsAutomation("https://www.vpforums.org/index.php"),
             "table sites aren't automated without their permission"));
         return results;
