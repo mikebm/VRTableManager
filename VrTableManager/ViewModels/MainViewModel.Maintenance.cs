@@ -23,6 +23,30 @@ public sealed partial class MainViewModel
     [RelayCommand] void OpenUevrFolder() { if (!string.IsNullOrWhiteSpace(Settings.UevrDir)) OpenFolder(Settings.UevrDir); }
     [RelayCommand] void OpenFpFolder() { if (!string.IsNullOrWhiteSpace(Settings.FpDir)) OpenFolder(Settings.FpDir); }
 
+    /// <summary>Result of the last "use my desktop controls" import, shown under the button.</summary>
+    [ObservableProperty] public partial string ControlsStatus { get; set; } = "";
+
+    [RelayCommand]
+    async Task ImportDesktopControlsAsync()
+    {
+        var desktop = VpxInput.FindDesktopIni(Settings);
+        if (desktop == null)
+        {
+            ControlsStatus = "No desktop VPX controls found. Map them once in desktop VPX 10.8.1 (or in VR with the in-game menu); VR keeps them after that.";
+            return;
+        }
+        var pick = await _ui.ChoiceAsync("Use your desktop VPX controls in VR?",
+            $"Copies the controls from\n{desktop}\ninto the VR settings file. Buttons mapped to the VR controllers are kept; " +
+            "keyboard, gamepad and cabinet buttons are replaced by the desktop ones.", ["COPY CONTROLS", "CANCEL"]);
+        if (pick != 0) return;
+        try
+        {
+            VpxSetup.EnsureVrIni(Settings);
+            ControlsStatus = "✓ " + VpxInput.Import(Settings);
+        }
+        catch (Exception e) { ControlsStatus = "Couldn't copy the controls: " + e.Message; }
+    }
+
     [RelayCommand]
     void OpenVrIni()
     {
