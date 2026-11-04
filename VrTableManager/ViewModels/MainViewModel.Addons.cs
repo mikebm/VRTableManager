@@ -16,6 +16,8 @@ public sealed partial class MainViewModel
     [ObservableProperty] public partial bool UsePupPlugin { get; set; }
     /// <summary>VR play turns on VPX's FlexDMD and B2S plugins.</summary>
     [ObservableProperty] public partial bool UseDisplayPlugins { get; set; }
+    /// <summary>VR play adds a backglass display to tables without one, for PuP packs and B2S backglasses.</summary>
+    [ObservableProperty] public partial bool VrAddBackglass { get; set; }
 
     IReadOnlyList<AddonChoice> ChoicesFor(AddonSlot slot)
     {

@@ -49,6 +49,11 @@ public sealed class AppSettings
     /// </summary>
     public bool UseDisplayPlugins { get; set; } = true;
     /// <summary>
+    /// VR play adds VPX's default backglass display to tables that have none of their own (desktop and cabinet
+    /// tables), so PuP packs and .directb2s backglasses have somewhere to show. VPX's [PlayerVR] AddBackglass.
+    /// </summary>
+    public bool VrAddBackglass { get; set; } = true;
+    /// <summary>
     /// The VR lobby records a ROM table's start-up music the first time you settle on it (RomAudio): a
     /// background PinMAME run of about 50 s, once per table. Off: only audio files already there play.
     /// </summary>
