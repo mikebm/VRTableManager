@@ -74,10 +74,10 @@ public static class Addons
         }
     }
 
-    /// <summary>All of the game's catalog files of this kind (usable or not).</summary>
+    /// <summary>All of the game's catalog files of this kind (usable or not); for PuP, also table files whose page has the pack.</summary>
     public static IEnumerable<VpsFile> FilesOf(VpsGame game, AddonKind kind) => kind switch
     {
-        AddonKind.Pup => game.PupPackFiles ?? [],
+        AddonKind.Pup => (game.PupPackFiles ?? []).Concat((game.TableFiles ?? []).Where(f => VpsCatalog.HasFeature(f, PupPacks.BundledFeature))),
         AddonKind.AltColor => game.AltColorFiles ?? [],
         _ => game.AltSoundFiles ?? [],
     };
@@ -100,7 +100,8 @@ public static class Addons
             {
                 if (Record(t, kind) is not { } rec) continue;
                 var f = FilesOf(game, kind).FirstOrDefault(x => x.Id == rec.FileId);
-                if (f == null || UsableUrl(f) == null) continue;
+                // A pack from the table's own page has the table's version, not its own: the table's update covers it.
+                if (f == null || f is VpsTableFile || UsableUrl(f) == null) continue;
                 var newer = !string.IsNullOrWhiteSpace(f.Version)
                     ? !TableUpdates.SameVersion(f.Version, rec.Version)
                     : string.IsNullOrWhiteSpace(rec.Version) && f.UpdatedAt > (rec.SourceUpdatedAt ?? long.MaxValue);
@@ -126,9 +127,16 @@ public static class Addons
     /// <summary>
     /// Unpacks a download into <paramref name="staging"/>, and the archives inside it too when <paramref name="found"/>
     /// says the first pass has nothing usable (some packs wrap the real archive, a .rar inside the .zip).
+    /// A download with one of <paramref name="looseExts"/> is the file itself (a bare .cRZ) and is copied in as it is.
     /// </summary>
-    public static void Unpack(string downloaded, string staging, Func<bool> found, string what)
+    public static void Unpack(string downloaded, string staging, Func<bool> found, string what, string[]? looseExts = null)
     {
+        if (looseExts?.Contains(Path.GetExtension(downloaded).ToLowerInvariant()) == true)
+        {
+            Directory.CreateDirectory(staging);
+            File.Copy(downloaded, Path.Combine(staging, Path.GetFileName(downloaded)));
+            return;
+        }
         if (!IsArchive(downloaded)) throw new InvalidDataException($"Expected a {what} archive, got {Path.GetFileName(downloaded)}.");
         TableInstaller.Extract(downloaded, staging);
         if (found()) return;

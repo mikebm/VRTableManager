@@ -45,6 +45,18 @@ public static class PupPackChecks
         yield return (PupPacks.Describe(sources[1]) == "v1.0.0 by Nicolainuke — Mini PUP-pack" && PupPacks.Describe(sources[0]) == "v3.0.1 by A, B, C +2",
             "menu labels show version, authors and the catalog's note");
 
+        // "incl. PuP" (BTILC 2026): the pack is a second file on the table's own page, with no PuP entry in the catalog.
+        var btilc = new VpsGame
+        {
+            Id = "b", Name = "BTILC",
+            TableFiles = [new VpsTableFile { Id = "t", Version = "1.0.1", Features = ["VR", "incl. PuP"], Urls = [new VpsUrl { Url = "https://vpuniverse.com/files/file/30000-btilc/" }] }],
+        };
+        var btilcTable = new InstalledTable(new TableManifest { GameId = "b", TableFileId = "t" }, "b.vpx", root);
+        var bundled = PupPacks.SourcesFor(btilc, btilcTable);
+        yield return (bundled.Count == 1 && bundled[0].Id == "t" && PupPacks.Describe(bundled[0]) == "From the table's page (v1.0.1)"
+                && PupPacks.SourcesFor(btilc).Count == 0 && Addons.FilesOf(btilc, AddonKind.Pup).Any(f => f.Id == "t"),
+            "an \"incl. PuP\" table offers its own page for the pack");
+
         // Install: the usual PinUPSystem\PUPVideos\<name>\ layout, into the table's pupvideos\.
         var folder = Path.Combine(root, "pup-tables", "Jaws (Original 2025)");
         Directory.CreateDirectory(folder);

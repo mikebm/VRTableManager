@@ -59,14 +59,14 @@ public sealed class AssistedDownloader
     }
 
     /// <summary>Opens the page and waits for the file you download there; copies it into <paramref name="destDir"/>.</summary>
-    public async Task<string> DownloadAsync(string pageUrl, string destDir, JobItem job) =>
-        (await DownloadCoreAsync(pageUrl, destDir, many: false, job))[0];
+    public async Task<string> DownloadAsync(string pageUrl, string destDir, JobItem job, string? what = null) =>
+        (await DownloadCoreAsync(pageUrl, destDir, many: false, job, what))[0];
 
     /// <summary>Like <see cref="DownloadAsync"/>, for a page with several files you want (a ROM page): takes each one you download until you press DONE.</summary>
     public Task<List<string>> DownloadAllAsync(string pageUrl, string destDir, JobItem job) =>
         DownloadCoreAsync(pageUrl, destDir, many: true, job);
 
-    async Task<List<string>> DownloadCoreAsync(string pageUrl, string destDir, bool many, JobItem job)
+    async Task<List<string>> DownloadCoreAsync(string pageUrl, string destDir, bool many, JobItem job, string? what = null)
     {
         var ct = job.Cts.Token;
         if (_gate.CurrentCount == 0) job.Report("Queued: another download is waiting for you in the browser first.");
@@ -83,7 +83,7 @@ public sealed class AssistedDownloader
 
             job.BeginWaiting(pageUrl, many);
             _openInBrowser(pageUrl);
-            job.Report($"Download it from {host} in your browser: sign in and accept the site's terms if it asks, then click Download. "
+            job.Report($"Download {what ?? "it"} from {host} in your browser: sign in and accept the site's terms if it asks, then click Download. "
                        + $"It's picked up from {DownloadsDir} as soon as it's saved.");
 
             while (true)

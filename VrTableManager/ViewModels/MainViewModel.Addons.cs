@@ -22,7 +22,7 @@ public sealed partial class MainViewModel
         var t = slot.Item.Table;
         if (!Addons.CanHold(t, Settings) || t.Manifest.GameId == "" || _allGames.FirstOrDefault(g => g.Id == t.Manifest.GameId) is not { } game) return [];
         return slot.Kind == AddonKind.Pup
-            ? PupPacks.SourcesFor(game).Select(f => new AddonChoice(slot, game, f, PupPacks.Describe(f))).ToList()
+            ? PupPacks.SourcesFor(game, t).Select(f => new AddonChoice(slot, game, f, PupPacks.Describe(f))).ToList()
             : AltPacks.SourcesFor(game, t, slot.Kind).Select(f => new AddonChoice(slot, game, f, AltPacks.Describe(f, t))).ToList();
     }
 
@@ -96,7 +96,15 @@ public sealed partial class MainViewModel
                 AddonKind.AltColor => [(file as VpsAltColorFile)?.Folder ?? "serum"],
                 _ => ["altsound"],
             };
-            var downloaded = await FetchAsync(url, job, hint);
+            // On a page you download from yourself, say which file: a table's page also lists its .vpx.
+            var what = kind switch
+            {
+                AddonKind.Pup when file is VpsTableFile => "the PuP pack (the .zip with \"PuP\" in its name, newest version, not the .vpx)",
+                AddonKind.Pup => "the PuP pack",
+                AddonKind.AltColor => "the colorization",
+                _ => "the AltSound pack",
+            };
+            var downloaded = await FetchAsync(url, job, hint, what);
             InstalledAddon record;
             var note = "";
             if (kind == AddonKind.Pup)
