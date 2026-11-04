@@ -157,6 +157,8 @@ public static class VpxSetup
         // Mass Effect); B2S shows a table's .directb2s backglass. Set explicitly rather than left to VPX's default.
         var display = s.UseDisplayPlugins ? "1" : "0";
         foreach (var plugin in DisplayPlugins) IniFile.Set(ini, "Plugin." + plugin, "Enable", display);
+        // A gamepad or cabinet already mapped in desktop VPX works in VR from the first launch.
+        VpxInput.ImportIfVrHasNone(s);
     }
 
     /// <summary>Id of VPX's PinUP Player plugin (plugins\pup\plugin.cfg).</summary>

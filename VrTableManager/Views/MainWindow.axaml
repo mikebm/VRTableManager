@@ -713,6 +713,21 @@
                     </StackPanel>
                   </Border>
 
+                  <!-- Controls -->
+                  <Border Background="{StaticResource Bg}" BorderBrush="{StaticResource Line}" BorderThickness="1" CornerRadius="10" Padding="16">
+                    <StackPanel Spacing="8">
+                      <TextBlock Classes="eyebrow" Text="CONTROLS" />
+                      <TextBlock Classes="body" TextWrapping="Wrap"
+                                 Text="VR play has its own VPX settings file, so controls mapped in desktop VPX aren't there until they're copied. They're copied automatically the first time; after that, remaps you make in VR (in-game menu → Input) stay for every table." />
+                      <WrapPanel>
+                        <Button Classes="small" Content="USE MY DESKTOP VPX CONTROLS" Margin="0,0,8,0" Command="{Binding ImportDesktopControlsCommand}"
+                                ToolTip.Tip="Copies the [Input] section of your VPinballX.ini into the VR settings file, keeping the VR controller buttons." />
+                      </WrapPanel>
+                      <TextBlock Classes="body" Foreground="{StaticResource Lamp}" TextWrapping="Wrap" Text="{Binding ControlsStatus}"
+                                 IsVisible="{Binding ControlsStatus, Converter={x:Static StringConverters.IsNotNullOrEmpty}}" />
+                    </StackPanel>
+                  </Border>
+
                   <!-- VPX graphics -->
                   <Border Background="{StaticResource Bg}" BorderBrush="{StaticResource Line}" BorderThickness="1" CornerRadius="10" Padding="16">
                     <StackPanel Spacing="10">

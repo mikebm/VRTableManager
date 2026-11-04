@@ -28,7 +28,26 @@ public static class IniFile
             HashCode.Combine(StringComparer.OrdinalIgnoreCase.GetHashCode(k.Item1), StringComparer.OrdinalIgnoreCase.GetHashCode(k.Item2));
     }
 
-    public static void Set(string path, string section, string key, string value)
+    /// <summary>One section's keys and values in file order (empty when the file or section doesn't exist).</summary>
+    public static List<(string Key, string Value)> ReadSection(string path, string section)
+    {
+        var result = new List<(string, string)>();
+        if (!File.Exists(path)) return result;
+        var inside = false;
+        foreach (var raw in File.ReadLines(path))
+        {
+            var line = raw.Trim();
+            if (line.StartsWith('[') && line.EndsWith(']')) { inside = line[1..^1].Equals(section, StringComparison.OrdinalIgnoreCase); continue; }
+            var eq = line.IndexOf('=');
+            if (inside && eq > 0 && !line.StartsWith(';')) result.Add((line[..eq].Trim(), line[(eq + 1)..].Trim()));
+        }
+        return result;
+    }
+
+    public static void Set(string path, string section, string key, string value) => SetMany(path, section, [(key, value)]);
+
+    /// <summary>Sets several keys of one section in a single read and write.</summary>
+    public static void SetMany(string path, string section, IEnumerable<(string Key, string Value)> values)
     {
         var lines = File.Exists(path) ? File.ReadAllLines(path).ToList() : [];
         var header = $"[{section}]";
@@ -37,9 +56,9 @@ public static class IniFile
         {
             if (lines.Count > 0 && lines[^1].Trim() != "") lines.Add("");
             lines.Add(header);
-            lines.Add($"{key} = {value}");
+            start = lines.Count - 1;
         }
-        else
+        foreach (var (key, value) in values)
         {
             var end = lines.FindIndex(start + 1, l => l.TrimStart().StartsWith('['));
             if (end < 0) end = lines.Count;
@@ -50,7 +69,13 @@ public static class IniFile
                 if (eq > 0 && lines[i][..eq].Trim().Equals(key, StringComparison.OrdinalIgnoreCase)) { existing = i; break; }
             }
             if (existing >= 0) lines[existing] = $"{key} = {value}";
-            else lines.Insert(end, $"{key} = {value}");
+            else
+            {
+                // Before any blank lines that separate this section from the next.
+                var at = end;
+                while (at > start + 1 && lines[at - 1].Trim() == "") at--;
+                lines.Insert(at, $"{key} = {value}");
+            }
         }
         Directory.CreateDirectory(Path.GetDirectoryName(path)!);
         File.WriteAllLines(path, lines);
