@@ -318,7 +318,7 @@ public partial class Main : Node3D
         // A warm spotlight on the selected cabinet (the only shadow-casting light), and a neutral fill.
         var spot = new SpotLight3D
         {
-            SpotAngle = 30, SpotRange = 6, LightEnergy = 6, LightColor = Colors.White.Lerp(Palette.Lamp, 0.3f),
+            SpotAngle = 34, SpotRange = 6, LightEnergy = 10, LightColor = Colors.White.Lerp(Palette.Lamp, 0.3f),
             ShadowEnabled = true, SpotAngleAttenuation = 0.6f,
             // Godot's default offsets (3 cm, plus a normal offset) let a strip of light through just under a
             // lockdown bar onto the cabinet front, which should sit in the bar's shadow.
@@ -327,6 +327,13 @@ public partial class Main : Node3D
         AddChild(spot);
         var cabCentre = -(SelectedFront + CabinetKit.Length / 2);
         spot.LookAtFromPosition(new Vector3(0, 3.4f, cabCentre + 0.45f), new Vector3(0, 0.9f, cabCentre), Vector3.Up);
+        // A short-range key light just in front of and above the selected cabinet: it reaches only the table
+        // that has come up to you (the ring's others are out of its range), lighting its front, art and rails.
+        AddChild(new OmniLight3D
+        {
+            Position = new Vector3(0, 1.35f, -SelectedFront + 0.7f), OmniRange = 2.2f, OmniAttenuation = 1.2f,
+            LightEnergy = 3f, LightColor = Colors.White.Lerp(Palette.Lamp, 0.15f),
+        });
         // Fill from behind you, so cabinet fronts and sides read; no shadows (one shadowed light is enough).
         AddChild(new OmniLight3D { Position = new Vector3(0, 2.6f, 0.6f), OmniRange = 8, LightEnergy = 1.6f, LightColor = new Color(0.92f, 0.92f, 0.95f) });
 
