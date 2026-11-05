@@ -773,6 +773,7 @@ foreach (var (ok, name) in MediaPackAudioChecks.Run(root)) Check(ok, name);
 foreach (var (ok, name) in PupPackChecks.Run(root)) Check(ok, name);
 foreach (var (ok, name) in AltPackChecks.Run(root)) Check(ok, name);
 foreach (var (ok, name) in VpxInputChecks.Run(root)) Check(ok, name);
+foreach (var (ok, name) in VrViewChecks.Run(root)) Check(ok, name);
 foreach (var (ok, name) in RuleSheetChecks.Run(root)) Check(ok, name);
 foreach (var (ok, name) in await AssistedDownloadChecks.RunAsync(root)) Check(ok, name);
 
