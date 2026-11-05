@@ -22,13 +22,15 @@ public sealed partial class MainViewModel
         var flashers = await Task.Run(() => VrDmdFix.Find(path));
         if (flashers.Count == 0) return true;
 
-        List<string> buttons = ["FIX AND PLAY", "PLAY WITHOUT FIXING", "DON'T ASK FOR THIS TABLE", "CANCEL"];
+        // Short labels: four buttons fit on one row.
+        List<string> buttons = ["FIX AND PLAY", "PLAY AS IS", "DON'T ASK AGAIN", "CANCEL"];
         var pick = await _ui.ChoiceAsync("This table's PuP DMD won't show in VR",
             $"{item.Title}'s VR cabinet shows its PuP pack's DMD the way VPX 10.8.0 did it, which VPX 10.8.1 no longer " +
             "supports, so the DMD stays dark.\n\n" +
-            "The fix changes one setting in the table file (the display " + string.Join(", ", flashers.Select(f => $"\"{f.Name}\"")) +
-            " shows VPX's Score View, where the PuP pack draws its DMD). The original is kept next to the table as\n" +
-            Path.GetFileName(VrDmdFix.BackupPath(path)) + "\nand the table's MORE menu can put it back.",
+            "The fix changes one setting in the table file: the display " + string.Join(", ", flashers.Select(f => $"\"{f.Name}\"")) +
+            " shows VPX's Score View, where the PuP pack draws its DMD.\n\n" +
+            "The original file is kept next to the table, and the table's MORE menu can put it back.\n\n" +
+            "Don't ask again: only for this table.",
             [.. buttons]);
         switch (pick < 0 ? "CANCEL" : buttons[pick])
         {
@@ -42,11 +44,11 @@ public sealed partial class MainViewModel
                 }
                 item.HasDmdFix = true;
                 return true;
-            case "DON'T ASK FOR THIS TABLE":
+            case "DON'T ASK AGAIN":
                 Settings.DmdFixDeclined.Add(path);
                 Settings.Save();
                 return true;
-            case "PLAY WITHOUT FIXING": return true;
+            case "PLAY AS IS": return true;
             default: return false;
         }
     }
