@@ -287,6 +287,8 @@ public sealed partial class MainViewModel
         if (VpxLog.Find(Settings) is not { } log || VpxLog.LastSession(log) is not { } session) return;
         if (session.Started is { } t && t < started.AddSeconds(-10)) return; // not this run's log
         if (!quick && session.ClosedCleanly) return;
+        // A quick, clean close with nothing wrong (you just left the table): only harmless log lines, no dialog.
+        if (session.ClosedCleanly && session.Problems.Count == 0 && session.Hints.Count == 0) return;
         await ShowLogSummaryAsync(quick && session.ClosedCleanly ? $"{item.Title} closed straight away" : $"{item.Title} stopped unexpectedly", log, session);
     }
 
@@ -297,6 +299,8 @@ public sealed partial class MainViewModel
         if (session.Started is { } t) lines.Add($"Started {t:g} · {(session.ClosedCleanly ? "closed normally" : "did not close normally")} · {(session.UsedVr ? "VR started" : "VR did not start")}");
         lines.AddRange(session.Hints.Select(h => "• " + h));
         var details = session.Problems.Count == 0 ? "No errors in the log." : string.Join("\n", session.Problems.Take(30));
+        if (session.Harmless.Count > 0)
+            details += "\n\nAlso logged, usually harmless (a PuP pack missing some of its files, and the like):\n" + string.Join("\n", session.Harmless.Take(15));
         var pick = await _ui.ChoiceAsync(title, string.Join("\n", lines), ["OPEN FULL LOG", "CLOSE"], details);
         if (pick == 0) _ui.OpenExternal(log);
     }
