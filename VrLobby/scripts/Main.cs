@@ -882,21 +882,30 @@ public partial class Main : Node3D
         if (_attractLoading == t.Id) return;
         _attractLoading = t.Id;
         var id = t.Id;
-        Task.Run(() => LoadSound(file)).ContinueWith(task => Callable.From(() =>
+        Task.Run(() => LoadSound(file)).ContinueWith(task =>
         {
-            if (_attractLoading != id) return; // moved on (or stopped) while it loaded
-            _attractLoading = null;
-            var stream = task.IsCompletedSuccessfully ? task.Result : null;
-            if (stream == null) { _attractFiles[id] = null; return; } // unreadable: don't try again
-            if (_launching || AttractPlaying != null || Shown.Count == 0 || Shown[Selected].Id != id) return;
-            _attract.Stream = stream;
-            _attract.Position = new Vector3(0, CabinetKit.BackglassCentreY, -(SelectedFront + CabinetKit.Length) + CabinetKit.BoxDepth);
-            _attract.VolumeDb = -12f;
-            _attract.Play();
-            Trace("attract " + Path.GetFileName(file));
-            AttractPlaying = file;
-            _attractLeft = 10.0;
-        }).CallDeferred());
+            if (!_closing) Callable.From(() => PlayLoadedSound(task, id, file)).CallDeferred();
+        });
+    }
+
+    /// <summary>Set when the lobby leaves the tree: background work finishing after that doesn't call back in.</summary>
+    volatile bool _closing;
+    public override void _ExitTree() => _closing = true;
+
+    void PlayLoadedSound(Task<AudioStream?> task, string id, string file)
+    {
+        if (_attractLoading != id) return; // moved on (or stopped) while it loaded
+        _attractLoading = null;
+        var stream = task.IsCompletedSuccessfully ? task.Result : null;
+        if (stream == null) { _attractFiles[id] = null; return; } // unreadable: don't try again
+        if (_launching || AttractPlaying != null || Shown.Count == 0 || Shown[Selected].Id != id) return;
+        _attract.Stream = stream;
+        _attract.Position = new Vector3(0, CabinetKit.BackglassCentreY, -(SelectedFront + CabinetKit.Length) + CabinetKit.BoxDepth);
+        _attract.VolumeDb = -12f;
+        _attract.Play();
+        Trace("attract " + Path.GetFileName(file));
+        AttractPlaying = file;
+        _attractLeft = 10.0;
     }
 
     string? _attractLoading;
