@@ -69,7 +69,11 @@ public partial class Cabinet : Node3D
 
     Color _baseBody = Palette.SurfaceHi;
     bool _selected;   // lights the backbox strip, coin lights and flipper buttons in lamp amber
+    /// <summary>Real-cabinet surfaces that ShowReal dressed (borrowed art, backglass): left alone when lighting up.</summary>
+    readonly HashSet<int> _dressed = [];
+    bool _realLit;
     float _bright = 1f;
+    const float SelectedBrightness = 1.4f;
 
     static readonly Color DarkPlayfield = Palette.Surface;
     static readonly Color DarkGlass = Palette.DmdPanel;
@@ -203,6 +207,8 @@ public partial class Cabinet : Node3D
         }
         _real.Mesh = real.Mesh;
         for (var i = 0; i < real.Mesh.GetSurfaceCount(); i++) _real.SetSurfaceOverrideMaterial(i, null); // none left from another table
+        _dressed.Clear();
+        _realLit = false;
         _real.Visible = true;
         foreach (var g in _generic) g.Visible = false;
         _playfieldQuad.Size = real.PlayfieldSize;
@@ -228,6 +234,18 @@ public partial class Cabinet : Node3D
             _plate.Position = _backglassPanel.Position + new Vector3(0, 0, 0.002f);
             _plate.Visible = BackglassUrl == null && !HasBackglassArt;
         }
+        for (var i = 0; i < real.Mesh.GetSurfaceCount(); i++)
+            if (_real.GetSurfaceOverrideMaterial(i) != null) _dressed.Add(i);
+        LightReal();
+    }
+
+    /// <summary>The selected cabinet's self-lit art is drawn brighter (see <see cref="RealCabinet.LitMaterial"/>).</summary>
+    void LightReal()
+    {
+        if (Real is not { } real || _realLit == _selected) return;
+        _realLit = _selected;
+        for (var i = 0; i < real.Surfaces; i++)
+            if (!_dressed.Contains(i)) _real.SetSurfaceOverrideMaterial(i, _selected ? real.LitMaterial(i) : null);
     }
 
     static StandardMaterial3D? _dmdPanelMat;
@@ -323,24 +341,28 @@ public partial class Cabinet : Node3D
     /// <summary>1 for the selected cabinet, fading to ~0.35 for the ones around the ring.</summary>
     public void SetFocus(float focus, bool selected)
     {
-        _bright = Mathf.Lerp(0.35f, 1f, Mathf.Clamp(focus, 0f, 1f));
+        // The playfield and backglass are self-lit (unshaded): the one in front of you is lifted a little above
+        // the picture's own brightness, like a cabinet with its GI on, and the others dim around the ring.
+        _bright = Mathf.Lerp(0.35f, SelectedBrightness, Mathf.Clamp(focus, 0f, 1f));
         _selected = selected;
+        LightReal();
         ApplyColours();
     }
 
     void ApplyColours()
     {
         var b = _bright;
-        _bodyMat.AlbedoColor = _baseBody * new Color(b, b, b);
+        var lit = Mathf.Min(b, 1f); // shaded parts get their lift from the key light, not an over-bright colour
+        _bodyMat.AlbedoColor = _baseBody * new Color(lit, lit, lit);
         _playfieldMat.AlbedoColor = (_playfieldMat.AlbedoTexture == null ? DarkPlayfield : Colors.White) * new Color(b, b, b);
         _backglassMat.AlbedoColor = (_backglassMat.AlbedoTexture == null ? DarkGlass : Colors.White) * new Color(b, b, b);
         // The selected cabinet lights up in lamp amber; the others glow in their table type's insert colour.
         var lamp = Table == null ? Palette.Blue : _selected ? Palette.Lamp : Palette.Insert(Table.Badge);
         _glowMat.AlbedoColor = lamp;
         _glowMat.Emission = lamp;
-        _glowMat.EmissionEnergyMultiplier = 0.3f + 0.9f * (b - 0.35f) / 0.65f;
-        _plate.Modulate = new Color(Palette.Lamp, b);
-        _dmd.Modulate = new Color(Palette.Dmd * new Color(b, b, b), 1f);
+        _glowMat.EmissionEnergyMultiplier = 0.3f + 0.9f * Mathf.Min(b - 0.35f, 0.65f) / 0.65f;
+        _plate.Modulate = new Color(Palette.Lamp, Mathf.Min(b, 1f));
+        _dmd.Modulate = new Color(Palette.Dmd * new Color(lit, lit, lit), 1f);
     }
 
     static Color SideColour(Color average)

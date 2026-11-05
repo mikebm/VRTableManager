@@ -28,6 +28,34 @@ public sealed class RealCabinet
     public int Textures { get; init; }
     /// <summary>How many textures ended up GPU-compressed (DXT); the rest stayed uncompressed.</summary>
     public int CompressedTextures { get; init; }
+
+    /// <summary>How much brighter the selected cabinet's self-lit art is drawn than the file's own colours.</summary>
+    public const float SelectedLift = 1.6f;
+
+    Material?[]? _lit;
+
+
+    /// <summary>
+    /// The surface's material for the cabinet in front of you, lit up like a cabinet under a showroom light.
+    /// Its art, self-lit (unshaded) or not, is drawn <see cref="SelectedLift"/> times brighter: VR cabinets' baked
+    /// art hardly answers the room's lights. (A glow from the art's own picture was tried: the room's bloom
+    /// washes it out.) Null for untextured parts (metal, black panels), which the spotlight handles.
+    /// </summary>
+    public Material? LitMaterial(int surface)
+    {
+        _lit ??= new Material?[Surfaces];
+        if (surface < 0 || surface >= _lit.Length) return null;
+        if (_lit[surface] == null && Mesh.SurfaceGetMaterial(surface) is StandardMaterial3D m
+            && (m.ShadingMode == BaseMaterial3D.ShadingModeEnum.Unshaded || m.AlbedoTexture != null))
+        {
+            var copy = (StandardMaterial3D)m.Duplicate();
+            var c = m.AlbedoColor;
+            copy.AlbedoColor = new Color(c.R * SelectedLift, c.G * SelectedLift, c.B * SelectedLift, c.A);
+
+            _lit[surface] = copy;
+        }
+        return _lit[surface];
+    }
 }
 
 /// <summary>
