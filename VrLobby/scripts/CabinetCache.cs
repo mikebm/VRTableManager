@@ -19,12 +19,12 @@ namespace VrLobby;
 static class CabinetCache
 {
     /// <summary>Bump when what Parse makes changes (texture size, merging, materials, which parts), so old files are re-read.</summary>
-    const int Version = 2;
+    const int Version = 3;
     /// <summary>
     /// Layout of the bundled default cabinet. Separate from <see cref="Version"/> so a change in which parts a
     /// table's cabinet keeps doesn't throw away the shipped file; bump only when the file layout changes.
     /// </summary>
-    const int DumpVersion = 1;
+    const int DumpVersion = 2; // 2: triangles in VPX order (front faces outward)
     static readonly byte[] Magic = "VTMCAB"u8.ToArray();
     static readonly byte[] DumpMagic = "VTMDEF"u8.ToArray();
 
