@@ -128,8 +128,23 @@ public sealed partial class InstalledItem : ObservableObject
         TableScale is { } s ? $"renders at {s * 100:0}%" : null,
     }.Where(x => x != null));
     public string Title => Table.Manifest.GameName;
-    public string? ImgUrl => Table.Manifest.ImgUrl;
+    /// <summary>The card picture: yours (<see cref="UserArtwork"/>) when you chose one, else the catalog's.</summary>
+    public string? ImgUrl => UserCard ?? Table.Manifest.ImgUrl;
     public bool HasImage => !string.IsNullOrEmpty(ImgUrl);
+
+    // Your own pictures (art keys, null = none); set by the view model.
+    [ObservableProperty, NotifyPropertyChangedFor(nameof(ImgUrl), nameof(HasImage), nameof(HasUserArtwork))]
+    public partial string? UserCard { get; set; }
+    [ObservableProperty, NotifyPropertyChangedFor(nameof(HasUserArtwork))] public partial string? UserPlayfield { get; set; }
+    [ObservableProperty, NotifyPropertyChangedFor(nameof(HasUserArtwork))] public partial string? UserBackglass { get; set; }
+    public bool HasUserArtwork => UserCard != null || UserPlayfield != null || UserBackglass != null;
+
+    public void RefreshUserArtwork()
+    {
+        UserCard = UserArtwork.Key(Table, UserArtwork.Kind.Card);
+        UserPlayfield = UserArtwork.Key(Table, UserArtwork.Kind.Playfield);
+        UserBackglass = UserArtwork.Key(Table, UserArtwork.Kind.Backglass);
+    }
     public string EngineBadge => Table.Manifest.Engine switch
     {
         TableManifest.FuturePinball => "FUTURE PINBALL",

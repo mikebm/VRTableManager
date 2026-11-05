@@ -49,7 +49,8 @@ public partial class MainWindow : Window, IUiHost
 
     public async Task<string?> PickFileAsync(string title, string pattern, string? preferredName = null, string? startFolder = null)
     {
-        var all = new FilePickerFileType(pattern == "*.zip" ? "All ROM zips (*.zip)" : pattern) { Patterns = [pattern] };
+        // pattern: one or more globs separated by ';' ("*.png;*.jpg").
+        var all = new FilePickerFileType(pattern == "*.zip" ? "All ROM zips (*.zip)" : pattern.Replace(";", ", ")) { Patterns = pattern.Split(';') };
         var options = new FilePickerOpenOptions
         {
             Title = title,
