@@ -843,6 +843,29 @@ foreach (var (ok, name) in await AssistedDownloadChecks.RunAsync(root)) Check(ok
     Check(session!.Problems.Count == 2 && !session.Problems.Any(p => p.Contains("old error")), "log: repeated errors collapse; earlier runs ignored");
     Check(session.Hints.Any(h => h.Contains("headset wasn't connected")), "log: explains a missing headset");
 
+    // Big Trouble in Little China, played with no headset and left after a few seconds (lines from a real log).
+    var btilc = Path.Combine(root, "btilc", "BTILC.vpx");
+    Directory.CreateDirectory(Path.GetDirectoryName(btilc)!);
+    File.WriteAllLines(log,
+    [
+        "2026-11-04 17:31:09.000 INFO  [Main] [VPApp::InitInstance@332] Starting VPX - v10.8.1",
+        $"2026-11-04 17:31:09.100 INFO  [Main] [PinTable::LoadGameFromFilename@1419] LoadGameFromFilename {btilc}",
+        "2026-11-04 17:31:10.621 ERROR [Main] [VRDevice::SetupHMD@451] ERROR: OPENXR: -35 (XR_ERROR_FORM_FACTOR_UNAVAILABLE) Failed to get SystemID.",
+        "2026-11-04 17:31:11.635 ERROR [Main] [VRDevice::~VRDevice@321] ERROR: OPENXR: -12 (XR_ERROR_HANDLE_INVALID) Failed to destroy Space.",
+        "2026-11-04 17:31:12.956 ERROR [Main] [PinMAME:PinMAMEPluginLoad::<lambda_3>::operator ()@475] PinMAME path is not defined.",
+        "2026-11-04 17:31:13.010 ERROR [Main] [PUP:PUP::PUPManager::LoadPlaylists@313] Duplicate playlist: playlist=folder=PuPOverlays, description=",
+        "2026-11-04 17:31:13.011 ERROR [Main] [PUP:PUP::PUPPlaylist::CreateFromCSV@88] Playlist folder not found: Tilt",
+        @"2026-11-04 17:31:13.016 ERROR [Main] [PUP:PUP::PUPLabel::SetCaption@233] Image not found, hiding label: screen=5, label=BGlass, path=PuPOverlays\\Card0.png",
+        "2026-11-04 17:31:17.957 INFO  [Main] [WinMain@227] Closing VPX...",
+    ]);
+    var quickExit = VpxLog.LastSession(log)!;
+    Check(quickExit.ClosedCleanly && quickExit.Problems.Count == 0 && quickExit.Harmless.Count == 6
+          && quickExit.Hints.Count == 1 && quickExit.Hints[0].Contains("headset wasn't connected"),
+        $"log: a PuP pack's missing files, OpenXR clean-up with no headset and an original's missing pinmame folder are harmless; only the headset hint is left ({string.Join(" | ", quickExit.Problems)})");
+    Directory.CreateDirectory(Path.Combine(Path.GetDirectoryName(btilc)!, "pinmame"));
+    Check(VpxLog.LastSession(log)!.Problems.Any(p => p.StartsWith("PinMAME path is not defined")),
+        "log: the PinMAME path error still counts for a table that has a pinmame folder");
+
     var cacheDir = Path.Combine(Path.GetDirectoryName(gTable)!, "cache", "Heavy");
     Directory.CreateDirectory(cacheDir);
     File.WriteAllBytes(Path.Combine(cacheDir, "tex.bin"), new byte[5000]);

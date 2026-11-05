@@ -122,6 +122,8 @@ public static class VpxLog
     {
         /// <summary>Plain-English hints for problems we recognise.</summary>
         public List<string> Hints { get; } = [];
+        /// <summary>Errors VPX logs that don't stop a table (a PuP pack missing some of its files, â€¦).</summary>
+        public List<string> Harmless { get; } = [];
     }
 
     /// <summary>Summarises the last VPX run in the log: errors (deduplicated), whether VR started, and how it ended.</summary>
@@ -142,7 +144,15 @@ public static class VpxLog
         var session = lines.Skip(start).ToList();
         DateTime? started = DateTime.TryParse(session[0].Length >= 23 ? session[0][..23] : "", out var t) ? t : null;
 
+        const string loadMarker = "] LoadGameFromFilename ";
+        var table = session.Select(l => l.IndexOf(loadMarker, StringComparison.Ordinal) is var i and >= 0 ? l[(i + loadMarker.Length)..].Trim() : null)
+            .FirstOrDefault(x => x != null);
+        var all = string.Join("\n", session);
+        var noHeadset = all.Contains("FORM_FACTOR_UNAVAILABLE");
+        var hasPinmameFolder = table != null && Directory.Exists(Path.Combine(Path.GetDirectoryName(table) ?? "", "pinmame"));
+
         var problems = new List<string>();
+        var harmless = new List<string>();
         var seen = new HashSet<string>();
         foreach (var l in session)
         {
@@ -150,16 +160,14 @@ public static class VpxLog
             var isXrWarn = l.Contains(" WARN ") && (l.Contains("XR") || l.Contains("OpenXR", StringComparison.OrdinalIgnoreCase));
             if (!isError && !isXrWarn) continue;
             var msg = Message(l);
-            if (seen.Add(Normalise(msg))) problems.Add(msg);
+            if (!seen.Add(Normalise(msg))) continue;
+            (IsHarmless(l, msg, noHeadset, hasPinmameFolder) ? harmless : problems).Add(msg);
         }
-        const string loadMarker = "] LoadGameFromFilename ";
-        var table = session.Select(l => l.IndexOf(loadMarker, StringComparison.Ordinal) is var i and >= 0 ? l[(i + loadMarker.Length)..].Trim() : null)
-            .FirstOrDefault(x => x != null);
         var result = new Session(started, session.Any(l => l.Contains("Closing VPX")),
             session.Any(l => l.Contains("VRDevice") || l.Contains("OPENXR")), table, problems);
+        result.Harmless.AddRange(harmless);
 
-        var all = string.Join("\n", session);
-        if (all.Contains("FORM_FACTOR_UNAVAILABLE"))
+        if (noHeadset)
             result.Hints.Add("The headset wasn't connected when VPX started, so it opened on the monitor. Start Quest Link (or Virtual Desktop) first.");
         if (all.Contains("Corrupted file: image"))
             result.Hints.Add("Some of the table's images are stored at a different size than declared. That's an issue in the table file; it usually plays fine.");
@@ -170,6 +178,18 @@ public static class VpxLog
             result.Hints.Add("VPX stopped without closing normally (it crashed). The errors above are the last things it logged.");
         return result;
     }
+
+    /// <summary>
+    /// Errors VPX logs that don't stop a table: a PuP pack missing some of its own files or using options the
+    /// plugin doesn't have yet; OpenXR's clean-up after it found no headset (the hint explains that); and the
+    /// PinMAME plugin finding no pinmame folder for a table that has none (an original without a ROM).
+    /// </summary>
+    public static bool IsHarmless(string line, string msg, bool noHeadset, bool hasPinmameFolder) =>
+        (line.Contains("[PUP:", StringComparison.Ordinal) && (msg.Contains("not found", StringComparison.OrdinalIgnoreCase)
+            || msg.StartsWith("Duplicate playlist", StringComparison.Ordinal) || msg.Contains("is empty", StringComparison.Ordinal)
+            || msg.Contains("not implemented", StringComparison.Ordinal)))
+        || (noHeadset && msg.Contains("OPENXR", StringComparison.OrdinalIgnoreCase))
+        || (!hasPinmameFolder && msg.StartsWith("PinMAME path is not defined", StringComparison.Ordinal));
 
     static bool IsRunning() => System.Diagnostics.Process.GetProcessesByName("VPinballX_BGFX64").Length > 0
                                || System.Diagnostics.Process.GetProcessesByName("VPinballX64").Length > 0;
