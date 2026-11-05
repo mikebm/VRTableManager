@@ -101,7 +101,7 @@ public static class VpxSetup
 
     /// <summary>
     /// The installed build's tag: the one this app wrote when it installed VPX, else (VPX unzipped by hand into the
-    /// folder) read from the program's own version ("10.8.1.5436.af26b2d93" â†’ "v10.8.1-5436-af26b2d93").
+    /// folder) read from the program's own version ("10.8.1.5436.af26b2d93" → "v10.8.1-5436-af26b2d93").
     /// </summary>
     public static string? InstalledVersion(AppSettings s)
     {
