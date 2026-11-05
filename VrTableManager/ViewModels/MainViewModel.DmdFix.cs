@@ -47,6 +47,7 @@ public sealed partial class MainViewModel
             case "DON'T ASK AGAIN":
                 Settings.DmdFixDeclined.Add(path);
                 Settings.Save();
+                item.DmdFixDeclined = true;
                 return true;
             case "PLAY AS IS": return true;
             default: return false;
@@ -69,10 +70,32 @@ public sealed partial class MainViewModel
             {
                 VrDmdFix.Undo(path);
                 if (!Settings.DmdFixDeclined.Contains(path, StringComparer.OrdinalIgnoreCase)) { Settings.DmdFixDeclined.Add(path); Settings.Save(); }
-                PlayStatus = $"Put {item.Title}'s original table file back (the PuP DMD fix is undone and won't be offered again).";
+                PlayStatus = $"Put {item.Title}'s original table file back. MORE → \"Fix the PuP DMD for VR\" applies the fix again.";
             }
         }
         catch (Exception e) { PlayStatus = "Couldn't undo the DMD fix: " + e.Message; return; }
         item.HasDmdFix = false;
+        item.DmdFixDeclined = true;
+    }
+
+    /// <summary>
+    /// From the MORE menu, for a table whose fix was undone or declined: apply it now (no dialog, it was asked
+    /// for). VPX's version and the PuP pack aren't checked here: the user knows they want it.
+    /// </summary>
+    [RelayCommand]
+    async Task ApplyDmdFix(InstalledItem item)
+    {
+        var path = item.Table.TablePath;
+        Settings.DmdFixDeclined.RemoveAll(p => string.Equals(p, path, StringComparison.OrdinalIgnoreCase));
+        Settings.Save();
+        item.DmdFixDeclined = false;
+        try
+        {
+            var fixedOnes = await Task.Run(() => VrDmdFix.Apply(path));
+            if (fixedOnes.Count == 0) { PlayStatus = $"{item.Title} doesn't need the PuP DMD fix (no PuP display set up the VPX 10.8.0 way)."; return; }
+            item.HasDmdFix = true;
+            PlayStatus = $"Fixed {item.Title}'s PuP DMD for VR; the original is kept and MORE can put it back.";
+        }
+        catch (Exception e) { PlayStatus = "The DMD fix didn't work; the table wasn't changed: " + e.Message; }
     }
 }

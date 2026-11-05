@@ -208,7 +208,12 @@ public sealed partial class InstalledItem : ObservableObject
     public partial bool HasLobbyVideo { get; set; }
 
     /// <summary>The table's PuP DMD was fixed for VPX 10.8.1 and its original is kept (<see cref="VrDmdFix"/>).</summary>
-    [ObservableProperty] public partial bool HasDmdFix { get; set; }
+    [ObservableProperty, NotifyPropertyChangedFor(nameof(CanApplyDmdFix))] public partial bool HasDmdFix { get; set; }
+
+    /// <summary>The user undid the fix or said not to ask: the prompt is off, so MORE offers the fix instead.</summary>
+    [ObservableProperty, NotifyPropertyChangedFor(nameof(CanApplyDmdFix))] public partial bool DmdFixDeclined { get; set; }
+
+    public bool CanApplyDmdFix => DmdFixDeclined && !HasDmdFix;
 
     public string LobbyVideoMenuHeader =>
         (HasLobbyVideo ? "Replace lobby video" : "Get a playfield video for the VR lobby") + (HasMediaPack ? " (media pack)" : " (record in VPX)");
