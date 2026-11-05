@@ -191,11 +191,24 @@ public sealed partial class InstalledItem : ObservableObject
 
     public bool CanGetAttractAudio => Table.IsVpx && AttractAudioSources.Count > 0;
 
+    partial void OnAttractAudioSourcesChanged(IReadOnlyList<MediaPackAudio.Source> value) => HasMediaPack = value.Any(s => !s.IsDirect);
+
     /// <summary>A music\attract.* is in the table folder (the VR lobby plays it when the cabinet is selected).</summary>
     [ObservableProperty, NotifyPropertyChangedFor(nameof(AttractAudioMenuHeader))]
     public partial bool HasAttractAudio { get; set; }
 
     public string AttractAudioMenuHeader => HasAttractAudio ? "Replace attract audio (from media pack)" : "Get attract audio for the VR lobby";
+
+    /// <summary>The catalog has a media pack for this table (its playfield video is the lobby video's first choice).</summary>
+    [ObservableProperty, NotifyPropertyChangedFor(nameof(LobbyVideoMenuHeader))]
+    public partial bool HasMediaPack { get; set; }
+
+    /// <summary>medias\lobby-video is in the table folder (the VR lobby plays it on the selected cabinet's playfield).</summary>
+    [ObservableProperty, NotifyPropertyChangedFor(nameof(LobbyVideoMenuHeader))]
+    public partial bool HasLobbyVideo { get; set; }
+
+    public string LobbyVideoMenuHeader =>
+        (HasLobbyVideo ? "Replace lobby video" : "Get a playfield video for the VR lobby") + (HasMediaPack ? " (media pack)" : " (record in VPX)");
 
     // ---- Add-ons: PuP pack, DMD colours, AltSound (each in its own folder of the table folder) ----
 

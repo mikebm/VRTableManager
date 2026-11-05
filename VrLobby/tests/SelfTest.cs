@@ -50,6 +50,8 @@ public static class SelfTest
         File.WriteAllBytes(Path.Combine(mmFolder, "music", "attract.wav"), TinyWav());
         // And a PinMAME .nv for its ROM with a Grand Champion in it (needs the NVRAM maps already cached).
         var nvWritten = WriteHighScoreNv(mmFolder, "mm_109c");
+        // And a three-frame lobby video (red, green, blue).
+        WriteLobbyVideo(mmFolder);
 
         // Pinball FX / Pinball M appear only if they're installed on this PC.
         var files = lobby.Library.Count(t => t.Engine is not ("PFX" or "PM"));
@@ -181,8 +183,22 @@ public static class SelfTest
                 $"high scores from the table's pinmame/nvram .nv, as DMD lines ({lobby.ScoresText.Split('\n')[0]})");
         else
             GD.Print("SKIP  high scores (no cached NVRAM map for mm_109c)");
+        var mmCab = lobby.SelectedCabinet!;
+        Check(lobby.VideoPlaying?.EndsWith("lobby-video") == true && mmCab.ShowsPlayfieldVideo,
+            $"selected table's lobby video plays on its playfield (playing: {lobby.VideoPlaying ?? "nothing"})");
+        var seen = new HashSet<string>();
+        for (var i = 0; i < 12; i++)
+        {
+            if (mmCab.PlayfieldTextureColour() is { } c) seen.Add(c.R > 0.5f ? "r" : c.G > 0.5f ? "g" : c.B > 0.5f ? "b" : "?");
+            await Seconds(lobby, 0.05);
+        }
+        // The headless (dummy) renderer keeps a texture's first picture, so colours are only checked with a real one.
+        var headless = DisplayServer.GetName() == "headless";
+        Check(lobby.VideoFramesShown > 6 && (headless || seen.IsSupersetOf(["r", "g", "b"])),
+            $"its frames advance and loop ({lobby.VideoFramesShown} shown{(headless ? "" : ", colours " + string.Join("", seen.Order()))})");
         lobby.Select(mmIndex + 1);
         Check(lobby.AttractPlaying == null, "and stops when you move on");
+        Check(lobby.VideoPlaying == null && !mmCab.ShowsPlayfieldVideo, "the video stops too, and the cabinet shows its still playfield again");
         await Seconds(lobby, 0.5);
         Check(lobby.ScoresText == "", "no high scores shown for a table without an .nv file");
 
@@ -267,6 +283,22 @@ public static class SelfTest
             return true;
         }
         catch { return false; }
+    }
+
+    /// <summary>medias/lobby-video with three solid-colour frames at 15 fps.</summary>
+    static void WriteLobbyVideo(string folder)
+    {
+        var dir = LobbyVideo.Folder(folder);
+        Directory.CreateDirectory(dir);
+        Color[] colours = [new(1, 0, 0), new(0, 1, 0), new(0, 0, 1)];
+        for (var i = 0; i < colours.Length; i++)
+        {
+            var img = Image.CreateEmpty(36, 64, false, Image.Format.Rgb8);
+            img.Fill(colours[i]);
+            File.WriteAllBytes(LobbyVideo.FramePath(dir, i), img.SaveJpgToBuffer(0.9f));
+        }
+        File.WriteAllText(Path.Combine(dir, LobbyVideo.InfoFile),
+            System.Text.Json.JsonSerializer.Serialize(new LobbyVideo.Info(LobbyVideo.Fps, colours.Length, 36, 64, "test")));
     }
 
     /// <summary>0.2 s of 8-bit mono silence as a valid WAV file.</summary>
