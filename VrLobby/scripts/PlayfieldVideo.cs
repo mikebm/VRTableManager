@@ -24,6 +24,7 @@ public partial class PlayfieldVideo : Node
     public string? Playing { get; private set; }
     /// <summary>Frames put on the playfield since it started (tests).</summary>
     public int FramesShown { get; private set; }
+    public event Action? FirstFrameShown;
 
     public void Play(Cabinet cab, string folder, LobbyVideo.Info info)
     {
@@ -78,6 +79,7 @@ public partial class PlayfieldVideo : Node
         {
             _tex = ImageTexture.CreateFromImage(img);
             _cab.SetPlayfieldVideo(_tex);
+            FirstFrameShown?.Invoke();
         }
         else _tex.Update(img);
         FramesShown++;

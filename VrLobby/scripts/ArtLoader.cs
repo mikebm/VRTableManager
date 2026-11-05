@@ -23,6 +23,8 @@ public partial class ArtLoader : Node
     readonly Dictionary<string, (Texture2D? Tex, Color Avg)> _textures = [];
     readonly LinkedList<string> _recent = [];
     readonly SemaphoreSlim _throttle = new(4);
+    /// <summary>Decoded pictures waiting for their GPU upload: one per frame, so a burst can't stall the headset.</summary>
+    readonly System.Collections.Concurrent.ConcurrentQueue<(string Url, Image Img, Color Avg)> _decoded = new();
 
     public int CachedCount => _textures.Count(kv => kv.Value.Tex != null);
 
@@ -56,7 +58,7 @@ public partial class ArtLoader : Node
                 Shrink(img, maxSide);
                 var avg = Average(img);
                 img.GenerateMipmaps();
-                Callable.From(() => Finish(url, img, avg)).CallDeferred(); // the GPU upload happens on the main thread
+                _decoded.Enqueue((url, img, avg)); // the GPU upload happens on the main thread (_Process)
             }
             catch { /* no art: the cabinet keeps its plain look */ }
         });
@@ -86,6 +88,11 @@ public partial class ArtLoader : Node
         {
             return null;
         }
+    }
+
+    public override void _Process(double delta)
+    {
+        if (_decoded.TryDequeue(out var d)) Finish(d.Url, d.Img, d.Avg);
     }
 
     void Finish(string url, Image img, Color avg)
