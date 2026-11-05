@@ -34,7 +34,8 @@ public static class AltPacks
             return (game.AltSoundFiles ?? []).Where(f => Addons.UsableUrl(f) != null).OrderByDescending(f => f.UpdatedAt ?? 0).ToList<VpsFile>();
         return (game.AltColorFiles ?? [])
             .Where(f => Addons.UsableUrl(f) != null && !Mentions(f.Type, "patch") && !Mentions(f.Type, "pac"))
-            .OrderByDescending(f => ForTable(f, t))
+            .OrderBy(PacOnlyFiles.IsKnown)
+            .ThenByDescending(f => ForTable(f, t))
             .ThenByDescending(f => Mentions(f.Type, "serum"))
             .ThenByDescending(f => f.UpdatedAt ?? 0)
             .ToList<VpsFile>();
@@ -46,6 +47,7 @@ public static class AltPacks
         var text = Addons.Describe(f, f is VpsAltColorFile ? "Colorization" : "AltSound");
         if (f is not VpsAltColorFile c) return text;
         if (!string.IsNullOrWhiteSpace(c.Type)) text = $"{c.Type.Trim()} · {text}";
+        if (PacOnlyFiles.IsKnown(c)) text += " — PAC only, VPX can't use it";
         return !string.IsNullOrWhiteSpace(c.Folder) && !ForTable(c, t) ? $"{text} (made for {c.Folder})" : text;
     }
 
@@ -149,7 +151,7 @@ public static class AltPacks
             return Addons.NewRecord(file, VniFolder, game);
         }
         if (Find([".pac"]).Count > 0)
-            throw new InvalidDataException("This colorization only has an encrypted Pin2DMD .pac file, which VPX's VNI plugin can't read. Try a Serum version if the catalog has one.");
+            throw PacOnlyFiles.Error();
         throw new InvalidDataException("No colorization in the download (no .cRZ, .cROM, .vni or .pal file).");
     }
 
@@ -229,5 +231,61 @@ public static class AltPacks
         if (Directory.Exists(dest)) return;
         Directory.CreateDirectory(Path.GetDirectoryName(dest)!);
         Directory.Move(dir, dest);
+    }
+}
+
+
+/// <summary>
+/// Catalog colorizations that turned out to be PAC-only when downloaded. The catalog lists them as plain
+/// "Pin2DMD", so this is only known after one download; remembering it lets the list say so instead of
+/// offering the same useless download again. A newer catalog version of the file is tried again.
+/// </summary>
+public static class PacOnlyFiles
+{
+    /// <summary>Where the list is kept (tests point it elsewhere).</summary>
+    public static string StorePath { get; set; } = Path.Combine(AppSettings.DataDir, "pac-only-colorizations.json");
+
+    const string Flag = "VrTableManager.PacOnly";
+
+    /// <summary>The error a PAC-only download fails with (<see cref="IsError"/> recognises it).</summary>
+    public static InvalidDataException Error()
+    {
+        var e = new InvalidDataException("This colorization only has an encrypted Pin2DMD .pac file, which VPX's VNI plugin can't read.");
+        e.Data[Flag] = true;
+        return e;
+    }
+
+    public static bool IsError(Exception e) => e.Data.Contains(Flag);
+
+    static Dictionary<string, long>? _cache;
+    static string? _cachePath;
+
+    static Dictionary<string, long> Load()
+    {
+        if (_cache != null && _cachePath == StorePath) return _cache;
+        _cachePath = StorePath;
+        return _cache = Read();
+    }
+
+    static Dictionary<string, long> Read()
+    {
+        try
+        {
+            return File.Exists(StorePath)
+                ? System.Text.Json.JsonSerializer.Deserialize<Dictionary<string, long>>(File.ReadAllText(StorePath)) ?? []
+                : [];
+        }
+        catch (Exception e) when (e is IOException or System.Text.Json.JsonException or UnauthorizedAccessException) { return []; }
+    }
+
+    public static bool IsKnown(VpsFile f) => f.Id != "" && Load().TryGetValue(f.Id, out var at) && at >= (f.UpdatedAt ?? 0);
+
+    public static void Mark(VpsFile f)
+    {
+        if (f.Id == "") return;
+        var all = new Dictionary<string, long>(Load()) { [f.Id] = f.UpdatedAt ?? 0 };
+        _cache = all;
+        try { File.WriteAllText(StorePath, System.Text.Json.JsonSerializer.Serialize(all)); }
+        catch (Exception e) when (e is IOException or UnauthorizedAccessException) { }
     }
 }

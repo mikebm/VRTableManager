@@ -143,6 +143,17 @@ public sealed partial class MainViewModel
         {
             job.Finish("Cancelled", error: true);
         }
+        catch (InvalidDataException e) when (PacOnlyFiles.IsError(e))
+        {
+            // The catalog can't tell PAC-only files apart; remember this one so the list says so from now on.
+            PacOnlyFiles.Mark(file);
+            var others = AltPacks.SourcesFor(game, table, kind).Where(f => f.Id != file.Id && !PacOnlyFiles.IsKnown(f))
+                .Select(f => AltPacks.Describe(f, table)).ToList();
+            job.Finish("Failed: " + e.Message + (others.Count > 0
+                ? " Try another colorization for this table: " + string.Join("; ", others.Take(3)) + "."
+                : " The catalog has no other colorization for this table yet, so its DMD stays in the ROM's own colours."), error: true);
+            RefreshInstalled();
+        }
         catch (Exception e)
         {
             job.Finish("Failed: " + e.Message, error: true);
