@@ -22,6 +22,8 @@ public partial class RomRecorder : Node
     readonly LinkedList<LobbyTable> _queue = [];
     readonly HashSet<string> _tried = [];
     Process? _running;
+    /// <summary>Set when the lobby closes: a recording that ends after that must not call back into a freed node.</summary>
+    volatile bool _closing;
 
     /// <summary>Records this table next (ahead of any waiting) if it has a ROM that hasn't been recorded.</summary>
     public void Request(LobbyTable t)
@@ -47,7 +49,12 @@ public partial class RomRecorder : Node
             var p = Process.Start(psi);
             if (p == null) return;
             _running = p;
-            _ = p.WaitForExitAsync().ContinueWith(_ => Callable.From(() => Done(p, t.Id)).CallDeferred());
+            // Killing the recording on exit ends this wait too; calling back then (into a node the engine is
+            // freeing) crashed the lobby on its way out.
+            _ = p.WaitForExitAsync().ContinueWith(_ =>
+            {
+                if (!_closing) Callable.From(() => Done(p, t.Id)).CallDeferred();
+            });
         }
         catch (Exception e)
         {
@@ -73,5 +80,9 @@ public partial class RomRecorder : Node
         _running = null;
     }
 
-    public override void _ExitTree() => StopAll();
+    public override void _ExitTree()
+    {
+        _closing = true;
+        StopAll();
+    }
 }
