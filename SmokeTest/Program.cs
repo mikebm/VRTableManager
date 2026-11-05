@@ -345,10 +345,12 @@ using (var cfb = OpenMcdf.RootStorage.Create(cabVpx))
     Put("GameItem1", Prim("PinCab_Legs", tri, [0, 1, 2], compress: true, pos: [100, 200, -1000], size: [100, 100, 100]));
     Put("GameItem2", Prim("Bolt12", tri, [0, 1, 2], compress: false, pos: [400, 900, 10], size: [5, 5, 5]));
     Put("GameItem3", Prim("VR_Room_Floor", tri, [0, 1, 2], compress: false, pos: [100, 200, -1100], size: [300, 300, 1]));
+    Put("GameItem4", Prim("PinCab_Glass", tri, [0, 1, 2], compress: false, pos: [100, 200, 50], size: [50, 50, 1]));
+    Put("GameItem5", Prim("PinCab_Backglass", tri, [0, 1, 2], compress: false, pos: [100, -100, 300], size: [50, 50, 1]));
 }
 var cab = VpxCabinet.Load(cabVpx, frontZ: 0.7f);
-Check(cab != null && cab.Parts.Select(p => p.Name).OrderBy(n => n).SequenceEqual(["PinCab_Cabinet", "PinCab_Legs"]),
-    "VR cabinet: cabinet parts read (raw and compressed meshes); playfield bolt and room floor left out: " + string.Join(", ", cab?.Parts.Select(p => p.Name) ?? []));
+Check(cab != null && cab.Parts.Select(p => p.Name).OrderBy(n => n).SequenceEqual(["PinCab_Backglass", "PinCab_Cabinet", "PinCab_Legs"]),
+    "VR cabinet: cabinet parts read (raw and compressed meshes); playfield bolt, playfield glass and room floor left out, backglass kept: " + string.Join(", ", cab?.Parts.Select(p => p.Name) ?? []));
 if (cab != null)
 {
     var body = cab.Parts.Single(p => p.Name == "PinCab_Cabinet");

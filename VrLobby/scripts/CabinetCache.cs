@@ -18,8 +18,13 @@ namespace VrLobby;
 /// </summary>
 static class CabinetCache
 {
-    /// <summary>Bump when what Parse makes changes (texture size, merging, materials), so old files are re-read.</summary>
-    const int Version = 1;
+    /// <summary>Bump when what Parse makes changes (texture size, merging, materials, which parts), so old files are re-read.</summary>
+    const int Version = 2;
+    /// <summary>
+    /// Layout of the bundled default cabinet. Separate from <see cref="Version"/> so a change in which parts a
+    /// table's cabinet keeps doesn't throw away the shipped file; bump only when the file layout changes.
+    /// </summary>
+    const int DumpVersion = 1;
     static readonly byte[] Magic = "VTMCAB"u8.ToArray();
     static readonly byte[] DumpMagic = "VTMDEF"u8.ToArray();
 
@@ -85,7 +90,7 @@ static class CabinetCache
         try
         {
             using var r = new BinaryReader(new BufferedStream(File.OpenRead(file), 1 << 16));
-            if (!r.ReadBytes(DumpMagic.Length).AsSpan().SequenceEqual(DumpMagic) || r.ReadInt32() != Version) return false;
+            if (!r.ReadBytes(DumpMagic.Length).AsSpan().SequenceEqual(DumpMagic) || r.ReadInt32() != DumpVersion) return false;
             parsed = ReadBody(r);
             return true;
         }
@@ -103,7 +108,7 @@ static class CabinetCache
             Directory.CreateDirectory(Path.GetDirectoryName(Path.GetFullPath(file))!);
             using var w = new BinaryWriter(new BufferedStream(File.Create(file), 1 << 16));
             w.Write(DumpMagic);
-            w.Write(Version);
+            w.Write(DumpVersion);
             WriteBody(w, parsed);
             return true;
         }

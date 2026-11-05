@@ -75,8 +75,15 @@ public static class VpxCabinet
     // not geometry to draw on their own; plain "Bolt12" parts are playfield post bolts.
     static readonly Regex NotGeometry = new(@"^lm_|^bolt\d*$", RegexOptions.IgnoreCase);
 
+    /// <summary>
+    /// The playfield glass ("PinCab_Glass"): the lobby shows the playfield itself, and a glass part often has no
+    /// material, which draws as an opaque grey sheet over the playfield (Big Trouble in Little China).
+    /// </summary>
+    static bool IsPlayfieldGlass(string name) =>
+        name.Contains("glass", StringComparison.OrdinalIgnoreCase) && !name.Contains("backglass", StringComparison.OrdinalIgnoreCase);
+
     public static bool LooksLikeCabinetPart(string name) =>
-        CabinetName.IsMatch(name) && !RoomName.IsMatch(name) && !OffVariant.IsMatch(name) && !NotGeometry.IsMatch(name);
+        CabinetName.IsMatch(name) && !RoomName.IsMatch(name) && !OffVariant.IsMatch(name) && !NotGeometry.IsMatch(name) && !IsPlayfieldGlass(name);
 
     // ---- Reading ---------------------------------------------------------------------
 
