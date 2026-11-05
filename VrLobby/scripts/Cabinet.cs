@@ -221,7 +221,9 @@ public partial class Cabinet : Node3D
         // (so the file has none) or draw it another way: then the game's VPS backglass fills in, on the
         // cabinet's backglass part, or as a panel on the front of its backbox.
         if (Borrowed) DressBorrowed(real);
-        if (real.BackglassSurface >= 0 && !Borrowed && !real.BackglassTextured)
+        // A backglass you chose yourself (UserArtwork) replaces the cabinet's own picture too.
+        var mine = BackglassUrl?.StartsWith(VrTableManager.Services.UserArtwork.LocalScheme, StringComparison.Ordinal) == true;
+        if (real.BackglassSurface >= 0 && !Borrowed && (!real.BackglassTextured || mine))
             _real.SetSurfaceOverrideMaterial(real.BackglassSurface, _backglassMat);
         // A borrowed cabinet may print its own backglass on the backbox itself, so this table's backglass
         // always goes on a panel on the backbox front.

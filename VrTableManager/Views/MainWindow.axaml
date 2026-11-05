@@ -300,6 +300,17 @@
                                 <MenuItem Header="Record lobby video in VPX" IsVisible="{Binding HasMediaPack}"
                                           ToolTip.Tip="Records the attract mode with VPX instead of using the media pack (a small VPX window opens for about half a minute, sound off)"
                                           IsEnabled="{Binding !IsBusy}" Command="{Binding Owner.RecordLobbyVideoCommand}" CommandParameter="{Binding}" />
+                                <MenuItem Header="Use my own lobby video…" IsVisible="{Binding IsVpx}"
+                                          ToolTip.Tip="Turns a video file you have (.mp4 works best) into this cabinet's moving playfield in the VR lobby; the first 12 seconds loop"
+                                          IsEnabled="{Binding !IsBusy}" Command="{Binding Owner.UseOwnLobbyVideoCommand}" CommandParameter="{Binding}" />
+                                <MenuItem Header="My artwork"
+                                          ToolTip.Tip="Your own pictures win over the catalog's and the table's. They're kept in the table's artwork folder (card, playfield, backglass .png/.jpg), where you can also put them by hand">
+                                  <MenuItem Header="Card picture in My Tables…" Command="{Binding Owner.ChooseCardArtCommand}" CommandParameter="{Binding}" />
+                                  <MenuItem Header="VR lobby playfield picture…" Command="{Binding Owner.ChoosePlayfieldArtCommand}" CommandParameter="{Binding}" />
+                                  <MenuItem Header="VR lobby backglass picture…" Command="{Binding Owner.ChooseBackglassArtCommand}" CommandParameter="{Binding}" />
+                                  <MenuItem Header="Open the artwork folder" Command="{Binding Owner.OpenArtworkFolderCommand}" CommandParameter="{Binding}" />
+                                  <MenuItem Header="Remove my pictures" IsVisible="{Binding HasUserArtwork}" Command="{Binding Owner.RemoveUserArtworkCommand}" CommandParameter="{Binding}" />
+                                </MenuItem>
                                 <MenuItem Header="Remove lobby video" IsVisible="{Binding HasLobbyVideo}" Command="{Binding Owner.RemoveLobbyVideoCommand}" CommandParameter="{Binding}" />
                                 <MenuItem Header="Fix the PuP DMD for VR" IsVisible="{Binding CanApplyDmdFix}"
                                           ToolTip.Tip="Shows the PuP pack's DMD on the VR cabinet in VPX 10.8.1 (switches the table's PuP display to VPX's Score View; the original file is kept)"

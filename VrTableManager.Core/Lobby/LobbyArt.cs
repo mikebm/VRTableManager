@@ -35,18 +35,24 @@ public static class LobbyArt
     public const string VpxScheme = "vpx:";
 
     /// <summary>
-    /// Where the cabinet's playfield comes from: the table's own .vpx (full resolution, real top-down art)
-    /// when there is one, as "vpx:&lt;path&gt;"; otherwise the VPS picture. The VPS picture stays the
-    /// fallback (<see cref="PlayfieldUrl"/>) for tables whose file has no usable playfield image.
+    /// Where the cabinet's playfield comes from: a picture you chose (<see cref="UserArtwork"/>) first; then the
+    /// table's own .vpx (full resolution, real top-down art) when there is one, as "vpx:&lt;path&gt;"; otherwise
+    /// the VPS picture. The VPS picture stays the fallback (<see cref="PlayfieldUrl"/>) for tables whose file
+    /// has no usable playfield image.
     /// </summary>
     public static string? PlayfieldSource(LobbyTable t) =>
-        t.Engine == TableManifest.Vpx && t.Source.TablePath.EndsWith(".vpx", StringComparison.OrdinalIgnoreCase) && File.Exists(t.Source.TablePath)
+        UserArtwork.Key(t.Source, UserArtwork.Kind.Playfield) ??
+        (t.Engine == TableManifest.Vpx && t.Source.TablePath.EndsWith(".vpx", StringComparison.OrdinalIgnoreCase) && File.Exists(t.Source.TablePath)
             ? VpxScheme + t.Source.TablePath
-            : PlayfieldUrl(t);
+            : PlayfieldUrl(t));
 
-    /// <summary>Picture for the backbox, or null to show a lit title plate.</summary>
+    /// <summary>
+    /// Picture for the backbox, or null to show a lit title plate. A picture you chose (<see cref="UserArtwork"/>)
+    /// comes first, and also replaces the backglass the table's own VR cabinet brings.
+    /// </summary>
     public static string? BackglassFor(LobbyTable t, IReadOnlyDictionary<string, string>? index)
     {
+        if (UserArtwork.Key(t.Source, UserArtwork.Kind.Backglass) is { } mine) return mine;
         var gameId = t.Source.Manifest.GameId;
         if (index != null && !string.IsNullOrEmpty(gameId) && index.TryGetValue(gameId, out var url)) return url;
         return IsStoreGame(t) && !string.IsNullOrWhiteSpace(t.ImgUrl) ? t.ImgUrl : null;

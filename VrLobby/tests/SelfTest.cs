@@ -52,6 +52,11 @@ public static class SelfTest
         var nvWritten = WriteHighScoreNv(mmFolder, "mm_109c");
         // And a three-frame lobby video (red, green, blue).
         WriteLobbyVideo(mmFolder);
+        // And a backglass picture of your own (solid blue), which wins over the catalog's.
+        var myBackglass = Image.CreateEmpty(64, 48, false, Image.Format.Rgb8);
+        myBackglass.Fill(new Color(0.1f, 0.2f, 0.9f));
+        var artDir = Directory.CreateDirectory(UserArtwork.FolderFor(lobby.Shown[mmIndex].Source)).FullName;
+        myBackglass.SavePng(Path.Combine(artDir, "backglass.png"));
 
         // Pinball FX / Pinball M appear only if they're installed on this PC.
         var files = lobby.Library.Count(t => t.Engine is not ("PFX" or "PM"));
@@ -184,6 +189,10 @@ public static class SelfTest
         else
             GD.Print("SKIP  high scores (no cached NVRAM map for mm_109c)");
         var mmCab = lobby.SelectedCabinet!;
+        mmCab.BodyColour.ToHsv(out var myHue, out var mySat, out _);
+        Check(mmCab.BackglassUrl?.StartsWith(UserArtwork.LocalScheme) == true && mmCab.HasBackglassArt && !mmCab.ShowsTitlePlate
+              && myHue is > 0.55f and < 0.75f && mySat > 0.2f,
+            $"a backglass picture of your own (the table's artwork folder) is shown instead of the catalog's (blue art → blue sides; {mmCab.BackglassUrl})");
         Check(lobby.VideoPlaying?.EndsWith("lobby-video") == true && mmCab.ShowsPlayfieldVideo,
             $"selected table's lobby video plays on its playfield (playing: {lobby.VideoPlaying ?? "nothing"})");
         var seen = new HashSet<string>();

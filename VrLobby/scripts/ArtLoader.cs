@@ -69,6 +69,7 @@ public partial class ArtLoader : Node
     {
         try
         {
+            if (UserArtwork.PathOf(url) is { } mine) return await File.ReadAllBytesAsync(mine); // a picture you chose
             if (url.StartsWith(VrTableManager.Lobby.LobbyArt.VpxScheme, StringComparison.Ordinal))
             {
                 // Extracted once per table version into the same cache folder, then read from there.

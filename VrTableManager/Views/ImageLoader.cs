@@ -39,8 +39,9 @@ public sealed class ImageLoader : AvaloniaObject
     {
         try
         {
-            var file = Path.Combine(CacheDir, Convert.ToHexString(SHA1.HashData(Encoding.UTF8.GetBytes(url))) + ".img");
-            if (!File.Exists(file))
+            // A picture you chose (UserArtwork): read straight from disk, never cached.
+            var file = UserArtwork.PathOf(url) ?? Path.Combine(CacheDir, Convert.ToHexString(SHA1.HashData(Encoding.UTF8.GetBytes(url))) + ".img");
+            if (!File.Exists(file) && UserArtwork.PathOf(url) == null)
             {
                 await Throttle.WaitAsync();
                 try { await File.WriteAllBytesAsync(file, await Http.Client.GetByteArrayAsync(url)); }
