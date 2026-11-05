@@ -122,7 +122,7 @@ public static class VpxLog
     {
         /// <summary>Plain-English hints for problems we recognise.</summary>
         public List<string> Hints { get; } = [];
-        /// <summary>Errors VPX logs that don't stop a table (a PuP pack missing some of its files, â€¦).</summary>
+        /// <summary>Errors VPX logs that don't stop a table (a PuP pack missing some of its files, …).</summary>
         public List<string> Harmless { get; } = [];
     }
 

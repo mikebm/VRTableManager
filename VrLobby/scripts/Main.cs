@@ -217,7 +217,7 @@ public partial class Main : Node3D
         {
             GetViewport().UseXR = true;
             DisplayServer.WindowSetVsyncMode(DisplayServer.VSyncMode.Disabled); // the headset paces frames
-            xr!.SessionStopping += () => GetTree().Quit();
+            xr!.SessionStopping += () => Leave("the headset ended the VR session (Quest Link disconnected, or the app was closed from the Quest menu)");
             // Holding the Quest's Oculus button recenters. keep_height = true leaves the floor where the
             // headset put it (project.godot asks for the Local Floor reference space), and the user's
             // height offset lives on the rig node, so recentering can't wipe it.
@@ -697,6 +697,25 @@ public partial class Main : Node3D
 
     public void JumpToKey(char key) => JumpToGroup(LobbyNav.GroupForKey(Groups, key));
 
+    /// <summary>Closes the lobby, saying why in its log (godot*.log), so an unexpected close can be traced.</summary>
+    void Leave(string why)
+    {
+        GD.Print($"Lobby closing: {why}");
+        GetTree().Quit();
+    }
+
+    double _menuHeld = -1; // seconds the controller menu button has been held, or -1
+
+    /// <summary>Holding the menu button for a second leaves the lobby; letting go sooner cancels.</summary>
+    void TrackMenuHold(double delta)
+    {
+        if (_menuHeld < 0) return;
+        if (_left?.IsButtonPressed("menu_button") != true && _right?.IsButtonPressed("menu_button") != true) { _menuHeld = -1; return; }
+        _menuHeld += delta;
+        if (_menuHeld >= 1.0) { _menuHeld = -1; Leave("menu button held"); }
+        else ShowFlash("HOLD TO LEAVE");
+    }
+
     void ShowFlash(string? text = null)
     {
         if (text == null)
@@ -950,6 +969,7 @@ public partial class Main : Node3D
     public override void _Process(double delta)
     {
         if (_perfTrace) PerfTrace(delta);
+        TrackMenuHold(delta);
         var d = (float)delta;
         if (!Mathf.IsEqualApprox(_scroll, Selected))
         {
@@ -1087,7 +1107,9 @@ public partial class Main : Node3D
             // The left grip is the height "shift" key, so only the right grip favourites.
             case "grip_click" when controller == _right: ToggleFavourite(); break;
             case "primary_click" when controller == _left && _left!.GetFloat("grip") > 0.6f: ResetHeight(); break;
-            case "menu_button": GetTree().Quit(); break;
+            // Leaving takes a 1 s hold (see _Process): a single press, easy to make when reaching for a
+            // VPX-style menu, used to close the lobby at once and looked like a crash.
+            case "menu_button": _menuHeld = 0; ShowFlash("HOLD TO LEAVE"); break;
         }
     }
 
@@ -1101,7 +1123,7 @@ public partial class Main : Node3D
             case Key.Down or Key.Pagedown: Select(LobbyNav.Jump(Groups, Selected, 1)); ShowFlash(); break;
             case Key.Up or Key.Pageup: Select(LobbyNav.Jump(Groups, Selected, -1)); ShowFlash(); break;
             case Key.Enter or Key.KpEnter or Key.Space: _ = LaunchAsync(); break;
-            case Key.Escape: GetTree().Quit(); break;
+            case Key.Escape: Leave("Escape pressed"); break;
             case Key.Tab: CycleFilter(); break;
             // Plain letters jump through the alphabet, so random is Ctrl+R or "?".
             case Key.R when k.CtrlPressed: SelectRandom(); break;
@@ -1164,7 +1186,7 @@ public partial class Main : Node3D
             return;
         }
         State.MarkPlayed(t.Id);
-        GetTree().Quit(); // ends our OpenXR session so the table gets the headset
+        Leave("starting " + t.Title); // ends our OpenXR session so the table gets the headset
     }
 
     void ShowError(string message)
