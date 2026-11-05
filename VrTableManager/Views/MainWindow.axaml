@@ -609,7 +609,10 @@
                     <Button Classes="primary" Content="INSTALL / UPDATE VPX" Command="{Binding InstallVpxCommand}" IsEnabled="{Binding !IsInstallingVpx}" />
                     <Button Content="CHECK FOR UPDATES" Command="{Binding CheckVpxUpdateCommand}" />
                   </StackPanel>
-                  <ProgressBar Value="{Binding VpxProgress}" IsVisible="{Binding IsInstallingVpx}" />
+                  <Grid ColumnDefinitions="*,Auto" ColumnSpacing="8" IsVisible="{Binding IsInstallingVpx}">
+                    <ProgressBar Value="{Binding VpxProgress}" IsIndeterminate="{Binding VpxProgressUnknown}" VerticalAlignment="Center" />
+                    <Button Grid.Column="1" Classes="small" Content="CANCEL" Command="{Binding CancelVpxInstallCommand}" />
+                  </Grid>
                   <TextBlock Classes="mono" Text="{Binding LatestVpx}" TextWrapping="Wrap" />
                   <TextBlock Classes="muted" TextWrapping="Wrap"
                              Text="Installs the official BGFX build from github.com/vpinball (VR through OpenXR). Tables launch with a separate VR settings file, so desktop settings stay as they are." />

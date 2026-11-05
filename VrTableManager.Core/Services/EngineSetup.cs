@@ -76,37 +76,58 @@ public static class VpxSetup
                     ? $"No VR (BGFX) build is available to install right now.{note} Check github.com/vpinball/vpinball/releases."
                     : "No VPX release found for this OS.", false);
         if (installed == null) return ($"Not installed. Latest is {r.Latest.Tag}.{note}", false);
-        if (installed == r.Latest.Tag) return ($"Up to date ({installed}).{note}", false);
+        if (installed == r.Latest.Tag || SameBuild(installed, r.Latest.Tag)) return ($"Up to date ({installed}).{note}", false);
         // Installed something newer than the newest usable build (e.g. a build later marked DO NOT USE): keep it.
         if (installed == r.Withdrawn?.Tag || IsNewer(installed, r.Latest.Tag)) return ($"Keeping your installed {installed}.{note}", false);
         return ($"{installed} → {r.Latest.Tag}", true);
     }
 
+    static (Version v, int build) ParseTag(string t)
+    {
+        var parts = t.TrimStart('v').Split('-');
+        return (Version.TryParse(parts[0], out var v) ? v : new Version(0, 0),
+            parts.Length > 1 && int.TryParse(parts[1], out var n) ? n : 0);
+    }
+
     /// <summary>Compares tags like "v10.8.1-5436-af26b2d93" by their version and build number.</summary>
     static bool IsNewer(string a, string b)
     {
-        static (Version v, int build) Parse(string t)
-        {
-            var parts = t.TrimStart('v').Split('-');
-            return (Version.TryParse(parts[0], out var v) ? v : new Version(0, 0),
-                parts.Length > 1 && int.TryParse(parts[1], out var n) ? n : 0);
-        }
-        var (va, ba) = Parse(a);
-        var (vb, bb) = Parse(b);
+        var (va, ba) = ParseTag(a);
+        var (vb, bb) = ParseTag(b);
         return va != vb ? va > vb : ba > bb;
     }
 
+    static bool SameBuild(string a, string b) => ParseTag(a) == ParseTag(b);
+
+    /// <summary>
+    /// The installed build's tag: the one this app wrote when it installed VPX, else (VPX unzipped by hand into the
+    /// folder) read from the program's own version ("10.8.1.5436.af26b2d93" â†’ "v10.8.1-5436-af26b2d93").
+    /// </summary>
     public static string? InstalledVersion(AppSettings s)
     {
+        if (FindExe(s) is not { } exe) return null;
         var f = Path.Combine(s.VpxDir, VersionFile);
-        return File.Exists(f) && FindExe(s) != null ? File.ReadAllText(f).Trim() : null;
+        if (File.Exists(f)) return File.ReadAllText(f).Trim();
+        return TagFromProductVersion(FileVersionInfo.GetVersionInfo(exe).ProductVersion);
+    }
+
+    public static string? TagFromProductVersion(string? productVersion)
+    {
+        var p = (productVersion ?? "").Trim().Split('.');
+        if (p.Length < 4 || !p.Take(4).All(x => int.TryParse(x, out _))) return null;
+        return $"v{p[0]}.{p[1]}.{p[2]}-{p[3]}" + (p.Length > 4 && p[4] != "" ? "-" + p[4] : "");
     }
 
     public static async Task InstallAsync(AppSettings s, VpxRelease rel, IProgress<double> progress, Action<string> status, CancellationToken ct)
     {
         var tmp = Path.Combine(Path.GetTempPath(), rel.AssetName);
-        status($"Downloading {rel.AssetName}…");
-        await Http.DownloadFileAsync(rel.Url, tmp, progress, ct);
+        status($"Downloading {rel.AssetName} ({rel.Size / 1_048_576} MB)…");
+        try { await Http.DownloadFileAsync(rel.Url, tmp, progress, ct); }
+        catch
+        {
+            try { File.Delete(tmp); } catch { } // don't leave a half download in Temp
+            throw;
+        }
 
         if (tmp.EndsWith(".dmg"))
         {
@@ -116,7 +137,7 @@ public static class VpxSetup
             return;
         }
 
-        status("Extracting…");
+        status("Extracting… (antivirus may scan the new files; this can take a minute)");
         Directory.CreateDirectory(s.VpxDir);
         await Task.Run(() => TableInstaller.Extract(tmp, s.VpxDir), ct);
         await File.WriteAllTextAsync(Path.Combine(s.VpxDir, VersionFile), rel.Tag, ct);
