@@ -85,21 +85,41 @@ public static class Http
         return c;
     }
 
+    /// <summary>How long a download may go without receiving anything before it's given up as stuck.</summary>
+    public static TimeSpan StallTimeout { get; set; } = TimeSpan.FromSeconds(60);
+
+    /// <summary>
+    /// Downloads to <paramref name="dest"/>. A connection that stops sending (a VPN, firewall or antivirus holding
+    /// it open) fails after <see cref="StallTimeout"/> with a <see cref="TimeoutException"/> instead of hanging.
+    /// </summary>
     public static async Task DownloadFileAsync(string url, string dest, IProgress<double>? progress, CancellationToken ct)
     {
-        using var resp = await Client.GetAsync(url, HttpCompletionOption.ResponseHeadersRead, ct);
-        resp.EnsureSuccessStatusCode();
-        var total = resp.Content.Headers.ContentLength;
-        await using var src = await resp.Content.ReadAsStreamAsync(ct);
-        await using var dst = File.Create(dest);
-        var buffer = new byte[1 << 16];
-        long read = 0;
-        int n;
-        while ((n = await src.ReadAsync(buffer, ct)) > 0)
+        using var stall = CancellationTokenSource.CreateLinkedTokenSource(ct);
+        var host = Uri.TryCreate(url, UriKind.Absolute, out var u) ? u.Host : url;
+        try
         {
-            await dst.WriteAsync(buffer.AsMemory(0, n), ct);
-            read += n;
-            if (total > 0) progress?.Report((double)read / total.Value);
+            stall.CancelAfter(StallTimeout);
+            using var resp = await Client.GetAsync(url, HttpCompletionOption.ResponseHeadersRead, stall.Token);
+            resp.EnsureSuccessStatusCode();
+            var total = resp.Content.Headers.ContentLength;
+            await using var src = await resp.Content.ReadAsStreamAsync(stall.Token);
+            await using var dst = File.Create(dest);
+            var buffer = new byte[1 << 16];
+            long read = 0;
+            int n;
+            stall.CancelAfter(StallTimeout);
+            while ((n = await src.ReadAsync(buffer, stall.Token)) > 0)
+            {
+                stall.CancelAfter(StallTimeout);
+                await dst.WriteAsync(buffer.AsMemory(0, n), ct);
+                read += n;
+                if (total > 0) progress?.Report((double)read / total.Value);
+            }
+        }
+        catch (OperationCanceledException) when (!ct.IsCancellationRequested)
+        {
+            throw new TimeoutException($"The download from {host} stopped: nothing arrived for {StallTimeout.TotalSeconds:0} seconds. " +
+                "A VPN, firewall or antivirus may be blocking it.");
         }
     }
 }

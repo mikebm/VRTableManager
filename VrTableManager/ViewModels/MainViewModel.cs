@@ -1087,13 +1087,24 @@ public sealed partial class MainViewModel : ObservableObject, IAsyncDisposable
         }
     }
 
+    CancellationTokenSource? _vpxInstallCts;
+    /// <summary>The bar can't show progress (checking GitHub, extracting): it just shows activity.</summary>
+    [ObservableProperty] public partial bool VpxProgressUnknown { get; set; }
+
+    [RelayCommand]
+    void CancelVpxInstall() => _vpxInstallCts?.Cancel();
+
     [RelayCommand]
     async Task InstallVpxAsync()
     {
         IsInstallingVpx = true;
+        VpxProgress = 0;
+        VpxProgressUnknown = true;
+        using var cts = _vpxInstallCts = new CancellationTokenSource();
         try
         {
-            var releases = await VpxSetup.FindReleasesAsync(CancellationToken.None, Settings.VpxUseDoNotUseBuilds);
+            LatestVpx = "Checking GitHub for the newest VPX build…";
+            var releases = await VpxSetup.FindReleasesAsync(cts.Token, Settings.VpxUseDoNotUseBuilds);
             var installed = VpxSetup.InstalledVersion(Settings);
             var (text, hasUpdate) = VpxSetup.DescribeUpdate(releases, installed);
             // Only install what's offered: no "DO NOT USE" build unless allowed, never an older one over a newer install.
@@ -1102,16 +1113,32 @@ public sealed partial class MainViewModel : ObservableObject, IAsyncDisposable
                 LatestVpx = text;
                 return;
             }
-            var progress = new Progress<double>(p => VpxProgress = p * 100);
-            await VpxSetup.InstallAsync(Settings, rel, progress, s => Avalonia.Threading.Dispatcher.UIThread.Post(() => LatestVpx = s), CancellationToken.None);
+            var progress = new Progress<double>(p => { VpxProgressUnknown = false; VpxProgress = p * 100; });
+            await VpxSetup.InstallAsync(Settings, rel, progress, s => Avalonia.Threading.Dispatcher.UIThread.Post(() =>
+            {
+                LatestVpx = s;
+                if (s.StartsWith("Extracting")) VpxProgressUnknown = true;
+            }), cts.Token);
             LatestVpx = $"Installed {rel.Tag}.";
+        }
+        catch (OperationCanceledException) when (cts.IsCancellationRequested)
+        {
+            LatestVpx = "Install cancelled.";
         }
         catch (Exception e)
         {
-            LatestVpx = "Install failed: " + e.Message;
+            LatestVpx = "Install failed: " + e.Message + e switch
+            {
+                UnauthorizedAccessException => $" Windows didn't allow writing to {Settings.VpxDir}. Pick a folder you own (Browse), or allow VR Table Manager in Windows Security → Ransomware protection → Controlled folder access.",
+                IOException when e.HResult is unchecked((int)0x80070020) or unchecked((int)0x80070021) => " A VPX file is in use: close VPX (and the VR lobby) and try again.",
+                HttpRequestException or TimeoutException => " If it keeps failing, download the Windows BGFX zip yourself from github.com/vpinball/vpinball/releases, unzip it into a folder and choose that folder above.",
+                _ => "",
+            };
         }
         finally
         {
+            _vpxInstallCts = null;
+            VpxProgressUnknown = false;
             IsInstallingVpx = false;
             RefreshSetupStatus();
             await CheckUpdatesAsync();
