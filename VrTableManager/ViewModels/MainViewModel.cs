@@ -853,6 +853,8 @@ public sealed partial class MainViewModel : ObservableObject, IAsyncDisposable
         if (!await EnsureHeadsetAsync()) { PlayStatus = ""; return; }
 
         IsLobbyRunning = true;
+        // Listed under Downloads only while it's being prepared (first-time Godot download, a rebuild) or if it
+        // fails: once the lobby is up there's nothing to follow, and a finished entry would need clearing.
         var job = new JobItem("VR lobby");
         Jobs.Insert(0, job);
         var hidden = false;
@@ -863,14 +865,14 @@ public sealed partial class MainViewModel : ObservableObject, IAsyncDisposable
             await LobbyRunner.ImportIfNeededAsync(godot, lobbyDir, job.Report, job.Cts.Token);
 
             using var lobby = LobbyRunner.Start(godot, lobbyDir);
-            job.Finish("✓ Lobby started. Put your headset on; this window comes back when you quit the lobby.");
-            PlayStatus = "VR lobby running…";
+            Jobs.Remove(job);
+            PlayStatus = "VR lobby running. Put your headset on; this window comes back when you quit the lobby.";
             _ui.HideForPlay();
             hidden = true;
             await WaitForLobbySessionAsync(lobby, Path.GetFileNameWithoutExtension(godot));
             PlayStatus = "Back from the VR lobby.";
         }
-        catch (OperationCanceledException) { job.Finish("Cancelled", error: true); }
+        catch (OperationCanceledException) { Jobs.Remove(job); PlayStatus = "VR lobby cancelled."; }
         catch (Exception e)
         {
             job.Finish("Couldn't start the lobby: " + e.Message, error: true);
