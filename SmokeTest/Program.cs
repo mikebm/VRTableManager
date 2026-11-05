@@ -361,7 +361,7 @@ if (cab != null)
     var e2 = V(2) - V(0);
     Check(Math.Abs(e1.X) < 1e-5 && Math.Abs(e1.Y) < 1e-5 && Math.Abs(e1.Z - 2 * s) < 1e-5 && Math.Abs(e2.X + 2 * s) < 1e-5 && Math.Abs(e2.Z) < 1e-5,
         $"VPX transform order (scale → translate → rotate → position) and axis mapping: e1={e1}, e2={e2}");
-    Check(body.Indices.SequenceEqual([0, 2, 1]), "triangle winding flipped for the axis swap");
+    Check(body.Indices.SequenceEqual([0, 1, 2]), "triangle order kept as VPX has it");
     Check(Math.Abs(body.Normals[1] - 1) < 1e-5, "normals follow the axes (VPX up → lobby up)");
     Check(body.Material is { Name: "Chrome", IsMetal: true } m && Math.Abs(m.Roughness - 0.9f) < 1e-6 && m.Rgb.R > 0.85f && m.Rgb.B < 0.8f,
         "10.8-style nested material read (metal, roughness, colour 0x00BBGGRR)");
@@ -380,6 +380,22 @@ if (realCab != null)
     Console.WriteLine($"this PC's Medieval Madness cabinet: {model?.Parts.Count} parts, {size.X:F2}x{size.Y:F2}x{size.Z:F2} m, {sw.ElapsedMilliseconds} ms");
     Check(model != null && size.X is > 0.6f and < 0.9f && size.Y is > 1.7f and < 2.2f && model.Parts.Any(p => p.Name == "PinCab_Backglass"),
         "a real VR table's cabinet comes out real-size (≈0.7 m wide, ≈1.9 m tall) with its backglass");
+    // Godot's front face is clockwise as seen from in front, so (c−a)×(b−a) points out of it. On a real cabinet
+    // nearly every triangle's front should face where its own normals point, or the lobby lights it inside out.
+    int agree = 0, total = 0;
+    foreach (var part in model?.Parts ?? [])
+        for (var k = 0; k + 2 < part.Indices.Length; k += 3)
+        {
+            System.Numerics.Vector3 P(int i) => new(part.Positions[i * 3], part.Positions[i * 3 + 1], part.Positions[i * 3 + 2]);
+            System.Numerics.Vector3 N(int i) => new(part.Normals[i * 3], part.Normals[i * 3 + 1], part.Normals[i * 3 + 2]);
+            int a = part.Indices[k], b = part.Indices[k + 1], c = part.Indices[k + 2];
+            var face = System.Numerics.Vector3.Cross(P(c) - P(a), P(b) - P(a));
+            if (face.LengthSquared() < 1e-14f) continue;
+            total++;
+            if (System.Numerics.Vector3.Dot(face, N(a) + N(b) + N(c)) > 0) agree++;
+        }
+    Console.WriteLine($"   front faces along their normals: {agree} of {total} triangles");
+    Check(total > 0 && agree > total * 0.9, $"a real cabinet's front faces point where its normals do ({agree * 100 / Math.Max(total, 1)}%)");
 }
 var realAfm = Directory.Exists(@"C:\Users\mikem\VPinball\Tables") ? Directory.GetFiles(@"C:\Users\mikem\VPinball\Tables", "*.vpx", SearchOption.AllDirectories).FirstOrDefault(f => f.Contains("Attack from Mars")) : null;
 if (realAfm != null)

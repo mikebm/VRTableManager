@@ -15,7 +15,7 @@ public sealed record VpxMaterial(string Name, uint BaseColour, bool IsMetal, flo
 
 /// <summary>
 /// One cabinet part as a ready-to-draw triangle mesh in lobby space: metres, x right, y up, +z towards
-/// the player, triangles wound clockwise (Godot's front faces).
+/// the player, triangles wound so their front faces (Godot's) are the side the normals point to.
 /// </summary>
 public sealed class VpxCabinetPart
 {
@@ -153,10 +153,11 @@ public static class VpxCabinet
                     nrm[i * 3] = nn.X; nrm[i * 3 + 1] = nn.Z; nrm[i * 3 + 2] = nn.Y;
                     uv[i * 2] = p.Verts[o + 6]; uv[i * 2 + 1] = p.Verts[o + 7];
                 }
-                // Swapping two axes mirrors the winding; VPX and Godot both treat clockwise as the front,
-                // so each triangle is flipped back.
+                // VPX's index order, as it is: after the axis swap it already gives Godot's front faces on the
+                // outside (checked against the parts' own normals in SmokeTest). Flipping it, as this used to,
+                // turned every cabinet inside out: the outer art was lit as if it faced inward (dark, hardly
+                // touched by the lobby's lights) and the inner walls shaded oddly.
                 var idx = (int[])p.Indices!.Clone();
-                for (var k = 0; k + 2 < idx.Length; k += 3) (idx[k + 1], idx[k + 2]) = (idx[k + 2], idx[k + 1]);
                 parts.Add((p, pos, nrm, uv, idx));
             }
 

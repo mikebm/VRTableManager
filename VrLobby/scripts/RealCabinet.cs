@@ -167,6 +167,7 @@ public partial class RealCabinetLoader : Node
         var images = new Dictionary<string, Image>(StringComparer.OrdinalIgnoreCase);
         var alphaModes = new Dictionary<string, Image.AlphaMode>(StringComparer.OrdinalIgnoreCase);
         var catalogue = VpxImages.ListImages(vpx);
+        var backglassImages = model.Parts.Where(p => IsBackglass(p.Name) && p.Image != null).Select(p => p.Image!).ToHashSet(StringComparer.OrdinalIgnoreCase);
         foreach (var name in model.ImageNames)
         {
             var info = catalogue.FirstOrDefault(i => string.Equals(i.Name, name, StringComparison.OrdinalIgnoreCase));
@@ -176,6 +177,9 @@ public partial class RealCabinetLoader : Node
             var img = ArtLoader.Decode(bytes);
             if (img == null) continue;
             if (img.IsCompressed()) img.Decompress();
+            // A backglass picture that's one flat colour (Harry Potter's is plain black) is a placeholder the
+            // table's script or PuP pack draws over while playing: leave it out, so the VPS backglass shows.
+            if (backglassImages.Contains(name) && IsBlank(img)) continue;
             ArtLoader.Shrink(img, TextureMaxSide);
             img.GenerateMipmaps();
             // GPU block compression (DXT): ~4-8x less video memory for a ring of cabinets. Uncompressed if
@@ -281,6 +285,20 @@ public partial class RealCabinetLoader : Node
     static Vector3 ToGodot(System.Numerics.Vector3 v) => new(v.X, v.Y, v.Z);
 
     static bool IsBackglass(string name) => name.Contains("backglass", StringComparison.OrdinalIgnoreCase);
+
+    /// <summary>One flat colour (every sampled pixel within a few levels of the first).</summary>
+    internal static bool IsBlank(Image img)
+    {
+        int w = img.GetWidth(), h = img.GetHeight();
+        var first = img.GetPixel(0, 0);
+        for (var y = 0; y < 16; y++)
+            for (var x = 0; x < 16; x++)
+            {
+                var c = img.GetPixel(Math.Min(w - 1, x * w / 16 + w / 32), Math.Min(h - 1, y * h / 16 + h / 32));
+                if (Math.Abs(c.R - first.R) + Math.Abs(c.G - first.G) + Math.Abs(c.B - first.B) > 0.06f) return false;
+            }
+        return true;
+    }
 
     /// <summary>
     /// Untextured parts (metal, chrome, black panels) belong to any table; textured ones carry this

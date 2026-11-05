@@ -36,7 +36,8 @@ public partial class Cabinet : Node3D
     // so dimming is done by tinting them rather than by the room lights.
     // Anisotropic filtering keeps a playfield sharp when you look along it at a low angle.
     readonly StandardMaterial3D _playfieldMat = new() { ShadingMode = BaseMaterial3D.ShadingModeEnum.Unshaded, TextureFilter = BaseMaterial3D.TextureFilterEnum.LinearWithMipmapsAnisotropic };
-    readonly StandardMaterial3D _backglassMat = new() { ShadingMode = BaseMaterial3D.ShadingModeEnum.Unshaded, TextureFilter = BaseMaterial3D.TextureFilterEnum.LinearWithMipmapsAnisotropic };
+    // Both sides: it also goes on a VR cabinet's own backglass part, which may face either way (Harry Potter's does).
+    readonly StandardMaterial3D _backglassMat = new() { ShadingMode = BaseMaterial3D.ShadingModeEnum.Unshaded, TextureFilter = BaseMaterial3D.TextureFilterEnum.LinearWithMipmapsAnisotropic, CullMode = BaseMaterial3D.CullModeEnum.Disabled };
     readonly Label3D _plate = new();
     readonly Label3D _star = new();
     readonly Label3D _dmd = new();
