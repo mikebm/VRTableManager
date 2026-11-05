@@ -87,6 +87,17 @@ public static class AltPackChecks
         try { AltPacks.Install(AddonKind.AltColor, barePac, table, game.AltColorFiles[0]); } catch (InvalidDataException e) { pacError = e.Message; }
         yield return (pacError?.Contains("encrypted") == true, "a bare .pac download says why it can't be used, not that it isn't an archive");
 
+        // A catalog "Pin2DMD" file found to be PAC-only is remembered: listed last, labelled, retried once the catalog has a newer one.
+        PacOnlyFiles.StorePath = Path.Combine(root, "pac-only.json");
+        var p2d = game.AltColorFiles[0];
+        var before = AltPacks.SourcesFor(game, table, AddonKind.AltColor).FindIndex(f => f.Id == p2d.Id);
+        PacOnlyFiles.Mark(p2d);
+        var after = AltPacks.SourcesFor(game, table, AddonKind.AltColor);
+        yield return (before == 1 && after[^1].Id == p2d.Id && AltPacks.Describe(p2d, table).Contains("PAC only"),
+            "a colorization found to be PAC-only goes last and says so");
+        var newer = new VpsAltColorFile { Id = p2d.Id, Type = "Pin2dmd", UpdatedAt = (p2d.UpdatedAt ?? 0) + 1 };
+        yield return (!PacOnlyFiles.IsKnown(newer), "a newer catalog version of it is offered normally again");
+
         // AltSound: the pack folder with altsound.csv, wherever it sits in the archive, into altsound\<rom>.
         var soundZip = Zip(root, "sound.zip", ("AltSound/mm_109c/altsound.csv", "csv"), ("AltSound/mm_109c/music/theme.ogg", "ogg"), ("Install.txt", "t"));
         var srec = AltPacks.Install(AddonKind.AltSound, soundZip, table, game.AltSoundFiles[0]);
