@@ -62,6 +62,10 @@ public static class LobbyArt
     /// Future Pinball (its Tables folder is shared) or store games. Without such a file, the sound
     /// recorded from the table's ROM (<see cref="RomAudio"/>), if it has been. Null when there's nothing suitable.
     /// </summary>
+    /// <summary>The table's lobby video (medias\lobby-video: JPEG frames the lobby streams onto the playfield), or null.</summary>
+    public static (string Folder, LobbyVideo.Info Info)? PlayfieldVideo(LobbyTable t) =>
+        t.Engine == TableManifest.Vpx && LobbyVideo.Existing(t.Source.Folder) is { } info ? (LobbyVideo.Folder(t.Source.Folder), info) : null;
+
     public static string? AttractSound(LobbyTable t) =>
         LooseSound(t) ?? (t.Engine == TableManifest.Vpx ? RomAudio.Cached(t.Source) : null);
 

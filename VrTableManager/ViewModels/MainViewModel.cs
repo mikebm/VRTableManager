@@ -637,6 +637,7 @@ public sealed partial class MainViewModel : ObservableObject, IAsyncDisposable
             {
                 item.TableScale = VpxGraphics.ReadTableScale(item.Table.TablePath);
                 item.HasAttractAudio = MediaPackAudio.Existing(item.Table.Folder) != null;
+                item.HasLobbyVideo = LobbyVideo.Existing(item.Table.Folder) != null;
                 RefreshAddonState(item);
                 item.AttractAudioSources = AttractAudioSourcesFor(item.Table);
             }

@@ -35,16 +35,7 @@ public sealed partial class MainViewModel
                 job.Report($"Getting the {src.Label}…");
                 try
                 {
-                    var downloads = JobDownloadDir(job);
-                    // In your browser: no download slot (see FetchAsync).
-                    var file = !src.IsDirect && !SitePolicy.AllowsAutomation(src.Url) ? await _assisted.DownloadAsync(src.Url, downloads, job)
-                        : await WithDownloadSlotAsync(job, async () =>
-                    {
-                        if (!src.IsDirect) return await _browser.DownloadAsync(src.Url, downloads, [], job.Report, job.Cts.Token);
-                        var dest = Path.Combine(downloads, TableInstaller.SafeName(Uri.UnescapeDataString(Path.GetFileName(new Uri(src.Url).AbsolutePath))));
-                        await Http.DownloadFileAsync(src.Url, dest, job.ProgressReporter, job.Cts.Token);
-                        return dest;
-                    });
+                    var file = await DownloadAttractSourceAsync(job, src);
                     job.Report("Taking the audio out…");
                     var saved = await Task.Run(() => MediaPackAudio.Save(file, table.Folder, table.Manifest.GameName, CompressedAudio.Converter));
                     CleanJobDownloads(job); // the pack's videos aren't kept
@@ -74,6 +65,21 @@ public sealed partial class MainViewModel
         {
             CleanJobDownloads(job);
         }
+    }
+
+    /// <summary>Downloads a sound file or media pack into the job's folder and returns the file.</summary>
+    async Task<string> DownloadAttractSourceAsync(JobItem job, MediaPackAudio.Source src)
+    {
+        var downloads = JobDownloadDir(job);
+        // In your browser: no download slot (see FetchAsync).
+        if (!src.IsDirect && !SitePolicy.AllowsAutomation(src.Url)) return await _assisted.DownloadAsync(src.Url, downloads, job);
+        return await WithDownloadSlotAsync(job, async () =>
+        {
+            if (!src.IsDirect) return await _browser.DownloadAsync(src.Url, downloads, [], job.Report, job.Cts.Token);
+            var dest = Path.Combine(downloads, TableInstaller.SafeName(Uri.UnescapeDataString(Path.GetFileName(new Uri(src.Url).AbsolutePath))));
+            await Http.DownloadFileAsync(src.Url, dest, job.ProgressReporter, job.Cts.Token);
+            return dest;
+        });
     }
 
     [RelayCommand]

@@ -15,7 +15,14 @@ public partial class Cabinet : Node3D
     public LobbyTable? Table { get; private set; }
     public string? PlayfieldUrl { get; private set; }
     public string? BackglassUrl { get; private set; }
-    public bool HasPlayfieldArt => _playfieldMat.AlbedoTexture != null;
+    public bool HasPlayfieldArt => _playfieldArt != null;
+    /// <summary>The still picture; a playing lobby video (<see cref="SetPlayfieldVideo"/>) shows over it.</summary>
+    Texture2D? _playfieldArt;
+    public bool ShowsPlayfieldVideo => _playfieldMat.AlbedoTexture != null && _playfieldMat.AlbedoTexture != _playfieldArt;
+
+    /// <summary>Colour at the centre of what the playfield shows (tests).</summary>
+    public Color? PlayfieldTextureColour() =>
+        _playfieldMat.AlbedoTexture?.GetImage() is { } img ? img.GetPixel(img.GetWidth() / 2, img.GetHeight() / 2) : null;
     public bool HasBackglassArt => _backglassMat.AlbedoTexture != null;
     public bool ShowsTitlePlate => _plate.Visible;
     public bool ShowsFavourite => _star.Visible;
@@ -269,7 +276,7 @@ public partial class Cabinet : Node3D
 
         PlayfieldUrl = playfieldUrl;
         BackglassUrl = backglassUrl;
-        _playfieldMat.AlbedoTexture = null;
+        _playfieldMat.AlbedoTexture = _playfieldArt = null;
         _backglassMat.AlbedoTexture = null;
         _plate.Text = table.Title;
         _dmd.Text = table.Title.ToUpperInvariant();
@@ -289,7 +296,16 @@ public partial class Cabinet : Node3D
 
     public void SetPlayfield(Texture2D tex)
     {
-        _playfieldMat.AlbedoTexture = tex;
+        var playingVideo = _playfieldMat.AlbedoTexture != null && _playfieldMat.AlbedoTexture != _playfieldArt;
+        _playfieldArt = tex;
+        if (!playingVideo) _playfieldMat.AlbedoTexture = tex;
+        ApplyColours();
+    }
+
+    /// <summary>Shows a lobby video frame texture on the playfield, or (null) goes back to the still picture.</summary>
+    public void SetPlayfieldVideo(Texture2D? tex)
+    {
+        _playfieldMat.AlbedoTexture = tex ?? _playfieldArt;
         ApplyColours();
     }
 

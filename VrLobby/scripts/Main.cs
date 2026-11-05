@@ -48,6 +48,11 @@ public partial class Main : Node3D
     readonly Dictionary<string, double> _cool = new() { ["x"] = 0, ["jump"] = 0 };
     readonly AudioStreamPlayer3D _attract = new() { VolumeDb = -12f, UnitSize = 3f };
     readonly Dictionary<string, string?> _attractFiles = [];
+    readonly PlayfieldVideo _video = new();
+    /// <summary>Folder of the lobby video playing on the selected cabinet, or null.</summary>
+    public string? VideoPlaying => _video.Playing;
+    public int VideoFramesShown => _video.FramesShown;
+    string? _videoCheckedFor; // looked for this selection's video already (once per selection, not every frame)
     readonly RomRecorder _recorder = new();
     bool _recordRoms;
     Dictionary<string, string>? _backglass;
@@ -85,6 +90,7 @@ public partial class Main : Node3D
         AddChild(_ring);
         AddChild(_rail);
         AddChild(_attract);
+        AddChild(_video);
         AddChild(_recorder);
         _recorder.Recorded += id => _attractFiles.Remove(id); // look again: it plays if the table is still selected
         for (var s = 0; s < PoolSize; s++)
@@ -689,6 +695,8 @@ public partial class Main : Node3D
     {
         UpdateRail();
         StopAttract();
+        _video.Stop();
+        _videoCheckedFor = null;
         _settled = 0;
         if (Shown.Count == 0)
         {
@@ -872,6 +880,14 @@ public partial class Main : Node3D
         }
     }
 
+    /// <summary>The selected cabinet's playfield comes alive with the table's lobby video, when it has one.</summary>
+    void MaybePlayVideo()
+    {
+        if (_video.Playing != null || Shown.Count == 0 || SelectedCabinet is not { Table: { } t } cab || _videoCheckedFor == t.Id) return;
+        _videoCheckedFor = t.Id;
+        if (LobbyArt.PlayfieldVideo(t) is var (folder, info)) _video.Play(cab, folder, info);
+    }
+
     void StopAttract()
     {
         if (AttractPlaying == null) return;
@@ -893,7 +909,11 @@ public partial class Main : Node3D
         else if (Shown.Count > 0 && !_launching)
         {
             _settled += delta;
-            if (_settled > 0.8) MaybePlayAttract();
+            if (_settled > 0.8)
+            {
+                MaybePlayAttract();
+                MaybePlayVideo();
+            }
         }
         if (AttractPlaying != null)
         {
@@ -1062,6 +1082,7 @@ public partial class Main : Node3D
         }
         _launching = true;
         StopAttract();
+        _video.Stop();
         _recorder.StopAll();
         _header.Text = "Starting " + t.Title;
         _status.Text = "The lobby closes now and comes back when you exit the table.";
