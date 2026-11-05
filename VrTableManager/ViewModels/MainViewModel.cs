@@ -639,6 +639,7 @@ public sealed partial class MainViewModel : ObservableObject, IAsyncDisposable
                 item.HasAttractAudio = MediaPackAudio.Existing(item.Table.Folder) != null;
                 item.HasLobbyVideo = LobbyVideo.Existing(item.Table.Folder) != null;
                 item.HasDmdFix = VrDmdFix.HasBackup(item.Table.TablePath);
+                item.DmdFixDeclined = Settings.DmdFixDeclined.Contains(item.Table.TablePath, StringComparer.OrdinalIgnoreCase);
                 RefreshAddonState(item);
                 item.AttractAudioSources = AttractAudioSourcesFor(item.Table);
             }
