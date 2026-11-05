@@ -16,6 +16,9 @@ public partial class Main : Node3D
     static readonly float Step = Mathf.DegToRad(34f);  // room for a 0.74 m cabinet plus a gap at the ring distance
     const int Side = 5;                                 // cabinets either side of the selected one
     public const int PoolSize = Side * 2 + 1;           // only these 11 cabinet nodes ever exist
+    const float SnapAt = 0.0005f;                       // the ring eases to within this much of a step, then stops
+    const float VideoFrom = 0.6f;                       // the playfield video starts once the table is this close (steps)
+    const double AttractAfter = 0.5;                    // seconds on a table before its sound plays
     public const float RingFront = 2.1f;                // the ring
     public const float SelectedFront = 0.9f;            // the selected cabinet steps up to about arm's length
     static readonly float AngleAway = Mathf.DegToRad(12f);
@@ -53,6 +56,13 @@ public partial class Main : Node3D
     public string? VideoPlaying => _video.Playing;
     public int VideoFramesShown => _video.FramesShown;
     string? _videoCheckedFor; // looked for this selection's video already (once per selection, not every frame)
+
+    // --perf-trace (diagnostic): steps through tables by itself and prints every slow frame with what happened in it.
+    bool _perfTrace;
+    readonly List<string> _perfEvents = [];
+    double _perfClock, _perfNextStep = 2.0;
+    int _perfSteps, _perfStepCount = 8;
+    void Trace(string what) { if (!_perfTrace) return; _perfEvents.Add(what); GD.Print($"  {_perfClock:0.00}s {what}"); }
     readonly RomRecorder _recorder = new();
     bool _recordRoms;
     Dictionary<string, string>? _backglass;
@@ -91,6 +101,7 @@ public partial class Main : Node3D
         AddChild(_rail);
         AddChild(_attract);
         AddChild(_video);
+        _video.FirstFrameShown += () => Trace("video first frame");
         AddChild(_recorder);
         _recorder.Recorded += id => _attractFiles.Remove(id); // look again: it plays if the table is still selected
         for (var s = 0; s < PoolSize; s++)
@@ -117,6 +128,8 @@ public partial class Main : Node3D
         _settingsPath = args.GetValueOrDefault("settings") ?? NullIfEmpty(System.Environment.GetEnvironmentVariable("VRLOBBY_SETTINGS"));
         _statePath = args.GetValueOrDefault("state") ?? NullIfEmpty(System.Environment.GetEnvironmentVariable("VRLOBBY_STATE"));
         var selfTest = args.ContainsKey("selftest");
+        _perfTrace = args.ContainsKey("perf-trace");
+        if (int.TryParse(args.GetValueOrDefault("perf-trace"), out var steps) && steps >= 0) _perfStepCount = steps;
         if (selfTest && _settingsPath == null)
         {
             var fx = Tests.LobbyFixture.Create(Path.Combine(OS.GetUserDataDir(), "selftest-fixture"));
@@ -561,6 +574,7 @@ public partial class Main : Node3D
 
     void OnCabinetReady(string vpx, RealCabinet? real)
     {
+        Trace("cabinet " + Path.GetFileNameWithoutExtension(vpx));
         foreach (var cab in _pool) ShowCabinetFor(cab);
     }
 
@@ -863,27 +877,46 @@ public partial class Main : Node3D
             if (_recordRoms) _recorder.Request(t);
             return;
         }
+        // Read off the main thread: a recorded ROM sound is a WAV of several MB, and reading it on the main
+        // thread cost the headset a frame just as the table arrived.
+        if (_attractLoading == t.Id) return;
+        _attractLoading = t.Id;
+        var id = t.Id;
+        Task.Run(() => LoadSound(file)).ContinueWith(task => Callable.From(() =>
+        {
+            if (_attractLoading != id) return; // moved on (or stopped) while it loaded
+            _attractLoading = null;
+            var stream = task.IsCompletedSuccessfully ? task.Result : null;
+            if (stream == null) { _attractFiles[id] = null; return; } // unreadable: don't try again
+            if (_launching || AttractPlaying != null || Shown.Count == 0 || Shown[Selected].Id != id) return;
+            _attract.Stream = stream;
+            _attract.Position = new Vector3(0, CabinetKit.BackglassCentreY, -(SelectedFront + CabinetKit.Length) + CabinetKit.BoxDepth);
+            _attract.VolumeDb = -12f;
+            _attract.Play();
+            Trace("attract " + Path.GetFileName(file));
+            AttractPlaying = file;
+            _attractLeft = 10.0;
+        }).CallDeferred());
+    }
+
+    string? _attractLoading;
+
+    static AudioStream? LoadSound(string file)
+    {
         try
         {
-            AudioStream? stream = Path.GetExtension(file).ToLowerInvariant() switch
+            return Path.GetExtension(file).ToLowerInvariant() switch
             {
                 ".ogg" => AudioStreamOggVorbis.LoadFromFile(file),
                 ".mp3" => new AudioStreamMP3 { Data = File.ReadAllBytes(file) },
                 ".wav" => AudioStreamWav.LoadFromFile(file),
                 _ => null,
             };
-            if (stream == null) return;
-            _attract.Stream = stream;
-            _attract.Position = new Vector3(0, CabinetKit.BackglassCentreY, -(SelectedFront + CabinetKit.Length) + CabinetKit.BoxDepth);
-            _attract.VolumeDb = -12f;
-            _attract.Play();
-            AttractPlaying = file;
-            _attractLeft = 10.0;
         }
         catch (Exception e)
         {
             GD.PushWarning($"Attract sound {file}: {e.Message}");
-            _attractFiles[t.Id] = null; // unreadable: don't try again
+            return null;
         }
     }
 
@@ -892,11 +925,12 @@ public partial class Main : Node3D
     {
         if (_video.Playing != null || Shown.Count == 0 || SelectedCabinet is not { Table: { } t } cab || _videoCheckedFor == t.Id) return;
         _videoCheckedFor = t.Id;
-        if (LobbyArt.PlayfieldVideo(t) is var (folder, info)) _video.Play(cab, folder, info);
+        if (LobbyArt.PlayfieldVideo(t) is var (folder, info)) { _video.Play(cab, folder, info); Trace("video start"); }
     }
 
     void StopAttract()
     {
+        _attractLoading = null;
         if (AttractPlaying == null) return;
         _attract.Stop();
         AttractPlaying = null;
@@ -906,20 +940,27 @@ public partial class Main : Node3D
 
     public override void _Process(double delta)
     {
+        if (_perfTrace) PerfTrace(delta);
         var d = (float)delta;
         if (!Mathf.IsEqualApprox(_scroll, Selected))
         {
             _scroll = Mathf.Lerp(_scroll, Selected, 1f - Mathf.Exp(-9f * d));
-            if (Mathf.Abs(_scroll - Selected) < 0.01f) _scroll = Selected; // a third of a degree: snap and settle
+            // Ease all the way in before the last step: a cabinet travels 1.2 m per step, so snapping at 1% left
+            // stopped it dead from 11 cm/s, a visible jerk in the headset. At 0.05% it's under 6 mm/s.
+            if (Mathf.Abs(_scroll - Selected) < SnapAt) { _scroll = Selected; Trace("snap"); }
             Layout();
         }
-        else if (Shown.Count > 0 && !_launching)
+        if (Shown.Count > 0 && !_launching)
         {
-            _settled += delta;
-            if (_settled > 0.8)
+            var away = Mathf.Abs(_scroll - Selected);
+            // The playfield video starts while the table is still coming in (decoding its first frame takes a
+            // moment), so it's already playing when it arrives instead of swapping in after it stops.
+            if (away < VideoFrom) MaybePlayVideo();
+            // The sound waits until it has (nearly) arrived and you've stayed on it for a moment.
+            if (away < 0.02f)
             {
-                MaybePlayAttract();
-                MaybePlayVideo();
+                _settled += delta;
+                if (_settled > AttractAfter) MaybePlayAttract();
             }
         }
         if (AttractPlaying != null)
@@ -1068,8 +1109,21 @@ public partial class Main : Node3D
 
     // ---- Art / launch --------------------------------------------------------------
 
+    void PerfTrace(double delta)
+    {
+        _perfClock += delta;
+        if (delta > 0.010) GD.Print($"SLOW {delta * 1000:0} ms at {_perfClock:0.00}s (scroll {_scroll - Selected:0.000}, settled {_settled:0.00}): {string.Join(", ", _perfEvents)}");
+        _perfEvents.Clear();
+        if (_perfClock < _perfNextStep) return;
+        if (_perfSteps++ == _perfStepCount) { GetTree().Quit(); return; }
+        _perfNextStep = _perfClock + 3.0;
+        GD.Print($"STEP {_perfSteps} at {_perfClock:0.00}s");
+        Select(Selected + 1);
+    }
+
     void OnArtLoaded(string url, Texture2D tex, Color average)
     {
+        Trace("art " + Path.GetFileName(url));
         foreach (var cab in _pool)
         {
             if (cab.Table == null) continue;

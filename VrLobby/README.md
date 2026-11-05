@@ -156,6 +156,7 @@ Verified on this PC (no headset connected):
 - **The OpenXR handover:** the lobby quitting, the table starting in VR, then the lobby coming back. Expect a few seconds of black or loading view.
 - **Attract sounds:** the recorded clips and the two media-pack files have not been listened to in the headset. Recorded so far: Medieval Madness, Black Knight 2000, Fish Tales, Avatar and X-Men (~25 s each); Attack from Mars gives only ~3 s (its game probably waits on another switch), but it now has a media-pack file.
 - **Future Pinball (BAM-OpenVR + SteamVR), and Pinball FX / M through UEVR:** UEVR isn't installed on this PC.
+- **Smoothness:** `godot --xr-mode off --path VrLobby -- --perf-trace[=steps]` steps through the tables by itself (8 by default, 3 s each) and prints every frame over 10 ms with what happened in it (art arriving, a cabinet ready, the ring snapping, the video or sound starting).
 - **Height:** that Local Floor puts you at the right height, and the left-grip height control.
 
 ## Not included (ideas for later)
