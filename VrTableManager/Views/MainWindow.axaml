@@ -301,6 +301,9 @@
                                           ToolTip.Tip="Records the attract mode with VPX instead of using the media pack (a small VPX window opens for about half a minute, sound off)"
                                           IsEnabled="{Binding !IsBusy}" Command="{Binding Owner.RecordLobbyVideoCommand}" CommandParameter="{Binding}" />
                                 <MenuItem Header="Remove lobby video" IsVisible="{Binding HasLobbyVideo}" Command="{Binding Owner.RemoveLobbyVideoCommand}" CommandParameter="{Binding}" />
+                                <MenuItem Header="Undo the PuP DMD fix (put the original table back)" IsVisible="{Binding HasDmdFix}"
+                                          ToolTip.Tip="Restores the table file saved before its VR DMD was switched to VPX's Score View"
+                                          Command="{Binding Owner.UndoDmdFixCommand}" CommandParameter="{Binding}" />
                                 <MenuItem Header="Clear texture cache" IsVisible="{Binding IsVpx}" Command="{Binding Owner.ClearTableCacheCommand}" CommandParameter="{Binding}" />
                               </MenuFlyout>
                             </Button.Flyout>

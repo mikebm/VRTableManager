@@ -133,6 +133,7 @@ public static class TableInstaller
                 && File.Exists(replacing.TablePath))
             {
                 File.Delete(replacing.TablePath);
+                File.Delete(VrDmdFix.BackupPath(replacing.TablePath));
                 if (isFp && File.Exists(ManifestPathFor(replacing.TablePath, true))) File.Delete(ManifestPathFor(replacing.TablePath, true));
             }
 
@@ -318,6 +319,7 @@ public static class TableInstaller
         else
         {
             File.Delete(table.TablePath);
+            File.Delete(VrDmdFix.BackupPath(table.TablePath)); // no-op when there's none
             var manifest = ManifestPathFor(table.TablePath, !table.IsVpx);
             if (File.Exists(manifest)) File.Delete(manifest);
         }

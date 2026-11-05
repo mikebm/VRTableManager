@@ -253,6 +253,8 @@ public sealed partial class MainViewModel
             }
         }
 
+        if (!await OfferDmdFixAsync(item)) return false;
+
         // Future Pinball's BAM uses OpenVR (SteamVR) on purpose; the runtime check is for OpenXR games.
         var usesOpenXr = engine.Id != TableManifest.FuturePinball;
         if (usesOpenXr && Settings.WarnSteamVrRuntime && OpenXrRuntimes.Active() is { IsSteamVr: true })
