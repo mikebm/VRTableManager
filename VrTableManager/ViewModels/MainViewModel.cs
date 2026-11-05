@@ -740,6 +740,7 @@ public sealed partial class MainViewModel : ObservableObject, IAsyncDisposable
             item.ApplyStats(_stats);
             PlayStatus = $"Finished {item.Title}. Pick your next table.";
             _ui.ShowAfterPlay();
+            if (item.Table.IsVpx) LoadVrView(); // VPX saves the table position when it closes
             await ExplainVpxExitAsync(item, started);
         }
         catch (System.ComponentModel.Win32Exception e) when (e.NativeErrorCode == 1223)

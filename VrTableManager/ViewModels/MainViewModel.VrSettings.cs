@@ -123,6 +123,7 @@ public sealed partial class MainViewModel
             GfxSharpen = g.Sharpen;
             GfxFps = g.FpsOverlay;
             GraphicsPresetLabel = g.PresetName is { } p ? $"Matches the {p} preset" : "Custom settings";
+            LoadVrView();
         }
         finally { _loadingGraphics = false; }
     }
@@ -178,6 +179,31 @@ public sealed partial class MainViewModel
         }
         finally { _loadingGraphics = false; }
         SaveGraphics();
+    }
+
+    // ---- Where the table sits in VR ----------------------------------------------------------
+
+    /// <summary>The table position VPX saved (moved in the headset), or that it's at VPX's default.</summary>
+    [ObservableProperty] public partial string VrViewText { get; set; } = "";
+
+    void LoadVrView()
+    {
+        var v = VrView.Read(VpxSetup.VrIniPath(Settings));
+        VrViewText = v.IsDefault
+            ? "The table is where VPX puts it by default."
+            : $"Moved in the headset: {v.Describe()}.";
+    }
+
+    [RelayCommand]
+    async Task ResetVrViewAsync()
+    {
+        var pick = await _ui.ChoiceAsync("Put the table back where VPX starts it?",
+            "Forgets the position, height and turn you set in the headset. You can line it up again with the left thumbstick click while playing.",
+            ["RESET", "CANCEL"]);
+        if (pick != 0) return;
+        try { VrView.Reset(VpxSetup.VrIniPath(Settings)); }
+        catch (Exception e) { VrViewText = "Couldn't reset the position: " + e.Message; return; }
+        LoadVrView();
     }
 
     // ---- Per-table render scale ------------------------------------------------------------

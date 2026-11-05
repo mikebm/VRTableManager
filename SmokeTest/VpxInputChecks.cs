@@ -46,3 +46,19 @@ static class VpxInputChecks
             "VR remaps survive later launches");
     }
 }
+
+/// <summary>The VR table position VPX saves (VrView).</summary>
+static class VrViewChecks
+{
+    public static IEnumerable<(bool, string)> Run(string root)
+    {
+        var ini = Path.Combine(root, "vrview", "vr.ini");
+        Directory.CreateDirectory(Path.GetDirectoryName(ini)!);
+        File.WriteAllText(ini, "[PlayerVR]\nAskToTurnOn = 0\nOrientation = 6.741632\nTableX = 0.708085\nTableY = 18.982412\nTableZ = 0.0\n");
+        var v = VrView.Read(ini);
+        yield return (!v.IsDefault && v.Describe() == "offset X 0.7 cm, Y 19 cm, Z 0 cm, turned 6.7°", "the saved VR table position is read");
+        VrView.Reset(ini);
+        yield return (VrView.Read(ini).IsDefault && IniFile.Read(ini).GetValueOrDefault(("PlayerVR", "AskToTurnOn")) == "0",
+            "resetting it clears only the position");
+    }
+}

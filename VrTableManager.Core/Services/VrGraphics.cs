@@ -223,3 +223,33 @@ public static class MetaAsw
         finally { try { File.Delete(script); } catch { } }
     }
 }
+
+/// <summary>
+/// Where VPX puts the table in the VR room: [PlayerVR] TableX/Y/Z (cm) and Orientation (degrees), which VPX saves
+/// when the player lines the table up in the headset (left thumbstick click, or the in-game menu). One position for
+/// every table; empty values are VPX's default placement.
+/// </summary>
+public sealed record VrView(double? X, double? Y, double? Z, double? Orientation)
+{
+    static readonly string[] Keys = ["TableX", "TableY", "TableZ", "Orientation"];
+
+    public bool IsDefault => X is null or 0 && Y is null or 0 && Z is null or 0 && Orientation is null or 0;
+
+    public static VrView Read(string iniPath)
+    {
+        var ini = IniFile.Read(iniPath);
+        double? Get(string key) =>
+            double.TryParse(ini.GetValueOrDefault(("PlayerVR", key)), NumberStyles.Float, CultureInfo.InvariantCulture, out var v) ? v : null;
+        return new VrView(Get("TableX"), Get("TableY"), Get("TableZ"), Get("Orientation"));
+    }
+
+    /// <summary>"offset X 0.7 cm, Y 19 cm, Z 0 cm, turned 6.7°" (VPX's own axes; it doesn't say which way is which).</summary>
+    public string Describe()
+    {
+        static string Cm(double? v) => $"{v ?? 0:0.#} cm";
+        return $"offset X {Cm(X)}, Y {Cm(Y)}, Z {Cm(Z)}, turned {Orientation ?? 0:0.#}°";
+    }
+
+    public static void Reset(string iniPath) =>
+        IniFile.SetMany(iniPath, "PlayerVR", Keys.Select(k => (k, "")));
+}

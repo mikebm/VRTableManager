@@ -731,6 +731,26 @@
                     </StackPanel>
                   </Border>
 
+                  <!-- Table position in VR -->
+                  <Border Background="{StaticResource Bg}" BorderBrush="{StaticResource Line}" BorderThickness="1" CornerRadius="10" Padding="16">
+                    <StackPanel Spacing="8">
+                      <TextBlock Classes="eyebrow" Text="WHERE THE TABLE SITS IN VR" />
+                      <TextBlock Classes="body" TextWrapping="Wrap"
+                                 Text="Line the table up while playing, in the headset. VPX remembers it for every table." />
+                      <TextBlock Classes="body" TextWrapping="Wrap"
+                                 Text="• Click the LEFT THUMBSTICK to line the table up with your VR controllers: hold them where you want the front of the cabinet (the lockbar) and click. Do this standing where you play." />
+                      <TextBlock Classes="body" TextWrapping="Wrap"
+                                 Text="• Or press X on the left controller for VPX's menu: its VR settings move the table forward, back, up and down, turn it, and set the lockbar width (the table's size)." />
+                      <TextBlock Classes="body" TextWrapping="Wrap"
+                                 Text="• At the keyboard: keypad 5 recenters, keypad 8 and 2 move the table up and down. The headset's own recenter (hold the Meta button) moves the room with you." />
+                      <TextBlock Classes="mono" TextWrapping="Wrap" Text="{Binding VrViewText}" />
+                      <WrapPanel>
+                        <Button Classes="small" Content="RESET TABLE POSITION" Margin="0,0,8,0" Command="{Binding ResetVrViewCommand}"
+                                ToolTip.Tip="Forgets the position set in the headset, so VPX places the table itself again." />
+                      </WrapPanel>
+                    </StackPanel>
+                  </Border>
+
                   <!-- VPX graphics -->
                   <Border Background="{StaticResource Bg}" BorderBrush="{StaticResource Line}" BorderThickness="1" CornerRadius="10" Padding="16">
                     <StackPanel Spacing="10">
