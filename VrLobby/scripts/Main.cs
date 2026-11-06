@@ -173,6 +173,18 @@ public partial class Main : Node3D
         _recordRoms = !selfTest && Settings.LobbyRecordsRomAudio;
         _recorder.SettingsPath = _settingsPath;
         _borrowAll = args.ContainsKey("borrow-all");
+        // --screenshot=<png> [--pitch=<degrees>] (desktop, diagnostic): save one frame once the art is in, then quit.
+        if (!_vr && args.GetValueOrDefault("screenshot") is { Length: > 0 } shot)
+        {
+            if (float.TryParse(args.GetValueOrDefault("pitch"), System.Globalization.CultureInfo.InvariantCulture, out var pitch)
+                && GetViewport().GetCamera3D() is { } cam)
+                cam.Rotation = new Vector3(Mathf.DegToRad(pitch), 0, 0);
+            GetTree().CreateTimer(6).Timeout += () =>
+            {
+                GetViewport().GetTexture().GetImage().SavePng(shot);
+                Leave("screenshot saved to " + shot);
+            };
+        }
         Rebuild(args.GetValueOrDefault("select", ""));
         LoadBackglassIndex();
         if (!selfTest) RefreshHighScoreMaps();
@@ -326,12 +338,10 @@ public partial class Main : Node3D
             },
         });
 
-        // Floor and far wall: neutral dark grey, so the lamps and the DMDs are the only warm light.
-        AddChild(new MeshInstance3D
-        {
-            Mesh = new PlaneMesh { Size = new Vector2(30, 30) },
-            MaterialOverride = new StandardMaterial3D { AlbedoColor = new Color(0.045f, 0.045f, 0.05f), Metallic = 0.1f, Roughness = 0.7f },
-        });
+        // Arcade carpet underfoot and a black drop ceiling with neon tubes overhead (ArcadeRoom); the far wall
+        // stays neutral dark grey, so the lamps, the neon and the DMDs are the light in the room.
+        AddChild(ArcadeRoom.Floor(15));
+        AddChild(ArcadeRoom.Ceiling(7.2f));
         AddChild(new MeshInstance3D
         {
             Mesh = new CylinderMesh { TopRadius = 7, BottomRadius = 7, Height = 4.5f, RadialSegments = 48, CapTop = false, CapBottom = false },

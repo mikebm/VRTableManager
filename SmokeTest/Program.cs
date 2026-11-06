@@ -369,6 +369,14 @@ if (cab != null)
         "cabinet anchored: floor at 0, front edge at 0.7 m, centred across");
 }
 File.WriteAllText(Path.Combine(root, "desktop only.vpx"), "not a compound file");
+// Leveling: back legs touch at z = -0.7, front legs 15 cm up at z = 0.6 → tipped by atan(0.15 / 1.3).
+{
+    float[] legs = [0, 0, -0.7f, 0, 0.15f, 0.6f, 0, 1.0f, 0];
+    var tilt = VpxCabinet.LevelingTilt([legs]);
+    Check(MathF.Abs(tilt - MathF.Atan2(0.15f, 1.3f)) < 1e-4f, "leveling tilt from the lowest front and back points");
+    Check(VpxCabinet.LevelingTilt([[0, 0, -0.7f, 0, 0, 0.6f]]) == 0 && VpxCabinet.LevelingTilt([[0, 0, -0.7f, 0, 0.6f, 0.6f]]) == 0,
+        "no tilt for a level cabinet, nor an implausible one (no front legs)");
+}
 Check(VpxCabinet.Load(Path.Combine(root, "desktop only.vpx")) == null && VpxCabinet.Load(fakeVpx) == null,
     "no VR cabinet (or a damaged file): null, so the lobby keeps its generic cabinet");
 var realCab = Directory.Exists(@"C:\Users\mikem\VPinball\Tables") ? Directory.GetFiles(@"C:\Users\mikem\VPinball\Tables", "*.vpx", SearchOption.AllDirectories).FirstOrDefault(f => f.Contains("Medieval Madness")) : null;
@@ -380,6 +388,17 @@ if (realCab != null)
     Console.WriteLine($"this PC's Medieval Madness cabinet: {model?.Parts.Count} parts, {size.X:F2}x{size.Y:F2}x{size.Z:F2} m, {sw.ElapsedMilliseconds} ms");
     Check(model != null && size.X is > 0.6f and < 0.9f && size.Y is > 1.7f and < 2.2f && model.Parts.Any(p => p.Name == "PinCab_Backglass"),
         "a real VR table's cabinet comes out real-size (≈0.7 m wide, ≈1.9 m tall) with its backglass");
+    // Stands on all four legs: the lowest point in the front fifth and in the back fifth both on the floor.
+    if (model != null)
+    {
+        float LowIn(float from, float to) => model.Parts.SelectMany(p => Enumerable.Range(0, p.Positions.Length / 3)
+            .Where(i => p.Positions[i * 3 + 2] >= from && p.Positions[i * 3 + 2] <= to).Select(i => p.Positions[i * 3 + 1])).DefaultIfEmpty(9f).Min();
+        var fifth = (model.Max.Z - model.Min.Z) / 5;
+        float front = LowIn(model.Max.Z - fifth, model.Max.Z), back = LowIn(model.Min.Z, model.Min.Z + fifth);
+        Console.WriteLine($"   tipped {model.Tilt * 180 / MathF.PI:0.0}°: front low {front:0.000} m, back low {back:0.000} m, playfield slope {model.PlayfieldSlope * 180 / MathF.PI:0.0}°");
+        Check(model.Tilt > 0 && front < 0.01f && back < 0.01f && model.PlayfieldSlope > 0.03f,
+            "a real VR cabinet is tipped to stand on its front and back legs, playfield sloping down to the player");
+    }
     // Godot's front face is clockwise as seen from in front, so (c−a)×(b−a) points out of it. On a real cabinet
     // nearly every triangle's front should face where its own normals point, or the lobby lights it inside out.
     int agree = 0, total = 0;

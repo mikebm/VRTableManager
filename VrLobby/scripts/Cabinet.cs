@@ -214,7 +214,7 @@ public partial class Cabinet : Node3D
         foreach (var g in _generic) g.Visible = false;
         _playfieldQuad.Size = real.PlayfieldSize;
         _playfield.Position = real.PlayfieldCentre + new Vector3(0, 0.003f, 0);
-        _playfield.Rotation = new Vector3(-Mathf.Pi / 2, 0, 0);
+        _playfield.Rotation = new Vector3(real.PlayfieldSlope - Mathf.Pi / 2, 0, 0); // sloped like the generic one, back end up
         _star.Position = new Vector3(0, real.Bounds.End.Y + 0.12f, real.Bounds.Position.Z + 0.13f);
 
         // Backglass: the cabinet's own picture when it has one. Some VR tables set it from their script

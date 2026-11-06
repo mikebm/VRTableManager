@@ -37,6 +37,11 @@ public sealed class VpxCabinetModel
     public List<VpxCabinetPart> Parts { get; init; } = [];
     /// <summary>Playfield corners in lobby space: back-left, back-right, front-right, front-left.</summary>
     public Vector3[] PlayfieldCorners { get; init; } = [];
+    /// <summary>How far the cabinet was tipped forward to stand level on its legs (radians; see VpxCabinet.LevelingTilt).</summary>
+    public float Tilt { get; init; }
+    /// <summary>The playfield's slope, back end up (radians), once the cabinet stands level.</summary>
+    public float PlayfieldSlope => PlayfieldCorners.Length == 4
+        ? MathF.Atan2(PlayfieldCorners[0].Y - PlayfieldCorners[3].Y, PlayfieldCorners[3].Z - PlayfieldCorners[0].Z) : 0;
     public float FrontZ { get; init; }
     public Vector3 Min { get; init; }
     public Vector3 Max { get; init; }
@@ -161,6 +166,22 @@ public static class VpxCabinet
                 parts.Add((p, pos, nrm, uv, idx));
             }
 
+            // VR cabinets are built in VPX's playfield space, where the playfield is level, so the cabinet as
+            // read leans back by the playfield's slope: its back legs reach the floor and its front legs stop
+            // 14-21 cm above it. Tip it forward until both pairs stand on the same floor.
+            var tilt = LevelingTilt(parts.Select(x => x.Pos));
+            var (sin, cos) = MathF.SinCos(tilt);
+            Vector3 Level(Vector3 v) => new(v.X, v.Y * cos - v.Z * sin, v.Y * sin + v.Z * cos);
+            if (tilt != 0)
+                foreach (var (_, pos, nrm, _, _) in parts)
+                    for (var i = 0; i < pos.Length; i += 3)
+                    {
+                        var v = Level(new Vector3(pos[i], pos[i + 1], pos[i + 2]));
+                        pos[i] = v.X; pos[i + 1] = v.Y; pos[i + 2] = v.Z;
+                        var n = Level(new Vector3(nrm[i], nrm[i + 1], nrm[i + 2]));
+                        nrm[i] = n.X; nrm[i + 1] = n.Y; nrm[i + 2] = n.Z;
+                    }
+
             var min = new Vector3(float.MaxValue);
             var max = new Vector3(float.MinValue);
             foreach (var (_, pos, _, _, _) in parts)
@@ -185,11 +206,12 @@ public static class VpxCabinet
             }).ToList();
 
             // Playfield rectangle at playfield height (z = 0 in playfield space), same mapping.
-            Vector3 Pf(float x, float y) => new Vector3(x * VpuToMetres, 0, y * VpuToMetres) + shift;
+            Vector3 Pf(float x, float y) => Level(new Vector3(x * VpuToMetres, 0, y * VpuToMetres)) + shift;
             return new VpxCabinetModel
             {
                 Parts = outParts,
                 PlayfieldCorners = [Pf(t.Left, t.Top), Pf(t.Right, t.Top), Pf(t.Right, t.Bottom), Pf(t.Left, t.Bottom)],
+                Tilt = tilt,
                 FrontZ = frontZ,
                 Min = min + shift,
                 Max = max + shift,
@@ -199,6 +221,30 @@ public static class VpxCabinet
         {
             return null;
         }
+    }
+
+    /// <summary>
+    /// How far to tip a cabinet forward (radians, about the x axis) so the lowest point near its front (the
+    /// front legs) and the lowest near its back (the back legs) are at the same height. Zero when it already
+    /// stands level, or when the answer isn't a plausible playfield slope (a cabinet without front legs, say).
+    /// </summary>
+    public static float LevelingTilt(IEnumerable<float[]> positions)
+    {
+        float zMin = float.MaxValue, zMax = float.MinValue;
+        foreach (var pos in positions)
+            for (var i = 2; i < pos.Length; i += 3) { zMin = Math.Min(zMin, pos[i]); zMax = Math.Max(zMax, pos[i]); }
+        if (zMax <= zMin) return 0;
+        var band = (zMax - zMin) * 0.2f;
+        (float Y, float Z) back = (float.MaxValue, 0), front = (float.MaxValue, 0);
+        foreach (var pos in positions)
+            for (var i = 0; i < pos.Length; i += 3)
+            {
+                var (y, z) = (pos[i + 1], pos[i + 2]);
+                if (z <= zMin + band && y < back.Y) back = (y, z);
+                if (z >= zMax - band && y < front.Y) front = (y, z);
+            }
+        var tilt = MathF.Atan2(front.Y - back.Y, front.Z - back.Z);
+        return tilt is > 0.5f * MathF.PI / 180 and < 12f * MathF.PI / 180 ? tilt : 0;
     }
 
     /// <summary>
