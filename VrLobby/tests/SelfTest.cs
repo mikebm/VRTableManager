@@ -266,6 +266,47 @@ public static class SelfTest
             Check(lobby.SelectedCabinet?.PlayfieldUrl == null, "store games put their landscape header on the backglass, not the playfield");
         SetFilter(lobby, "All");
 
+        // Loading screen: only the picked table stays, with its title and a running count; a failed launch
+        // brings the ring back with the reason, instead of the lobby closing into an empty headset.
+        {
+            var statusFile = Path.Combine(OS.GetUserDataDir(), "selftest-play-status.json");
+            PlayStatus.Clear(statusFile);
+            var picked = lobby.Shown[lobby.Selected];
+            var cabinetsBefore = lobby.VisibleCabinets;
+            lobby.StartLoadingForTest(statusFile);
+            await Seconds(lobby, 1.2);
+            Check(lobby.IsLoading && lobby.HeaderText == picked.Title && lobby.StatusText.StartsWith("Loading") && lobby.StatusText.Contains("1 s"),
+                "loading screen shows the table and how long it's been");
+            Check(!lobby.RailVisible && lobby.VisibleCabinets == 1, "only the picked cabinet stays while it loads");
+            PlayStatus.Write(statusFile, PlayStatus.Failed, "VPX wasn't found");
+            await Seconds(lobby, 0.6);
+            Check(!lobby.IsLoading && lobby.StatusText.Contains("didn't start: VPX wasn't found"), "a failed launch says why, back in the lobby");
+            PlayStats.Mutate(st => st.RecordPlay(picked.Id, DateTime.Now), lobby.State.StatsPath);
+            lobby.RefreshFromStats();
+            Check(lobby.StatusText.Contains("didn't start"), "the error stays through a stats refresh");
+            Check(lobby.RailVisible && lobby.VisibleCabinets == cabinetsBefore, "the ring and rail come back");
+            lobby.StartLoadingForTest(statusFile);
+            PlayStatus.Write(statusFile, PlayStatus.Exited);
+            await Seconds(lobby, 0.6);
+            Check(!lobby.IsLoading && lobby.StatusText.Contains("closed while it was loading"), "a table that closes while loading is reported");
+
+            // Staying open behind the table: everything hidden while it plays, then back on the same table,
+            // without the old error, once it closes.
+            var played = lobby.Shown[lobby.Selected];
+            lobby.StartLoadingForTest(statusFile);
+            PlayStatus.Write(statusFile, PlayStatus.Running);
+            lobby.StartPlayingForTest();
+            await Seconds(lobby, 0.8);
+            Check(lobby.IsPlaying && lobby.IsLoading && !lobby.RoomVisible && !lobby.RailVisible, "the room is hidden while the table plays");
+            PlayStatus.Write(statusFile, PlayStatus.Exited);
+            await Seconds(lobby, 0.8);
+            Check(!lobby.IsPlaying && !lobby.IsLoading && lobby.RoomVisible && lobby.RailVisible && lobby.VisibleCabinets == cabinetsBefore,
+                "the room comes back when the table closes");
+            Check(lobby.Shown[lobby.Selected] == played && lobby.HeaderText.EndsWith(played.Title) && !lobby.StatusText.Contains("closed while"),
+                "back on the table you played, with no old error");
+            PlayStatus.Clear(statusFile);
+        }
+
         GD.Print(_failures == 0 ? "ALL PASSED" : $"{_failures} FAILED");
         tree.Quit(_failures);
     }

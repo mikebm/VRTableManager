@@ -217,6 +217,8 @@ public sealed partial class MainViewModel
         UseDisplayPlugins = s.UseDisplayPlugins;
         VrAddBackglass = s.VrAddBackglass;
         LobbyRecordsRomAudio = s.LobbyRecordsRomAudio;
+        LobbyWaitsForTable = s.LobbyWaitsForTable;
+        LobbyStaysOpen = s.LobbyStaysOpen;
         LoadGraphics();
         RefreshInstalled();
         RefreshSetupStatus();

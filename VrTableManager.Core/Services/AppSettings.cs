@@ -58,6 +58,18 @@ public sealed class AppSettings
     /// background PinMAME run of about 50 s, once per table. Off: only audio files already there play.
     /// </summary>
     public bool LobbyRecordsRomAudio { get; set; } = true;
+    /// <summary>
+    /// After you pick a table, the VR lobby stays in the headset on a loading screen until the table takes the
+    /// headset over (or fails, and says why). Off: the lobby closes at once, as before, and the headset shows
+    /// an empty view while the table loads. For OpenXR runtimes that won't hand the headset from one app to another.
+    /// </summary>
+    public bool LobbyWaitsForTable { get; set; } = true;
+    /// <summary>
+    /// With <see cref="LobbyWaitsForTable"/>: the VR lobby keeps running, hidden, while you play, and takes the
+    /// headset straight back when the table closes instead of starting up again. Off: it closes once the table
+    /// has the headset, and the manager starts it again afterwards.
+    /// </summary>
+    public bool LobbyStaysOpen { get; set; } = true;
     /// <summary>How big the cards in My Tables are: "Large", "Medium", "Small" or "Text" (no pictures).</summary>
     public string CardSize { get; set; } = "Large";
     /// <summary>Tables (by path) whose PuP DMD fix (<see cref="VrDmdFix"/>) the user said not to ask about again.</summary>

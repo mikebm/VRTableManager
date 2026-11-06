@@ -23,6 +23,10 @@ public sealed partial class MainViewModel
     [ObservableProperty] public partial bool UseBuiltInPinmame { get; set; }
     /// <summary>The VR lobby records a ROM table's start-up music in the background the first time you stop on it.</summary>
     [ObservableProperty] public partial bool LobbyRecordsRomAudio { get; set; }
+    /// <summary>The VR lobby shows a loading screen until the picked table takes the headset over.</summary>
+    [ObservableProperty] public partial bool LobbyWaitsForTable { get; set; }
+    /// <summary>The VR lobby stays open, hidden, while you play, and takes the headset back when the table closes.</summary>
+    [ObservableProperty] public partial bool LobbyStaysOpen { get; set; }
 
     public bool HasMetaLinkApp => File.Exists(MetaLinkApp);
     public bool HasOculusDebugTool => File.Exists(MetaAsw.DebugToolPath);

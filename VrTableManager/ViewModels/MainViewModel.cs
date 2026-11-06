@@ -75,6 +75,8 @@ public sealed partial class MainViewModel : ObservableObject, IAsyncDisposable
         UseDisplayPlugins = Settings.UseDisplayPlugins;
         VrAddBackglass = Settings.VrAddBackglass;
         LobbyRecordsRomAudio = Settings.LobbyRecordsRomAudio;
+        LobbyWaitsForTable = Settings.LobbyWaitsForTable;
+        LobbyStaysOpen = Settings.LobbyStaysOpen;
         LoadGraphics();
         RefreshInstalled();
         RefreshSetupStatus();
@@ -997,6 +999,8 @@ public sealed partial class MainViewModel : ObservableObject, IAsyncDisposable
             case nameof(UseDisplayPlugins): Settings.UseDisplayPlugins = UseDisplayPlugins; break;
             case nameof(VrAddBackglass): Settings.VrAddBackglass = VrAddBackglass; break;
             case nameof(LobbyRecordsRomAudio): Settings.LobbyRecordsRomAudio = LobbyRecordsRomAudio; break;
+            case nameof(LobbyWaitsForTable): Settings.LobbyWaitsForTable = LobbyWaitsForTable; break;
+            case nameof(LobbyStaysOpen): Settings.LobbyStaysOpen = LobbyStaysOpen; break;
             default: return;
         }
         Settings.Save();
