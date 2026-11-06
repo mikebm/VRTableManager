@@ -68,6 +68,7 @@ public sealed partial class MainViewModel : ObservableObject, IAsyncDisposable
         RefreshRate = RefreshRates.FirstOrDefault(r => r.StartsWith(Settings.VrRefreshRate.ToString())) ?? RefreshRates[0];
         AswMode = AswModes.Contains(Settings.MetaAswMode) ? Settings.MetaAswMode : AswModes[0];
         WarnSteamVrRuntime = Settings.WarnSteamVrRuntime;
+        CardSize = Settings.CardSize;
         ExplainFailedLaunches = Settings.ExplainFailedLaunches;
         UseBuiltInPinmame = Settings.UseBuiltInPinmame;
         UsePupPlugin = Settings.UsePupPlugin;
