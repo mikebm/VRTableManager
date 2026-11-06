@@ -20,6 +20,7 @@ Built for Meta Quest (Link, Air Link or Virtual Desktop) with the official Visua
 - **Colour DMDs:** Serum and Pin2DMD colorizations turn the orange dot-matrix display into full colour.
 - **AltSound:** remastered and re-orchestrated soundtracks that replace the ROM's original sounds.
 - **Rules:** The Pinball Primer's rules and strategy guide and the table's instruction cards, one click from each table.
+- **Your own artwork:** replace a table's card picture, its VR lobby playfield and backglass, its lobby video and its attract music with your own. See [Custom artwork, videos and sounds](docs/custom-artwork.md).
 
 Add-ons are matched to the table's ROM, installed where VPX's plugins look, and tracked, so a new version shows up as an update.
 
@@ -123,6 +124,7 @@ The smoke tests may access online catalogs or release/site endpoints, so some ch
 
 - [Desktop manager: features, engine setup, installation, and updates](VrTableManager/README.md)
 - [VR lobby: setup, controls, behavior, and test coverage](VrLobby/README.md)
+- [Custom artwork, videos and sounds: card pictures, lobby playfields, backglasses, videos and attract music](docs/custom-artwork.md)
 
 ## Releasing
 
