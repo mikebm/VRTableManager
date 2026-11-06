@@ -28,6 +28,7 @@
                 </Style>
               </MenuItem.Styles>
             </MenuItem>
+            <MenuItem Header="{Binding FileMenuHeader}" IsVisible="{Binding CanAddFile}" Command="{Binding Item.Owner.InstallAddonFileCommand}" CommandParameter="{Binding}" />
             <MenuItem Header="Open folder" IsVisible="{Binding IsInstalled}" Command="{Binding Item.Owner.OpenAddonFolderCommand}" CommandParameter="{Binding}" />
             <MenuItem Header="Remove" IsVisible="{Binding IsInstalled}" Command="{Binding Item.Owner.RemoveAddonCommand}" CommandParameter="{Binding}" />
           </MenuFlyout>
@@ -333,6 +334,7 @@
                                       </Style>
                                     </MenuItem.Styles>
                                   </MenuItem>
+                                  <MenuItem Header="{Binding Pup.FileMenuHeader}" IsVisible="{Binding Pup.CanAddFile}" Command="{Binding Owner.InstallAddonFileCommand}" CommandParameter="{Binding Pup}" />
                                   <MenuItem Header="Open folder" IsVisible="{Binding Pup.IsInstalled}" Command="{Binding Owner.OpenAddonFolderCommand}" CommandParameter="{Binding Pup}" />
                                   <MenuItem Header="Remove" IsVisible="{Binding Pup.IsInstalled}" Command="{Binding Owner.RemoveAddonCommand}" CommandParameter="{Binding Pup}" />
                                 </MenuItem>
@@ -848,6 +850,12 @@
                   <CheckBox IsChecked="{Binding LobbyRecordsRomAudio}"
                             Content="Record a table's music from its ROM in the VR lobby"
                             ToolTip.Tip="Runs the ROM for about 50 s in the background the first time you stop on a table. Off: only audio files already there play." />
+                  <CheckBox IsChecked="{Binding LobbyWaitsForTable}"
+                            Content="Show a loading screen in the VR lobby while a table starts"
+                            ToolTip.Tip="The lobby stays in the headset until the table takes it over, and says so if the table fails to start. Turn it off if tables won't open in VR while the lobby is waiting (some OpenXR runtimes allow only one VR app at a time)." />
+                  <CheckBox IsChecked="{Binding LobbyStaysOpen}" IsEnabled="{Binding LobbyWaitsForTable}"
+                            Content="Keep the VR lobby open behind the table, for a quick return"
+                            ToolTip.Tip="The lobby waits, hidden, while you play, and is back the moment the table closes instead of starting up again. It keeps its cabinets in memory meanwhile. Turn it off if a big table runs short of graphics memory." />
                 </StackPanel>
               </Grid>
             </Border>

@@ -12,6 +12,10 @@ public sealed record PupNames(string? Script, IReadOnlyList<string> Roms)
     public IReadOnlyList<string> All => (Script is { } s ? Roms.Prepend(s) : Roms).Distinct(StringComparer.OrdinalIgnoreCase).ToList();
 }
 
+/// <param name="Record">What to record in the table's manifest.</param>
+/// <param name="Layout">The pack's layouts, and the VR one used if any.</param>
+public sealed record PupInstall(InstalledAddon Record, PupLayout Layout);
+
 /// <summary>
 /// PinUP Player packs: the videos a table plays on the backglass, DMD and topper. VPX 10.8.1's PUP plugin
 /// reads them from the table's own folder, <c>&lt;table&gt;\pupvideos\&lt;pack&gt;\</c> (a pack folder holds
@@ -74,10 +78,11 @@ public static class PupPacks
 
     /// <summary>
     /// Puts a downloaded pack into <c>&lt;table&gt;\pupvideos\&lt;name&gt;</c>, replacing the pack this app
-    /// installed before (an update) and any folder already under that name. Returns what to record in the
-    /// table's manifest; saving it is up to the caller.
+    /// installed before (an update) and any folder already under that name, and switches it to its VR layout
+    /// when it has one (<see cref="PupPackOptions"/>). Returns what to record in the table's manifest (saving it
+    /// is up to the caller) and what was found about the pack's layouts.
     /// </summary>
-    public static InstalledAddon Install(string downloaded, InstalledTable table, VpsFile file, PupNames expectedNames, Action<string>? status = null)
+    public static PupInstall Install(string downloaded, InstalledTable table, VpsFile file, PupNames expectedNames, Action<string>? status = null)
     {
         var staging = Addons.StagingDir("pup");
         try
@@ -98,7 +103,9 @@ public static class PupPacks
                 Addons.DeleteFolder(Path.Combine(pupDir, old));
             Addons.DeleteFolder(dest);
             Addons.MoveTree(root, dest);
-            return Addons.NewRecord(file, FolderName, Path.GetFileName(dest));
+            status?.Invoke("Checking the pack's layouts…");
+            var layout = PupPackOptions.SetUpForVr(dest);
+            return new(Addons.NewRecord(file, FolderName, Path.GetFileName(dest)), layout);
         }
         finally
         {

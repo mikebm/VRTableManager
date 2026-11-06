@@ -29,6 +29,7 @@ public static partial class RomDetector
         var pinMame = false;
         var pup = false;
         bool? pupSwitch = null;
+        bool ownDmd = false, ownDmdOff = false;
         var aliasTargets = new List<string>();
         using var fs = File.OpenRead(vpxPath);
         int read, chunksAfter = 0;
@@ -44,6 +45,8 @@ public static partial class RomDetector
             pup = pup || UsesPup(text);
             pupName ??= PupNameFromScript(text, gameName);
             pupSwitch ??= PupSwitch(text);
+            ownDmd = ownDmd || CreatesOwnDmd(text);
+            ownDmdOff = ownDmdOff || OwnDmdSwitchedOff(text);
             foreach (var a in AliasTargetsIn(text))
                 if (!aliasTargets.Contains(a, StringComparer.OrdinalIgnoreCase)) aliasTargets.Add(a);
             // Keep the tail so a match split across chunks is still found.
@@ -51,10 +54,31 @@ public static partial class RomDetector
             Buffer.BlockCopy(buffer, total - keep, buffer, 0, keep);
             carry = keep;
         }
-        return new(gameName, pinMame) { AliasTargets = aliasTargets, UsesPup = pup, PupName = pupName, PupOff = pupSwitch == false };
+        return new(gameName, pinMame)
+        {
+            AliasTargets = aliasTargets, UsesPup = pup, PupName = pupName, PupOff = pupSwitch == false,
+            UsesOwnDmd = ownDmd && !ownDmdOff,
+        };
     }
 
     public static bool UsesPup(string script) => PupRegex().IsMatch(script);
+
+    /// <summary>An uncommented line creates FlexDMD or UltraDMD, which draw on the table's DMD flasher.</summary>
+    public static bool CreatesOwnDmd(string script) =>
+        CodeLinesWith(script, "CreateObject").Any(l => OwnDmdObjectRegex().IsMatch(l));
+
+    /// <summary>
+    /// The script switches FlexDMD/UltraDMD off (<c>Const UseUltraDMD = 0</c>, <c>UseFlexDMD = False</c>): the
+    /// code that creates them is there but doesn't run. The first assignment is the setting.
+    /// </summary>
+    public static bool OwnDmdSwitchedOff(string script)
+    {
+        foreach (var word in (string[])["UseFlexDMD", "UseUltraDMD"])
+            foreach (var line in CodeLinesWith(script, word))
+                if (OwnDmdSwitchRegex().Match(line) is { Success: true } m)
+                    return m.Groups[1].Value is "0" || m.Groups[1].Value.Equals("False", StringComparison.OrdinalIgnoreCase);
+        return false;
+    }
 
     /// <summary>
     /// The script's own PuP switch (<c>usePUP = False</c>, as JP's template ships it): false when it's off,
@@ -145,6 +169,12 @@ public static partial class RomDetector
 
     [GeneratedRegex("\\busePUP[ \\t]*=[ \\t]*(True|False|1|0)\\b", RegexOptions.IgnoreCase)]
     private static partial Regex UsePupSwitchRegex();
+
+    [GeneratedRegex("\"(?:FlexDMD\\.FlexDMD|UltraDMD\\.DMDObject)\"", RegexOptions.IgnoreCase)]
+    private static partial Regex OwnDmdObjectRegex();
+
+    [GeneratedRegex("\\bUse(?:Flex|Ultra)DMD[ \\t]*=[ \\t]*(True|False|\\d)\\b", RegexOptions.IgnoreCase)]
+    private static partial Regex OwnDmdSwitchRegex();
 }
 
 /// <param name="GameName">cGameName from the script, if found.</param>
@@ -163,6 +193,8 @@ public sealed record VpxRomInfo(string? GameName, bool UsesPinMame)
     public string? PupName { get; init; }
     /// <summary>The script has PuP turned off (<c>usePUP = False</c>): a pack won't show until it's set to True.</summary>
     public bool PupOff { get; init; }
+    /// <summary>The script draws its own DMD with FlexDMD or UltraDMD (created, and not switched off).</summary>
+    public bool UsesOwnDmd { get; init; }
 
     /// <summary>The script was read and it doesn't use PinMAME: no ROM needed, whatever cGameName says.</summary>
     public bool NoRomNeeded => GameName != null && !UsesPinMame;

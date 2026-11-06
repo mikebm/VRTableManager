@@ -30,7 +30,12 @@ public sealed partial class MainViewModel
 
     void RefreshAddonState(InstalledItem item)
     {
-        foreach (var slot in item.Addons) slot.State = Addons.StateOf(item.Table, slot.Kind);
+        foreach (var slot in item.Addons)
+        {
+            slot.State = Addons.StateOf(item.Table, slot.Kind);
+            slot.CanAddFile = slot.Kind == AddonKind.Pup && Addons.CanHold(item.Table, Settings);
+            slot.ScriptWantsIt = slot.Kind == AddonKind.Pup && !string.IsNullOrEmpty(item.Table.Manifest.PupName);
+        }
     }
 
     /// <summary>Catalog add-ons and their updates for every card (from the loaded catalog; cheap).</summary>
@@ -76,13 +81,65 @@ public sealed partial class MainViewModel
         finally { EndBusy(table.TablePath); }
     }
 
+    Task<string> FetchAddonAsync(AddonKind kind, VpsFile file, JobItem job)
+    {
+        var url = Addons.UsableUrl(file) ?? throw new InvalidOperationException("The catalog has no working link for this file.");
+        // A page with several files: prefer the one named like the kind (or, for colours, the ROM).
+        string[] hint = kind switch
+        {
+            AddonKind.Pup => ["pup"],
+            AddonKind.AltColor => [(file as VpsAltColorFile)?.Folder ?? "serum"],
+            _ => ["altsound"],
+        };
+        // On a page you download from yourself, say which file: a table's page also lists its .vpx.
+        var what = kind switch
+        {
+            AddonKind.Pup when file is VpsTableFile => "the PuP pack (the .zip with \"PuP\" in its name, newest version, not the .vpx)",
+            AddonKind.Pup => "the PuP pack",
+            AddonKind.AltColor => "the colorization",
+            _ => "the AltSound pack",
+        };
+        return FetchAsync(url, job, hint, what);
+    }
+
+    /// <summary>
+    /// PUP → "Install from a file you downloaded…": a pack you already have, without going to its page. Which
+    /// catalog entry it is (one click) keeps update checks working; "Not listed" installs it untracked by version.
+    /// </summary>
+    [RelayCommand(AllowConcurrentExecutions = true)]
+    async Task InstallAddonFileAsync(AddonSlot slot)
+    {
+        var table = slot.Item.Table;
+        var downloads = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.UserProfile), "Downloads");
+        if (await _ui.PickFileAsync($"Choose the {KindName(slot.Kind)} for {slot.Item.Title}", "*.zip;*.7z;*.rar", startFolder: downloads) is not { } path) return;
+
+        var name = Path.GetFileName(path);
+        VpsFile entry = new() { Id = "file:" + name };
+        if (slot.Choices.Count > 0)
+        {
+            List<string> buttons = [.. slot.Choices.Select(c => c.Label), "NOT LISTED", "CANCEL"];
+            var pick = await _ui.ChoiceAsync($"Which {KindName(slot.Kind)} is this?",
+                $"{name}\n\nPick the catalog version it is, so you're told when a newer one comes out. Not listed? It's installed all the same.",
+                [.. buttons]);
+            if (pick < 0 || buttons[pick] == "CANCEL") return;
+            if (pick < slot.Choices.Count) entry = slot.Choices[pick].File;
+        }
+        var game = _allGames.FirstOrDefault(g => g.Id == table.Manifest.GameId) ?? new VpsGame { Id = table.Manifest.GameId, Name = table.Manifest.GameName };
+
+        if (!TryBeginBusy(table.TablePath)) return;
+        try { await GetAddonCoreAsync(slot.Kind, table, game, entry, path); }
+        finally { EndBusy(table.TablePath); }
+    }
+
     static string KindName(AddonKind kind) => kind switch { AddonKind.Pup => "PuP pack", AddonKind.AltColor => "DMD colours", _ => "AltSound" };
 
-    async Task GetAddonCoreAsync(AddonKind kind, InstalledTable table, VpsGame game, VpsFile file)
+    /// <param name="localFile">A file the user already downloaded: installed as it is, nothing is fetched (and it's left where it is).</param>
+    async Task GetAddonCoreAsync(AddonKind kind, InstalledTable table, VpsGame game, VpsFile file, string? localFile = null)
     {
         var updating = Addons.Record(table, kind) != null;
         string[] archives = [".zip", ".7z", ".rar"];
-        var job = new JobItem($"{(updating ? "Update: " : "")}{KindName(kind)} for {table.Manifest.GameName}")
+        var job = new JobItem($"{(updating ? "Update: " : "")}{KindName(kind)} for {table.Manifest.GameName}"
+            + (localFile != null ? $" — from {Path.GetFileName(localFile)}" : ""))
         {
             // The kind's own word too: a table's page offers its .vpx and its PuP zip side by side.
             FileNames = [table.Manifest.GameName, .. table.Manifest.RomNames, .. new[] { table.Manifest.RomAlias, table.Manifest.PupName }.OfType<string>(),
@@ -90,41 +147,29 @@ public sealed partial class MainViewModel
             FileTypes = kind == AddonKind.AltColor ? [.. archives, ".crz", ".crom", ".cromc", ".vni", ".pal", ".pac"] : archives,
         };
         Jobs.Insert(0, job);
-        _pending.Add(new PendingDownload
-        {
-            Id = job.Id, Kind = PendingDownload.KindFor(kind), Title = job.Title,
-            GameId = game.Id, AddonFileId = file.Id, TablePath = table.TablePath,
-        });
+        // Only a download can be resumed after a restart.
+        if (localFile == null)
+            _pending.Add(new PendingDownload
+            {
+                Id = job.Id, Kind = PendingDownload.KindFor(kind), Title = job.Title,
+                GameId = game.Id, AddonFileId = file.Id, TablePath = table.TablePath,
+            });
         try
         {
-            var url = Addons.UsableUrl(file) ?? throw new InvalidOperationException("The catalog has no working link for this file.");
-            // A page with several files: prefer the one named like the kind (or, for colours, the ROM).
-            string[] hint = kind switch
-            {
-                AddonKind.Pup => ["pup"],
-                AddonKind.AltColor => [(file as VpsAltColorFile)?.Folder ?? "serum"],
-                _ => ["altsound"],
-            };
-            // On a page you download from yourself, say which file: a table's page also lists its .vpx.
-            var what = kind switch
-            {
-                AddonKind.Pup when file is VpsTableFile => "the PuP pack (the .zip with \"PuP\" in its name, newest version, not the .vpx)",
-                AddonKind.Pup => "the PuP pack",
-                AddonKind.AltColor => "the colorization",
-                _ => "the AltSound pack",
-            };
-            var downloaded = await FetchAsync(url, job, hint, what);
+            var downloaded = localFile ?? await FetchAddonAsync(kind, file, job);
             InstalledAddon record;
             var note = "";
             if (kind == AddonKind.Pup)
             {
                 job.Report("Reading the table script…");
                 var names = await Task.Run(() => PupPacks.ExpectedNames(table));
-                record = await Task.Run(() => PupPacks.Install(downloaded, table, file, names, job.Report));
+                var pup = await Task.Run(() => PupPacks.Install(downloaded, table, file, names, job.Report));
+                record = pup.Record;
                 table.Manifest.PupName ??= names.Script;
-                note = names.ScriptTurnsPupOff ? " The table script has usePUP = False: set it to True (VPX editor → Script) to see the pack."
+                note = (names.ScriptTurnsPupOff ? " The table script has usePUP = False: set it to True (VPX editor → Script) to see the pack."
                     : Settings.UsePupPlugin ? " It shows on the cabinet's backglass and DMD in VR."
-                    : " Turn on the PinUP Player plugin in Setup to see it in VR.";
+                    : " Turn on the PinUP Player plugin in Setup to see it in VR.")
+                    + pup.Layout.Note($"{PupPacks.FolderName}\\{record.Folder}");
             }
             else
             {

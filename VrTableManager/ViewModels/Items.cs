@@ -439,17 +439,26 @@ public sealed partial class AddonSlot : ObservableObject
     public partial IReadOnlyList<AddonChoice> Choices { get; set; } = [];
 
     /// <summary>What's installed (set by the view model).</summary>
-    [ObservableProperty, NotifyPropertyChangedFor(nameof(IsInstalled), nameof(ShowButton), nameof(MenuHeader), nameof(Status))]
+    [ObservableProperty, NotifyPropertyChangedFor(nameof(IsInstalled), nameof(ShowButton), nameof(MenuHeader), nameof(FileMenuHeader), nameof(Status))]
     public partial AddonState State { get; set; } = AddonState.None;
 
     /// <summary>A newer catalog version of the installed one.</summary>
     [ObservableProperty, NotifyPropertyChangedFor(nameof(HasUpdate), nameof(Status))]
     public partial AddonUpdate? Update { get; set; }
 
+    /// <summary>A pack you already downloaded can be installed from its file (PuP, for a table in its own folder).</summary>
+    [ObservableProperty, NotifyPropertyChangedFor(nameof(ShowButton))]
+    public partial bool CanAddFile { get; set; }
+
+    /// <summary>The table script uses this kind of add-on (its PuP pack), so the menu shows even with nothing in the catalog.</summary>
+    [ObservableProperty, NotifyPropertyChangedFor(nameof(ShowButton))]
+    public partial bool ScriptWantsIt { get; set; }
+
     public bool HasChoices => Choices.Count > 0;
     public bool IsInstalled => State.IsInstalled;
     public bool HasUpdate => Update != null;
-    public bool ShowButton => HasChoices || IsInstalled;
+    public bool ShowButton => HasChoices || IsInstalled || (CanAddFile && ScriptWantsIt);
+    public string FileMenuHeader => IsInstalled ? $"Replace with a {Name} file you downloaded…" : $"Install a {Name} file you downloaded…";
     public string MenuHeader => IsInstalled ? $"Replace {Name}" : Choices.Count == 1 ? $"Get {Name}" : $"Get {Name} ({Choices.Count} in the catalog)";
 
     /// <summary>"DMD colours v2.0 installed (Serum)" / "AltSound: new version v1.0 → v1.1" / "" (none).</summary>
