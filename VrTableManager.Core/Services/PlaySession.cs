@@ -130,7 +130,7 @@ public static class PlaySession
 
     public static string LogPath => Path.Combine(AppSettings.DataDir, "play.log");
 
-    static void Log(string line)
+    internal static void Log(string line)
     {
         try { File.AppendAllText(LogPath, $"{DateTime.Now:s} {line}{Environment.NewLine}"); }
         catch { /* logging must never stop a launch */ }
