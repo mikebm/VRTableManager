@@ -13,10 +13,14 @@ public sealed partial class MainViewModel
     partial void OnCardSizeChanged(string value)
     {
         if (!CardSizes.Contains(value)) { CardSize = "Large"; return; }
+        foreach (var i in _allInstalled) i.Compact = IsCompactCards;
         if (Settings.CardSize == value) return;
         Settings.CardSize = value;
         Settings.Save();
     }
+
+    /// <summary>Below Large, a card's buttons are just Play and MORE; the rest move into MORE's menu (narrow cards got tall otherwise).</summary>
+    public bool IsCompactCards => CardSize != "Large";
 
     /// <summary>Card width in px. Text-only cards keep the large width: without the picture, the name is what you read.</summary>
     public double CardWidth => CardSize switch { "Medium" => 220, "Small" => 184, _ => 264 };

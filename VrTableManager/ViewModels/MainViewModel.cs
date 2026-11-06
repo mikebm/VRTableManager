@@ -635,6 +635,7 @@ public sealed partial class MainViewModel : ObservableObject, IAsyncDisposable
             item.ApplyStats(_stats);
             item.IsBusy = _busyTables.Contains(item.Table.TablePath); // keep a running fetch's button greyed after a rescan
             item.RefreshUserArtwork();
+            item.Compact = IsCompactCards;
             if (item.Table.IsVpx)
             {
                 item.TableScale = VpxGraphics.ReadTableScale(item.Table.TablePath);

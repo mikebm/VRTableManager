@@ -222,6 +222,9 @@ public sealed partial class InstalledItem : ObservableObject
     [ObservableProperty, NotifyPropertyChangedFor(nameof(LobbyVideoMenuHeader))]
     public partial bool HasLobbyVideo { get; set; }
 
+    /// <summary>Cards smaller than Large: only Play and MORE show, everything else is in MORE's menu (set by the view model).</summary>
+    [ObservableProperty] public partial bool Compact { get; set; }
+
     /// <summary>The table's PuP DMD was fixed for VPX 10.8.1 and its original is kept (<see cref="VrDmdFix"/>).</summary>
     [ObservableProperty, NotifyPropertyChangedFor(nameof(CanApplyDmdFix))] public partial bool HasDmdFix { get; set; }
 

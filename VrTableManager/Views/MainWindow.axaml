@@ -258,43 +258,194 @@
                                 HorizontalAlignment="Stretch" HorizontalContentAlignment="Center"
                                 Command="{ReflectionBinding $parent[Window].DataContext.PlayVrCommand}" CommandParameter="{Binding}" />
                         <WrapPanel Margin="0,4,0,0">
-                          <Button Classes="small" Content="DESKTOP" Margin="0,0,6,6" IsVisible="{Binding CanPlayDesktop}"
-                                  Command="{ReflectionBinding $parent[Window].DataContext.PlayDesktopCommand}" CommandParameter="{Binding}" />
-                          <Button Classes="small primary" Content="GET ROM" Margin="0,0,6,6" IsVisible="{Binding CanGetRom}"
-                                  ToolTip.Tip="Download this table's ROM from the catalog (usually VPForums) and install it"
-                                  IsEnabled="{Binding !IsBusy}" Command="{ReflectionBinding $parent[Window].DataContext.GetRomCommand}" CommandParameter="{Binding}" />
-                          <Button Classes="small" Content="ALL ROMS" Margin="0,0,6,6" IsVisible="{Binding CanGetAllRoms}"
-                                  ToolTip.Tip="Download every ROM version from this table's ROM page (some versions need another one beside them)"
-                                  IsEnabled="{Binding !IsBusy}" Command="{ReflectionBinding $parent[Window].DataContext.GetRomCommand}" CommandParameter="{Binding}" />
-                          <Button Classes="small" Content="SEARCH VPUNIVERSE" Margin="0,0,6,6" IsVisible="{Binding RomUnavailable}"
-                                  ToolTip.Tip="Search VPUniverse's files for this ROM in your browser"
-                                  Command="{ReflectionBinding $parent[Window].DataContext.SearchRomCommand}" CommandParameter="{Binding}" />
-                          <Button Classes="small" Content="ADD ROM" Margin="0,0,6,6" IsVisible="{Binding NeedsRom}"
-                                  ToolTip.Tip="Install a ROM zip you already have"
-                                  Command="{ReflectionBinding $parent[Window].DataContext.AddRomCommand}" CommandParameter="{Binding}" />
-                          <ContentControl Content="{Binding Pup}" ContentTemplate="{StaticResource AddonButton}" IsVisible="{Binding Pup.ShowButton}" />
-                          <ContentControl Content="{Binding Colour}" ContentTemplate="{StaticResource AddonButton}" IsVisible="{Binding Colour.ShowButton}" />
-                          <ContentControl Content="{Binding Sound}" ContentTemplate="{StaticResource AddonButton}" IsVisible="{Binding Sound.ShowButton}" />
-                          <Button Classes="small" Content="RULES ▾" Margin="0,0,6,6" IsVisible="{Binding HasRules}"
-                                  ToolTip.Tip="How to play it: The Pinball Primer's rules and strategy, and instruction cards (opens in your browser)">
-                            <Button.Flyout>
-                              <Flyout Placement="BottomEdgeAlignedLeft">
-                                <ItemsControl ItemsSource="{Binding Rules}">
-                                  <ItemsControl.ItemTemplate>
-                                    <DataTemplate x:DataType="vm:RuleChoice">
-                                      <Button Classes="small" Content="{Binding Label}" Margin="0,0,0,4" HorizontalAlignment="Stretch" HorizontalContentAlignment="Left"
-                                              Command="{Binding Item.Owner.OpenPageCommand}" CommandParameter="{Binding Url}" />
-                                    </DataTemplate>
-                                  </ItemsControl.ItemTemplate>
-                                </ItemsControl>
-                              </Flyout>
-                            </Button.Flyout>
-                          </Button>
-                          <Button Classes="small" Content="FOLDER" Margin="0,0,6,6"
-                                  Command="{ReflectionBinding $parent[Window].DataContext.OpenTableFolderCommand}" CommandParameter="{Binding}" />
+                          <Panel IsVisible="{Binding !Compact}">
+                            <Button Classes="small" Content="DESKTOP" Margin="0,0,6,6" IsVisible="{Binding CanPlayDesktop}"
+                                    Command="{ReflectionBinding $parent[Window].DataContext.PlayDesktopCommand}" CommandParameter="{Binding}" />
+                          </Panel>
+                          <Panel IsVisible="{Binding !Compact}">
+                            <Button Classes="small primary" Content="GET ROM" Margin="0,0,6,6" IsVisible="{Binding CanGetRom}"
+                                    ToolTip.Tip="Download this table's ROM from the catalog (usually VPForums) and install it"
+                                    IsEnabled="{Binding !IsBusy}" Command="{ReflectionBinding $parent[Window].DataContext.GetRomCommand}" CommandParameter="{Binding}" />
+                          </Panel>
+                          <Panel IsVisible="{Binding !Compact}">
+                            <Button Classes="small" Content="ALL ROMS" Margin="0,0,6,6" IsVisible="{Binding CanGetAllRoms}"
+                                    ToolTip.Tip="Download every ROM version from this table's ROM page (some versions need another one beside them)"
+                                    IsEnabled="{Binding !IsBusy}" Command="{ReflectionBinding $parent[Window].DataContext.GetRomCommand}" CommandParameter="{Binding}" />
+                          </Panel>
+                          <Panel IsVisible="{Binding !Compact}">
+                            <Button Classes="small" Content="SEARCH VPUNIVERSE" Margin="0,0,6,6" IsVisible="{Binding RomUnavailable}"
+                                    ToolTip.Tip="Search VPUniverse's files for this ROM in your browser"
+                                    Command="{ReflectionBinding $parent[Window].DataContext.SearchRomCommand}" CommandParameter="{Binding}" />
+                          </Panel>
+                          <Panel IsVisible="{Binding !Compact}">
+                            <Button Classes="small" Content="ADD ROM" Margin="0,0,6,6" IsVisible="{Binding NeedsRom}"
+                                    ToolTip.Tip="Install a ROM zip you already have"
+                                    Command="{ReflectionBinding $parent[Window].DataContext.AddRomCommand}" CommandParameter="{Binding}" />
+                          </Panel>
+                          <Panel IsVisible="{Binding !Compact}">
+                            <ContentControl Content="{Binding Pup}" ContentTemplate="{StaticResource AddonButton}" IsVisible="{Binding Pup.ShowButton}" />
+                          </Panel>
+                          <Panel IsVisible="{Binding !Compact}">
+                            <ContentControl Content="{Binding Colour}" ContentTemplate="{StaticResource AddonButton}" IsVisible="{Binding Colour.ShowButton}" />
+                          </Panel>
+                          <Panel IsVisible="{Binding !Compact}">
+                            <ContentControl Content="{Binding Sound}" ContentTemplate="{StaticResource AddonButton}" IsVisible="{Binding Sound.ShowButton}" />
+                          </Panel>
+                          <Panel IsVisible="{Binding !Compact}">
+                            <Button Classes="small" Content="RULES ▾" Margin="0,0,6,6" IsVisible="{Binding HasRules}"
+                                    ToolTip.Tip="How to play it: The Pinball Primer's rules and strategy, and instruction cards (opens in your browser)">
+                              <Button.Flyout>
+                                <Flyout Placement="BottomEdgeAlignedLeft">
+                                  <ItemsControl ItemsSource="{Binding Rules}">
+                                    <ItemsControl.ItemTemplate>
+                                      <DataTemplate x:DataType="vm:RuleChoice">
+                                        <Button Classes="small" Content="{Binding Label}" Margin="0,0,0,4" HorizontalAlignment="Stretch" HorizontalContentAlignment="Left"
+                                                Command="{Binding Item.Owner.OpenPageCommand}" CommandParameter="{Binding Url}" />
+                                      </DataTemplate>
+                                    </ItemsControl.ItemTemplate>
+                                  </ItemsControl>
+                                </Flyout>
+                              </Button.Flyout>
+                            </Button>
+                          </Panel>
+                          <Panel IsVisible="{Binding !Compact}">
+                            <Button Classes="small" Content="FOLDER" Margin="0,0,6,6"
+                                    Command="{ReflectionBinding $parent[Window].DataContext.OpenTableFolderCommand}" CommandParameter="{Binding}" />
+                          </Panel>
                           <Button Classes="small" Content="MORE ▾" Margin="0,0,6,6" ToolTip.Tip="Folders, per-table settings and cache">
                             <Button.Flyout>
                               <MenuFlyout Placement="BottomEdgeAlignedLeft">
+                                <!-- Compact cards (below Large): the card's other buttons live here. -->
+                                <MenuItem Header="Play on desktop" Command="{Binding Owner.PlayDesktopCommand}" CommandParameter="{Binding}">
+                                <MenuItem.IsVisible>
+                                  <MultiBinding Converter="{x:Static BoolConverters.And}">
+                                    <Binding Path="Compact" />
+                                    <Binding Path="CanPlayDesktop" />
+                                  </MultiBinding>
+                                </MenuItem.IsVisible>
+                                </MenuItem>
+                                <MenuItem Header="Get ROM" Command="{Binding Owner.GetRomCommand}" CommandParameter="{Binding}">
+                                <MenuItem.IsVisible>
+                                  <MultiBinding Converter="{x:Static BoolConverters.And}">
+                                    <Binding Path="Compact" />
+                                    <Binding Path="CanGetRom" />
+                                  </MultiBinding>
+                                </MenuItem.IsVisible>
+                                </MenuItem>
+                                <MenuItem Header="Get all ROM versions" Command="{Binding Owner.GetRomCommand}" CommandParameter="{Binding}">
+                                <MenuItem.IsVisible>
+                                  <MultiBinding Converter="{x:Static BoolConverters.And}">
+                                    <Binding Path="Compact" />
+                                    <Binding Path="CanGetAllRoms" />
+                                  </MultiBinding>
+                                </MenuItem.IsVisible>
+                                </MenuItem>
+                                <MenuItem Header="Search VPUniverse for the ROM" Command="{Binding Owner.SearchRomCommand}" CommandParameter="{Binding}">
+                                <MenuItem.IsVisible>
+                                  <MultiBinding Converter="{x:Static BoolConverters.And}">
+                                    <Binding Path="Compact" />
+                                    <Binding Path="RomUnavailable" />
+                                  </MultiBinding>
+                                </MenuItem.IsVisible>
+                                </MenuItem>
+                                <MenuItem Header="Add a ROM zip you have…" Command="{Binding Owner.AddRomCommand}" CommandParameter="{Binding}">
+                                <MenuItem.IsVisible>
+                                  <MultiBinding Converter="{x:Static BoolConverters.And}">
+                                    <Binding Path="Compact" />
+                                    <Binding Path="NeedsRom" />
+                                  </MultiBinding>
+                                </MenuItem.IsVisible>
+                                </MenuItem>
+                                <MenuItem Header="{Binding Pup.Name}" IsEnabled="{Binding !IsBusy}">
+                                <MenuItem.IsVisible>
+                                  <MultiBinding Converter="{x:Static BoolConverters.And}">
+                                    <Binding Path="Compact" />
+                                    <Binding Path="Pup.ShowButton" />
+                                  </MultiBinding>
+                                </MenuItem.IsVisible>
+                                  <MenuItem Header="{Binding Pup.MenuHeader}" IsVisible="{Binding Pup.HasChoices}" ItemsSource="{Binding Pup.Choices}">
+                                    <MenuItem.ItemTemplate>
+                                      <DataTemplate x:DataType="vm:AddonChoice"><TextBlock Text="{Binding Label}" /></DataTemplate>
+                                    </MenuItem.ItemTemplate>
+                                    <MenuItem.Styles>
+                                      <Style Selector="MenuItem > MenuItem" x:DataType="vm:AddonChoice">
+                                        <Setter Property="Command" Value="{Binding Slot.Item.Owner.GetAddonCommand}" />
+                                        <Setter Property="CommandParameter" Value="{Binding}" />
+                                      </Style>
+                                    </MenuItem.Styles>
+                                  </MenuItem>
+                                  <MenuItem Header="Open folder" IsVisible="{Binding Pup.IsInstalled}" Command="{Binding Owner.OpenAddonFolderCommand}" CommandParameter="{Binding Pup}" />
+                                  <MenuItem Header="Remove" IsVisible="{Binding Pup.IsInstalled}" Command="{Binding Owner.RemoveAddonCommand}" CommandParameter="{Binding Pup}" />
+                                </MenuItem>
+                                <MenuItem Header="{Binding Colour.Name}" IsEnabled="{Binding !IsBusy}">
+                                <MenuItem.IsVisible>
+                                  <MultiBinding Converter="{x:Static BoolConverters.And}">
+                                    <Binding Path="Compact" />
+                                    <Binding Path="Colour.ShowButton" />
+                                  </MultiBinding>
+                                </MenuItem.IsVisible>
+                                  <MenuItem Header="{Binding Colour.MenuHeader}" IsVisible="{Binding Colour.HasChoices}" ItemsSource="{Binding Colour.Choices}">
+                                    <MenuItem.ItemTemplate>
+                                      <DataTemplate x:DataType="vm:AddonChoice"><TextBlock Text="{Binding Label}" /></DataTemplate>
+                                    </MenuItem.ItemTemplate>
+                                    <MenuItem.Styles>
+                                      <Style Selector="MenuItem > MenuItem" x:DataType="vm:AddonChoice">
+                                        <Setter Property="Command" Value="{Binding Slot.Item.Owner.GetAddonCommand}" />
+                                        <Setter Property="CommandParameter" Value="{Binding}" />
+                                      </Style>
+                                    </MenuItem.Styles>
+                                  </MenuItem>
+                                  <MenuItem Header="Open folder" IsVisible="{Binding Colour.IsInstalled}" Command="{Binding Owner.OpenAddonFolderCommand}" CommandParameter="{Binding Colour}" />
+                                  <MenuItem Header="Remove" IsVisible="{Binding Colour.IsInstalled}" Command="{Binding Owner.RemoveAddonCommand}" CommandParameter="{Binding Colour}" />
+                                </MenuItem>
+                                <MenuItem Header="{Binding Sound.Name}" IsEnabled="{Binding !IsBusy}">
+                                <MenuItem.IsVisible>
+                                  <MultiBinding Converter="{x:Static BoolConverters.And}">
+                                    <Binding Path="Compact" />
+                                    <Binding Path="Sound.ShowButton" />
+                                  </MultiBinding>
+                                </MenuItem.IsVisible>
+                                  <MenuItem Header="{Binding Sound.MenuHeader}" IsVisible="{Binding Sound.HasChoices}" ItemsSource="{Binding Sound.Choices}">
+                                    <MenuItem.ItemTemplate>
+                                      <DataTemplate x:DataType="vm:AddonChoice"><TextBlock Text="{Binding Label}" /></DataTemplate>
+                                    </MenuItem.ItemTemplate>
+                                    <MenuItem.Styles>
+                                      <Style Selector="MenuItem > MenuItem" x:DataType="vm:AddonChoice">
+                                        <Setter Property="Command" Value="{Binding Slot.Item.Owner.GetAddonCommand}" />
+                                        <Setter Property="CommandParameter" Value="{Binding}" />
+                                      </Style>
+                                    </MenuItem.Styles>
+                                  </MenuItem>
+                                  <MenuItem Header="Open folder" IsVisible="{Binding Sound.IsInstalled}" Command="{Binding Owner.OpenAddonFolderCommand}" CommandParameter="{Binding Sound}" />
+                                  <MenuItem Header="Remove" IsVisible="{Binding Sound.IsInstalled}" Command="{Binding Owner.RemoveAddonCommand}" CommandParameter="{Binding Sound}" />
+                                </MenuItem>
+                                <MenuItem Header="Rules" ItemsSource="{Binding Rules}">
+                                <MenuItem.IsVisible>
+                                  <MultiBinding Converter="{x:Static BoolConverters.And}">
+                                    <Binding Path="Compact" />
+                                    <Binding Path="HasRules" />
+                                  </MultiBinding>
+                                </MenuItem.IsVisible>
+                                  <MenuItem.ItemTemplate>
+                                    <DataTemplate x:DataType="vm:RuleChoice"><TextBlock Text="{Binding Label}" /></DataTemplate>
+                                  </MenuItem.ItemTemplate>
+                                  <MenuItem.Styles>
+                                    <Style Selector="MenuItem > MenuItem" x:DataType="vm:RuleChoice">
+                                      <Setter Property="Command" Value="{Binding Item.Owner.OpenPageCommand}" />
+                                      <Setter Property="CommandParameter" Value="{Binding Url}" />
+                                    </Style>
+                                  </MenuItem.Styles>
+                                </MenuItem>
+                                <MenuItem Header="Open table folder" Command="{Binding Owner.OpenTableFolderCommand}" CommandParameter="{Binding}" IsVisible="{Binding Compact}" />
+                                <MenuItem Header="Remove table…" Command="{Binding Owner.RemoveCommand}" CommandParameter="{Binding}">
+                                <MenuItem.IsVisible>
+                                  <MultiBinding Converter="{x:Static BoolConverters.And}">
+                                    <Binding Path="Compact" />
+                                    <Binding Path="CanRemove" />
+                                  </MultiBinding>
+                                </MenuItem.IsVisible>
+                                </MenuItem>
+                                <Separator IsVisible="{Binding Compact}" />
                                 <MenuItem Header="Open ROM folder" IsVisible="{Binding IsVpx}" Command="{Binding Owner.OpenRomFolderCommand}" CommandParameter="{Binding}" />
                                 <MenuItem Header="Open high score (NVRAM) folder" IsVisible="{Binding IsVpx}" Command="{Binding Owner.OpenNvramFolderCommand}" CommandParameter="{Binding}" />
                                 <MenuItem Header="Edit this table's VPX settings (.ini)" IsVisible="{Binding IsVpx}" Command="{Binding Owner.OpenTableIniCommand}" CommandParameter="{Binding}" />
@@ -344,8 +495,10 @@
                               </MenuFlyout>
                             </Button.Flyout>
                           </Button>
-                          <Button Classes="small danger" Content="REMOVE" Margin="0,0,6,6" IsVisible="{Binding CanRemove}"
+                          <Panel IsVisible="{Binding !Compact}">
+                            <Button Classes="small danger" Content="REMOVE" Margin="0,0,6,6" IsVisible="{Binding CanRemove}"
                                   Command="{ReflectionBinding $parent[Window].DataContext.RemoveCommand}" CommandParameter="{Binding}" />
+                          </Panel>
                         </WrapPanel>
                       </StackPanel>
                     </StackPanel>
