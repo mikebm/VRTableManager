@@ -117,7 +117,7 @@ public sealed partial class MainViewModel
         _loadingGraphics = true;
         try
         {
-            var g = VpxGraphics.Read(VpxSetup.VrIniPath(Settings));
+            var g = VpxGraphics.Read(VpxIniLayers.Effective(Settings, vr: true)); // what VR play will use, own settings included
             GfxRenderScale = RenderScales.FirstOrDefault(s => Math.Abs(ParseScale(s) - g.RenderScale) < 0.001) ?? ScaleText(g.RenderScale);
             GfxMsaa = g.Msaa;
             GfxPostAa = g.PostAa;
@@ -192,7 +192,7 @@ public sealed partial class MainViewModel
 
     void LoadVrView()
     {
-        var v = VrView.Read(VpxSetup.VrIniPath(Settings));
+        var v = VrView.Read(VpxIniLayers.Effective(Settings, vr: true));
         VrViewText = v.IsDefault
             ? "The table is where VPX puts it by default."
             : $"Moved in the headset: {v.Describe()}.";

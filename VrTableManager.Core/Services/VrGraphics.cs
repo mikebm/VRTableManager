@@ -57,9 +57,11 @@ public sealed record VpxGraphics
     public string? PresetName => Presets.FirstOrDefault(p => p.Settings with { FpsOverlay = FpsOverlay } == this).Name;
 
     /// <summary>Reads the settings, using VPX's defaults for keys that aren't set.</summary>
-    public static VpxGraphics Read(string iniPath)
+    public static VpxGraphics Read(string iniPath) => Read(IniFile.Read(iniPath));
+
+    /// <summary>From values already read (such as <see cref="VpxIniLayers.Effective"/>: what VR play will use).</summary>
+    public static VpxGraphics Read(Dictionary<(string Section, string Key), string> ini)
     {
-        var ini = IniFile.Read(iniPath);
         string? Get(string key) => ini.GetValueOrDefault(("Player", key)) is { Length: > 0 } v ? v : null;
         int Int(string key, int def, int max) => int.TryParse(Get(key), out var v) ? Math.Clamp(v, 0, max) : def;
         bool Bool(string key, bool def) => Get(key) is { } v ? v.Trim() is "1" or "true" or "True" : def;
@@ -235,9 +237,10 @@ public sealed record VrView(double? X, double? Y, double? Z, double? Orientation
 
     public bool IsDefault => X is null or 0 && Y is null or 0 && Z is null or 0 && Orientation is null or 0;
 
-    public static VrView Read(string iniPath)
+    public static VrView Read(string iniPath) => Read(IniFile.Read(iniPath));
+
+    public static VrView Read(Dictionary<(string Section, string Key), string> ini)
     {
-        var ini = IniFile.Read(iniPath);
         double? Get(string key) =>
             double.TryParse(ini.GetValueOrDefault(("PlayerVR", key)), NumberStyles.Float, CultureInfo.InvariantCulture, out var v) ? v : null;
         return new VrView(Get("TableX"), Get("TableY"), Get("TableZ"), Get("Orientation"));

@@ -831,18 +831,31 @@
                   </Grid>
                   <TextBlock Classes="mono" Text="{Binding LatestVpx}" TextWrapping="Wrap" />
                   <TextBlock Classes="muted" TextWrapping="Wrap"
-                             Text="Installs the official BGFX build from github.com/vpinball (VR through OpenXR). Tables launch with a separate VR settings file, so desktop settings stay as they are." />
+                             Text="Installs the official BGFX build from github.com/vpinball (VR through OpenXR)." />
+                  <TextBlock Classes="eyebrow" Text="VPX SETTINGS, IN LAYERS" Margin="0,6,0,0" />
+                  <TextBlock Classes="muted" TextWrapping="Wrap"
+                             Text="Tables play with your own VPX settings (VPinballX.ini, which you can keep changing in VPX or by hand), with the manager's VR or desktop changes on top. A setting in the VR or desktop file wins over yours for that mode only; leave its value empty to use yours. Settings you change in VPX's menu while playing a table from here are kept in that mode's file. Your VPinballX.ini is never changed by the manager. Edit the files while no table is running." />
+                  <WrapPanel>
+                    <Button Classes="small" Content="EDIT MY VPINBALLX.INI" Margin="0,0,8,8" Command="{Binding OpenOwnVpxIniCommand}"
+                            ToolTip.Tip="Your own VPX settings: used for VR and desktop play, except where the VR or desktop file says otherwise." />
+                    <Button Classes="small" Content="EDIT VR SETTINGS" Margin="0,0,8,8" Command="{Binding OpenVrIniCommand}"
+                            ToolTip.Tip="VrTableManager-VR.ini beside VPX: settings for VR play only, on top of yours." />
+                    <Button Classes="small" Content="EDIT DESKTOP SETTINGS" Margin="0,0,8,8" Command="{Binding OpenDesktopIniCommand}"
+                            ToolTip.Tip="VrTableManager-Desktop.ini beside VPX: settings for DESKTOP play only, on top of yours." />
+                  </WrapPanel>
+                  <TextBlock Classes="body" Foreground="{StaticResource Lamp}" Text="{Binding SettingsFilesStatus}" TextWrapping="Wrap"
+                             IsVisible="{Binding SettingsFilesStatus, Converter={x:Static StringConverters.IsNotNullOrEmpty}}" />
                   <CheckBox IsChecked="{Binding VpxUseDoNotUseBuilds}"
                             Content="Use the BGFX builds marked &quot;DO NOT USE&quot; on GitHub (recommended)"
                             ToolTip.Tip="The VPX team labels its current BGFX builds &quot;DO NOT USE&quot;; they have the newest VR work. Off: only builds without that label are installed or offered as updates. Click CHECK FOR UPDATES after changing this." />
                   <CheckBox IsChecked="{Binding UseBuiltInPinmame}"
-                            Content="Use VPX's built-in PinMAME in VR (recommended)"
-                            ToolTip.Tip="Reads each table's ROMs, scores, ROM aliases and Serum colours from its own folder. Off: VPX uses a separately installed VPinMAME and its own roms folder." />
+                            Content="Use VPX's built-in PinMAME (recommended)"
+                            ToolTip.Tip="In VR and desktop play, reads each table's ROMs, scores, ROM aliases and Serum colours from its own folder. Off: VPX uses a separately installed VPinMAME and its own roms folder." />
                   <CheckBox IsChecked="{Binding UsePupPlugin}"
-                            Content="Show PuP packs in VR (VPX's PinUP Player plugin)"
+                            Content="Show PuP packs (VPX's PinUP Player plugin)"
                             ToolTip.Tip="Plays a table's PuP pack (pupvideos in its folder) on the cabinet's backglass and DMD. Tables without one are unaffected." />
                   <CheckBox IsChecked="{Binding UseDisplayPlugins}"
-                            Content="Use VPX's FlexDMD and backglass (B2S) plugins in VR (recommended)"
+                            Content="Use VPX's FlexDMD and backglass (B2S) plugins (recommended)"
                             ToolTip.Tip="FlexDMD draws the DMD for tables whose script makes it (many originals, such as Jaws and Mass Effect). B2S shows a table's .directb2s backglass." />
                   <CheckBox IsChecked="{Binding VrAddBackglass}"
                             Content="Add a backglass in VR to tables that don't have one (needed for PuP packs)"
@@ -1050,7 +1063,7 @@
                       <TextBlock Classes="body" Foreground="{StaticResource Lamp}" Text="{Binding GraphicsStatus}"
                                  IsVisible="{Binding GraphicsStatus, Converter={x:Static StringConverters.IsNotNullOrEmpty}}" />
                       <TextBlock Classes="muted" TextWrapping="Wrap"
-                                 Text="Saved in VPX's VR settings file only, so desktop play keeps its own settings. A table's own .ini can still override these." />
+                                 Text="Saved in the VR settings file, on top of your own VPinballX.ini, so desktop play keeps its own settings. A table's own .ini can still override these." />
                       <WrapPanel>
                         <Button Classes="small" Content="OPEN VR SETTINGS FILE" Margin="0,0,8,0" Command="{Binding OpenVrIniCommand}" />
                       </WrapPanel>

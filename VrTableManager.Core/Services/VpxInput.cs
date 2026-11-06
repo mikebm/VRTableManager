@@ -3,8 +3,9 @@ namespace VrTableManager.Services;
 /// <summary>
 /// Brings the controls a player set up in normal (desktop) VPX into the VR settings file. VPX 10.8.1 keeps
 /// them in the <c>[Input]</c> section (<c>Devices</c>, <c>Device.*</c>, <c>Mapping.*</c>) of whichever ini it
-/// runs with, and VR launches use their own ini (<see cref="VpxSetup.VrIniPath"/>), so without this a
-/// gamepad or cabinet mapped in desktop VPX has to be mapped again in VR.
+/// runs with. VR play inherits them from the player's own VPinballX.ini (<see cref="VpxIniLayers"/>) until the
+/// VR overrides (<see cref="VpxSetup.VrIniPath"/>) have mappings of their own; this merges the desktop ones in
+/// then, keeping the VR controller bindings as alternatives.
 /// </summary>
 public static class VpxInput
 {
@@ -85,19 +86,5 @@ public static class VpxInput
         return changes.Count == 0
             ? $"VR already uses the controls from {desktop}."
             : $"Copied {mapped} control mapping{(mapped == 1 ? "" : "s")} from {desktop}. VR controller buttons were kept.";
-    }
-
-    /// <summary>
-    /// For a VR ini that has no controls yet (VR never played, or a fresh VPX), start from the desktop ones,
-    /// so a player who already mapped a gamepad or cabinet doesn't have to do it again.
-    /// </summary>
-    public static void ImportIfVrHasNone(AppSettings s)
-    {
-        try
-        {
-            if (!HasMappings(VpxSetup.VrIniPath(s))) Import(s);
-        }
-        catch (IOException) { }
-        catch (UnauthorizedAccessException) { }
     }
 }

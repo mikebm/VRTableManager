@@ -49,8 +49,9 @@ public static class AppFolders
     public static string Godot => Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "VrTableManager", "godot");
     public static string Backups => Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.MyDocuments), "VR Table Manager backups");
 
-    /// <summary>VPX's own settings and log folder (%APPDATA%\VPinballX).</summary>
-    public static string VpxPrefs => Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData), "VPinballX");
+    /// <summary>VPX's own settings and log folder (%APPDATA%\VPinballX; VRTM_VPX_PREFS instead, for tests).</summary>
+    public static string VpxPrefs => Environment.GetEnvironmentVariable("VRTM_VPX_PREFS") is { Length: > 0 } dir ? dir
+        : Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData), "VPinballX");
 
     /// <summary>VPX's texture caches: one per table folder, plus the shared ones in its settings folder.</summary>
     public static List<string> VpxTextureCaches(AppSettings s)
@@ -239,6 +240,7 @@ public static class Backup
 
         foreach (var f in AppFiles) Add(Path.Combine(AppSettings.DataDir, f), App + f);
         Add(VpxSetup.VrIniPath(s), Vpx + Path.GetFileName(VpxSetup.VrIniPath(s)));
+        Add(VpxSetup.DesktopIniPath(s), Vpx + Path.GetFileName(VpxSetup.DesktopIniPath(s)));
         if (Directory.Exists(AppFolders.VpxPrefs))
             foreach (var ini in Directory.EnumerateFiles(AppFolders.VpxPrefs, "*.ini", SearchOption.AllDirectories))
                 Add(ini, VpxPrefs + Path.GetRelativePath(AppFolders.VpxPrefs, ini));

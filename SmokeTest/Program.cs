@@ -848,6 +848,7 @@ foreach (var (ok, name) in VrViewChecks.Run(root)) Check(ok, name);
 foreach (var (ok, name) in LobbyVideoChecks.Run(root)) Check(ok, name);
 foreach (var (ok, name) in VrDmdFixChecks.Run(root)) Check(ok, name);
 foreach (var (ok, name) in VrRoomSwitchChecks.Run(root)) Check(ok, name);
+foreach (var (ok, name) in VpxIniLayersChecks.Run(root)) Check(ok, name);
 foreach (var (ok, name) in UserArtworkChecks.Run(root)) Check(ok, name);
 foreach (var (ok, name) in TableFileMatchChecks.Run()) Check(ok, name);
 foreach (var (ok, name) in await VpxInstallChecks.RunAsync(root)) Check(ok, name);
