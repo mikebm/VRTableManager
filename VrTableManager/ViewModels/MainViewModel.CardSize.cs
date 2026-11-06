@@ -7,7 +7,7 @@ public sealed partial class MainViewModel
 {
     public string[] CardSizes { get; } = ["Large", "Medium", "Small", "Text"];
 
-    [ObservableProperty, NotifyPropertyChangedFor(nameof(CardWidth), nameof(CardArtHeight), nameof(ShowCardArt), nameof(ShowCardDetails), nameof(BadgesOnArt), nameof(BadgesInText))]
+    [ObservableProperty, NotifyPropertyChangedFor(nameof(CardWidth), nameof(CardArtHeight), nameof(ShowCardArt), nameof(ShowCardDetails), nameof(BadgesOnArt), nameof(BadgesInText), nameof(PlayLabel))]
     public partial string CardSize { get; set; } = "Large";
 
     partial void OnCardSizeChanged(string value)
@@ -31,4 +31,7 @@ public sealed partial class MainViewModel
     public bool BadgesInText => CardSize != "Large";
     /// <summary>Small cards leave out the longer lines (disk use, add-on versions, why a ROM can't be downloaded); the badges still say what's installed.</summary>
     public bool ShowCardDetails => CardSize != "Small";
+
+    /// <summary>Small cards are too narrow for the full label beside the ⋯ button.</summary>
+    public string PlayLabel => CardSize == "Small" ? "▶  PLAY" : "▶  PLAY IN VR";
 }

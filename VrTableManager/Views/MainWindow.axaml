@@ -174,8 +174,8 @@
               <ItemsControl.ItemTemplate>
                 <DataTemplate x:DataType="vm:InstalledItem">
                   <Border Classes="tile" Width="{ReflectionBinding $parent[Window].DataContext.CardWidth}" Margin="0,0,16,16" Cursor="Arrow">
-                    <StackPanel>
-                      <Grid Height="{ReflectionBinding $parent[Window].DataContext.CardArtHeight}"
+                    <DockPanel>
+                      <Grid DockPanel.Dock="Top" Height="{ReflectionBinding $parent[Window].DataContext.CardArtHeight}"
                             IsVisible="{ReflectionBinding $parent[Window].DataContext.ShowCardArt}">
                         <Border Background="{StaticResource Stripes}" />
                         <TextBlock Classes="mono" Text="NO ARTWORK" HorizontalAlignment="Center" VerticalAlignment="Center"
@@ -196,123 +196,78 @@
                           <Border Classes="chip" IsVisible="{Binding Sound.IsInstalled}" ToolTip.Tip="{Binding Sound.Status}"><TextBlock Text="ALTSOUND" /></Border>
                         </StackPanel>
                       </Grid>
-                      <StackPanel Margin="14,12,14,14" Spacing="4">
-                        <Grid ColumnDefinitions="*,Auto">
-                          <TextBlock Classes="title" Text="{Binding Title}" TextTrimming="CharacterEllipsis" VerticalAlignment="Center" />
-                          <Button Grid.Column="1" Classes="icon" Padding="6,2" BorderThickness="0" FontSize="20"
-                                  Content="{Binding IsFavourite, Converter={x:Static v:Converters.Star}}"
-                                  Foreground="{Binding IsFavourite, Converter={x:Static v:Converters.StarBrush}}"
-                                  ToolTip.Tip="Favourite (shared with the VR lobby)"
-                                  Command="{ReflectionBinding $parent[Window].DataContext.ToggleFavouriteCommand}" CommandParameter="{Binding}" />
-                        </Grid>
-                        <!-- Medium, small and text-only cards: the badges that sit on the picture on large ones. -->
-                        <WrapPanel IsVisible="{ReflectionBinding $parent[Window].DataContext.BadgesInText}">
-                          <Border Classes="chip" Margin="0,0,5,4"><TextBlock Text="{Binding EngineBadge}" /></Border>
-                          <Border Classes="chip hot" Margin="0,0,5,4" IsVisible="{Binding IsIncomplete}"><TextBlock Text="INCOMPLETE" /></Border>
-                          <Border Classes="chip hot" Margin="0,0,5,4" IsVisible="{Binding HasUpdate}"><TextBlock Text="UPDATE" /></Border>
-                          <Border Classes="chip hot" Margin="0,0,5,4" IsVisible="{Binding NeedsRom}"><TextBlock Text="NEEDS ROM" /></Border>
-                          <Border Classes="chip" Margin="0,0,5,4" IsVisible="{Binding Pup.IsInstalled}" ToolTip.Tip="{Binding Pup.Status}"><TextBlock Text="PUP" /></Border>
-                          <Border Classes="chip" Margin="0,0,5,4" IsVisible="{Binding Colour.IsInstalled}" ToolTip.Tip="{Binding Colour.Status}"><TextBlock Text="COLOUR" /></Border>
-                          <Border Classes="chip" Margin="0,0,5,4" IsVisible="{Binding Sound.IsInstalled}" ToolTip.Tip="{Binding Sound.Status}"><TextBlock Text="ALTSOUND" /></Border>
-                        </WrapPanel>
-                        <TextBlock Classes="mono" Text="{Binding Subtitle}" TextTrimming="CharacterEllipsis" />
-                        <TextBlock Classes="mono" Foreground="{StaticResource Lamp}" Text="{Binding PlayInfo}" TextTrimming="CharacterEllipsis" />
-                        <Border Classes="dmd" Padding="8,4" Margin="0,2,0,2" HorizontalAlignment="Left" IsVisible="{Binding HasHighScore}"
-                                ToolTip.Tip="{Binding MoreScores}">
-                          <TextBlock Classes="dmd" FontSize="13" Text="{Binding TopScore}" TextTrimming="CharacterEllipsis" />
-                        </Border>
-                        <Panel IsVisible="{ReflectionBinding $parent[Window].DataContext.ShowCardDetails}">
-                          <TextBlock Classes="mono" Text="{Binding DiskInfo}" TextTrimming="CharacterEllipsis"
-                                     IsVisible="{Binding DiskInfo, Converter={x:Static StringConverters.IsNotNullOrEmpty}}" />
-                        </Panel>
-                        <TextBlock FontSize="12" Foreground="{StaticResource Orange}" Text="{Binding RomStatus}" TextWrapping="Wrap"
-                                   IsVisible="{Binding NeedsRom}" />
-                        <Panel IsVisible="{ReflectionBinding $parent[Window].DataContext.ShowCardDetails}">
-                          <TextBlock Classes="muted" FontSize="11.5" TextWrapping="Wrap" Text="{Binding RomUnavailableText}"
-                                     IsVisible="{Binding RomUnavailable}" />
-                        </Panel>
-                        <Grid ColumnDefinitions="*,Auto" Margin="0,4,0,0" IsVisible="{Binding HasUpdate}">
-                          <TextBlock FontSize="12" Foreground="{StaticResource Insert}" FontWeight="SemiBold" Text="{Binding UpdateLabel}"
-                                     TextWrapping="Wrap" VerticalAlignment="Center" />
-                          <Button Grid.Column="1" Classes="small" Content="UPDATE" Margin="8,0,0,0"
-                                  IsEnabled="{Binding !IsBusy}" Command="{ReflectionBinding $parent[Window].DataContext.UpdateTableCommand}" CommandParameter="{Binding}" />
-                        </Grid>
-                        <ItemsControl ItemsSource="{Binding Addons}" IsVisible="{ReflectionBinding $parent[Window].DataContext.ShowCardDetails}">
-                          <ItemsControl.ItemTemplate>
-                            <DataTemplate x:DataType="vm:AddonSlot">
-                              <Grid ColumnDefinitions="*,Auto" Margin="0,2,0,0" IsVisible="{Binding IsInstalled}">
-                                <TextBlock Classes="mono" Text="{Binding Status}" TextWrapping="Wrap" VerticalAlignment="Center" />
-                                <Button Grid.Column="1" Classes="small" Content="UPDATE" Margin="8,0,0,0" IsVisible="{Binding HasUpdate}"
-                                        ToolTip.Tip="Download the catalog's newer version and replace the installed one"
-                                        IsEnabled="{Binding !Item.IsBusy}" Command="{Binding Item.Owner.UpdateAddonCommand}" CommandParameter="{Binding}" />
-                              </Grid>
-                            </DataTemplate>
-                          </ItemsControl.ItemTemplate>
-                        </ItemsControl>
-                        <TextBlock FontSize="12" Foreground="{StaticResource Insert}" TextWrapping="Wrap" IsVisible="{Binding IsIncomplete}"
-                                   Text="This install was cut off before it finished, so files may be missing. Reinstall it." />
-                        <Button Classes="primary" Content="⟳  REINSTALL" Margin="0,8,0,0" IsVisible="{Binding IsIncomplete}"
-                                HorizontalAlignment="Stretch" HorizontalContentAlignment="Center"
-                                IsEnabled="{Binding !IsBusy}" Command="{ReflectionBinding $parent[Window].DataContext.ReinstallCommand}" CommandParameter="{Binding}" />
-                        <Button Classes="primary" Content="▶  PLAY IN VR" Margin="0,8,0,0" IsVisible="{Binding CanPlay}"
-                                HorizontalAlignment="Stretch" HorizontalContentAlignment="Center"
-                                Command="{ReflectionBinding $parent[Window].DataContext.PlayVrCommand}" CommandParameter="{Binding}" />
-                        <WrapPanel Margin="0,4,0,0">
-                          <Panel IsVisible="{Binding !Compact}">
-                            <Button Classes="small" Content="DESKTOP" Margin="0,0,6,6" IsVisible="{Binding CanPlayDesktop}"
-                                    Command="{ReflectionBinding $parent[Window].DataContext.PlayDesktopCommand}" CommandParameter="{Binding}" />
-                          </Panel>
-                          <Panel IsVisible="{Binding !Compact}">
-                            <Button Classes="small primary" Content="GET ROM" Margin="0,0,6,6" IsVisible="{Binding CanGetRom}"
-                                    ToolTip.Tip="Download this table's ROM from the catalog (usually VPForums) and install it"
-                                    IsEnabled="{Binding !IsBusy}" Command="{ReflectionBinding $parent[Window].DataContext.GetRomCommand}" CommandParameter="{Binding}" />
-                          </Panel>
-                          <Panel IsVisible="{Binding !Compact}">
-                            <Button Classes="small" Content="ALL ROMS" Margin="0,0,6,6" IsVisible="{Binding CanGetAllRoms}"
-                                    ToolTip.Tip="Download every ROM version from this table's ROM page (some versions need another one beside them)"
-                                    IsEnabled="{Binding !IsBusy}" Command="{ReflectionBinding $parent[Window].DataContext.GetRomCommand}" CommandParameter="{Binding}" />
-                          </Panel>
-                          <Panel IsVisible="{Binding !Compact}">
-                            <Button Classes="small" Content="SEARCH VPUNIVERSE" Margin="0,0,6,6" IsVisible="{Binding RomUnavailable}"
-                                    ToolTip.Tip="Search VPUniverse's files for this ROM in your browser"
-                                    Command="{ReflectionBinding $parent[Window].DataContext.SearchRomCommand}" CommandParameter="{Binding}" />
-                          </Panel>
-                          <Panel IsVisible="{Binding !Compact}">
-                            <Button Classes="small" Content="ADD ROM" Margin="0,0,6,6" IsVisible="{Binding NeedsRom}"
-                                    ToolTip.Tip="Install a ROM zip you already have"
-                                    Command="{ReflectionBinding $parent[Window].DataContext.AddRomCommand}" CommandParameter="{Binding}" />
-                          </Panel>
-                          <Panel IsVisible="{Binding !Compact}">
-                            <ContentControl Content="{Binding Pup}" ContentTemplate="{StaticResource AddonButton}" IsVisible="{Binding Pup.ShowButton}" />
-                          </Panel>
-                          <Panel IsVisible="{Binding !Compact}">
-                            <ContentControl Content="{Binding Colour}" ContentTemplate="{StaticResource AddonButton}" IsVisible="{Binding Colour.ShowButton}" />
-                          </Panel>
-                          <Panel IsVisible="{Binding !Compact}">
-                            <ContentControl Content="{Binding Sound}" ContentTemplate="{StaticResource AddonButton}" IsVisible="{Binding Sound.ShowButton}" />
-                          </Panel>
-                          <Panel IsVisible="{Binding !Compact}">
-                            <Button Classes="small" Content="RULES ▾" Margin="0,0,6,6" IsVisible="{Binding HasRules}"
-                                    ToolTip.Tip="How to play it: The Pinball Primer's rules and strategy, and instruction cards (opens in your browser)">
-                              <Button.Flyout>
-                                <Flyout Placement="BottomEdgeAlignedLeft">
-                                  <ItemsControl ItemsSource="{Binding Rules}">
-                                    <ItemsControl.ItemTemplate>
-                                      <DataTemplate x:DataType="vm:RuleChoice">
-                                        <Button Classes="small" Content="{Binding Label}" Margin="0,0,0,4" HorizontalAlignment="Stretch" HorizontalContentAlignment="Left"
-                                                Command="{Binding Item.Owner.OpenPageCommand}" CommandParameter="{Binding Url}" />
-                                      </DataTemplate>
-                                    </ItemsControl.ItemTemplate>
-                                  </ItemsControl>
-                                </Flyout>
-                              </Button.Flyout>
-                            </Button>
-                          </Panel>
-                          <Panel IsVisible="{Binding !Compact}">
-                            <Button Classes="small" Content="FOLDER" Margin="0,0,6,6"
-                                    Command="{ReflectionBinding $parent[Window].DataContext.OpenTableFolderCommand}" CommandParameter="{Binding}" />
-                          </Panel>
-                          <Button Classes="small" Content="MORE ▾" Margin="0,0,6,6" ToolTip.Tip="Folders, per-table settings and cache">
+                      <DockPanel Margin="14,12,14,14">
+                        <!-- Play and the other buttons sit at the bottom, lined up across a row of cards. -->
+                        <StackPanel DockPanel.Dock="Bottom">
+                          <Button Classes="primary" Content="⟳  REINSTALL" Margin="0,8,0,0" IsVisible="{Binding IsIncomplete}"
+                                  HorizontalAlignment="Stretch" HorizontalContentAlignment="Center"
+                                  IsEnabled="{Binding !IsBusy}" Command="{ReflectionBinding $parent[Window].DataContext.ReinstallCommand}" CommandParameter="{Binding}" />
+                          <WrapPanel Margin="0,4,0,0">
+                            <Panel IsVisible="{Binding !Compact}">
+                              <Button Classes="small" Content="DESKTOP" Margin="0,0,6,6" IsVisible="{Binding CanPlayDesktop}"
+                                      Command="{ReflectionBinding $parent[Window].DataContext.PlayDesktopCommand}" CommandParameter="{Binding}" />
+                            </Panel>
+                            <Panel IsVisible="{Binding !Compact}">
+                              <Button Classes="small primary" Content="GET ROM" Margin="0,0,6,6" IsVisible="{Binding CanGetRom}"
+                                      ToolTip.Tip="Download this table's ROM from the catalog (usually VPForums) and install it"
+                                      IsEnabled="{Binding !IsBusy}" Command="{ReflectionBinding $parent[Window].DataContext.GetRomCommand}" CommandParameter="{Binding}" />
+                            </Panel>
+                            <Panel IsVisible="{Binding !Compact}">
+                              <Button Classes="small" Content="ALL ROMS" Margin="0,0,6,6" IsVisible="{Binding CanGetAllRoms}"
+                                      ToolTip.Tip="Download every ROM version from this table's ROM page (some versions need another one beside them)"
+                                      IsEnabled="{Binding !IsBusy}" Command="{ReflectionBinding $parent[Window].DataContext.GetRomCommand}" CommandParameter="{Binding}" />
+                            </Panel>
+                            <Panel IsVisible="{Binding !Compact}">
+                              <Button Classes="small" Content="SEARCH VPUNIVERSE" Margin="0,0,6,6" IsVisible="{Binding RomUnavailable}"
+                                      ToolTip.Tip="Search VPUniverse's files for this ROM in your browser"
+                                      Command="{ReflectionBinding $parent[Window].DataContext.SearchRomCommand}" CommandParameter="{Binding}" />
+                            </Panel>
+                            <Panel IsVisible="{Binding !Compact}">
+                              <Button Classes="small" Content="ADD ROM" Margin="0,0,6,6" IsVisible="{Binding NeedsRom}"
+                                      ToolTip.Tip="Install a ROM zip you already have"
+                                      Command="{ReflectionBinding $parent[Window].DataContext.AddRomCommand}" CommandParameter="{Binding}" />
+                            </Panel>
+                            <Panel IsVisible="{Binding !Compact}">
+                              <ContentControl Content="{Binding Pup}" ContentTemplate="{StaticResource AddonButton}" IsVisible="{Binding Pup.ShowButton}" />
+                            </Panel>
+                            <Panel IsVisible="{Binding !Compact}">
+                              <ContentControl Content="{Binding Colour}" ContentTemplate="{StaticResource AddonButton}" IsVisible="{Binding Colour.ShowButton}" />
+                            </Panel>
+                            <Panel IsVisible="{Binding !Compact}">
+                              <ContentControl Content="{Binding Sound}" ContentTemplate="{StaticResource AddonButton}" IsVisible="{Binding Sound.ShowButton}" />
+                            </Panel>
+                            <Panel IsVisible="{Binding !Compact}">
+                              <Button Classes="small" Content="RULES ▾" Margin="0,0,6,6" IsVisible="{Binding HasRules}"
+                                      ToolTip.Tip="How to play it: The Pinball Primer's rules and strategy, and instruction cards (opens in your browser)">
+                                <Button.Flyout>
+                                  <Flyout Placement="BottomEdgeAlignedLeft">
+                                    <ItemsControl ItemsSource="{Binding Rules}">
+                                      <ItemsControl.ItemTemplate>
+                                        <DataTemplate x:DataType="vm:RuleChoice">
+                                          <Button Classes="small" Content="{Binding Label}" Margin="0,0,0,4" HorizontalAlignment="Stretch" HorizontalContentAlignment="Left"
+                                                  Command="{Binding Item.Owner.OpenPageCommand}" CommandParameter="{Binding Url}" />
+                                        </DataTemplate>
+                                      </ItemsControl.ItemTemplate>
+                                    </ItemsControl>
+                                  </Flyout>
+                                </Button.Flyout>
+                              </Button>
+                            </Panel>
+                            <Panel IsVisible="{Binding !Compact}">
+                              <Button Classes="small" Content="FOLDER" Margin="0,0,6,6"
+                                      Command="{ReflectionBinding $parent[Window].DataContext.OpenTableFolderCommand}" CommandParameter="{Binding}" />
+                            </Panel>
+                            <Panel IsVisible="{Binding !Compact}">
+                              <Button Classes="small danger" Content="REMOVE" Margin="0,0,6,6" IsVisible="{Binding CanRemove}"
+                                    Command="{ReflectionBinding $parent[Window].DataContext.RemoveCommand}" CommandParameter="{Binding}" />
+                            </Panel>
+                          </WrapPanel>
+                          <!-- The bottom row of every card: Play and MORE, lined up across a row of cards. -->
+                          <Grid ColumnDefinitions="*,Auto" Margin="0,4,0,0">
+                            <Button Grid.Column="0" Classes="primary" Content="{ReflectionBinding $parent[Window].DataContext.PlayLabel}" IsVisible="{Binding CanPlay}"
+                                    HorizontalAlignment="Stretch" HorizontalContentAlignment="Center"
+                                    Command="{ReflectionBinding $parent[Window].DataContext.PlayVrCommand}" CommandParameter="{Binding}" />
+                          <Button Grid.Column="1" Classes="small" Content="⋯" FontSize="20" Padding="12,0" Margin="8,0,0,0" VerticalAlignment="Stretch" VerticalContentAlignment="Center" ToolTip.Tip="More: desktop play, add-ons, rules, folders, artwork, per-table settings">
                             <Button.Flyout>
                               <MenuFlyout Placement="BottomEdgeAlignedLeft">
                                 <!-- Compact cards (below Large): the card's other buttons live here. -->
@@ -495,13 +450,66 @@
                               </MenuFlyout>
                             </Button.Flyout>
                           </Button>
-                          <Panel IsVisible="{Binding !Compact}">
-                            <Button Classes="small danger" Content="REMOVE" Margin="0,0,6,6" IsVisible="{Binding CanRemove}"
-                                  Command="{ReflectionBinding $parent[Window].DataContext.RemoveCommand}" CommandParameter="{Binding}" />
+                          </Grid>
+                        </StackPanel>
+                        <StackPanel Spacing="4" VerticalAlignment="Top" Margin="0,0,0,4">
+                          <Grid ColumnDefinitions="*,Auto">
+                            <TextBlock Classes="title" Text="{Binding Title}" TextTrimming="CharacterEllipsis" VerticalAlignment="Center" />
+                            <Button Grid.Column="1" Classes="icon" Padding="6,2" BorderThickness="0" FontSize="20"
+                                    Content="{Binding IsFavourite, Converter={x:Static v:Converters.Star}}"
+                                    Foreground="{Binding IsFavourite, Converter={x:Static v:Converters.StarBrush}}"
+                                    ToolTip.Tip="Favourite (shared with the VR lobby)"
+                                    Command="{ReflectionBinding $parent[Window].DataContext.ToggleFavouriteCommand}" CommandParameter="{Binding}" />
+                          </Grid>
+                          <!-- Medium, small and text-only cards: the badges that sit on the picture on large ones. -->
+                          <WrapPanel IsVisible="{ReflectionBinding $parent[Window].DataContext.BadgesInText}">
+                            <Border Classes="chip" Margin="0,0,5,4"><TextBlock Text="{Binding EngineBadge}" /></Border>
+                            <Border Classes="chip hot" Margin="0,0,5,4" IsVisible="{Binding IsIncomplete}"><TextBlock Text="INCOMPLETE" /></Border>
+                            <Border Classes="chip hot" Margin="0,0,5,4" IsVisible="{Binding HasUpdate}"><TextBlock Text="UPDATE" /></Border>
+                            <Border Classes="chip hot" Margin="0,0,5,4" IsVisible="{Binding NeedsRom}"><TextBlock Text="NEEDS ROM" /></Border>
+                            <Border Classes="chip" Margin="0,0,5,4" IsVisible="{Binding Pup.IsInstalled}" ToolTip.Tip="{Binding Pup.Status}"><TextBlock Text="PUP" /></Border>
+                            <Border Classes="chip" Margin="0,0,5,4" IsVisible="{Binding Colour.IsInstalled}" ToolTip.Tip="{Binding Colour.Status}"><TextBlock Text="COLOUR" /></Border>
+                            <Border Classes="chip" Margin="0,0,5,4" IsVisible="{Binding Sound.IsInstalled}" ToolTip.Tip="{Binding Sound.Status}"><TextBlock Text="ALTSOUND" /></Border>
+                          </WrapPanel>
+                          <TextBlock Classes="mono" Text="{Binding Subtitle}" TextTrimming="CharacterEllipsis" />
+                          <TextBlock Classes="mono" Foreground="{StaticResource Lamp}" Text="{Binding PlayInfo}" TextTrimming="CharacterEllipsis" />
+                          <Border Classes="dmd" Padding="8,4" Margin="0,2,0,2" HorizontalAlignment="Left" IsVisible="{Binding HasHighScore}"
+                                  ToolTip.Tip="{Binding MoreScores}">
+                            <TextBlock Classes="dmd" FontSize="13" Text="{Binding TopScore}" TextTrimming="CharacterEllipsis" />
+                          </Border>
+                          <Panel IsVisible="{ReflectionBinding $parent[Window].DataContext.ShowCardDetails}">
+                            <TextBlock Classes="mono" Text="{Binding DiskInfo}" TextTrimming="CharacterEllipsis"
+                                       IsVisible="{Binding DiskInfo, Converter={x:Static StringConverters.IsNotNullOrEmpty}}" />
                           </Panel>
-                        </WrapPanel>
-                      </StackPanel>
-                    </StackPanel>
+                          <TextBlock FontSize="12" Foreground="{StaticResource Orange}" Text="{Binding RomStatus}" TextWrapping="Wrap"
+                                     IsVisible="{Binding NeedsRom}" />
+                          <Panel IsVisible="{ReflectionBinding $parent[Window].DataContext.ShowCardDetails}">
+                            <TextBlock Classes="muted" FontSize="11.5" TextWrapping="Wrap" Text="{Binding RomUnavailableText}"
+                                       IsVisible="{Binding RomUnavailable}" />
+                          </Panel>
+                          <Grid ColumnDefinitions="*,Auto" Margin="0,4,0,0" IsVisible="{Binding HasUpdate}">
+                            <TextBlock FontSize="12" Foreground="{StaticResource Insert}" FontWeight="SemiBold" Text="{Binding UpdateLabel}"
+                                       TextWrapping="Wrap" VerticalAlignment="Center" />
+                            <Button Grid.Column="1" Classes="small" Content="UPDATE" Margin="8,0,0,0"
+                                    IsEnabled="{Binding !IsBusy}" Command="{ReflectionBinding $parent[Window].DataContext.UpdateTableCommand}" CommandParameter="{Binding}" />
+                          </Grid>
+                          <ItemsControl ItemsSource="{Binding Addons}" IsVisible="{ReflectionBinding $parent[Window].DataContext.ShowCardDetails}">
+                            <ItemsControl.ItemTemplate>
+                              <DataTemplate x:DataType="vm:AddonSlot">
+                                <Grid ColumnDefinitions="*,Auto" Margin="0,2,0,0" IsVisible="{Binding IsInstalled}">
+                                  <TextBlock Classes="mono" Text="{Binding Status}" TextWrapping="Wrap" VerticalAlignment="Center" />
+                                  <Button Grid.Column="1" Classes="small" Content="UPDATE" Margin="8,0,0,0" IsVisible="{Binding HasUpdate}"
+                                          ToolTip.Tip="Download the catalog's newer version and replace the installed one"
+                                          IsEnabled="{Binding !Item.IsBusy}" Command="{Binding Item.Owner.UpdateAddonCommand}" CommandParameter="{Binding}" />
+                                </Grid>
+                              </DataTemplate>
+                            </ItemsControl.ItemTemplate>
+                          </ItemsControl>
+                          <TextBlock FontSize="12" Foreground="{StaticResource Insert}" TextWrapping="Wrap" IsVisible="{Binding IsIncomplete}"
+                                     Text="This install was cut off before it finished, so files may be missing. Reinstall it." />
+                        </StackPanel>
+                      </DockPanel>
+                    </DockPanel>
                   </Border>
                 </DataTemplate>
               </ItemsControl.ItemTemplate>
