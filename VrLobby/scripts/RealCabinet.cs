@@ -16,6 +16,8 @@ public sealed class RealCabinet
     /// <summary>Playfield rectangle on this cabinet: centre (lobby space) and size (x across, z along).</summary>
     public required Vector3 PlayfieldCentre { get; init; }
     public required Vector2 PlayfieldSize { get; init; }
+    /// <summary>The playfield's slope, back end up (radians), now that the cabinet stands level on its legs.</summary>
+    public float PlayfieldSlope { get; init; }
     public required Aabb Bounds { get; init; }
     /// <summary>The surface holding the backglass part (-1: the cabinet has none), and whether it brought its own picture.</summary>
     public int BackglassSurface { get; init; } = -1;
@@ -155,6 +157,7 @@ public partial class RealCabinetLoader : Node
         public required Dictionary<string, Image.AlphaMode> Alpha { get; init; }
         public required Vector3 PlayfieldCentre { get; init; }
         public required Vector2 PlayfieldSize { get; init; }
+        public float PlayfieldSlope { get; init; }
         public required Aabb Bounds { get; init; }
         public Aabb? Backbox { get; init; }
     }
@@ -221,7 +224,8 @@ public partial class RealCabinetLoader : Node
             Images = images,
             Alpha = alphaModes,
             PlayfieldCentre = (ToGodot(c[0]) + ToGodot(c[2])) / 2,
-            PlayfieldSize = new Vector2(Mathf.Abs(c[1].X - c[0].X), Mathf.Abs(c[3].Z - c[0].Z)),
+            PlayfieldSize = new Vector2(Mathf.Abs(c[1].X - c[0].X), (c[3] - c[0]).Length()),
+            PlayfieldSlope = model.PlayfieldSlope,
             Bounds = new Aabb(ToGodot(model.Min), ToGodot(model.Max - model.Min)),
             Backbox = BoundsOf(model.Parts.Where(x => x.Name.Contains("backbox", StringComparison.OrdinalIgnoreCase))),
         };
@@ -272,6 +276,7 @@ public partial class RealCabinetLoader : Node
             Mesh = mesh,
             PlayfieldCentre = p.PlayfieldCentre,
             PlayfieldSize = p.PlayfieldSize,
+            PlayfieldSlope = p.PlayfieldSlope,
             Bounds = p.Bounds,
             BackglassSurface = bgSurface,
             BackglassTextured = bgTextured,

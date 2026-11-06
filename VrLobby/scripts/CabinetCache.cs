@@ -19,12 +19,12 @@ namespace VrLobby;
 static class CabinetCache
 {
     /// <summary>Bump when what Parse makes changes (texture size, merging, materials, which parts), so old files are re-read.</summary>
-    const int Version = 3;
+    const int Version = 4; // 4: cabinets tipped forward to stand on all four legs, and the playfield slope
     /// <summary>
     /// Layout of the bundled default cabinet. Separate from <see cref="Version"/> so a change in which parts a
     /// table's cabinet keeps doesn't throw away the shipped file; bump only when the file layout changes.
     /// </summary>
-    const int DumpVersion = 2; // 2: triangles in VPX order (front faces outward)
+    const int DumpVersion = 3; // 2: triangles in VPX order (front faces outward); 3: playfield slope stored
     static readonly byte[] Magic = "VTMCAB"u8.ToArray();
     static readonly byte[] DumpMagic = "VTMDEF"u8.ToArray();
 
@@ -119,6 +119,7 @@ static class CabinetCache
     {
         var centre = ReadVector3(r);
         var size = new Vector2(r.ReadSingle(), r.ReadSingle());
+        var slope = r.ReadSingle();
         var bounds = new Aabb(ReadVector3(r), ReadVector3(r));
         Aabb? backbox = r.ReadBoolean() ? new Aabb(ReadVector3(r), ReadVector3(r)) : null;
 
@@ -151,7 +152,7 @@ static class CabinetCache
         return new Parsed
         {
             Surfaces = surfaces, Images = images, Alpha = alpha,
-            PlayfieldCentre = centre, PlayfieldSize = size, Bounds = bounds, Backbox = backbox,
+            PlayfieldCentre = centre, PlayfieldSize = size, PlayfieldSlope = slope, Bounds = bounds, Backbox = backbox,
         };
     }
 
@@ -159,6 +160,7 @@ static class CabinetCache
     {
         WriteVector3(w, parsed.PlayfieldCentre);
         w.Write(parsed.PlayfieldSize.X); w.Write(parsed.PlayfieldSize.Y);
+        w.Write(parsed.PlayfieldSlope);
         WriteVector3(w, parsed.Bounds.Position); WriteVector3(w, parsed.Bounds.Size);
         w.Write(parsed.Backbox.HasValue);
         if (parsed.Backbox is { } box) { WriteVector3(w, box.Position); WriteVector3(w, box.Size); }
