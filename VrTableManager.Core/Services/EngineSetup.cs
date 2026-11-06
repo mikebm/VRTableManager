@@ -301,6 +301,7 @@ public static class Launcher
         var exe = VpxSetup.FindExe(s) ?? throw new InvalidOperationException("Visual Pinball X isn't installed yet (Setup tab).");
         var psi = new ProcessStartInfo(exe) { WorkingDirectory = Path.GetDirectoryName(exe)!, UseShellExecute = false };
         if (vr) VpxSetup.EnsureVrIni(s);
+        if (VrRoomSwitch.Prepare(tablePath, vr, s.AutoVrRoom) is { } changed) PlaySession.Log($"{Path.GetFileName(tablePath)}: {changed}");
         foreach (var a in VpxArgs(vr ? VpxSetup.VrIniPath(s) : null, tablePath)) psi.ArgumentList.Add(a);
         return Process.Start(psi)!;
     }

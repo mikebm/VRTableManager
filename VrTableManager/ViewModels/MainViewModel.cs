@@ -74,6 +74,7 @@ public sealed partial class MainViewModel : ObservableObject, IAsyncDisposable
         UsePupPlugin = Settings.UsePupPlugin;
         UseDisplayPlugins = Settings.UseDisplayPlugins;
         VrAddBackglass = Settings.VrAddBackglass;
+        AutoVrRoom = Settings.AutoVrRoom;
         LobbyRecordsRomAudio = Settings.LobbyRecordsRomAudio;
         LobbyWaitsForTable = Settings.LobbyWaitsForTable;
         LobbyStaysOpen = Settings.LobbyStaysOpen;
@@ -998,6 +999,7 @@ public sealed partial class MainViewModel : ObservableObject, IAsyncDisposable
             case nameof(UsePupPlugin): Settings.UsePupPlugin = UsePupPlugin; break;
             case nameof(UseDisplayPlugins): Settings.UseDisplayPlugins = UseDisplayPlugins; break;
             case nameof(VrAddBackglass): Settings.VrAddBackglass = VrAddBackglass; break;
+            case nameof(AutoVrRoom): Settings.AutoVrRoom = AutoVrRoom; break;
             case nameof(LobbyRecordsRomAudio): Settings.LobbyRecordsRomAudio = LobbyRecordsRomAudio; break;
             case nameof(LobbyWaitsForTable): Settings.LobbyWaitsForTable = LobbyWaitsForTable; break;
             case nameof(LobbyStaysOpen): Settings.LobbyStaysOpen = LobbyStaysOpen; break;

@@ -165,7 +165,7 @@ public static partial class RomAudio
     private static partial Regex SwitchOn();
 
     /// <summary>The table script: the CODE record of GameStg/GameData.</summary>
-    static string Script(string vpxPath)
+    internal static string Script(string vpxPath)
     {
         using var root = RootStorage.OpenRead(vpxPath);
         using var s = root.OpenStorage("GameStg").OpenStream("GameData");

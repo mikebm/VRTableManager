@@ -54,6 +54,11 @@ public sealed class AppSettings
     /// </summary>
     public bool VrAddBackglass { get; set; } = true;
     /// <summary>
+    /// Tables with a hand-set VR room switch in their script (VRRoom = 0 / 1) get it set for the mode being
+    /// played: on in VR, off on the desktop (<see cref="VrRoomSwitch"/>). Off: every table plays as it came.
+    /// </summary>
+    public bool AutoVrRoom { get; set; } = true;
+    /// <summary>
     /// The VR lobby records a ROM table's start-up music the first time you settle on it (RomAudio): a
     /// background PinMAME run of about 50 s, once per table. Off: only audio files already there play.
     /// </summary>
