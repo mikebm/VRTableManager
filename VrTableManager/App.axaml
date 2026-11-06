@@ -160,6 +160,12 @@
     </Style>
     <!-- Hover lights the card's edge like a lamp. No lift: in the grid there's no room above the
          top row, so moving the card up clipped its top border. -->
+    <!-- A card's picture, clipped to the card's inner top corners: clipped only by the card's outer edge, its
+         square corners covered the rounded (lit) border there. -->
+    <Style Selector="Border.tileArt">
+      <Setter Property="CornerRadius" Value="9,9,0,0" />
+      <Setter Property="ClipToBounds" Value="True" />
+    </Style>
     <Style Selector="Border.tile:pointerover">
       <Setter Property="BorderBrush" Value="{StaticResource Lamp}" />
       <Setter Property="BoxShadow" Value="0 0 16 0 #59FFB23E" />
