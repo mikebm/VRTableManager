@@ -10,8 +10,8 @@ namespace VrTableManager.Services;
 /// one: render mode External Renderer (RDMD = 4) showing the Score View window (RSTL = 2), which is where
 /// the PinUP Player plugin draws the FullDMD (screen 5).
 /// <para>
-/// Only flashers named like "...PUP..." with the old DMD flag are touched, so a table's PinMAME/FlexDMD
-/// display is left alone. The original file is kept next to the table as <c>&lt;table&gt;.vpx.dmdfix.bak</c>
+/// Only flashers with the old DMD flag that show the PuP pack are touched (see <see cref="Find"/>), so a
+/// table's PinMAME/FlexDMD display is left alone. The original file is kept next to the table as <c>&lt;table&gt;.vpx.dmdfix.bak</c>
 /// (not .vpx, so it isn't mistaken for a second table). From file version 10.0 on, VPX's integrity hash
 /// doesn't cover GameItem streams, so the patched table loads without a warning.
 /// </para>
@@ -28,10 +28,15 @@ public static class VrDmdFix
     public static string BackupPath(string vpx) => vpx + BackupSuffix;
     public static bool HasBackup(string vpx) => File.Exists(BackupPath(vpx));
 
-    /// <summary>The flashers that need the fix (empty when none, or the file can't be read).</summary>
+    /// <summary>
+    /// The flashers that need the fix (empty when none, or the file can't be read). A flasher named like
+    /// "...PUP..." always does. One with another name ("VR_DMD", as in Total Nuclear Annihilation) does only when
+    /// the script shows PuP is the only thing that could have drawn on it: it uses PinUP Player, no PinMAME, and
+    /// no FlexDMD/UltraDMD that's switched on. Otherwise it's the table's own DMD, which 10.8.1 still shows.
+    /// </summary>
     public static IReadOnlyList<Flasher> Find(string vpx)
     {
-        var found = new List<Flasher>();
+        List<Flasher> named = [], other = [];
         try
         {
             using var root = RootStorage.OpenRead(vpx);
@@ -40,11 +45,15 @@ public static class VrDmdFix
                 using (s)
                 {
                     var d = ReadAll(s);
-                    if (NeedsFix(d, out var name)) found.Add(new(i, name));
+                    if (IsOldDmd(d, out var name))
+                        (name.Contains("pup", StringComparison.OrdinalIgnoreCase) ? named : other).Add(new(i, name));
                 }
         }
-        catch (Exception) { }
-        return found;
+        catch (Exception) { return []; }
+        if (other.Count == 0) return named;
+        // Reading the script means reading the whole file, so only when there's a flasher it would decide.
+        var script = RomDetector.Inspect(vpx);
+        return script is { UsesPup: true, UsesPinMame: false, UsesOwnDmd: false } ? [.. named, .. other.OrderBy(f => f.Item)] : named;
     }
 
     /// <summary>
@@ -107,7 +116,8 @@ public static class VrDmdFix
         return list;
     }
 
-    static bool NeedsFix(byte[] d, out string name)
+    /// <summary>A flasher marked "DMD" the 10.8.0 way (IDMD), with no 10.8.1 render mode yet.</summary>
+    static bool IsOldDmd(byte[] d, out string name)
     {
         name = "";
         if (d.Length < 4 || BitConverter.ToInt32(d, 0) != FlasherType) return false;
@@ -125,7 +135,7 @@ public static class VrDmdFix
                 case "RDMD": modern = true; break;
             }
         }
-        return dmd && !modern && name.Contains("pup", StringComparison.OrdinalIgnoreCase);
+        return dmd && !modern;
     }
 
     /// <summary>IDMD → RDMD = External Renderer, RSTL = Score View; everything else byte for byte.</summary>

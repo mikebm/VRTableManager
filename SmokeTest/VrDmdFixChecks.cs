@@ -71,6 +71,27 @@ static class VrDmdFixChecks
         VrDmdFix.Undo(vpx);
         results.Add((Item(vpx, 1).SequenceEqual(pupDmd) && !VrDmdFix.HasBackup(vpx), "PuP DMD fix: undo puts the original back"));
 
+        // Total Nuclear Annihilation: the PuP DMD flasher is called VR_DMD. With no ROM and FlexDMD/UltraDMD switched
+        // off, PuP is all that could draw on it; with FlexDMD on (or PinMAME), it's the table's own DMD.
+        const string pupOnly = "Const UseUltraDMD = 0\r\nSet UltraDMD = CreateObject(\"UltraDMD.DMDObject\")\r\nSet PuPlayer = CreateObject(\"PinUpPlayer.PinDisplay\")\r\n";
+        string ScriptTable(string name, string script)
+        {
+            var path = Path.Combine(root, "dmd fix", name + ".vpx");
+            using var cfb = OpenMcdf.RootStorage.Create(path);
+            var gs = cfb.CreateStorage("GameStg");
+            void Put(string n, byte[] bytes) { using var s = gs.CreateStream(n); s.Write(bytes, 0, bytes.Length); }
+            Put("GameData", Rec("CODE", Encoding.Latin1.GetBytes(script)));
+            Put("GameItem0", pinmameDmd);
+            return path;
+        }
+        var tna = ScriptTable("tna", pupOnly);
+        var flex = ScriptTable("flex", pupOnly.Replace("UseUltraDMD = 0", "UseUltraDMD = 1"));
+        var rom = ScriptTable("rom", pupOnly + "LoadVPM \"01560000\", \"S11.VBS\", 3.26\r\n");
+        results.Add((VrDmdFix.Find(tna) is [{ Item: 0, Name: "VR_DMD" }] && VrDmdFix.Find(flex).Count == 0 && VrDmdFix.Find(rom).Count == 0,
+            "PuP DMD fix: an old DMD flasher with another name (VR_DMD) is fixed when PuP is the table's only DMD, not when FlexDMD/UltraDMD is on or it uses PinMAME"));
+        VrDmdFix.Apply(tna);
+        results.Add((TopInts(Item(tna, 0)).GetValueOrDefault("RDMD") == 4 && VrDmdFix.Find(tna).Count == 0, "PuP DMD fix: VR_DMD in a PuP-only table is patched"));
+
         results.Add((VrDmdFix.EngineSupportsFix("v10.8.1-5436-af26b2d93") && VrDmdFix.EngineSupportsFix("v10.9.0-1")
                      && !VrDmdFix.EngineSupportsFix("v10.8.0-2051-28dd6c3") && !VrDmdFix.EngineSupportsFix(null),
             "PuP DMD fix: only offered with VPX 10.8.1 or later (10.8.0 still shows the DMD the old way)"));

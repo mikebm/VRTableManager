@@ -206,6 +206,10 @@ public static class TableInstaller
         }
 
         AltPacks.FixLayout(folder);
+        // A PuP pack that came in the table's archive gets its VR layout too, when it has one.
+        var pupDir = Path.Combine(folder, PupPacks.FolderName);
+        if (Directory.Exists(pupDir))
+            foreach (var pack in PupPacks.PackRoots(pupDir)) PupPackOptions.SetUpForVr(pack);
         return (Path.Combine(folder, Path.GetFileName(main)), folder);
     }
 

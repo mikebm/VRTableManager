@@ -73,7 +73,7 @@ public static class PupPackChecks
             ("PinUPSystem/PUPVideos/Jaws50/screens.pup", "s"), ("PinUPSystem/PUPVideos/Jaws50/playlists.pup", "p"),
             ("PinUPSystem/PUPVideos/Jaws50/Backglass/intro.mp4", "v1"), ("PinUPSystem/PUPVideos/Jaws50/Backup/screens.pup", "old"),
             ("Option 1 - Full DMD.bat", "copy x y"));
-        var rec = PupPacks.Install(zip1, table, sources[1], names);
+        var rec = PupPacks.Install(zip1, table, sources[1], names).Record;
         var dest = Path.Combine(folder, "pupvideos", "Jaws50");
         yield return (rec.Folder == "Jaws50" && File.ReadAllText(Path.Combine(dest, "Backglass", "intro.mp4")) == "v1" && File.Exists(Path.Combine(dest, "Backup", "screens.pup")),
             "pack lands in pupvideos\\<folder> (same name as the script's, any case), with its sub-folders");
@@ -91,7 +91,7 @@ public static class PupPackChecks
 
         // Update with a pack at the top of the archive (no folder of its own): named from the script, the old folder replaced.
         var zip2 = Zip(root, "pup2.zip", ("screens.pup", "s2"), ("playlists.pup", "p2"), ("Backglass/intro.mp4", "v2"));
-        var rec2 = PupPacks.Install(zip2, table, game.PupPackFiles[1], names);
+        var rec2 = PupPacks.Install(zip2, table, game.PupPackFiles[1], names).Record;
         yield return (rec2.Folder == "jaws50" && File.ReadAllText(Path.Combine(folder, "pupvideos", "jaws50", "Backglass", "intro.mp4")) == "v2"
                 && Directory.EnumerateDirectories(Path.Combine(folder, "pupvideos")).Count() == 1 && !File.Exists(Path.Combine(folder, "pupvideos", "jaws50", "Backup", "screens.pup")),
             "updating replaces the old pack; an unnamed pack takes the script's name");
@@ -111,6 +111,39 @@ public static class PupPackChecks
         PupPacks.Remove(table);
         yield return (!Directory.Exists(Path.Combine(folder, "pupvideos")) && File.Exists(table.TablePath), "removing deletes the pack (and the empty pupvideos), not the table");
 
+        // Layouts, as Total Nuclear Annihilation ships them: option .bat files that copy a PuP-Pack_Options folder's
+        // .pup files over the pack's own. The one named VR is used (minus its desktop helper .exe/.bat).
+        const string opts = "tna/PuP-Pack_Options/";
+        var tna = PupPacks.Install(Zip(root, "tna.zip",
+            ("tna/screens.pup", "default"), ("tna/triggers.pup", "t-default"), ("tna/playlists.pup", "p"), ("tna/ReadMe.txt", "notes"),
+            ("tna/EditThisPuPPack.bat", "Start PinUPPackEditor.exe %packname%"),
+            ("tna/Option 1 - PuP_on_Backglass.bat", "xcopy /y \"PuP-Pack_Options\\Option 1 - PuP_on_Backglass\\*.pup\""),
+            ("tna/Option 4 - VR_or_Desktop.bat", "xcopy /y \"PuP-Pack_Options\\Option 4 - VR_or_Desktop\\*.pup\"\r\nxcopy /y \"PuP-Pack_Options\\Option 4 - VR_or_Desktop\\*.exe\""),
+            (opts + "Option 1 - PuP_on_Backglass/screens.pup", "bg"),
+            (opts + "Option 4 - VR_or_Desktop/screens.pup", "vr"), (opts + "Option 4 - VR_or_Desktop/triggers.pup", "t-vr"),
+            (opts + "Option 4 - VR_or_Desktop/PuPDesktopPunch.exe", "exe"), (opts + "Option 4 - VR_or_Desktop/pupinit.bat", "bat")),
+            table, game.PupPackFiles[1], new PupNames("tna", []));
+        var tnaDir = Path.Combine(folder, "pupvideos", "tna");
+        yield return (tna.Layout.Applied == "Option 4 - VR_or_Desktop" && tna.Layout.Options.Count == 2
+                && File.ReadAllText(Path.Combine(tnaDir, "screens.pup")) == "vr" && File.ReadAllText(Path.Combine(tnaDir, "triggers.pup")) == "t-vr"
+                && !File.Exists(Path.Combine(tnaDir, "PuPDesktopPunch.exe")) && !File.Exists(Path.Combine(tnaDir, "pupinit.bat"))
+                && tna.Layout.Note("pupvideos\\tna").Contains("VR layout (\"Option 4 - VR_or_Desktop\")") && tna.Layout.ReadMes.SequenceEqual(["ReadMe.txt"]),
+            "a pack's VR layout is copied over its default (not its programs); the .bat that only opens the editor isn't a layout");
+
+        // No VR layout (the .bat names a folder that differs from its own name): the default stays and the user is told how to switch.
+        var noVr = PupPackOptions.SetUpForVr(Dir(root, "novr",
+            ("screens.pup", "default"), ("FullDMD.bat", "copy /y \"Options\\Full DMD\\screens.pup\" ."), ("Options/Full DMD/screens.pup", "full")));
+        var noVrNote = noVr.Note("pupvideos\\x");
+        yield return (noVr.Applied == null && noVr.Options.SequenceEqual(["FullDMD"]) && File.ReadAllText(Path.Combine(root, "novr", "screens.pup")) == "default"
+                && noVrNote.Contains("\"FullDMD\"") && noVrNote.Contains("Notepad"),
+            "a pack with layouts but none for VR keeps its default, and the note says which layouts there are and how to switch");
+        var twoVr = PupPackOptions.SetUpForVr(Dir(root, "twovr", ("screens.pup", "default"),
+            ("PuP-Pack_Options/VR Cab/screens.pup", "a"), ("PuP-Pack_Options/VR_Desktop/screens.pup", "b"), ("PuP-Pack_Options/Non-VR/screens.pup", "c")));
+        yield return (twoVr.Applied == null && twoVr.VrOptions.Count == 2 && File.ReadAllText(Path.Combine(root, "twovr", "screens.pup")) == "default"
+                && twoVr.Note("x").Contains("several VR layouts"),
+            "two VR layouts: neither is guessed at (and \"Non-VR\" isn't one)");
+        yield return (PupPackOptions.SetUpForVr(Dir(root, "plain", ("screens.pup", "s"))).Note("x") == "", "a plain pack gets no extra note");
+
         // VR ini turns the PinUP Player plugin on (or off).
         var vs = new AppSettings { VpxDir = Path.Combine(root, "pup-vpx") };
         VpxSetup.EnsureVrIni(vs);
@@ -126,6 +159,18 @@ public static class PupPackChecks
         VpxSetup.EnsureVrIni(vs);
         var bgOff = IniFile.Read(VpxSetup.VrIniPath(vs)).GetValueOrDefault(("PlayerVR", "AddBackglass"));
         yield return (bgOn == "1" && bgOff == "0", "VR ini adds VPX's default backglass for PuP, and the setting turns it off");
+    }
+
+    static string Dir(string root, string name, params (string path, string text)[] entries)
+    {
+        var dir = Path.Combine(root, name);
+        foreach (var (p, t) in entries)
+        {
+            var f = Path.Combine(dir, p);
+            Directory.CreateDirectory(Path.GetDirectoryName(f)!);
+            File.WriteAllText(f, t);
+        }
+        return dir;
     }
 
     static string Zip(string root, string name, params (string path, string text)[] entries)
