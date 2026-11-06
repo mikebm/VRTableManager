@@ -34,17 +34,17 @@ public sealed class AppSettings
     /// <summary>Before a VR launch, warn when the active OpenXR runtime is SteamVR (an extra layer for a Quest).</summary>
     public bool WarnSteamVrRuntime { get; set; } = true;
     /// <summary>
-    /// VR play uses VPX's built-in PinMAME (plugin) rather than a separately installed VPinMAME, so ROMs,
+    /// VR and desktop play use VPX's built-in PinMAME (plugin) rather than a separately installed VPinMAME, so ROMs,
     /// aliases and Serum files come from each table's own folder.
     /// </summary>
     public bool UseBuiltInPinmame { get; set; } = true;
     /// <summary>
-    /// VR play turns on VPX's PinUP Player plugin, which shows a table's PuP pack (pupvideos\ in its folder)
+    /// VR and desktop play turn on VPX's PinUP Player plugin, which shows a table's PuP pack (pupvideos\ in its folder)
     /// on the cabinet's backglass and DMD.
     /// </summary>
     public bool UsePupPlugin { get; set; } = true;
     /// <summary>
-    /// VR play turns on VPX's FlexDMD plugin (DMDs drawn by the table script, as many originals do) and its B2S
+    /// VR and desktop play turn on VPX's FlexDMD plugin (DMDs drawn by the table script, as many originals do) and its B2S
     /// plugin (the table's .directb2s backglass).
     /// </summary>
     public bool UseDisplayPlugins { get; set; } = true;

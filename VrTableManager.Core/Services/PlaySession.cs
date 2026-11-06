@@ -78,6 +78,7 @@ public static class PlaySession
             var started = DateTime.Now;
             TryRecord(() => PlayStats.Mutate(st => st.RecordPlay(table.TablePath, started), stats));
             await proc.WaitForExitAsync();
+            VpxIniLayers.Finish(proc); // this process ends soon: don't leave it to the background wait
             TryRecord(() => PlayStats.Mutate(st => st.AddTime(table.TablePath, DateTime.Now - started), stats));
             Log("table exited");
             Status(PlayStatus.Exited);

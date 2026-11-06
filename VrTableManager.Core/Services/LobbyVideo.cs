@@ -209,7 +209,7 @@ public static class LobbyVideo
     {
         VpxSetup.EnsureVrIni(s);
         var ini = Path.Combine(AppSettings.DataDir, "lobby-capture.ini");
-        File.Copy(VpxSetup.VrIniPath(s), ini, overwrite: true);
+        VpxIniLayers.Build(s, vr: true, ini); // the player's settings with the VR ones on top; nothing is saved back
         IniFile.Set(ini, "PlayerVR", "AskToTurnOn", "2"); // VR disabled
         IniFile.SetMany(ini, "Player",
         [

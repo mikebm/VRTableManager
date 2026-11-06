@@ -47,11 +47,34 @@ public sealed partial class MainViewModel
         catch (Exception e) { ControlsStatus = "Couldn't copy the controls: " + e.Message; }
     }
 
+    /// <summary>What happened when opening a settings file (shown under the buttons).</summary>
+    [ObservableProperty] public partial string SettingsFilesStatus { get; set; } = "";
+
+    /// <summary>The player's own VPinballX.ini: the bottom layer for both VR and desktop play.</summary>
+    [RelayCommand]
+    void OpenOwnVpxIni()
+    {
+        if (VpxIniLayers.BasePath(Settings) is { } ini)
+        {
+            SettingsFilesStatus = "";
+            _ui.OpenExternal(ini);
+        }
+        else SettingsFilesStatus = "VPX hasn't saved settings of its own yet. Start VPinballX.exe on its own once (not from here) and it creates VPinballX.ini.";
+    }
+
     [RelayCommand]
     void OpenVrIni()
     {
         var ini = VpxSetup.VrIniPath(Settings);
         if (!File.Exists(ini)) VpxSetup.EnsureVrIni(Settings);
+        _ui.OpenExternal(ini);
+    }
+
+    [RelayCommand]
+    void OpenDesktopIni()
+    {
+        var ini = VpxSetup.DesktopIniPath(Settings);
+        if (!File.Exists(ini)) VpxSetup.EnsureDesktopIni(Settings);
         _ui.OpenExternal(ini);
     }
 

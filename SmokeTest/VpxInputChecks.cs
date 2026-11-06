@@ -30,20 +30,28 @@ static class VpxInputChecks
         yield return (m["Mapping.Nudge0.X"] == "SDL.Xbox;0;P;0;1;1", "nudge/plunger sensors take the desktop source");
         yield return (m["Device.SDL.Xbox.Type"] == "2", "device descriptions are copied");
 
-        // End to end: a fresh VR ini starts from the desktop controls.
+        // End to end: VR play follows the desktop controls (not a copy of them) until VR has its own.
         var dir = Path.Combine(root, "vpx-input");
         var s = new AppSettings { VpxDir = Path.Combine(dir, "vpx") };
         Directory.CreateDirectory(s.VpxDir);
-        File.WriteAllText(Path.Combine(s.VpxDir, "VPinballX.ini"), "[Player]\nX = 1\n\n[Input]\nDevices = Key;SDL.Pad\nMapping.LeftFlipper = SDL.Pad;4\n");
-        VpxSetup.EnsureVrIni(s);
-        var input = IniFile.ReadSection(VpxSetup.VrIniPath(s), VpxInput.Section).ToDictionary(kv => kv.Key, kv => kv.Value);
-        yield return (input.GetValueOrDefault("Mapping.LeftFlipper") == "SDL.Pad;4", "a new VR ini gets the desktop controls");
+        var oldPrefs = Environment.GetEnvironmentVariable("VRTM_VPX_PREFS");
+        Environment.SetEnvironmentVariable("VRTM_VPX_PREFS", Path.Combine(dir, "no prefs")); // the base is the ini beside VPX
+        try
+        {
+            var desktopIni = Path.Combine(s.VpxDir, "VPinballX.ini");
+            File.WriteAllText(desktopIni, "[Player]\nX = 1\n\n[Input]\nDevices = Key;SDL.Pad\nMapping.LeftFlipper = SDL.Pad;4\n");
+            VpxSetup.EnsureVrIni(s);
+            string? VrLeftFlipper() => VpxIniLayers.Effective(s, vr: true).GetValueOrDefault((VpxInput.Section, "Mapping.LeftFlipper"));
+            yield return (VrLeftFlipper() == "SDL.Pad;4" && !VpxInput.HasMappings(VpxSetup.VrIniPath(s)), "VR play uses the desktop controls without copying them");
+            IniFile.Set(desktopIni, VpxInput.Section, "Mapping.LeftFlipper", "SDL.Pad;5");
+            yield return (VrLeftFlipper() == "SDL.Pad;5", "a desktop remap reaches VR play");
 
-        // Remaps made in VR afterwards aren't overwritten on the next launch.
-        IniFile.Set(VpxSetup.VrIniPath(s), VpxInput.Section, "Mapping.LeftFlipper", "SDL.Pad;9");
-        VpxSetup.EnsureVrIni(s);
-        yield return (IniFile.ReadSection(VpxSetup.VrIniPath(s), VpxInput.Section).First(kv => kv.Key == "Mapping.LeftFlipper").Value == "SDL.Pad;9",
-            "VR remaps survive later launches");
+            // Remaps made in VR are VR's own and aren't overwritten on the next launch.
+            IniFile.Set(VpxSetup.VrIniPath(s), VpxInput.Section, "Mapping.LeftFlipper", "SDL.Pad;9");
+            VpxSetup.EnsureVrIni(s);
+            yield return (VrLeftFlipper() == "SDL.Pad;9", "VR remaps survive later launches");
+        }
+        finally { Environment.SetEnvironmentVariable("VRTM_VPX_PREFS", oldPrefs); }
     }
 }
 

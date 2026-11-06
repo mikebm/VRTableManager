@@ -155,11 +155,15 @@ public static class VpxSetup
             ?? files.FirstOrDefault();
     }
 
+    /// <summary>The manager's VR overrides on top of the player's own VPinballX.ini (<see cref="VpxIniLayers"/>).</summary>
     public static string VrIniPath(AppSettings s) => Path.Combine(s.VpxDir, "VrTableManager-VR.ini");
+
+    /// <summary>The manager's desktop overrides on top of the player's own VPinballX.ini (<see cref="VpxIniLayers"/>).</summary>
+    public static string DesktopIniPath(AppSettings s) => Path.Combine(s.VpxDir, "VrTableManager-Desktop.ini");
 
     /// <summary>
     /// VPX reads [PlayerVR] AskToTurnOn (0 = Enabled, 1 = Autodetect, 2 = Disabled).
-    /// A separate ini passed with -Ini keeps the desktop settings untouched.
+    /// These are overrides: the player's own VPinballX.ini stays untouched.
     /// </summary>
     public static void EnsureVrIni(AppSettings s)
     {
@@ -167,6 +171,29 @@ public static class VpxSetup
         IniFile.Set(ini, "PlayerVR", "AskToTurnOn", "0");
         var rate = s.VrRefreshRate switch { 72 => 1, 80 => 2, 90 => 3, 120 => 4, _ => 0 };
         IniFile.Set(ini, "PlayerVR", "DisplayRefreshRate", rate.ToString());
+        SetPlugins(s, ini);
+        // The plugins draw the backglass (PuP, B2S) into a display VPX only puts in the VR scene when the table has
+        // its own VR backglass. Desktop and cabinet tables (most PuP tables) need VPX's default one added, or the PuP
+        // pack loads and plays with nothing showing it.
+        IniFile.Set(ini, "PlayerVR", "AddBackglass", s.VrAddBackglass ? "1" : "0");
+        // Controls aren't copied in: VR play inherits the ones in the player's own VPinballX.ini (and keeps
+        // following them) unless it has its own (VpxInput.Import, or remapped during VR play).
+    }
+
+    /// <summary>
+    /// Desktop play: VR off even if the player's own settings turn it on, and the same plugins as VR, so the
+    /// table's ROMs, PuP pack and backglass are found in its own folder (without the built-in PinMAME, VPX asks a
+    /// separately installed VPinMAME, which looks in its own roms folder).
+    /// </summary>
+    public static void EnsureDesktopIni(AppSettings s)
+    {
+        var ini = DesktopIniPath(s);
+        IniFile.Set(ini, "PlayerVR", "AskToTurnOn", "2");
+        SetPlugins(s, ini);
+    }
+
+    static void SetPlugins(AppSettings s, string ini)
+    {
         // VPX's built-in PinMAME reads each table's own pinmame\roms, nvram and alias.txt (where this app
         // puts them); without it VPX falls back to a separately installed VPinMAME and its global roms
         // folder. Serum, VNI and AltSound are its colorization and sound companions, read from the table folder.
@@ -178,12 +205,6 @@ public static class VpxSetup
         // Mass Effect); B2S shows a table's .directb2s backglass. Set explicitly rather than left to VPX's default.
         var display = s.UseDisplayPlugins ? "1" : "0";
         foreach (var plugin in DisplayPlugins) IniFile.Set(ini, "Plugin." + plugin, "Enable", display);
-        // The plugins draw the backglass (PuP, B2S) into a display VPX only puts in the VR scene when the table has
-        // its own VR backglass. Desktop and cabinet tables (most PuP tables) need VPX's default one added, or the PuP
-        // pack loads and plays with nothing showing it.
-        IniFile.Set(ini, "PlayerVR", "AddBackglass", s.VrAddBackglass ? "1" : "0");
-        // A gamepad or cabinet already mapped in desktop VPX works in VR from the first launch.
-        VpxInput.ImportIfVrHasNone(s);
     }
 
     /// <summary>Id of VPX's PinUP Player plugin (plugins\pup\plugin.cfg).</summary>
@@ -301,9 +322,13 @@ public static class Launcher
         var exe = VpxSetup.FindExe(s) ?? throw new InvalidOperationException("Visual Pinball X isn't installed yet (Setup tab).");
         var psi = new ProcessStartInfo(exe) { WorkingDirectory = Path.GetDirectoryName(exe)!, UseShellExecute = false };
         if (vr) VpxSetup.EnsureVrIni(s);
+        else VpxSetup.EnsureDesktopIni(s);
+        var play = VpxIniLayers.Build(s, vr);
         if (VrRoomSwitch.Prepare(tablePath, vr, s.AutoVrRoom) is { } changed) PlaySession.Log($"{Path.GetFileName(tablePath)}: {changed}");
-        foreach (var a in VpxArgs(vr ? VpxSetup.VrIniPath(s) : null, tablePath)) psi.ArgumentList.Add(a);
-        return Process.Start(psi)!;
+        foreach (var a in VpxArgs(play.Path, tablePath)) psi.ArgumentList.Add(a);
+        var proc = Process.Start(psi)!;
+        VpxIniLayers.SaveBackOnExit(proc, play, PlaySession.Log);
+        return proc;
     }
 
     /// <summary>
