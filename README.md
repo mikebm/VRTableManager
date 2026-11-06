@@ -46,10 +46,10 @@ Add-ons are matched to the table's ROM, installed where VPX's plugins look, and 
 
 | | |
 |---|---|
-| ![Table cards with PUP, COLOUR DMD, ALTSOUND and RULES menus](docs/screenshots/table-cards.jpg) | ![Get Tables: the whole Virtual Pinball Spreadsheet catalog](docs/screenshots/get-tables.jpg) |
-| **Add-ons and rules** on every table card | **Get Tables:** 2,000+ tables, filtered to what works in VR |
-| ![A table's versions, authors and features, each with Install](docs/screenshots/table-versions.jpg) | ![Setup: updates, Visual Pinball X and VR settings](docs/screenshots/setup.jpg) |
-| **Every version** of a table, with one-click Install | **Setup and updates** in one place |
+| ![Table cards with PUP, COLOUR DMD, ALTSOUND and RULES menus, and the PUP menu open](docs/screenshots/table-cards.jpg) | ![Get Tables: the whole Virtual Pinball Spreadsheet catalog](docs/screenshots/get-tables.jpg) |
+| **Add-ons and rules** on every table card, with Play and a ⋯ menu | **Get Tables:** 2,000+ tables, filtered to what works in VR |
+| ![A table's versions, authors and features, each with Install](docs/screenshots/table-versions.jpg) | ![Setup: Visual Pinball X, its settings files and the VR options](docs/screenshots/setup.jpg) |
+| **Every version** of a table, with one-click Install | **Setup:** VPX, your own VPinballX.ini with VR and desktop overrides, and the VR options |
 
 | | |
 |---|---|
