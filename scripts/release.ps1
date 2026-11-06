@@ -173,7 +173,8 @@ Run git @('-C', $root, 'tag', '-a', $tag, '-m', "VR Table Manager $Version", $co
 Run git @('-C', $root, 'push', 'origin', $tag)
 
 Step "Creating the GitHub release"
-if ($NotesFile) { $Notes = (Get-Content $NotesFile -Raw) + "`n`n" + $Notes }
+# Read as UTF-8: Windows PowerShell 5.1 would read a file without a BOM as ANSI and mangle "→", "…".
+if ($NotesFile) { $Notes = [IO.File]::ReadAllText((Resolve-Path $NotesFile), [Text.Encoding]::UTF8) + "`n`n" + $Notes }
 $requirements = @"
 **Download** ``$(Split-Path $zip -Leaf)``, unzip it anywhere and run ``VrTableManager.exe``.
 
@@ -190,12 +191,22 @@ $body = @{
     generate_release_notes = $true
 } | ConvertTo-Json
 try {
-    $release = Invoke-RestMethod -Method Post -Uri "https://api.github.com/repos/$Repo/releases" -Headers $headers -Body $body -ContentType 'application/json'
+    # Sent as UTF-8 bytes: 5.1 sends a string body as ISO-8859-1, which loses anything outside it.
+    $release = Invoke-RestMethod -Method Post -Uri "https://api.github.com/repos/$Repo/releases" -Headers $headers `
+        -Body ([Text.Encoding]::UTF8.GetBytes($body)) -ContentType 'application/json; charset=utf-8'
 }
 catch {
-    Write-Warning "Creating the release failed; removing tag $tag so you can try again."
-    git -C $root push --delete origin $tag 2>$null; git -C $root tag -d $tag | Out-Null
-    throw
+    $reason = $_.ErrorDetails.Message
+    if (-not $reason -and $_.Exception.Response) {
+        try { $reason = (New-Object IO.StreamReader($_.Exception.Response.GetResponseStream())).ReadToEnd() } catch { }
+    }
+    Write-Warning "Creating the release failed: $($_.Exception.Message) $reason"
+    Write-Warning "Removing tag $tag so you can try again."
+    # git writes progress to stderr, which would stop the script here (ErrorActionPreference Stop) before the local tag goes.
+    $ErrorActionPreference = 'Continue'
+    & git -C $root push --delete origin $tag 2>&1 | Out-Null
+    & git -C $root tag -d $tag 2>&1 | Out-Null
+    throw "Creating the GitHub release failed. $reason"
 }
 
 Step "Uploading the zip"
