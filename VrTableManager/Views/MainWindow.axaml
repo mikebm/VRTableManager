@@ -115,6 +115,8 @@
                            IsVisible="{Binding PlayStatus, Converter={x:Static StringConverters.IsNotNullOrEmpty}}" />
               </StackPanel>
               <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="10" VerticalAlignment="Bottom">
+                <Button Content="＋  ADD A TABLE FILE…" Command="{Binding AddTableFileCommand}"
+                        ToolTip.Tip="Install a table zip (or .vpx / .fpt) you already downloaded yourself" />
                 <Button Content="⟳  RESCAN" Command="{Binding RefreshInstalledCommand}" />
                 <Button Classes="primary" Content="◉  LAUNCH VR LOBBY" Command="{Binding LaunchLobbyCommand}"
                         IsEnabled="{Binding !IsLobbyRunning}"

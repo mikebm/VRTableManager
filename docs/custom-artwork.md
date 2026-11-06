@@ -41,7 +41,7 @@ The app copies your file into the table's `artwork` folder, so you can delete or
 ```
 
 - Any of `.png`, `.jpg`, `.jpeg`, `.webp` or `.bmp` works. If there are two (`card.png` and `card.jpg`), the newer one is used.
-- Restart the app to see a card picture you added by hand.
+- Press **RESCAN** in My Tables to see a card picture you added by hand.
 - Tables without a folder of their own keep their pictures in `%APPDATA%\VrTableManager\artwork\<table name>-<code>\` instead. That covers Future Pinball, Pinball FX and Pinball M, and a `.vpx` sitting loose in your Tables folder. The **Open the artwork folder** menu item always opens the right place.
 
 ### Picture tips
