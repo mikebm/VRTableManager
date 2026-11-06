@@ -4,11 +4,11 @@ An in-headset table picker for **VR Table Manager**. Your tables stand around yo
 
 It's written in **C#** (Godot 4.7 .NET) on top of `VrTableManager.Core`, the same library the manager uses. So the lobby lists exactly what the manager knows about (VPX, Future Pinball, Pinball FX and Pinball M) and launches through the same engine code. Favourites and play history are shared with the manager too.
 
-![Medieval Madness selected, with Lord of the Rings and Metallica either side](screenshot.png)
+![Medieval Madness selected, with The Getaway and Monster Bash either side](screenshot.jpg)
 
-| Attack from Mars | The Addams Family |
+| Attack from Mars | Total Nuclear Annihilation |
 |---|---|
-| ![Attack from Mars](screenshot-afm.png) | ![The Addams Family](screenshot-taf.png) |
+| ![Attack from Mars](screenshot-afm.jpg) | ![Total Nuclear Annihilation](screenshot-tna.jpg) |
 
 (Desktop-mode renders of the tables installed on this PC, 1920×1080. In the headset you stand about where the camera is.)
 
@@ -73,7 +73,7 @@ Each table stands in **its own VR cabinet**, the 3D cabinet its author built int
   1. An `.ogg` / `.mp3` / `.wav` in the table's folder or its `music` folder (names with "attract", "intro" or "theme" first). VR Table Manager's **Get attract audio** (a table's MORE menu) saves one there as `music\attract.mp3` from the table's community media pack, when VPS lists one that has audio.
   2. Otherwise, the table's own ROM, recorded once: the first time you settle on a ROM table, a headless copy of the lobby (`-- --record-audio=<table path>`) runs the ROM in VPX's PinMAME for about 50 s. It drops coins, presses Start with balls in the trough (switch numbers read from the table script) and keeps the game-start music in `%APPDATA%\VrTableManager\attract-audio\<rom>.wav`. It works on a scratch copy of the ROM with empty nvram, so your scores and settings are never touched. It's stopped when a table starts. ROMs that give nothing are remembered and not tried again. Turn it off with `LobbyRecordsRomAudio` in VR Table Manager's settings (default on), if it slows the lobby down.
 
-![Every table in the borrowed Medieval Madness cabinet (--borrow-all): Attack from Mars, The Addams Family, Black Knight 2000](screenshot-borrowed.png)
+![Every table in the borrowed Medieval Madness cabinet (--borrow-all): The Addams Family, Attack from Mars, Elvira and the Party Monsters](screenshot-borrowed.jpg)
 
 ### Filters (B / Tab)
 
@@ -152,7 +152,7 @@ Verified on this PC (no headset connected):
   - the attract sound playing from a table folder and stopping when you move on
   - filters, favourites and play stats, and height
 - **Real tables:** `.vpx` playfields extract from 10 of the 12 installed tables in 20–140 ms each. Fish Tales and Metallica don't name a usable playfield image. Fish Tales is found by name ("FT_PF_…"); Metallica uses the VPS picture.
-- **Rendered frames** at 1080p with the installed tables (screenshots above): each table in its own VR cabinet, a VPS backglass filling in where a cabinet has none (Attack from Mars, The Addams Family), every table in the borrowed Medieval Madness cabinet, and `--select` returning to the right table.
+- **Rendered frames** at 1080p with the installed tables (screenshots above): each table in its own VR cabinet, a VPS backglass filling in where a cabinet has none (the --borrow-all shot), every table in the borrowed Medieval Madness cabinet, and `--select` returning to the right table.
 - **Crash dump:** the one Godot crash dump on this PC (Oct 17) came from the editor's first headless import of the C# project, not from the lobby. None of the many runs since has produced another.
 
 **Not verified (needs the headset):**

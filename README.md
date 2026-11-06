@@ -4,7 +4,7 @@
 
 ![My Tables: your collection, with updates, add-ons and one-click Play in VR](docs/screenshots/my-tables.jpg)
 
-![The VR lobby: your tables as 3D cabinets, picked from inside the headset](VrLobby/screenshot.png)
+![The VR lobby: your tables as 3D cabinets, picked from inside the headset](VrLobby/screenshot.jpg)
 
 Built for Meta Quest (Link, Air Link or Virtual Desktop) with the official Visual Pinball X 10.8.1 VR build. Future Pinball, Pinball FX and Pinball M are supported too.
 
@@ -53,8 +53,8 @@ Add-ons are matched to the table's ROM, installed where VPX's plugins look, and 
 
 | | |
 |---|---|
-| ![Attack from Mars in the VR lobby](VrLobby/screenshot-afm.png) | ![The Addams Family in the VR lobby](VrLobby/screenshot-taf.png) |
-| **The VR lobby:** a backglass from the catalog fills in when a cabinet has none | Browse your collection with the alphabet wheel |
+| ![Attack from Mars in the VR lobby](VrLobby/screenshot-afm.jpg) | ![Total Nuclear Annihilation in the VR lobby](VrLobby/screenshot-tna.jpg) |
+| **The VR lobby:** each table in its own cabinet, with its high scores overhead | The arcade room, and a wheel at your feet to jump between makers or letters |
 
 ## Try it
 
