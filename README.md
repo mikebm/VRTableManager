@@ -13,6 +13,7 @@ Built for Meta Quest (Link, Air Link or Virtual Desktop) with the official Visua
 ### Get tables in one click
 - **The whole catalog:** every VPX and Future Pinball table in the [Virtual Pinball Spreadsheet](https://virtualpinballspreadsheet.github.io/), filterable by VR-ready, maker, era and type, each with its versions, authors and features.
 - **One-click install:** for VPUniverse, VPForums and other community sites, the table's page opens in your own browser so you see the site and accept its terms yourself; click Download and the app picks the file up from your Downloads folder and does the rest. GitHub and direct links download by themselves. Installs queue up and are offered again if you close the app mid-download.
+- **Already downloaded it?** **ADD A TABLE FILE…** in My Tables installs a table zip (or `.vpx` / `.fpt`) you have. The app guesses which catalog table it is from the file name and you confirm, so it still gets its ROM, add-ons and updates. A table that isn't in the catalog installs under its file name.
 - **Ready to play:** each table gets its own folder in the layout VPX 10.8.1 expects. The app reads the table's script to find the exact ROM it needs, then fetches it, including Stern's free game code. Its parent sets and aliases are handled for you.
 
 ### Make every table look and sound its best
