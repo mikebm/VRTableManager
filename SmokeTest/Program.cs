@@ -476,7 +476,10 @@ string? FindRepo(string? start)
     return start;
 }
 var repo = FindRepo(AppContext.BaseDirectory) ?? FindRepo(Directory.GetCurrentDirectory());
-var managerExe = Path.Combine(repo!, "VrTableManager", "bin", "Debug", "net10.0", "VrTableManager.exe");
+// VRTM_MANAGER_EXE: a manager built elsewhere (-o), e.g. while the usual build output is locked by a running copy.
+var managerExe = Environment.GetEnvironmentVariable("VRTM_MANAGER_EXE") is { Length: > 0 } builtElsewhere
+    ? builtElsewhere
+    : Path.Combine(repo!, "VrTableManager", "bin", "Debug", "net10.0", "VrTableManager.exe");
 var logBefore = File.Exists(PlaySession.LogPath) ? File.ReadAllLines(PlaySession.LogPath).Length : 0;
 var psi = new System.Diagnostics.ProcessStartInfo(managerExe) { UseShellExecute = false, RedirectStandardOutput = true, RedirectStandardError = true };
 foreach (var a in PlaySession.BuildArgs(fx.MedievalMadness, vr: true, fx.Settings, stand, ["/Q", "where.exe"])) psi.ArgumentList.Add(a);
@@ -490,6 +493,37 @@ newLog.ForEach(l => Console.WriteLine("   log: " + l));
 Check(newLog.Any(l => l.Contains("start Visual Pinball X") && l.Contains("vr=True")) && newLog.Any(l => l.Contains("table exited"))
       && newLog.Any(l => l.Contains("returned to")), "launches through the VPX engine, waits for exit, then starts the lobby again");
 Check(File.ReadAllText(VpxSetup.VrIniPath(lobbySettings)).Contains("AskToTurnOn = 0"), "VR ini written for the lobby launch");
+
+// 9b. The lobby's loading screen: the launch reports through a status file, and a lobby that's still open
+//     (still on its loading screen when the table exits) isn't started a second time. This test process
+//     stands in for the open lobby.
+{
+    var statusFile = PlayStatus.PathBeside(fx.Settings);
+    var withStatus = PlaySession.Parse([.. PlaySession.BuildArgs(fx.MedievalMadness, vr: true, fx.Settings, stand, [], statusFile, 4242)]);
+    Check(withStatus.StatusPath == statusFile && withStatus.LobbyPid == 4242 && withStatus.ReturnExe == stand, "status and lobby pid args round-trip");
+    Check(PlaySession.Parse([.. PlaySession.BuildArgs(fx.MedievalMadness, vr: true, null, null, [])]) is { StatusPath: null, LobbyPid: 0 },
+        "no status or lobby pid unless asked for");
+    PlayStatus.Write(statusFile, PlayStatus.Failed, "boom");
+    Check(PlayStatus.Read(statusFile) is { State: PlayStatus.Failed, Message: "boom" }, "status file round-trip");
+    PlayStatus.Clear(statusFile);
+    Check(PlayStatus.Read(statusFile) == null, "status file cleared before a launch");
+
+    var mark = File.ReadAllLines(PlaySession.LogPath).Length;
+    var waitPsi = new System.Diagnostics.ProcessStartInfo(managerExe) { UseShellExecute = false, RedirectStandardOutput = true, RedirectStandardError = true };
+    foreach (var a in PlaySession.BuildArgs(fx.MedievalMadness, vr: true, fx.Settings, stand, ["/Q", "where.exe"], statusFile, Environment.ProcessId))
+        waitPsi.ArgumentList.Add(a);
+    using (var play = System.Diagnostics.Process.Start(waitPsi)!) await play.WaitForExitAsync();
+    var waitLog = File.ReadAllLines(PlaySession.LogPath).Skip(mark).ToList();
+    Check(PlayStatus.Read(statusFile)?.State == PlayStatus.Exited, "status says the table exited");
+    Check(waitLog.Any(l => l.Contains("lobby still open")) && !waitLog.Any(l => l.Contains("returned to")), "an open lobby isn't started again");
+
+    mark = File.ReadAllLines(PlaySession.LogPath).Length;
+    var badPsi = new System.Diagnostics.ProcessStartInfo(managerExe) { UseShellExecute = false, RedirectStandardOutput = true, RedirectStandardError = true };
+    foreach (var a in PlaySession.BuildArgs(Path.Combine(root, "no such table.vpx"), vr: true, fx.Settings, null, [], statusFile, Environment.ProcessId))
+        badPsi.ArgumentList.Add(a);
+    using (var play = System.Diagnostics.Process.Start(badPsi)!) await play.WaitForExitAsync();
+    Check(PlayStatus.Read(statusFile) is { State: PlayStatus.Failed } bad && bad.Message.Contains("Table not found"), "status says why a launch failed");
+}
 
 // Updates: detect a newer table version, update in place, keep NVRAM, drop the old .vpx.
 {

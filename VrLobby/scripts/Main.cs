@@ -46,7 +46,7 @@ public partial class Main : Node3D
     readonly List<(Label3D Label, int Group)> _railItems = [];
     readonly Label3D _header = new(), _status = new(), _hint = new(), _flash = new(), _scores = new();
     readonly MeshInstance3D _scoresPanel = new();   // dark DMD glass behind the high scores
-    readonly Dictionary<string, IReadOnlyList<string>> _scoreLines = [];   // per table id; .nv files only change while a table runs, and the lobby restarts after that
+    readonly Dictionary<string, IReadOnlyList<string>> _scoreLines = [];   // per table id; .nv files only change while a table runs (StartPlaying drops that table's lines)
     readonly Dictionary<string, double> _held = new() { ["x"] = 0, ["jump"] = 0 };
     readonly Dictionary<string, double> _cool = new() { ["x"] = 0, ["jump"] = 0 };
     readonly AudioStreamPlayer3D _attract = new() { VolumeDb = -12f, UnitSize = 3f };
@@ -84,6 +84,24 @@ public partial class Main : Node3D
     string? _settingsPath, _statePath;
     XRController3D? _left, _right;
     RayCast3D? _ray;
+    OpenXRInterface? _xr;
+
+    // Loading screen (StartLoading): after you pick a table the lobby stays in the headset, showing it with a
+    // lamp chase, until the table takes the headset over. Without it you'd wait in an empty view.
+    LobbyTable? _loading;
+    string? _statusFile;
+    double _loadingTime, _loadingPoll, _unfocused;
+    readonly Node3D _chase = new();
+    readonly List<StandardMaterial3D> _chaseLamps = [];
+    const double LoadingGiveUp = 180; // seconds; then the lobby closes anyway, as it used to straight away
+    // Playing (StartPlaying): the table has the headset and the lobby waits behind it, everything hidden, so
+    // it can take the headset straight back when the table closes instead of starting up again.
+    bool _playing;
+    double _returning = -1;     // seconds since the table closed, until the runtime gives us focus back; -1 when not waiting
+    const double ReturnGiveUp = 8;  // then the lobby restarts itself, which gets a fresh session
+    readonly List<(Node3D Node, bool Was)> _hidden = [];
+    public bool IsPlaying => _playing;
+    public bool IsLoading => _loading != null;
 
     public override void _Ready()
     {
@@ -93,6 +111,7 @@ public partial class Main : Node3D
         SetWindowIcon();
         SetupView();
         BuildRoom();
+        BuildChase();
         AddChild(_art);
         _art.Loaded += OnArtLoaded;
         AddChild(_cabs);
@@ -215,6 +234,7 @@ public partial class Main : Node3D
         _vr = xr != null && xr.IsInitialized();
         if (_vr)
         {
+            _xr = xr;
             GetViewport().UseXR = true;
             DisplayServer.WindowSetVsyncMode(DisplayServer.VSyncMode.Disabled); // the headset paces frames
             xr!.SessionStopping += () => Leave("the headset ended the VR session (Quest Link disconnected, or the app was closed from the Quest menu)");
@@ -757,6 +777,9 @@ public partial class Main : Node3D
         if (t.MissingRoms.Count > 0) lines.Add("Needs ROM: " + string.Join(", ", t.MissingRoms) + ".zip (add it in VR Table Manager)");
         _status.Text = string.Join("\n", lines);
         _status.Modulate = t.MissingRoms.Count > 0 ? Palette.Red.Lightened(0.25f) : Palette.Text;
+        // An error about this table (it failed to start) stays until you move on, through stats refreshes.
+        if (_error is { } e && e.TableId == t.Id) { _status.Text = e.Message; _status.Modulate = Palette.Red.Lightened(0.25f); }
+        else _error = null;
         ShowScores(t);
     }
 
@@ -970,6 +993,12 @@ public partial class Main : Node3D
     {
         if (_perfTrace) PerfTrace(delta);
         TrackMenuHold(delta);
+        if (_loading != null)
+        {
+            if (_playing) UpdatePlaying(delta);
+            else UpdateLoading(delta);
+        }
+        if (_returning >= 0) WatchReturn(delta);
         var d = (float)delta;
         if (!Mathf.IsEqualApprox(_scroll, Selected))
         {
@@ -1090,7 +1119,12 @@ public partial class Main : Node3D
 
     void OnButton(string button, XRController3D controller)
     {
-        if (_launching) return;
+        if (_launching)
+        {
+            // While a table loads, holding Menu still closes the lobby (the table carries on loading).
+            if (button == "menu_button" && _loading != null) { _menuHeld = 0; ShowFlash("HOLD TO LEAVE"); }
+            return;
+        }
         switch (button)
         {
             case "trigger_click" or "ax_button":
@@ -1115,7 +1149,12 @@ public partial class Main : Node3D
 
     public override void _UnhandledInput(InputEvent @event)
     {
-        if (_launching || @event is not InputEventKey { Pressed: true } k) return;
+        if (@event is not InputEventKey { Pressed: true } k) return;
+        if (_launching)
+        {
+            if (k.Keycode == Key.Escape && _loading != null) Leave("Escape pressed while " + _loading.Title + " was loading");
+            return;
+        }
         switch (k.Keycode)
         {
             case Key.Right: Select(Selected + 1); break;
@@ -1176,21 +1215,226 @@ public partial class Main : Node3D
         StopAttract();
         _video.Stop();
         _recorder.StopAll();
-        _header.Text = "Starting " + t.Title;
-        _status.Text = "The lobby closes now and comes back when you exit the table.";
-        await ToSignal(GetTree().CreateTimer(0.8), SceneTreeTimer.SignalName.Timeout);
-        if (LobbyLauncher.Launch(t, Settings, _settingsPath, _statePath) is { } error)
+        var wait = Settings.LobbyWaitsForTable;
+        if (wait)
         {
+            _statusFile = PlayStatus.PathBeside(_settingsPath);
+            StartLoading(t);
+        }
+        else
+        {
+            _header.Text = "Starting " + t.Title;
+            _status.Text = "The lobby closes now and comes back when you exit the table.";
+            await ToSignal(GetTree().CreateTimer(0.8), SceneTreeTimer.SignalName.Timeout);
+        }
+        if (LobbyLauncher.Launch(t, Settings, _settingsPath, _statePath, _statusFile) is { } error)
+        {
+            StopLoading();
             _launching = false;
             ShowError(error);
             return;
         }
         State.MarkPlayed(t.Id);
-        Leave("starting " + t.Title); // ends our OpenXR session so the table gets the headset
+        if (!wait) Leave("starting " + t.Title); // ends our OpenXR session so the table gets the headset
     }
+
+    // ---- Loading screen --------------------------------------------------------------
+
+    /// <summary>The loading screen's lamps: a row of bulbs under the status text, lit one after another like an attract-mode chase.</summary>
+    void BuildChase()
+    {
+        const int count = 15;
+        const float gap = 0.075f;
+        var mesh = new SphereMesh { Radius = 0.016f, Height = 0.032f, RadialSegments = 12, Rings = 6 };
+        for (var i = 0; i < count; i++)
+        {
+            var mat = new StandardMaterial3D { ShadingMode = BaseMaterial3D.ShadingModeEnum.Unshaded, AlbedoColor = Palette.DmdPanel };
+            _chaseLamps.Add(mat);
+            _chase.AddChild(new MeshInstance3D
+            {
+                Mesh = mesh, MaterialOverride = mat, CastShadow = GeometryInstance3D.ShadowCastingSetting.Off,
+                Position = new Vector3((i - (count - 1) / 2f) * gap, 0, 0),
+            });
+        }
+        _chase.Position = new Vector3(0, 2.1f, -1.8f);
+        _chase.Visible = false;
+        AddChild(_chase);
+    }
+
+    /// <summary>
+    /// Shows the table you picked, alone in the room, while it loads: the ring, rail and help go dark (which
+    /// also leaves the GPU to the table). The lobby keeps its OpenXR session until the table opens its own and
+    /// the runtime moves focus to it, so the headset never drops to an empty view in between.
+    /// </summary>
+    void StartLoading(LobbyTable t)
+    {
+        _loading = t;
+        _error = null; // an old failure of this table mustn't come back after it plays fine
+        _loadingTime = _unfocused = 0;
+        _loadingPoll = 0.25;
+        foreach (var cab in _pool) cab.Visible = cab.Index == Selected && cab.Table == t;
+        _rail.Visible = _hint.Visible = _scores.Visible = _scoresPanel.Visible = false;
+        _chase.Visible = true;
+        _header.Text = t.Title;
+        _status.Modulate = Palette.Text;
+        ShowLoadingText();
+        GD.Print($"Lobby waiting for {t.Title} to take over the headset");
+    }
+
+    /// <summary>Self-test: the loading screen for the selected table, reading <paramref name="statusFile"/>, without launching anything.</summary>
+    public void StartLoadingForTest(string statusFile)
+    {
+        _launching = true;
+        _statusFile = statusFile;
+        StartLoading(Shown[Selected]);
+    }
+
+    public bool RailVisible => _rail.Visible;
+    public int VisibleCabinets => _pool.Count(c => c.Visible);
+
+    /// <summary>Back to the ring: the table failed or closed before it reached the headset.</summary>
+    void StopLoading()
+    {
+        if (_loading == null) return;
+        _loading = null;
+        _statusFile = null;
+        _launching = false;
+        foreach (var cab in _pool) cab.Visible = cab.Index >= 0;
+        _rail.Visible = _hint.Visible = _scores.Visible = true;
+        _chase.Visible = false;
+        UpdateSelection();
+    }
+
+    void ShowLoadingText() =>
+        _status.Text = $"Loading{new string('.', 1 + (int)(_loadingTime * 2) % 3),-3}  {(int)_loadingTime} s\n"
+            + "It appears in the headset when it's ready. You come back here when you exit it.";
+
+    void UpdateLoading(double delta)
+    {
+        _loadingTime += delta;
+        var n = _chaseLamps.Count;
+        var head = (int)(_loadingTime * 12) % n;
+        for (var i = 0; i < n; i++)
+        {
+            var glow = ((head - i + n) % n) switch { 0 => 1f, 1 => 0.5f, 2 => 0.22f, _ => 0.06f };
+            _chaseLamps[i].AlbedoColor = Palette.DmdPanel.Lerp(Palette.Lamp, glow);
+        }
+
+        _loadingPoll -= delta;
+        if (_loadingPoll > 0) return;
+        _loadingPoll = 0.25;
+        var t = _loading!;
+        var st = _statusFile != null ? PlayStatus.Read(_statusFile) : null;
+        if (st?.State == PlayStatus.Failed)
+        {
+            StopLoading();
+            ShowError($"{t.Title} didn't start: {st.Message}");
+            return;
+        }
+        if (st?.State == PlayStatus.Exited)
+        {
+            StopLoading();
+            ShowError($"{t.Title} closed while it was loading. Try playing it from VR Table Manager to see what went wrong.");
+            return;
+        }
+        ShowLoadingText();
+        // The engine is running (or the manager can't write its status, and it's had time to start).
+        var running = st?.State == PlayStatus.Running || (st == null && _loadingTime > 5);
+        if (!_vr)
+        {
+            if (running) Leave("started " + t.Title);
+            return;
+        }
+        // The runtime gives the headset's focus to the newest app, so once the table's own session starts ours
+        // drops out of focus: that's the moment to go. (STOPPING is handled by SessionStopping in SetupView.)
+        if (running && _xr != null && _xr.GetSessionState() != OpenXRInterface.SessionState.Focused)
+        {
+            _unfocused += 0.25;
+            if (_unfocused >= 0.5)
+            {
+                if (Settings.LobbyStaysOpen && _statusFile != null) StartPlaying(t);
+                else Leave(t.Title + " took over the headset");
+                return;
+            }
+        }
+        else _unfocused = 0;
+        if (_loadingTime > LoadingGiveUp)
+        {
+            Leave($"still waiting for {t.Title} after {LoadingGiveUp:0} s");
+        }
+    }
+
+    /// <summary>
+    /// The table has the headset. The lobby keeps running behind it with every part of the room hidden, which is
+    /// next to nothing to draw (and the runtime doesn't show it anyway). When the table closes, the runtime gives
+    /// focus back to the lobby, which is still open on the same table.
+    /// </summary>
+    void StartPlaying(LobbyTable t)
+    {
+        _playing = true;
+        _loadingPoll = 0.5;
+        _hidden.Clear();
+        foreach (var child in GetChildren())
+            if (child is Node3D n && n != _rig)
+            {
+                _hidden.Add((n, n.Visible));
+                n.Visible = false;
+            }
+        _scoreLines.Remove(t.Id); // its high scores can change while it's played
+        GD.Print($"Lobby waiting behind {t.Title}");
+    }
+
+    void UpdatePlaying(double delta)
+    {
+        _loadingPoll -= delta;
+        if (_loadingPoll > 0) return;
+        _loadingPoll = 0.5;
+        var st = _statusFile != null ? PlayStatus.Read(_statusFile) : null;
+        if (st?.State is PlayStatus.Exited or PlayStatus.Failed) ComeBack(_loading!.Title + " closed");
+        // No status to go by: the headset's focus coming back means the table is gone.
+        else if (st == null && _xr?.GetSessionState() == OpenXRInterface.SessionState.Focused) ComeBack("focus came back");
+    }
+
+    /// <summary>The table closed: the room comes back on the table you played, and we wait for the headset's focus.</summary>
+    void ComeBack(string why)
+    {
+        foreach (var (n, was) in _hidden) n.Visible = was;
+        _hidden.Clear();
+        _playing = false;
+        StopLoading(); // the ring, rail and the table's stats again
+        RefreshFromStats();
+        _returning = 0;
+        GD.Print("Lobby back: " + why);
+    }
+
+    /// <summary>
+    /// The runtime should hand the headset back once the table's session ends. If it hasn't after a few seconds
+    /// (some runtimes stop a session that lost focus for good), a fresh lobby is started on the same table.
+    /// </summary>
+    void WatchReturn(double delta)
+    {
+        _returning += delta;
+        if (!_vr || _xr?.GetSessionState() == OpenXRInterface.SessionState.Focused)
+        {
+            _returning = -1;
+            return;
+        }
+        if (_returning < ReturnGiveUp) return;
+        _returning = -1;
+        var id = Shown.Count > 0 ? Shown[Selected].Id : "";
+        if (LobbyLauncher.Restart(id, _settingsPath, _statePath) is { } error) GD.PushWarning("Couldn't restart the lobby: " + error);
+        else Leave($"the headset didn't come back after {ReturnGiveUp:0} s; started a fresh lobby");
+    }
+
+    /// <summary>Self-test: what happens when the table takes over the headset, without a headset.</summary>
+    public void StartPlayingForTest() => StartPlaying(_loading!);
+    public bool RoomVisible => _ring.Visible;
+
+    (string TableId, string Message)? _error;
 
     void ShowError(string message)
     {
+        _error = Shown.Count > 0 ? (Shown[Selected].Id, message) : null;
         _status.Text = message;
         _status.Modulate = Palette.Red.Lightened(0.25f);
     }

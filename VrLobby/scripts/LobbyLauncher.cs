@@ -50,15 +50,38 @@ public static class LobbyLauncher
         return (OS.GetExecutablePath(), args);
     }
 
-    /// <summary>Returns null when the manager was started, otherwise an error to show.</summary>
-    public static string? Launch(LobbyTable t, AppSettings s, string? settingsPath, string? statePath)
+    /// <summary>Starts a fresh lobby on <paramref name="selectId"/> (the caller then quits). Null when it started, otherwise why not.</summary>
+    public static string? Restart(string selectId, string? settingsPath, string? statePath)
+    {
+        var (exe, args) = ReturnCommand(selectId, settingsPath, statePath);
+        var psi = new ProcessStartInfo(exe) { UseShellExecute = false };
+        foreach (var a in args) psi.ArgumentList.Add(a);
+        try
+        {
+            Process.Start(psi);
+            return null;
+        }
+        catch (Exception e)
+        {
+            return e.Message;
+        }
+    }
+
+    /// <summary>
+    /// Returns null when the manager was started, otherwise an error to show. With a <paramref name="statusPath"/>,
+    /// the manager reports on the launch there (<see cref="PlayStatus"/>) while the lobby shows its loading screen,
+    /// and doesn't start a second lobby if this one is still open when the table exits.
+    /// </summary>
+    public static string? Launch(LobbyTable t, AppSettings s, string? settingsPath, string? statePath, string? statusPath = null)
     {
         if (CheckReady(t, s) is { } problem) return problem;
         var manager = FindManagerExe(s);
         if (manager == null) return "VR Table Manager wasn't found. Open it once so the lobby can find it.";
         var (retExe, retArgs) = ReturnCommand(t.Id, settingsPath, statePath);
         var psi = new ProcessStartInfo(manager) { UseShellExecute = false, WorkingDirectory = Path.GetDirectoryName(manager)! };
-        foreach (var a in PlaySession.BuildArgs(t.Id, vr: true, settingsPath, retExe, retArgs)) psi.ArgumentList.Add(a);
+        if (statusPath != null) PlayStatus.Clear(statusPath); // only this launch's news counts
+        var lobbyPid = statusPath != null ? OS.GetProcessId() : 0;
+        foreach (var a in PlaySession.BuildArgs(t.Id, vr: true, settingsPath, retExe, retArgs, statusPath, lobbyPid)) psi.ArgumentList.Add(a);
         try
         {
             Process.Start(psi);
