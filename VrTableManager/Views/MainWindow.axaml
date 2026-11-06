@@ -175,8 +175,9 @@
                 <DataTemplate x:DataType="vm:InstalledItem">
                   <Border Classes="tile" Width="{ReflectionBinding $parent[Window].DataContext.CardWidth}" Margin="0,0,16,16" Cursor="Arrow">
                     <DockPanel>
-                      <Grid DockPanel.Dock="Top" Height="{ReflectionBinding $parent[Window].DataContext.CardArtHeight}"
+                      <Border Classes="tileArt" DockPanel.Dock="Top" Height="{ReflectionBinding $parent[Window].DataContext.CardArtHeight}"
                             IsVisible="{ReflectionBinding $parent[Window].DataContext.ShowCardArt}">
+                      <Grid>
                         <Border Background="{StaticResource Stripes}" />
                         <TextBlock Classes="mono" Text="NO ARTWORK" HorizontalAlignment="Center" VerticalAlignment="Center"
                                    IsVisible="{Binding !HasImage}" />
@@ -196,6 +197,7 @@
                           <Border Classes="chip" IsVisible="{Binding Sound.IsInstalled}" ToolTip.Tip="{Binding Sound.Status}"><TextBlock Text="ALTSOUND" /></Border>
                         </StackPanel>
                       </Grid>
+                      </Border>
                       <DockPanel Margin="14,12,14,14">
                         <!-- Play and the other buttons sit at the bottom, lined up across a row of cards. -->
                         <StackPanel DockPanel.Dock="Bottom">
@@ -601,7 +603,9 @@
                   <DataTemplate x:DataType="vm:GameItem">
                     <Border Classes="tile" Width="214">
                       <StackPanel>
-                        <Grid Height="276">
+                        <!-- The picture is clipped to the card's inner rounded corners, so it never covers the (highlighted) border. -->
+                        <Border Classes="tileArt" Height="276">
+                        <Grid>
                           <Border Background="{StaticResource Stripes}" />
                           <TextBlock Classes="mono" Text="NO ARTWORK" HorizontalAlignment="Center" VerticalAlignment="Center"
                                      IsVisible="{Binding !HasImage}" />
@@ -616,6 +620,7 @@
                             <TextBlock Text="INSTALLED" />
                           </Border>
                         </Grid>
+                        </Border>
                         <StackPanel Margin="14,12,14,14" Spacing="3">
                           <TextBlock Classes="title" Text="{Binding Title}" TextWrapping="Wrap" MaxLines="2" TextTrimming="CharacterEllipsis" />
                           <TextBlock Classes="muted" Text="{Binding MakerYear}" />
