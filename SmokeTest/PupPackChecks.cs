@@ -144,6 +144,20 @@ public static class PupPackChecks
             "two VR layouts: neither is guessed at (and \"Non-VR\" isn't one)");
         yield return (PupPackOptions.SetUpForVr(Dir(root, "plain", ("screens.pup", "s"))).Note("x") == "", "a plain pack gets no extra note");
 
+        // A pack installed before VR layouts were chosen (no marker) is switched once, before a VR launch.
+        var oldPup = Path.Combine(root, "old-table", "pupvideos");
+        Dir(oldPup, "tna", ("screens.pup", "default"), ("PuP-Pack_Options/Option 4 - VR/screens.pup", "vr"));
+        Dir(oldPup, "other", ("screens.pup", "plain"));
+        var oldTna = Path.Combine(oldPup, "tna");
+        var switched = PupPackOptions.SetUpOnce(oldPup);
+        yield return (switched.SequenceEqual(["tna: Option 4 - VR"]) && File.ReadAllText(Path.Combine(oldTna, "screens.pup")) == "vr"
+                && File.ReadAllText(Path.Combine(oldTna, PupPackOptions.DefaultBackup, "screens.pup")) == "default"
+                && File.Exists(Path.Combine(oldPup, "other", PupPackOptions.Marker)),
+            "an already-installed pack gets its VR layout once, with its own files kept in a backup");
+        File.WriteAllText(Path.Combine(oldTna, "screens.pup"), "picked by hand");
+        yield return (PupPackOptions.SetUpOnce(oldPup).Count == 0 && File.ReadAllText(Path.Combine(oldTna, "screens.pup")) == "picked by hand",
+            "once set up, a layout picked by hand later is left alone");
+
         // VR ini turns the PinUP Player plugin on (or off).
         var vs = new AppSettings { VpxDir = Path.Combine(root, "pup-vpx") };
         VpxSetup.EnsureVrIni(vs);

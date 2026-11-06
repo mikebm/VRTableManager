@@ -46,6 +46,31 @@ public static partial class PupPackOptions
     static readonly string[] Programs = [".exe", ".bat", ".cmd", ".com", ".vbs", ".ps1", ".dll", ".msi", ".reg", ".lnk", ".js"];
     static readonly string[] NoteFiles = [".txt", ".pdf", ".rtf", ".md", ".doc", ".docx", ".htm", ".html"];
 
+    /// <summary>Left in a pack once it has been set up, so <see cref="SetUpOnce"/> doesn't redo it (or undo a layout picked by hand since).</summary>
+    public const string Marker = ".vrtm-layout";
+    /// <summary>Where the pack's own files go before its VR layout is copied over them, so they can be put back.</summary>
+    public const string DefaultBackup = ".default-layout";
+
+    /// <summary>
+    /// Sets up every pack in a table's pupvideos\ that hasn't been yet: packs installed before this app chose VR
+    /// layouts, and packs copied in from another install. Returns "pack: layout" for each one switched.
+    /// </summary>
+    public static List<string> SetUpOnce(string pupDir)
+    {
+        var switched = new List<string>();
+        if (!Directory.Exists(pupDir)) return switched;
+        foreach (var pack in PupPacks.PackRoots(pupDir))
+        {
+            if (File.Exists(Path.Combine(pack, Marker))) continue;
+            try
+            {
+                if (SetUpForVr(pack).Applied is { } applied) switched.Add($"{Path.GetFileName(pack)}: {applied}");
+            }
+            catch (Exception e) when (e is IOException or UnauthorizedAccessException) { /* leave it as it is; tried again next launch */ }
+        }
+        return switched;
+    }
+
     public static PupLayout SetUpForVr(string pack)
     {
         if (!Directory.Exists(pack)) return PupLayout.None;
@@ -57,6 +82,7 @@ public static partial class PupPackOptions
             CopyLayout(vr[0].Source!, pack);
             applied = vr[0].Name;
         }
+        try { File.WriteAllText(Path.Combine(pack, Marker), applied ?? ""); } catch (IOException) { } catch (UnauthorizedAccessException) { }
         var readMes = Directory.EnumerateFiles(pack)
             .Where(f => NoteFiles.Contains(Path.GetExtension(f).ToLowerInvariant()))
             .Select(f => Path.GetFileName(f)!).Order(StringComparer.OrdinalIgnoreCase).ToList();
@@ -110,11 +136,22 @@ public static partial class PupPackOptions
         foreach (var file in Directory.EnumerateFiles(source, "*", SearchOption.AllDirectories))
         {
             if (Programs.Contains(Path.GetExtension(file).ToLowerInvariant())) continue;
-            var dest = Path.Combine(pack, Path.GetRelativePath(source, file));
+            var rel = Path.GetRelativePath(source, file);
+            var dest = Path.Combine(pack, rel);
+            // The pack's own file is kept the first time it's replaced (a later run finds the backup already there).
+            var backup = Path.Combine(pack, DefaultBackup, rel);
+            if (File.Exists(dest) && !File.Exists(backup) && !SameContent(dest, file))
+            {
+                Directory.CreateDirectory(Path.GetDirectoryName(backup)!);
+                File.Copy(dest, backup);
+            }
             Directory.CreateDirectory(Path.GetDirectoryName(dest)!);
             File.Copy(file, dest, overwrite: true);
         }
     }
+
+    static bool SameContent(string a, string b) =>
+        new FileInfo(a).Length == new FileInfo(b).Length && File.ReadAllBytes(a).AsSpan().SequenceEqual(File.ReadAllBytes(b));
 
     /// <summary>"PuP-Pack_Options", "PuPPack Options", "Options".</summary>
     [GeneratedRegex(@"^(?:pup[-_ ]?pack[-_ ]?)?options?$", RegexOptions.IgnoreCase)]

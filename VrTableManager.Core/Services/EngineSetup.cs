@@ -325,6 +325,10 @@ public static class Launcher
         else VpxSetup.EnsureDesktopIni(s);
         var play = VpxIniLayers.Build(s, vr);
         if (VrRoomSwitch.Prepare(tablePath, vr, s.AutoVrRoom) is { } changed) PlaySession.Log($"{Path.GetFileName(tablePath)}: {changed}");
+        // PuP packs installed before VR layouts were chosen (or copied from another install) get theirs now, once.
+        if (vr && s.UsePupPlugin)
+            foreach (var pack in PupPackOptions.SetUpOnce(Path.Combine(Path.GetDirectoryName(tablePath)!, PupPacks.FolderName)))
+                PlaySession.Log($"{Path.GetFileName(tablePath)}: PuP pack switched to its VR layout ({pack})");
         foreach (var a in VpxArgs(play.Path, tablePath)) psi.ArgumentList.Add(a);
         var proc = Process.Start(psi)!;
         VpxIniLayers.SaveBackOnExit(proc, play, PlaySession.Log);
