@@ -58,6 +58,8 @@ public sealed class AppSettings
     /// background PinMAME run of about 50 s, once per table. Off: only audio files already there play.
     /// </summary>
     public bool LobbyRecordsRomAudio { get; set; } = true;
+    /// <summary>How big the cards in My Tables are: "Large", "Medium", "Small" or "Text" (no pictures).</summary>
+    public string CardSize { get; set; } = "Large";
     /// <summary>Tables (by path) whose PuP DMD fix (<see cref="VrDmdFix"/>) the user said not to ask about again.</summary>
     public List<string> DmdFixDeclined { get; set; } = [];
     /// <summary>After a VPX table closes, show its log's errors when it crashed or ended within seconds.</summary>
