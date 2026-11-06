@@ -325,6 +325,8 @@ public static class Launcher
         else VpxSetup.EnsureDesktopIni(s);
         var play = VpxIniLayers.Build(s, vr);
         if (VrRoomSwitch.Prepare(tablePath, vr, s.AutoVrRoom) is { } changed) PlaySession.Log($"{Path.GetFileName(tablePath)}: {changed}");
+        // Without VPX's texture list (written when a table closes) a table's first launch plays very dark.
+        if (VpxTextureCache.Prepare(tablePath) is { } textures) PlaySession.Log($"{Path.GetFileName(tablePath)}: {textures}");
         // PuP packs installed before VR layouts were chosen (or copied from another install) get theirs now, once.
         if (vr && s.UsePupPlugin)
             foreach (var pack in PupPackOptions.SetUpOnce(Path.Combine(Path.GetDirectoryName(tablePath)!, PupPacks.FolderName)))
