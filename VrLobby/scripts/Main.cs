@@ -1234,7 +1234,7 @@ public partial class Main : Node3D
         else
         {
             _header.Text = "Starting " + t.Title;
-            _status.Text = "The lobby closes now and comes back when you exit the table.";
+            _status.Text = "";
             await ToSignal(GetTree().CreateTimer(0.8), SceneTreeTimer.SignalName.Timeout);
         }
         if (LobbyLauncher.Launch(t, Settings, _settingsPath, _statePath, _statusFile) is { } error)
@@ -1316,8 +1316,7 @@ public partial class Main : Node3D
     }
 
     void ShowLoadingText() =>
-        _status.Text = $"Loading{new string('.', 1 + (int)(_loadingTime * 2) % 3),-3}  {(int)_loadingTime} s\n"
-            + "It appears in the headset when it's ready. You come back here when you exit it.";
+        _status.Text = $"Loading{new string('.', 1 + (int)(_loadingTime * 2) % 3),-3}  {(int)_loadingTime} s";
 
     void UpdateLoading(double delta)
     {
