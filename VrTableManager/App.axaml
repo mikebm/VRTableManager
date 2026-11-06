@@ -395,5 +395,10 @@
     <Style Selector="ScrollViewer">
       <Setter Property="AllowAutoHide" Value="True" />
     </Style>
+    <!-- Menus: Fluent caps them at 456 px, which clipped long items ("Get a playfield video for the VR lobby
+         (media pack)") and the submenu arrows at their right edge. -->
+    <Style Selector="MenuFlyoutPresenter">
+      <Setter Property="MaxWidth" Value="760" />
+    </Style>
   </Application.Styles>
 </Application>
