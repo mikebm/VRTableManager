@@ -19,7 +19,7 @@ namespace VrLobby;
 static class CabinetCache
 {
     /// <summary>Bump when what Parse makes changes (texture size, merging, materials, which parts), so old files are re-read.</summary>
-    const int Version = 6; // 4: cabinets tipped forward to stand on all four legs, and the playfield slope; 5: the table's own playfield walls; 6: alpha read by RealCabinetLoader.AlphaOf
+    const int Version = 7; // 4: cabinets tipped forward to stand on all four legs, and the playfield slope; 5: the table's own playfield walls; 6: alpha read by RealCabinetLoader.AlphaOf; 7: VR cabinet collections
     /// <summary>
     /// Layout of the bundled default cabinet. Separate from <see cref="Version"/> so a change in which parts a
     /// table's cabinet keeps doesn't throw away the shipped file; bump only when the file layout changes.
