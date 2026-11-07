@@ -69,8 +69,7 @@ public static class RomRequirements
         }
 
         m.RomNames = [game];
-        var family = PinmameInfo.Family(s, pinmameDir, game);
-        m.RomParents = family.Count > 0 && !family[0].Found ? family.Skip(1).Select(g => g.Name).ToList() : [];
+        m.RomParents = ParentsNeeded(s, pinmameDir, game);
         return Changed();
 
         bool Changed() => before != (string.Join(",", m.RomNames), string.Join(",", m.RomParents), m.RomAlias);
@@ -83,10 +82,24 @@ public static class RomRequirements
     public static void RefreshParents(InstalledTable t, AppSettings s)
     {
         if (!t.IsVpx || t.Manifest.RomNames.Count != 1) return;
-        var family = PinmameInfo.Family(s, Path.Combine(t.Folder, "pinmame"), t.Manifest.RomNames[0]);
-        if (family.Count == 0) return; // no PinMAME to ask: keep what's known
-        t.Manifest.RomParents = family[0].Found ? [] : family.Skip(1).Select(g => g.Name).ToList();
+        var pinmameDir = Path.Combine(t.Folder, "pinmame");
+        if (RomZip(pinmameDir, t.Manifest.RomNames[0]) && PinmameInfo.Family(s, pinmameDir, t.Manifest.RomNames[0]).Count == 0) return; // no PinMAME to ask: keep what's known
+        t.Manifest.RomParents = ParentsNeeded(s, pinmameDir, t.Manifest.RomNames[0]);
     }
+
+    /// <summary>
+    /// The parent sets a clone still needs. Only known once the clone's own zip is there: before that PinMAME
+    /// can't find its files and reports it incomplete, which used to mark the parent (afm_113 for afm_113b) as
+    /// needed for good, even after a complete afm_113b.zip was copied in by hand.
+    /// </summary>
+    static List<string> ParentsNeeded(AppSettings s, string pinmameDir, string game)
+    {
+        if (!RomZip(pinmameDir, game)) return [];
+        var family = PinmameInfo.Family(s, pinmameDir, game);
+        return family.Count > 0 && !family[0].Found ? family.Skip(1).Select(g => g.Name).ToList() : [];
+    }
+
+    static bool RomZip(string pinmameDir, string rom) => File.Exists(Path.Combine(pinmameDir, "roms", rom + ".zip"));
 
     /// <summary>Adds "alias,rom" to pinmame\alias.txt (VPX 10.8.1's PinMAME reads it from the table's pinmame folder).</summary>
     public static void WriteAlias(string pinmameDir, string alias, string rom)
