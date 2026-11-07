@@ -535,12 +535,9 @@ public sealed partial class MainViewModel : ObservableObject, IAsyncDisposable
             try { TableInstaller.SaveManifest(table); } catch { /* still usable this session */ }
         }
 
-        // The table's ROM set and its parents: the only ROM zips that belong to it.
-        var family = await Task.Run(() => RomFamily(table));
         var job = new JobItem($"ROM for {table.Manifest.GameName}")
         {
-            FileNames = [.. table.MissingRoms, .. family, table.Manifest.GameName], FileTypes = [".zip", ".7z", ".rar"],
-            NamesMustMatch = true,
+            FileNames = [.. table.MissingRoms, .. table.Manifest.RomNames, table.Manifest.GameName], FileTypes = [".zip", ".7z", ".rar"],
         };
         Jobs.Insert(0, job);
         _pending.Add(new PendingDownload
@@ -583,7 +580,6 @@ public sealed partial class MainViewModel : ObservableObject, IAsyncDisposable
                 : SitePolicy.AllowsAutomation(url)
                     ? await WithDownloadSlotAsync(job, () => _browser.DownloadAllAsync(url, JobDownloadDir(job), job.Report, job.Cts.Token))
                     : await _assisted.DownloadAllAsync(url, JobDownloadDir(job), job);
-            files = await Task.Run(() => DropOtherMachinesRoms(files, table, family, job));
             job.Report("Installing ROM…");
             var placed = await Task.Run(() => RomInstaller.InstallAll(files, table, src.Version!));
             // With the files in place PinMAME can tell whether the set is complete (parents included).
@@ -591,12 +587,8 @@ public sealed partial class MainViewModel : ObservableObject, IAsyncDisposable
             await Task.Run(() => RomRequirements.RefreshParents(table, Settings));
             try { TableInstaller.SaveManifest(table); } catch { }
             var stillMissing = table.MissingRoms.Count > 0;
-            var needsParent = stillMissing && table.MissingRoms.All(r => table.Manifest.RomParents.Contains(r, StringComparer.OrdinalIgnoreCase));
             job.Finish(stillMissing
-                ? needsParent
-                    ? $"Installed {string.Join(", ", placed.Select(Path.GetFileName))}. It's a version of {string.Join(" / ", table.MissingRoms)} and also needs "
-                      + $"{string.Join(" / ", table.MissingRoms.Select(r => r + ".zip"))} beside it: use Get ROM again, or Add ROM if you have it."
-                    : $"Installed {placed.Count} ROM file(s), but none is {string.Join(" / ", table.MissingRoms)}.zip. Use Add ROM if you have it."
+                ? $"Installed {placed.Count} ROM file(s), but none is {string.Join(" / ", table.MissingRoms)}.zip. Use Add ROM if you have it."
                 : placed.Count == 1 ? $"✓ Installed {Path.GetFileName(placed[0])}. Ready to play."
                 : $"✓ Installed {placed.Count} ROM files ({string.Join(", ", placed.Select(Path.GetFileNameWithoutExtension))}). Ready to play.",
                 error: stillMissing);
@@ -617,45 +609,6 @@ public sealed partial class MainViewModel : ObservableObject, IAsyncDisposable
             // closing: that entry stays so the download is offered again next time.)
             if (!_closing) _pending.Remove(job.Id);
         }
-    }
-
-    /// <summary>The table's ROM names and, when VPX's PinMAME can say, the parent sets they're built on.</summary>
-    HashSet<string> RomFamily(InstalledTable t)
-    {
-        var names = new HashSet<string>([.. t.Manifest.RomNames, .. t.Manifest.RomParents, .. t.MissingRoms], StringComparer.OrdinalIgnoreCase);
-        var pinmameDir = Path.Combine(t.Folder, "pinmame");
-        foreach (var rom in t.Manifest.RomNames.ToList())
-            foreach (var g in PinmameInfo.Family(Settings, pinmameDir, rom)) names.Add(g.Name);
-        return names;
-    }
-
-    /// <summary>
-    /// Leaves out downloaded ROM zips that PinMAME knows as another machine's set (dungdrag.zip handed to
-    /// Beavis and Butt-Head, which runs beav_butt): installed under the table's ROM name, they'd look like
-    /// its ROM and fail when the table starts. Versions of the same machine (clones and parents) stay.
-    /// Throws when nothing that's left belongs to the table.
-    /// </summary>
-    List<string> DropOtherMachinesRoms(List<string> files, InstalledTable t, HashSet<string> family, JobItem job)
-    {
-        var pinmameDir = Path.Combine(t.Folder, "pinmame");
-        var keep = new List<string>();
-        var other = new List<(string file, PinmameGame game)>();
-        foreach (var f in files)
-        {
-            var stem = Path.GetFileNameWithoutExtension(f);
-            if (!f.EndsWith(".zip", StringComparison.OrdinalIgnoreCase) || family.Contains(stem)) { keep.Add(f); continue; }
-            var g = PinmameInfo.Get(Settings, pinmameDir, stem);
-            // Not a set PinMAME knows (a site's own file name): it may well be the ROM, renamed when installed.
-            if (g == null || family.Contains(g.Name) || (g.CloneOf != null && family.Contains(g.CloneOf))) keep.Add(f);
-            else other.Add((f, g));
-        }
-        if (other.Count == 0) return keep;
-        var which = string.Join(", ", other.Select(o => $"{Path.GetFileName(o.file)} ({o.game.Description})"));
-        if (keep.Count == 0)
-            throw new InvalidOperationException(
-                $"Got {which}: that's another machine's ROM, not {string.Join(" / ", t.MissingRoms.DefaultIfEmpty(t.Manifest.RomNames.FirstOrDefault() ?? "this table's"))}.zip. Nothing was installed.");
-        job.Report($"Skipping {which}: another machine's ROM.");
-        return keep;
     }
 
     [RelayCommand]
