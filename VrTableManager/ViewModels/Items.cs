@@ -315,8 +315,8 @@ public sealed partial class JobItem : ObservableObject
     [ObservableProperty] public partial string Status { get; set; } = "Queued";
     [ObservableProperty] public partial double Progress { get; set; }
     [ObservableProperty] public partial bool IsIndeterminate { get; set; } = true;
-    [ObservableProperty] public partial bool IsDone { get; set; }
-    [ObservableProperty] public partial bool IsError { get; set; }
+    [ObservableProperty, NotifyPropertyChangedFor(nameof(IsRunning))] public partial bool IsDone { get; set; }
+    [ObservableProperty, NotifyPropertyChangedFor(nameof(IsRunning))] public partial bool IsError { get; set; }
 
     public CancellationTokenSource Cts { get; } = new();
     /// <summary>Short unique id (names this job's temporary download folder).</summary>
@@ -345,7 +345,25 @@ public sealed partial class JobItem : ObservableObject
         IsIndeterminate = false;
         Progress = 100;
         if (error) IsError = true; else IsDone = true;
+        if (!error) Succeeded?.Invoke(this);
     });
+
+    /// <summary>Raised on the UI thread when the job finishes without an error.</summary>
+    public event Action<JobItem>? Succeeded;
+
+    readonly List<string> _sourceFiles = [];
+
+    /// <summary>A file this job took from outside its own folder (the copy your browser saved).</summary>
+    public void AddSourceFile(string path) { lock (_sourceFiles) _sourceFiles.Add(path); }
+
+    /// <summary>The files from <see cref="AddSourceFile"/>, handed over once.</summary>
+    public List<string> TakeSourceFiles()
+    {
+        lock (_sourceFiles) { var l = _sourceFiles.Distinct(StringComparer.OrdinalIgnoreCase).ToList(); _sourceFiles.Clear(); return l; }
+    }
+
+    /// <summary>Still working (not done, failed or cancelled): CANCEL shows; once finished, ✕ takes it off the list.</summary>
+    public bool IsRunning => !IsDone && !IsError;
 
     static void OnUi(Action a)
     {

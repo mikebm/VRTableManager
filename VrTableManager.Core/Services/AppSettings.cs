@@ -21,6 +21,11 @@ public sealed class AppSettings
     public bool ShowZenReminder { get; set; } = true;
     /// <summary>How many table/ROM downloads run at the same time (1–4); the rest queue.</summary>
     public int MaxParallelDownloads { get; set; } = 2;
+    /// <summary>
+    /// Once a download is installed, delete the file your browser saved (in your Downloads folder, or wherever you
+    /// pointed I SAVED IT). A failed install keeps the file, so you can try again with it.
+    /// </summary>
+    public bool DeleteDownloadsAfterInstall { get; set; } = true;
     public bool HideAdult { get; set; } = true;
     /// <summary>
     /// Install and update to VPX builds the VPX team has labelled "DO NOT USE" on GitHub. Those are the current

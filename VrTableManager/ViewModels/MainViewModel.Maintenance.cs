@@ -232,6 +232,7 @@ public sealed partial class MainViewModel
         ApplyPinballUevrProfile = s.ApplyPinballUevrProfile;
         ShowZenReminder = s.ShowZenReminder;
         MaxParallelDownloads = Math.Clamp(s.MaxParallelDownloads, 1, 4);
+        DeleteDownloadsAfterInstall = s.DeleteDownloadsAfterInstall;
         RefreshRate = RefreshRates.FirstOrDefault(r => r.StartsWith(s.VrRefreshRate.ToString())) ?? RefreshRates[0];
         AswMode = s.MetaAswMode;
         WarnSteamVrRuntime = s.WarnSteamVrRuntime;

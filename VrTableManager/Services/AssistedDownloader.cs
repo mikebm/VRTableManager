@@ -115,7 +115,7 @@ public sealed class AssistedDownloader
                 {
                     if (handoff.File is { } picked)
                     {
-                        got.Add(CopyIn(picked, destDir));
+                        got.Add(CopyIn(picked, destDir, job));
                         lastGot = DateTime.UtcNow;
                         if (!many) break;
                     }
@@ -138,7 +138,7 @@ public sealed class AssistedDownloader
                                    + "If it is the right file, use I SAVED IT and pick it.");
                         continue;
                     }
-                    got.Add(CopyIn(file, destDir));
+                    got.Add(CopyIn(file, destDir, job));
                     lastGot = DateTime.UtcNow;
                     if (!many) break;
                 }
@@ -319,11 +319,12 @@ public sealed class AssistedDownloader
         catch (UnauthorizedAccessException) { return false; }
     }
 
-    /// <summary>Copies the file in (your copy in Downloads stays where it is).</summary>
-    static string CopyIn(string file, string destDir)
+    /// <summary>Copies the file in. Your copy stays until the job has installed it (then it may be deleted: Setup → delete downloads after installing).</summary>
+    static string CopyIn(string file, string destDir, JobItem job)
     {
         var dest = Path.Combine(destDir, Path.GetFileName(file));
         File.Copy(file, dest, overwrite: true);
+        job.AddSourceFile(file);
         return dest;
     }
 }

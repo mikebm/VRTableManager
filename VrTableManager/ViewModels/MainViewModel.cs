@@ -63,6 +63,11 @@ public sealed partial class MainViewModel : ObservableObject, IAsyncDisposable
         ApplyPinballUevrProfile = Settings.ApplyPinballUevrProfile;
         ShowZenReminder = Settings.ShowZenReminder;
         MaxParallelDownloads = Math.Clamp(Settings.MaxParallelDownloads, 1, 4);
+        DeleteDownloadsAfterInstall = Settings.DeleteDownloadsAfterInstall;
+        Jobs.CollectionChanged += (_, e) =>
+        {
+            foreach (JobItem j in e.NewItems ?? Array.Empty<JobItem>()) j.Succeeded += OnJobSucceeded;
+        };
         // Partial files from downloads cut off when the app last closed. (Their queue entries are
         // kept and offered again once the catalog has loaded.)
         PendingDownloads.CleanDownloadsFolder();
@@ -388,6 +393,24 @@ public sealed partial class MainViewModel : ObservableObject, IAsyncDisposable
     /// <summary>Each job downloads into its own folder, so parallel downloads with the same file name can't collide.</summary>
     static string JobDownloadDir(JobItem job) =>
         Directory.CreateDirectory(Path.Combine(AppSettings.DataDir, "downloads", job.Id)).FullName;
+
+    /// <summary>
+    /// A job installed what it downloaded: delete the copy your browser saved (Setup → "Delete downloads after
+    /// installing"). Only on success: a failed install keeps the file, so you can try again with it.
+    /// </summary>
+    void OnJobSucceeded(JobItem job)
+    {
+        if (!Settings.DeleteDownloadsAfterInstall) return;
+        foreach (var f in job.TakeSourceFiles())
+            try { File.Delete(f); } catch { /* open elsewhere or already gone: leave it */ }
+    }
+
+    /// <summary>Takes a finished or failed job off the downloads list.</summary>
+    [RelayCommand]
+    void DismissJob(JobItem job)
+    {
+        if (job.IsDone || job.IsError) Jobs.Remove(job);
+    }
 
     static void CleanJobDownloads(JobItem job)
     {
@@ -1085,6 +1108,7 @@ public sealed partial class MainViewModel : ObservableObject, IAsyncDisposable
     [ObservableProperty] public partial string TablesDir { get; set; }
     [ObservableProperty] public partial string FpDir { get; set; }
     [ObservableProperty] public partial bool HideAdult { get; set; }
+    [ObservableProperty] public partial bool DeleteDownloadsAfterInstall { get; set; }
     [ObservableProperty] public partial bool ReturnAfterPlay { get; set; }
     [ObservableProperty] public partial bool VpxUseDoNotUseBuilds { get; set; }
     [ObservableProperty] public partial bool VpxUseNightlyBuilds { get; set; }
@@ -1109,6 +1133,7 @@ public sealed partial class MainViewModel : ObservableObject, IAsyncDisposable
             case nameof(FpDir): Settings.FpDir = FpDir; break;
             case nameof(UevrDir): Settings.UevrDir = UevrDir; break;
             case nameof(HideAdult): Settings.HideAdult = HideAdult; ApplyFilter(); break;
+            case nameof(DeleteDownloadsAfterInstall): Settings.DeleteDownloadsAfterInstall = DeleteDownloadsAfterInstall; break;
             case nameof(ReturnAfterPlay): Settings.ReturnAfterPlay = ReturnAfterPlay; break;
             case nameof(VpxUseDoNotUseBuilds): Settings.VpxUseDoNotUseBuilds = VpxUseDoNotUseBuilds; break;
             case nameof(VpxUseNightlyBuilds): Settings.VpxUseNightlyBuilds = VpxUseNightlyBuilds; break;

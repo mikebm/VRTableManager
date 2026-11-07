@@ -42,6 +42,8 @@ public static class AssistedDownloadChecks
             results.Add((got != null && Path.GetFileName(got) == "Test Table VR.zip" && File.ReadAllText(got) == "PK partial rest",
                 "assisted: takes the finished file, not the partial one or an older download"));
             results.Add((File.Exists(Path.Combine(downloads, "Test Table VR.zip")), "assisted: your copy stays in Downloads"));
+            results.Add((job.TakeSourceFiles().SequenceEqual([Path.Combine(downloads, "Test Table VR.zip")]),
+                "assisted: remembers your saved copy, to delete once it's installed"));
         }
 
         // Saved elsewhere: you point at the file.
@@ -55,6 +57,7 @@ public static class AssistedDownloadChecks
         job2.HandOff(elsewhere);
         var picked = await wait.WaitAsync(TimeSpan.FromSeconds(10));
         results.Add((Path.GetFileName(picked) == "afm_113b.zip", "assisted: \"I saved it\" takes a file from anywhere"));
+        results.Add((job2.TakeSourceFiles().SequenceEqual([elsewhere]), "assisted: remembers the file you pointed at, to delete once it's installed"));
 
         // A ROM page: every file you download until DONE.
         var job3 = new JobItem("test 3");

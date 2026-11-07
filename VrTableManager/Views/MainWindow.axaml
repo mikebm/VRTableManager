@@ -1216,6 +1216,8 @@
                     <ComboBox ItemsSource="{Binding ParallelDownloadChoices}" SelectedItem="{Binding MaxParallelDownloads}" Width="90" />
                     <TextBlock Classes="muted" VerticalAlignment="Center" Text="More installs wait in the queue. Unpacking doesn't count, so the next download starts meanwhile." />
                   </StackPanel>
+                  <CheckBox Content="Delete downloaded files after installing (tables, ROMs, add-ons, media). Files from a failed install are kept."
+                            IsChecked="{Binding DeleteDownloadsAfterInstall}" />
                 </StackPanel>
               </Grid>
             </Border>
@@ -1349,7 +1351,9 @@
                             ToolTip.Tip="Saved the file somewhere other than your Downloads folder? Point to it." />
                     <Button Classes="small primary" Content="DONE" Command="{Binding DoneWaitingCommand}" IsVisible="{Binding WaitingForMany}"
                             ToolTip.Tip="Finished downloading the files you want from this page" />
-                    <Button Classes="small danger" Content="CANCEL" Command="{Binding CancelCommand}" IsVisible="{Binding !IsDone}" />
+                    <Button Classes="small danger" Content="CANCEL" Command="{Binding CancelCommand}" IsVisible="{Binding IsRunning}" />
+                    <Button Classes="small" Content="✕" IsVisible="{Binding !IsRunning}" ToolTip.Tip="Remove from the list"
+                            Command="{Binding $parent[ItemsControl].((vm:MainViewModel)DataContext).DismissJobCommand}" CommandParameter="{Binding}" />
                   </StackPanel>
                 </Grid>
               </DataTemplate>
