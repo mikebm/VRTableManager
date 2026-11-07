@@ -50,6 +50,16 @@ public sealed class VpxCabinetModel
     public IEnumerable<string> ImageNames => Parts.Select(p => p.Image).OfType<string>().Distinct(StringComparer.OrdinalIgnoreCase);
 }
 
+/// <summary>
+/// A playfield's heights seen from above (see <see cref="VpxCabinet.HeightMap"/>): <see cref="Heights"/> row by row from the
+/// back, 0 = playfield surface, 1 = <see cref="TopMetres"/> above it.
+/// </summary>
+public sealed record PlayfieldHeightMap(int Width, int Height, float[] Heights, float[] Undersides, int Primitives, Vector2 SizeMetres, float TopMetres)
+{
+    /// <summary>Share of the playfield with something standing on it (0..1); near 0 for tables built from walls and ramps.</summary>
+    public float Coverage => Heights.Count(h => h > 0.02f) / (float)Heights.Length;
+}
+
 /// <summary>A primitive as read from the table, before any filtering (also used for diagnostics).</summary>
 public sealed record VpxPrimitiveInfo(string Name, bool Visible, bool Use3DMesh, int Vertices, string? Image, string? Material, string? Group,
     Vector3 Min, Vector3 Max);
@@ -89,6 +99,139 @@ public static class VpxCabinet
 
     public static bool LooksLikeCabinetPart(string name) =>
         CabinetName.IsMatch(name) && !RoomName.IsMatch(name) && !OffVariant.IsMatch(name) && !NotGeometry.IsMatch(name) && !IsPlayfieldGlass(name);
+
+    // ---- Playfield height map -------------------------------------------------------------
+
+    /// <summary>Tallest thing a height map records above the playfield (VPX units, ≈ 22 cm, about glass height): ramps, toys, back decorations.</summary>
+    public const float HeightMapTop = 400f;
+
+    /// <summary>
+    /// How deep below its top the topmost thing at a spot is taken to reach, at most (VPX units, ≈ 1.6 cm). A ramp
+    /// floor or a plastic is a few millimetres thick, so the playfield shows under it rather than a solid block
+    /// running down to the playfield; a solid toy becomes a shell, dark underneath.
+    /// </summary>
+    public const float HeightMapLayer = 30f;
+
+    /// <summary>
+    /// The table's playfield seen from straight above: for each pixel, how high the topmost visible thing on the
+    /// playfield is there (<see cref="PlayfieldHeightMap.Heights"/>) and where its underside is
+    /// (<see cref="PlayfieldHeightMap.Undersides"/>), so ramps and plastics can be looked under. 0 = the playfield,
+    /// 1 = <see cref="HeightMapTop"/>; rows run from the back of the playfield (top of the picture) to the front,
+    /// like the lobby video. Built from the table's visible 3D primitives, which is how modern tables (VPW's baked
+    /// "BM_" meshes) draw their ramps, plastics and toys; older tables built from VPX walls and ramps come out
+    /// mostly flat. Null when the table can't be read. <paramref name="include"/> picks primitives by name (diagnostics).
+    /// </summary>
+    public static PlayfieldHeightMap? HeightMap(string vpxPath, int width = 384, int height = 768, Func<string, bool>? include = null)
+    {
+        try
+        {
+            var t = Read(vpxPath, meshes: true);
+            var pw = t.Right - t.Left;
+            var ph = t.Bottom - t.Top;
+            if (pw <= 0 || ph <= 0) return null;
+            var meshes = new List<(Vector3[] Px, int[] Idx)>();
+            foreach (var p in t.Prims)
+            {
+                if (!p.Visible || !p.Use3DMesh || p.Verts == null || p.Indices == null || p.NumVerts == 0) continue;
+                if (NotGeometry.IsMatch(p.Name) || IsPlayfieldGlass(p.Name) || HeightMapSkip.IsMatch(p.Name)) continue;
+                if (SpaceOf(p.Group, t) != 0) continue; // cabinet / room space
+                if (include != null && !include(p.Name)) continue;
+                var m = FullMatrix(p, t);
+                var px = new Vector3[p.NumVerts];
+                for (var i = 0; i < p.NumVerts; i++)
+                {
+                    var v = Vector3.Transform(new Vector3(p.Verts[i * 8], p.Verts[i * 8 + 1], p.Verts[i * 8 + 2]), m);
+                    px[i] = new Vector3((v.X - t.Left) / pw * width, (v.Y - t.Top) / ph * height, v.Z);
+                }
+                meshes.Add((px, p.Indices));
+            }
+            // First the tops, then (knowing them) the undersides of whatever is on top.
+            var top = new float[width * height];
+            var used = 0;
+            foreach (var (px, idx) in meshes)
+            {
+                var drew = false;
+                for (var i = 0; i + 2 < idx.Length; i += 3)
+                    drew |= Raster(top, null, width, height, px[idx[i]], px[idx[i + 1]], px[idx[i + 2]]);
+                if (drew) used++;
+            }
+            var under = (float[])top.Clone();
+            foreach (var (px, idx) in meshes)
+                for (var i = 0; i + 2 < idx.Length; i += 3)
+                    Raster(top, under, width, height, px[idx[i]], px[idx[i + 1]], px[idx[i + 2]]);
+            for (var i = 0; i < top.Length; i++)
+            {
+                top[i] = Math.Clamp(top[i] / HeightMapTop, 0f, 1f);
+                under[i] = Math.Clamp(under[i] / HeightMapTop, 0f, top[i]);
+            }
+            return new PlayfieldHeightMap(width, height, top, under, used,
+                new Vector2(pw * VpuToMetres, ph * VpuToMetres), HeightMapTop * VpuToMetres);
+        }
+        catch
+        {
+            return null;
+        }
+    }
+
+    // Cabinet body, glass and the room never stand on the playfield; the apron does, and stays.
+    static readonly Regex HeightMapSkip = new(@"pincab|cabinet|^cab|blade|siderail|side_?rail|lockdown|lockbar|backbox|backglass|room|floor|ceiling|glass|reflect|shadow", RegexOptions.IgnoreCase);
+
+    /// <summary>
+    /// Draws one triangle into the height map. With <paramref name="under"/> null it keeps the highest point per pixel
+    /// in <paramref name="top"/>; otherwise it keeps in <paramref name="under"/> the lowest point that still belongs
+    /// to the top layer (within <see cref="HeightMapLayer"/> of the top). True when it changed any pixel.
+    /// </summary>
+    static bool Raster(float[] top, float[]? under, int w, int h, Vector3 a, Vector3 b, Vector3 c)
+    {
+        // Entirely above what's recorded (a backbox, a topper): not playfield.
+        if (a.Z > HeightMapTop * 1.5f && b.Z > HeightMapTop * 1.5f && c.Z > HeightMapTop * 1.5f) return false;
+        var minX = Math.Max(0, (int)MathF.Floor(MathF.Min(a.X, MathF.Min(b.X, c.X))));
+        var maxX = Math.Min(w - 1, (int)MathF.Ceiling(MathF.Max(a.X, MathF.Max(b.X, c.X))));
+        var minY = Math.Max(0, (int)MathF.Floor(MathF.Min(a.Y, MathF.Min(b.Y, c.Y))));
+        var maxY = Math.Min(h - 1, (int)MathF.Ceiling(MathF.Max(a.Y, MathF.Max(b.Y, c.Y))));
+        if (minX > maxX || minY > maxY) return false;
+        var area = (b.X - a.X) * (c.Y - a.Y) - (b.Y - a.Y) * (c.X - a.X);
+        var any = false;
+
+        bool Put(int i, float zHigh, float zLow)
+        {
+            if (under == null)
+            {
+                if (zHigh <= top[i]) return false;
+                top[i] = zHigh;
+                return true;
+            }
+            var layer = top[i] - HeightMapLayer;
+            if (zHigh < layer) return false;
+            var z = MathF.Max(zLow, layer);
+            if (z >= under[i]) return false;
+            under[i] = z;
+            return true;
+        }
+
+        if (MathF.Abs(area) < 1e-6f)
+        {
+            // Seen edge-on (a wall's side): it marks the pixels it passes over, from its top edge down.
+            if (maxX - minX > 2 && maxY - minY > 2) return false;
+            var zHigh = MathF.Max(a.Z, MathF.Max(b.Z, c.Z));
+            var zLow = MathF.Min(a.Z, MathF.Min(b.Z, c.Z));
+            for (var y = minY; y <= maxY; y++)
+                for (var x = minX; x <= maxX; x++) any |= Put(y * w + x, zHigh, zLow);
+            return any;
+        }
+        for (var y = minY; y <= maxY; y++)
+            for (var x = minX; x <= maxX; x++)
+            {
+                float sx = x + 0.5f, sy = y + 0.5f;
+                var w0 = ((b.X - sx) * (c.Y - sy) - (b.Y - sy) * (c.X - sx)) / area;
+                var w1 = ((c.X - sx) * (a.Y - sy) - (c.Y - sy) * (a.X - sx)) / area;
+                var w2 = 1 - w0 - w1;
+                if (w0 < -1e-4f || w1 < -1e-4f || w2 < -1e-4f) continue;
+                var z = w0 * a.Z + w1 * b.Z + w2 * c.Z;
+                any |= Put(y * w + x, z, z);
+            }
+        return any;
+    }
 
     // ---- Reading ---------------------------------------------------------------------
 
@@ -267,7 +410,7 @@ public static class VpxCabinet
         // The playfield area (slightly inset), from just under the surface to well above it: toys, posts
         // and bolts live there. Only clearly-cabinet parts (apron, blades, PinCab_*) may sit inside it.
         var inset = 20f;
-        return candidates.Where(p =>
+        var picked = candidates.Where(p =>
         {
             var (a, b) = Bounds(p, t);
             var nearBody = a.X >= bmin.X && b.X <= bmax.X && a.Y >= bmin.Y && b.Y <= bmax.Y && a.Z >= bmin.Z && b.Z <= bmax.Z;
@@ -276,6 +419,75 @@ public static class VpxCabinet
                               && a.Z >= -60f && b.Z <= 400f;
             return !onPlayfield || StrongCabinetName.IsMatch(p.Name);
         }).ToList();
+        picked.AddRange(PlayfieldWalls(t).Where(w => !picked.Contains(w)));
+        return DropUnlitCopies(picked);
+    }
+
+    // "BladeLeftDTOff", "ApronRailOff", "sidewoodtrimOff": an unlit copy, named by a trailing Off.
+    static readonly Regex TrailingOff = new(@"^(?<stem>.+?)_?(Off|OFF|off)\d*$");
+
+    /// <summary>
+    /// Tables that switch their GI keep each part twice, lit and unlit, in the same place. The names
+    /// <see cref="OffVariant"/> knows are left out from the start; others ("BladeLeftDTOff" beside "BladeLeftDTON",
+    /// "ApronRailOff" beside "ApronRailLeft" and "ApronRailRight") are dropped here, when a part whose name starts
+    /// the same way was picked too. Drawn together, the two copies flicker through each other (The Addams Family).
+    /// An unlit part with no lit sibling stays: it's the only one there is.
+    /// </summary>
+    static List<Prim> DropUnlitCopies(List<Prim> picked) =>
+        picked.Where(p =>
+        {
+            if (TrailingOff.Match(p.Name) is not { Success: true } m) return true;
+            var stem = m.Groups["stem"].Value;
+            if (stem.EndsWith("DT", StringComparison.OrdinalIgnoreCase)) stem = stem[..^2]; // "…DTOff" / "…DTON": desktop variants
+            return !picked.Any(o => o != p && !TrailingOff.IsMatch(o.Name) && o.Name.StartsWith(stem, StringComparison.OrdinalIgnoreCase));
+        }).ToList();
+
+    /// <summary>
+    /// The table's own walls around the playfield (the wooden or printed side boards and the back): in VPX they're
+    /// part of the table, not the VR cabinet, and they go by any name ("backwall", "OutBox", "sidewallsgioff",
+    /// "Primitive58"…), so they're found by shape: a simple visible part that runs along most of the playfield,
+    /// reaching both its sides, about as high as a cabinet's rails. Without them the lobby showed open gaps around
+    /// the playfield, into the inside of the cabinet's shell. Merged baked meshes (VPW's BM_Parts) are far too
+    /// detailed to count; of look-alike copies (GI on / off), the first is kept.
+    /// </summary>
+    static List<Prim> PlayfieldWalls(TableData t)
+    {
+        var walls = new List<Prim>();
+        var seen = new HashSet<(int, int, int)>();
+        foreach (var p in t.Prims)
+        {
+            if (!p.Visible || !p.Use3DMesh || p.Verts == null || p.Indices == null || p.NumVerts is 0 or > 2000) continue;
+            if (NotGeometry.IsMatch(p.Name) || IsPlayfieldGlass(p.Name) || SpaceOf(p.Group, t) != 0) continue;
+            var (a, b) = Bounds(p, t);
+            var along = b.Y - a.Y >= (t.Bottom - t.Top) * 0.8f;
+            var bothSides = a.X <= t.Left + 40 && b.X >= t.Right - 40 && a.X >= t.Left - 150 && b.X <= t.Right + 150;
+            var railHigh = a.Z >= -60 && b.Z is >= 120 and <= 500;
+            if (!along || !bothSides || !railHigh) continue;
+            // Walls keep to the edges; metal guide walls and the like run across the middle of the playfield too.
+            // Judged by what the part covers seen from above (its triangles; a mesh may carry unused vertices).
+            const int W = 48, H = 96;
+            var m = FullMatrix(p, t);
+            var px = new Vector3[p.NumVerts];
+            for (var i = 0; i < p.NumVerts; i++)
+            {
+                var v = Vector3.Transform(new Vector3(p.Verts[i * 8], p.Verts[i * 8 + 1], p.Verts[i * 8 + 2]), m);
+                px[i] = new Vector3((v.X - t.Left) / (t.Right - t.Left) * W, (v.Y - t.Top) / (t.Bottom - t.Top) * H, MathF.Max(v.Z, 1));
+            }
+            var cover = new float[W * H];
+            for (var i = 0; i + 2 < p.Indices.Length; i += 3)
+                Raster(cover, null, W, H, px[p.Indices[i]], px[p.Indices[i + 1]], px[p.Indices[i + 2]]);
+            int covered = 0, middle = 0;
+            for (var y = 0; y < H; y++)
+                for (var x = 0; x < W; x++)
+                    if (cover[y * W + x] > 0)
+                    {
+                        covered++;
+                        if (x >= W / 10 && x < W - W / 10 && y >= H / 10 && y < H - H / 10) middle++; // inside the outer 10%
+                    }
+            if (covered == 0 || middle > covered / 10) continue;
+            if (seen.Add((p.NumVerts, (int)a.Y, (int)b.Z))) walls.Add(p);
+        }
+        return walls;
     }
 
     static readonly Regex StrongCabinetName = new(@"pincab|cabinet|^cab|apron|blade|siderail|side_?rail|lockdown|lockbar", RegexOptions.IgnoreCase);

@@ -1,5 +1,6 @@
 using Godot;
 using VrTableManager.Lobby;
+using VrTableManager.Services;
 
 namespace VrLobby;
 
@@ -48,6 +49,10 @@ public partial class Cabinet : Node3D
     readonly QuadMesh _backglassQuad = new();
     MeshInstance3D _backglassPanel = null!;
     MeshInstance3D _playfield = null!;
+    /// <summary>Set while the playfield shows depth (<see cref="SetPlayfieldDepth"/>); draws in place of _playfieldMat.</summary>
+    ShaderMaterial? _depthMat;
+    /// <summary>True while the playfield is drawn with its height map (tests).</summary>
+    public bool ShowsPlayfieldDepth => _depthMat != null;
     MeshInstance3D _real = null!;
 
     /// <summary>True while the slot shows nothing: its table has a VR cabinet that's still being read.</summary>
@@ -182,8 +187,8 @@ public partial class Cabinet : Node3D
     {
         var wellZ = CabinetKit.WellCentreZ;
         _playfieldQuad.Size = CabinetKit.PlayfieldSize;
-        _playfield.Position = new Vector3(0, CabinetKit.TopAt(wellZ) + 0.004f, wellZ);
         _playfield.Rotation = new Vector3(CabinetKit.Slope - Mathf.Pi / 2, 0, 0);
+        PlacePlayfield(new Vector3(0, CabinetKit.TopAt(wellZ) + 0.004f, wellZ));
         _star.Position = new Vector3(0, CabinetKit.Height + 0.12f, CabinetKit.Back + 0.13f);
     }
 
@@ -213,8 +218,8 @@ public partial class Cabinet : Node3D
         _real.Visible = true;
         foreach (var g in _generic) g.Visible = false;
         _playfieldQuad.Size = real.PlayfieldSize;
-        _playfield.Position = real.PlayfieldCentre + new Vector3(0, 0.003f, 0);
         _playfield.Rotation = new Vector3(real.PlayfieldSlope - Mathf.Pi / 2, 0, 0); // sloped like the generic one, back end up
+        PlacePlayfield(real.PlayfieldCentre + new Vector3(0, 0.003f, 0));
         _star.Position = new Vector3(0, real.Bounds.End.Y + 0.12f, real.Bounds.Position.Z + 0.13f);
 
         // Backglass: the cabinet's own picture when it has one. Some VR tables set it from their script
@@ -330,6 +335,36 @@ public partial class Cabinet : Node3D
         ApplyColours();
     }
 
+    /// <summary>
+    /// Shows the playfield with depth from the table's height map (<see cref="PlayfieldDepth"/>), or flat again
+    /// with null. The quad stays on the playfield; the shader traces each eye's ray from <paramref name="depth"/>
+    /// metres above it (glass level) down to it, so ramps and toys stand up without anything being lifted.
+    /// </summary>
+    public void SetPlayfieldDepth(Texture2D? heights, float depth = 0)
+    {
+        if (heights == null)
+        {
+            _depthMat = null;
+            _playfield.MaterialOverride = _playfieldMat;
+        }
+        else
+        {
+            _depthMat ??= new ShaderMaterial { Shader = PlayfieldDepth.Shader };
+            _depthMat.SetShaderParameter("height_tex", heights);
+            _depthMat.SetShaderParameter("depth", depth);
+            _depthMat.SetShaderParameter("top", VpxCabinet.HeightMapTop * VpxCabinet.VpuToMetres);
+            _depthMat.SetShaderParameter("size", _playfieldQuad.Size);
+            _playfield.MaterialOverride = _depthMat;
+        }
+        ApplyColours();
+    }
+
+    void PlacePlayfield(Vector3 onPlayfield)
+    {
+        _playfield.Position = onPlayfield;
+        _depthMat?.SetShaderParameter("size", _playfieldQuad.Size);
+    }
+
     /// <summary>The backglass also gives the cabinet its side colour (a darkened average of the art).</summary>
     public void SetBackglass(Texture2D tex, Color average)
     {
@@ -358,6 +393,11 @@ public partial class Cabinet : Node3D
         var lit = Mathf.Min(b, 1f); // shaded parts get their lift from the key light, not an over-bright colour
         _bodyMat.AlbedoColor = _baseBody * new Color(lit, lit, lit);
         _playfieldMat.AlbedoColor = (_playfieldMat.AlbedoTexture == null ? DarkPlayfield : Colors.White) * new Color(b, b, b);
+        if (_depthMat != null)
+        {
+            _depthMat.SetShaderParameter("albedo_tex", _playfieldMat.AlbedoTexture);
+            _depthMat.SetShaderParameter("tint", _playfieldMat.AlbedoColor);
+        }
         _backglassMat.AlbedoColor = (_backglassMat.AlbedoTexture == null ? DarkGlass : Colors.White) * new Color(b, b, b);
         // The selected cabinet lights up in lamp amber; the others glow in their table type's insert colour.
         var lamp = Table == null ? Palette.Blue : _selected ? Palette.Lamp : Palette.Insert(Table.Badge);

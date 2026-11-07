@@ -14,6 +14,7 @@ public partial class PlayfieldVideo : Node
     const int Ahead = 4;
 
     readonly ConcurrentQueue<Image> _ready = new();
+    Image? _heights;  // the table's height map, handed over from the worker (PlayfieldDepth)
     CancellationTokenSource? _cts;
     Task? _worker;
     ImageTexture? _tex;
@@ -26,7 +27,7 @@ public partial class PlayfieldVideo : Node
     public int FramesShown { get; private set; }
     public event Action? FirstFrameShown;
 
-    public void Play(Cabinet cab, string folder, LobbyVideo.Info info)
+    public void Play(Cabinet cab, string folder, LobbyVideo.Info info, string? vpxPath = null)
     {
         Stop();
         _cab = cab;
@@ -36,7 +37,11 @@ public partial class PlayfieldVideo : Node
         FramesShown = 0;
         var cts = _cts = new CancellationTokenSource();
         var ct = cts.Token;
-        _worker = Task.Run(() => Decode(folder, info.Frames, ct), ct);
+        _worker = Task.Run(() =>
+        {
+            if (vpxPath != null && PlayfieldDepth.Load(folder, vpxPath) is { } h && !ct.IsCancellationRequested) Volatile.Write(ref _heights, h);
+            Decode(folder, info.Frames, ct);
+        }, ct);
     }
 
     void Decode(string folder, int frames, CancellationToken ct)
@@ -63,7 +68,9 @@ public partial class PlayfieldVideo : Node
         _cts?.Cancel();
         _cts = null;
         _ready.Clear();
+        _heights = null;
         _cab?.SetPlayfieldVideo(null);
+        _cab?.SetPlayfieldDepth(null);
         _cab = null;
         _tex = null;
         Playing = null;
@@ -72,6 +79,8 @@ public partial class PlayfieldVideo : Node
     public override void _Process(double delta)
     {
         if (Playing == null || _cab == null) return;
+        if (Interlocked.Exchange(ref _heights, null) is { } heights)
+            _cab.SetPlayfieldDepth(ImageTexture.CreateFromImage(heights), PlayfieldDepth.DepthOf(heights));
         _untilNext -= delta;
         if (_untilNext > 0 || !_ready.TryDequeue(out var img)) return;
         _untilNext = Math.Max(_untilNext + _frameTime, 0); // keep the pace; don't rush to catch up after a stall
