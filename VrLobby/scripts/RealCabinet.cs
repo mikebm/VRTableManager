@@ -77,33 +77,6 @@ public sealed class RealCabinet
     /// <summary>How many textures ended up GPU-compressed (DXT); the rest stayed uncompressed.</summary>
     public int CompressedTextures { get; init; }
 
-    /// <summary>How much brighter the selected cabinet's self-lit art is drawn than the file's own colours.</summary>
-    public const float SelectedLift = 1.6f;
-
-    Material?[]? _lit;
-
-
-    /// <summary>
-    /// The surface's material for the cabinet in front of you, lit up like a cabinet under a showroom light.
-    /// Its art, self-lit (unshaded) or not, is drawn <see cref="SelectedLift"/> times brighter: VR cabinets' baked
-    /// art hardly answers the room's lights. (A glow from the art's own picture was tried: the room's bloom
-    /// washes it out.) Null for untextured parts (metal, black panels), which the spotlight handles.
-    /// </summary>
-    public Material? LitMaterial(int surface)
-    {
-        _lit ??= new Material?[Surfaces];
-        if (surface < 0 || surface >= _lit.Length) return null;
-        if (_lit[surface] == null && Mesh.SurfaceGetMaterial(surface) is StandardMaterial3D m
-            && (m.ShadingMode == BaseMaterial3D.ShadingModeEnum.Unshaded || m.AlbedoTexture != null))
-        {
-            var copy = (StandardMaterial3D)m.Duplicate();
-            var c = m.AlbedoColor;
-            copy.AlbedoColor = new Color(c.R * SelectedLift, c.G * SelectedLift, c.B * SelectedLift, c.A);
-
-            _lit[surface] = copy;
-        }
-        return _lit[surface];
-    }
 }
 
 /// <summary>
@@ -441,12 +414,21 @@ public partial class RealCabinetLoader : Node
         }
         else mat.Roughness = 0.6f;
         // "Disable lighting" in VPX means: show the texture as it is, whatever the room's lights do
-        // (backglasses, and many VR cabinets' art, which has its lighting baked in). That's Godot's
-        // unshaded mode; partly self-lit parts stay shaded.
-        if (selfLit >= 0.5f)
+        // (backglasses, and many VR cabinets' art, which has its lighting baked in). These used to be drawn
+        // unshaded, which ignored the room: cabinets around the ring were as bright as the one in front of you,
+        // and lifting the selected one pushed its art past white into the bloom. Now they're plain PBR like the rest,
+        // with no glow of their own: the cabinet in front of you is brighter only because it stands in the spotlight.
+        // See-through self-lit parts (the glass over a backglass) stay unshaded: shaded, they catch the room's
+        // reflections and haze the picture behind them over in milky white (Medieval Madness, Monster Bash).
+        if (selfLit >= 0.5f && mat.Transparency is BaseMaterial3D.TransparencyEnum.Alpha or BaseMaterial3D.TransparencyEnum.AlphaDepthPrePass)
         {
             mat.ShadingMode = BaseMaterial3D.ShadingModeEnum.Unshaded;
             mat.Metallic = 0;
+        }
+        else if (selfLit >= 0.5f)
+        {
+            mat.Metallic = 0;
+            mat.Roughness = Mathf.Max(mat.Roughness, 0.55f); // printed art: no mirror-like highlights to blow out
         }
         return mat;
     }

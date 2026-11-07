@@ -75,11 +75,8 @@ public partial class Cabinet : Node3D
 
     Color _baseBody = Palette.SurfaceHi;
     bool _selected;   // lights the backbox strip, coin lights and flipper buttons in lamp amber
-    /// <summary>Real-cabinet surfaces that ShowReal dressed (borrowed art, backglass): left alone when lighting up.</summary>
-    readonly HashSet<int> _dressed = [];
-    bool _realLit;
     float _bright = 1f;
-    const float SelectedBrightness = 1.4f;
+    const float SelectedBrightness = 1f; // the picture's own colours: past 1 it clips and blooms
 
     static readonly Color DarkPlayfield = Palette.Surface;
     static readonly Color DarkGlass = Palette.DmdPanel;
@@ -213,8 +210,6 @@ public partial class Cabinet : Node3D
         }
         _real.Mesh = real.Mesh;
         for (var i = 0; i < real.Mesh.GetSurfaceCount(); i++) _real.SetSurfaceOverrideMaterial(i, null); // none left from another table
-        _dressed.Clear();
-        _realLit = false;
         _real.Visible = true;
         foreach (var g in _generic) g.Visible = false;
         _playfieldQuad.Size = real.PlayfieldSize;
@@ -242,18 +237,7 @@ public partial class Cabinet : Node3D
             _backglassPanel.Visible = true;
             _plate.Visible = BackglassUrl == null && !HasBackglassArt;
         }
-        for (var i = 0; i < real.Mesh.GetSurfaceCount(); i++)
-            if (_real.GetSurfaceOverrideMaterial(i) != null) _dressed.Add(i);
-        LightReal();
-    }
-
-    /// <summary>The selected cabinet's self-lit art is drawn brighter (see <see cref="RealCabinet.LitMaterial"/>).</summary>
-    void LightReal()
-    {
-        if (Real is not { } real || _realLit == _selected) return;
-        _realLit = _selected;
-        for (var i = 0; i < real.Surfaces; i++)
-            if (!_dressed.Contains(i)) _real.SetSurfaceOverrideMaterial(i, _selected ? real.LitMaterial(i) : null);
+        // No brighter material for the selected cabinet: it's lit by the spot and key lights it turns into (Main.BuildRoom).
     }
 
     static StandardMaterial3D? _dmdPanelMat;
@@ -402,19 +386,19 @@ public partial class Cabinet : Node3D
     /// <summary>1 for the selected cabinet, fading to ~0.35 for the ones around the ring.</summary>
     public void SetFocus(float focus, bool selected)
     {
-        // The playfield and backglass are self-lit (unshaded): the one in front of you is lifted a little above
-        // the picture's own brightness, like a cabinet with its GI on, and the others dim around the ring.
+        // The playfield and backglass are self-lit (unshaded): the one in front of you shows the picture at its own
+        // brightness, and the others dim around the ring.
         _bright = Mathf.Lerp(0.35f, SelectedBrightness, Mathf.Clamp(focus, 0f, 1f));
         _selected = selected;
-        LightReal();
         ApplyColours();
     }
 
     void ApplyColours()
     {
         var b = _bright;
-        var lit = Mathf.Min(b, 1f); // shaded parts get their lift from the key light, not an over-bright colour
-        _bodyMat.AlbedoColor = _baseBody * new Color(lit, lit, lit);
+        var lit = Mathf.Min(b, 1f);
+        // Shaded parts keep their own colour: they're darker around the ring because the spot and key lights don't reach there.
+        _bodyMat.AlbedoColor = _baseBody;
         _playfieldMat.AlbedoColor = (_playfieldMat.AlbedoTexture == null ? DarkPlayfield : Colors.White) * new Color(b, b, b);
         if (_depthMat != null)
         {

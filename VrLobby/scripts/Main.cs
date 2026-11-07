@@ -338,8 +338,14 @@ public partial class Main : Node3D
                 // the room, so chrome (lockbar, rails, speaker rings) has something to mirror.
                 Sky = new Sky { SkyMaterial = new PanoramaSkyMaterial { Panorama = ReflectionSky() }, RadianceSize = Sky.RadianceSizeEnum.Size128 },
                 ReflectedLightSource = Godot.Environment.ReflectionSource.Sky,
+                // AgX rolls highlights off instead of clipping them: a white cabinet front under the spotlight
+                // keeps its print rather than turning into a flat orange-white block.
+                TonemapMode = Godot.Environment.ToneMapper.Agx,
+                TonemapExposure = 1.25f,
                 GlowEnabled = true,
                 GlowIntensity = 0.7f,
+                // Only light sources bloom: at the default 1.0, a white lockbar or rail under the spotlight haloed too.
+                GlowHdrThreshold = 1.5f,
                 // Distant cabinets and walls fade into the dark instead of ending at a hard edge.
                 FogEnabled = true,
                 FogLightColor = Palette.Bg,
@@ -368,27 +374,26 @@ public partial class Main : Node3D
         AddChild(ChromeRing(0.5f, 0.004f, 0.006f));                // a chrome circle round your feet
         AddChild(LampRow(6.9f, 3.0f, 120, 0.025f, 0.7f));         // one row high on the far wall
 
-        // A warm spotlight on the selected cabinet (the only shadow-casting light), and a neutral fill.
+        // A warm spotlight on the selected cabinet (the only shadow-casting light), and a neutral fill. It's the only
+        // thing that makes the selected cabinet brighter: a table brightens as it swings into the pool of light and
+        // fades as it leaves. Narrow, and with a soft edge (attenuation over 1 falls off gradually towards the rim),
+        // so the pool covers one cabinet and fades out on the floor around it rather than ending in a hard ring.
         var spot = new SpotLight3D
         {
-            SpotAngle = 34, SpotRange = 6, LightEnergy = 10, LightColor = Colors.White.Lerp(Palette.Lamp, 0.3f),
-            ShadowEnabled = true, SpotAngleAttenuation = 0.6f,
+            SpotAngle = 24, SpotRange = 7, LightEnergy = 9, LightColor = Colors.White.Lerp(Palette.Lamp, 0.3f),
+            ShadowEnabled = true, SpotAngleAttenuation = 2.2f,
             // Godot's default offsets (3 cm, plus a normal offset) let a strip of light through just under a
             // lockdown bar onto the cabinet front, which should sit in the bar's shadow.
             ShadowBias = 0.004f, ShadowNormalBias = 0.3f,
         };
         AddChild(spot);
         var cabCentre = -(SelectedFront + CabinetKit.Length / 2);
-        spot.LookAtFromPosition(new Vector3(0, 3.4f, cabCentre + 0.45f), new Vector3(0, 0.9f, cabCentre), Vector3.Up);
-        // A short-range key light just in front of and above the selected cabinet: it reaches only the table
-        // that has come up to you (the ring's others are out of its range), lighting its front, art and rails.
-        AddChild(new OmniLight3D
-        {
-            Position = new Vector3(0, 1.35f, -SelectedFront + 0.7f), OmniRange = 2.2f, OmniAttenuation = 1.2f,
-            LightEnergy = 3f, LightColor = Colors.White.Lerp(Palette.Lamp, 0.15f),
-        });
-        // Fill from behind you, so cabinet fronts and sides read; no shadows (one shadowed light is enough).
-        AddChild(new OmniLight3D { Position = new Vector3(0, 2.6f, 0.6f), OmniRange = 8, LightEnergy = 1.6f, LightColor = new Color(0.92f, 0.92f, 0.95f) });
+        // High and a little in front of the cabinet, like a ceiling can light over your shoulder: from there it reaches
+        // the playfield, the backglass and the cabinet's front. (A short-range key light just above the lockdown bar
+        // used to help it, and blew the bar out: it was half a metre away, the rest of the cabinet two.)
+        spot.LookAtFromPosition(new Vector3(0, 3.6f, cabCentre + 1.1f), new Vector3(0, 0.85f, cabCentre), Vector3.Up);
+        // Fill from behind you, so cabinet fronts and sides around the ring read; no shadows (one shadowed light is enough).
+        AddChild(new OmniLight3D { Position = new Vector3(0, 2.6f, 0.6f), OmniRange = 8, LightEnergy = 1.2f, LightColor = new Color(0.92f, 0.92f, 0.95f) });
 
         // Title (DMD orange, dot-matrix) and stats float above the selected cabinet's backbox;
         // the hint sits under the rail.
