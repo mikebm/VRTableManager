@@ -239,7 +239,7 @@ public sealed partial class MainViewModel
         UseBuiltInPinmame = s.UseBuiltInPinmame;
         UsePupPlugin = s.UsePupPlugin;
         UseDisplayPlugins = s.UseDisplayPlugins;
-        VrAddBackglass = s.VrAddBackglass;
+        VrAutoBackglass = s.VrAutoBackglass;
         AutoVrRoom = s.AutoVrRoom;
         LobbyRecordsRomAudio = s.LobbyRecordsRomAudio;
         LobbyWaitsForTable = s.LobbyWaitsForTable;

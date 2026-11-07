@@ -860,9 +860,9 @@
                   <CheckBox IsChecked="{Binding UseDisplayPlugins}"
                             Content="Use VPX's FlexDMD and backglass (B2S) plugins (recommended)"
                             ToolTip.Tip="FlexDMD draws the DMD for tables whose script makes it (many originals, such as Jaws and Mass Effect). B2S shows a table's .directb2s backglass." />
-                  <CheckBox IsChecked="{Binding VrAddBackglass}"
-                            Content="Add a backglass in VR to tables that don't have one (needed for PuP packs)"
-                            ToolTip.Tip="Desktop and cabinet tables have no backglass in the VR scene, so their PuP pack or .directb2s plays with nothing to show it. This adds VPX's default backglass display. Turn it off if a VR table shows two backglasses." />
+                  <CheckBox IsChecked="{Binding VrAutoBackglass}"
+                            Content="Add a backglass in VR to desktop tables, not VR tables (needed for PuP packs)"
+                            ToolTip.Tip="Desktop and cabinet tables have no backglass in the VR scene, so their PuP pack or .directb2s plays with nothing to show it: they get VPX's default backglass display. VR tables have their own and don't. Off: VPX's own Add Backglass setting decides. A table setting saved in VPX always wins." />
                   <CheckBox IsChecked="{Binding AutoVrRoom}"
                             Content="Turn on a table's VR room for VR play, and off for desktop play (recommended)"
                             ToolTip.Tip="Some tables have a VR room switch at the top of their script (VRRoom = 0) instead of noticing VR themselves, so in the headset they play with no cabinet and often too dark (The Getaway, Batman 66, Monster Bash). Play in VR turns it on and DESKTOP turns it off, using a copy of the script beside the table; the .vpx isn't changed. Off: tables play as they came." />

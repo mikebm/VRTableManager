@@ -17,7 +17,7 @@ public sealed partial class MainViewModel
     /// <summary>VR play turns on VPX's FlexDMD and B2S plugins.</summary>
     [ObservableProperty] public partial bool UseDisplayPlugins { get; set; }
     /// <summary>VR play adds a backglass display to tables without one, for PuP packs and B2S backglasses.</summary>
-    [ObservableProperty] public partial bool VrAddBackglass { get; set; }
+    [ObservableProperty] public partial bool VrAutoBackglass { get; set; }
     /// <summary>A table's hand-set VR room switch is turned on for VR play and off for desktop play.</summary>
     [ObservableProperty] public partial bool AutoVrRoom { get; set; }
 
