@@ -154,6 +154,29 @@ public static class AssistedDownloadChecks
             .WaitAsync(TimeSpan.FromSeconds(15));
         results.Add((Path.GetFileName(bbGot) == "beav_butt.zip", "assisted: a ROM job skips a file named for another ROM"));
 
+        // A table job alone doesn't take a file named for another game (they share only "party"), but still takes
+        // one named in a way it can't tell (initials, a site's own naming).
+        var tableDir = Path.Combine(root, "assisted", "Downloads-table");
+        Directory.CreateDirectory(tableDir);
+        var sppJob = new JobItem("Simpsons") { FileNames = ["The Simpsons Pinball Party"], FileTypes = [".vpx", ".zip", ".7z", ".rar"] };
+        var tables = new AssistedDownloader(url =>
+        {
+            _ = Task.Run(async () =>
+            {
+                await Task.Delay(200);
+                File.WriteAllText(Path.Combine(tableDir, "Elvira and the Party Monsters (Bally 1989) re-vamped 1.5 (lipebello Mod-GtecArcade Pupvent).zip"), "eatpm");
+                await Task.Delay(1200);
+                File.WriteAllText(Path.Combine(tableDir, "SPP-VPW-2.0.zip"), "spp");
+            });
+        }, tableDir)
+        {
+            PollInterval = TimeSpan.FromMilliseconds(200),
+            KnownGames = ["The Simpsons Pinball Party", "The Simpsons", "Elvira and the Party Monsters", "Party Zone", "Medieval Madness"],
+        };
+        var sppGot = await tables.DownloadAsync("https://vpuniverse.com/files/file/10383-simpsons-party-pinball-stern-2003-vpw-mod/", Path.Combine(root, "assisted", "table"), sppJob)
+            .WaitAsync(TimeSpan.FromSeconds(15));
+        results.Add((Path.GetFileName(sppGot) == "SPP-VPW-2.0.zip", "assisted: a table job alone skips a file named for another game"));
+
         results.Add((!SitePolicy.AllowsAutomation("https://vpuniverse.com/files/file/42-test/") && !SitePolicy.AllowsAutomation("https://www.vpforums.org/index.php"),
             "table sites aren't automated without their permission"));
         return results;

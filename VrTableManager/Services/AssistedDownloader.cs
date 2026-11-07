@@ -194,11 +194,42 @@ public sealed class AssistedDownloader
 
     enum Owner { Mine, Other, Unsure, NotThis }
 
+    /// <summary>The catalog's game names, as <see cref="GameKey"/>s: a file named for one of them that isn't the job's game isn't the job's.</summary>
+    volatile string[] _knownGameKeys = [];
+
+    /// <summary>
+    /// Every game in the catalog. A job waiting alone takes any new file of its type (table files are often
+    /// named "SPP_VPW_1.2.zip", nothing like the game), but not one that spells out a different game:
+    /// "Elvira and the Party Monsters … .zip" saved after Elvira's own job ended is not The Simpsons Pinball Party's.
+    /// </summary>
+    public IEnumerable<string> KnownGames
+    {
+        set => _knownGameKeys = value.Select(GameKey).Where(k => k.Length >= 8).Distinct().ToArray();
+    }
+
+    /// <summary>A game name's distinctive words run together ("Elvira and the Party Monsters" → "elvirapartymonsters").</summary>
+    static string GameKey(string name) => string.Concat(Words(name.ToLowerInvariant()).Where(w => !Common.Contains(w)));
+
+    /// <summary>
+    /// The catalog game other than the job's own that <paramref name="fileName"/> is named for, when the name
+    /// doesn't also carry the job's own game (whole, or as initials); null when it could be the job's.
+    /// </summary>
+    string? NamedForOtherGame(string fileName, IReadOnlyList<string> myNames)
+    {
+        if (myNames.Count == 0 || Score(fileName, myNames) >= 50) return null;
+        var fileKey = GameKey(Path.GetFileNameWithoutExtension(fileName));
+        var myKeys = myNames.Select(GameKey).Where(k => k.Length > 0).ToList();
+        if (myKeys.Any(k => k.Length >= 3 && fileKey.Contains(k))) return null;
+        // "The Simpsons" inside "The Simpsons Pinball Party" is the job's own game, not another one.
+        return _knownGameKeys.FirstOrDefault(k => fileKey.Contains(k) && !myKeys.Any(m => m.Contains(k)));
+    }
+
     /// <summary>
     /// Whose a finished file is among the jobs waiting: the only one that takes its type, else the one whose
     /// names it carries best. Taking it marks it so no other job does. A job that asks for
     /// <see cref="JobItem.NamesMustMatch"/> (a ROM) doesn't take a file that carries none of its names just
-    /// because nothing else is waiting: dungdrag.zip saved after its own job ended is not beav_butt.zip.
+    /// because nothing else is waiting: dungdrag.zip saved after its own job ended is not beav_butt.zip. Any
+    /// other job alone doesn't take a file named for a different game of the catalog (<see cref="KnownGames"/>).
     /// </summary>
     Owner Claim(string file, JobItem me)
     {
@@ -211,6 +242,7 @@ public sealed class AssistedDownloader
             var candidates = _waiting.Where(w => w.started <= written && (w.job.FileTypes.Count == 0 || w.job.FileTypes.Contains(ext))).Select(w => w.job).ToList();
             if (!candidates.Contains(me)) return Owner.Other;
             if (candidates.Count == 1 && me.NamesMustMatch && Score(Path.GetFileName(file), me.FileNames) == 0) return Owner.NotThis;
+            if (candidates.Count == 1 && !me.NamesMustMatch && NamedForOtherGame(Path.GetFileName(file), me.FileNames) != null) return Owner.NotThis;
             var owner = candidates.Count == 1 ? me : null;
             if (owner == null)
             {

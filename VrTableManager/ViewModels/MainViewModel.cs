@@ -110,6 +110,7 @@ public sealed partial class MainViewModel : ObservableObject, IAsyncDisposable
         try
         {
             _allGames = await Task.Run(() => VpsCatalog.LoadAsync(force));
+            _assisted.KnownGames = _allGames.Select(g => g.Name);
             ApplyFilter();
             ApplyTableUpdates();
             _ = CheckUpdatesAsync(); // VPX / UEVR / BAM, in the background
