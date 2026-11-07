@@ -848,6 +848,9 @@
                   <CheckBox IsChecked="{Binding VpxUseDoNotUseBuilds}"
                             Content="Use the BGFX builds marked &quot;DO NOT USE&quot; on GitHub (recommended)"
                             ToolTip.Tip="The VPX team labels its current BGFX builds &quot;DO NOT USE&quot;; they have the newest VR work. Off: only builds without that label are installed or offered as updates. Click CHECK FOR UPDATES after changing this." />
+                  <CheckBox IsChecked="{Binding VpxUseNightlyBuilds}"
+                            Content="Use nightly BGFX builds (newest, untested)"
+                            ToolTip.Tip="VPX builds every change to its master branch. On: the newest of those builds is installed and offered as an update when it's newer than the newest release. They're downloaded through nightly.link (GitHub only gives them to signed-in users) and nobody has tested them, so one can break tables. Off: only releases. Turning it off keeps the nightly you have until a newer release comes out. Click CHECK FOR UPDATES after changing this." />
                   <CheckBox IsChecked="{Binding UseBuiltInPinmame}"
                             Content="Use VPX's built-in PinMAME (recommended)"
                             ToolTip.Tip="In VR and desktop play, reads each table's ROMs, scores, ROM aliases and Serum colours from its own folder. Off: VPX uses a separately installed VPinMAME and its own roms folder." />

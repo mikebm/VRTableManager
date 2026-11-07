@@ -168,11 +168,18 @@ public static class PupPackChecks
         yield return (on == "1" && off == "0", "VR ini enables VPX's PUP plugin, and the setting turns it off");
 
         // Without a backglass display in the VR scene, a desktop table's PuP pack plays unseen.
-        var bgOn = IniFile.Read(VpxSetup.VrIniPath(vs)).GetValueOrDefault(("PlayerVR", "AddBackglass"));
-        vs.VrAddBackglass = false;
-        VpxSetup.EnsureVrIni(vs);
-        var bgOff = IniFile.Read(VpxSetup.VrIniPath(vs)).GetValueOrDefault(("PlayerVR", "AddBackglass"));
-        yield return (bgOn == "1" && bgOff == "0", "VR ini adds VPX's default backglass for PuP, and the setting turns it off");
+        // VPX's default backglass in VR: off unless asked for (VR tables bring their own, and it can get in their way),
+        // and once set, a launch never undoes what was chosen in VPX's own menu.
+        string? Bg() => IniFile.Read(VpxSetup.VrIniPath(vs)).GetValueOrDefault(("PlayerVR", "AddBackglass"));
+        var bgDefault = Bg();
+        VpxSetup.SetVrAddBackglass(vs, true);
+        var bgOn = Bg();
+        VpxSetup.EnsureVrIni(vs); // the app setting is still off: the "1" (as if chosen in game) stays
+        var bgKept = Bg();
+        var shown = VpxSetup.VrAddBackglass(vs);
+        VpxSetup.SetVrAddBackglass(vs, false);
+        yield return (new AppSettings().VrAddBackglass == false && bgDefault == "0" && bgOn == "1" && bgKept == "1" && shown && Bg() == "0",
+            $"VR backglass: off by default, the checkbox sets it, and a launch keeps VPX's in-game choice ({bgDefault}/{bgOn}/{bgKept}/{shown})");
     }
 
     static string Dir(string root, string name, params (string path, string text)[] entries)

@@ -1,10 +1,12 @@
 using System.Diagnostics;
+using System.IO.Compression;
 using System.Runtime.InteropServices;
 using System.Text.Json;
 
 namespace VrTableManager.Services;
 
-public sealed record VpxRelease(string Tag, string AssetName, string Url, long Size);
+/// <param name="Nightly">A build from VPX's master branch (GitHub Actions), not a published release.</param>
+public sealed record VpxRelease(string Tag, string AssetName, string Url, long Size, bool Nightly = false);
 
 /// <param name="Latest">Newest BGFX build that's fine to use.</param>
 /// <param name="Withdrawn">Newest BGFX build renamed "DO NOT USE", when it's newer than <paramref name="Latest"/>.</param>
@@ -23,17 +25,56 @@ public static class VpxSetup
         : "-linux-x64-Release.tar.gz";
 
     /// <summary>The newest usable BGFX build, or null.</summary>
-    public static async Task<VpxRelease?> FindLatestAsync(CancellationToken ct, bool useDoNotUse = false) =>
-        (await FindReleasesAsync(ct, useDoNotUse)).Latest;
+    public static async Task<VpxRelease?> FindLatestAsync(CancellationToken ct, bool useDoNotUse = false, bool nightly = false) =>
+        (await FindReleasesAsync(ct, useDoNotUse, nightly)).Latest;
 
     /// <summary>
     /// What GitHub offers: the newest BGFX build that's fine to use, and the newest one the VPX team has
     /// since renamed "DO NOT USE" when that's newer still. Unless <paramref name="useDoNotUse"/> (the
     /// "use DO NOT USE builds" setting), those are never installed or offered as updates; the app keeps
-    /// whatever VPX is installed and says why.
+    /// whatever VPX is installed and says why. With <paramref name="nightly"/> (the "nightly builds" setting),
+    /// the newest master-branch build stands in for the release when it's newer.
     /// </summary>
-    public static async Task<VpxReleases> FindReleasesAsync(CancellationToken ct, bool useDoNotUse = false) =>
-        ParseReleases(await Http.Client.GetStringAsync(ReleasesApi, ct), useDoNotUse);
+    public static async Task<VpxReleases> FindReleasesAsync(CancellationToken ct, bool useDoNotUse = false, bool nightly = false)
+    {
+        var releases = ParseReleases(await Http.Client.GetStringAsync(ReleasesApi, ct), useDoNotUse);
+        return nightly ? WithNightly(releases, await FindNightlyAsync(ct)) : releases;
+    }
+
+    /// <summary>The nightly build in place of the release when it's newer (it then supersedes any "DO NOT USE" note too).</summary>
+    public static VpxReleases WithNightly(VpxReleases r, VpxRelease? nightly) =>
+        nightly == null || (r.Latest != null && !IsNewer(nightly.Tag, r.Latest.Tag)) ? r
+        : new VpxReleases(nightly, r.Withdrawn != null && IsNewer(r.Withdrawn.Tag, nightly.Tag) ? r.Withdrawn : null);
+
+    // Every push to VPX's master branch builds all platforms in the "vpinball" workflow. GitHub only hands
+    // workflow artifacts to signed-in users; nightly.link serves the same files publicly.
+    const string NightlyRunsApi = "https://api.github.com/repos/vpinball/vpinball/actions/workflows/vpinball.yml/runs?branch=master&event=push&status=success&per_page=1";
+    const string NightlyDownload = "https://nightly.link/vpinball/vpinball/actions/artifacts/";
+
+    /// <summary>The BGFX build from the newest successful master-branch run, or null.</summary>
+    public static async Task<VpxRelease?> FindNightlyAsync(CancellationToken ct)
+    {
+        using var runs = JsonDocument.Parse(await Http.Client.GetStringAsync(NightlyRunsApi, ct));
+        var run = runs.RootElement.GetProperty("workflow_runs").EnumerateArray().FirstOrDefault();
+        if (run.ValueKind != JsonValueKind.Object) return null;
+        var artifactsUrl = run.GetProperty("artifacts_url").GetString() + "?per_page=100";
+        return ParseNightlyArtifacts(await Http.Client.GetStringAsync(artifactsUrl, ct));
+    }
+
+    public static VpxRelease? ParseNightlyArtifacts(string json)
+    {
+        using var doc = JsonDocument.Parse(json);
+        foreach (var a in doc.RootElement.GetProperty("artifacts").EnumerateArray())
+        {
+            var name = a.GetProperty("name").GetString() ?? "";
+            if (a.GetProperty("expired").GetBoolean() || !name.StartsWith("VPinballX_BGFX-") || !name.EndsWith(AssetSuffix)) continue;
+            // "VPinballX_BGFX-10.8.1-6625-2ad1916b2-windows-x64-Release.zip" → "v10.8.1-6625-2ad1916b2"
+            var tag = "v" + name["VPinballX_BGFX-".Length..^AssetSuffix.Length];
+            return new VpxRelease(tag, name, NightlyDownload + a.GetProperty("id").GetInt64() + ".zip",
+                a.GetProperty("size_in_bytes").GetInt64(), Nightly: true);
+        }
+        return null;
+    }
 
     public static VpxReleases ParseReleases(string json, bool useDoNotUse = false)
     {
@@ -75,11 +116,12 @@ public static class VpxSetup
                 : r.Withdrawn != null
                     ? $"No VR (BGFX) build is available to install right now.{note} Check github.com/vpinball/vpinball/releases."
                     : "No VPX release found for this OS.", false);
-        if (installed == null) return ($"Not installed. Latest is {r.Latest.Tag}.{note}", false);
+        var latest = r.Latest.Nightly ? $"{r.Latest.Tag} (nightly)" : r.Latest.Tag;
+        if (installed == null) return ($"Not installed. Latest is {latest}.{note}", false);
         if (installed == r.Latest.Tag || SameBuild(installed, r.Latest.Tag)) return ($"Up to date ({installed}).{note}", false);
         // Installed something newer than the newest usable build (e.g. a build later marked DO NOT USE): keep it.
         if (installed == r.Withdrawn?.Tag || IsNewer(installed, r.Latest.Tag)) return ($"Keeping your installed {installed}.{note}", false);
-        return ($"{installed} → {r.Latest.Tag}", true);
+        return ($"{installed} → {latest}", true);
     }
 
     static (Version v, int build) ParseTag(string t)
@@ -128,6 +170,17 @@ public static class VpxSetup
             try { File.Delete(tmp); } catch { } // don't leave a half download in Temp
             throw;
         }
+        // A nightly comes as a GitHub artifact: always a zip. On Windows that zip is the build itself; elsewhere
+        // it holds the .dmg / .tar.gz, which is taken out and used as the download.
+        if (rel.Nightly && !rel.AssetName.EndsWith(".zip"))
+        {
+            var wrapped = tmp + ".zip";
+            File.Move(tmp, wrapped, overwrite: true);
+            using (var zip = ZipFile.OpenRead(wrapped))
+                (zip.GetEntry(rel.AssetName) ?? throw new InvalidDataException($"{rel.AssetName} wasn't in the nightly download."))
+                    .ExtractToFile(tmp, overwrite: true);
+            File.Delete(wrapped);
+        }
 
         if (tmp.EndsWith(".dmg"))
         {
@@ -172,13 +225,26 @@ public static class VpxSetup
         var rate = s.VrRefreshRate switch { 72 => 1, 80 => 2, 90 => 3, 120 => 4, _ => 0 };
         IniFile.Set(ini, "PlayerVR", "DisplayRefreshRate", rate.ToString());
         SetPlugins(s, ini);
-        // The plugins draw the backglass (PuP, B2S) into a display VPX only puts in the VR scene when the table has
-        // its own VR backglass. Desktop and cabinet tables (most PuP tables) need VPX's default one added, or the PuP
-        // pack loads and plays with nothing showing it.
-        IniFile.Set(ini, "PlayerVR", "AddBackglass", s.VrAddBackglass ? "1" : "0");
+        // VPX's default backglass: only set the first time. After that it's the player's (the checkbox, through
+        // SetVrAddBackglass, or VPX's in-game menu, whose change VpxIniLayers saves back here on exit). Setting it
+        // every launch undid the in-game choice.
+        if (!IniFile.Read(ini).TryGetValue(("PlayerVR", "AddBackglass"), out var bg) || bg.Trim() == "")
+            SetVrAddBackglass(s, s.VrAddBackglass);
         // Controls aren't copied in: VR play inherits the ones in the player's own VPinballX.ini (and keeps
         // following them) unless it has its own (VpxInput.Import, or remapped during VR play).
     }
+
+    /// <summary>
+    /// The "add a backglass in VR" checkbox. The plugins draw a backglass (PuP, B2S) into a display VPX only puts in
+    /// the VR scene when the table has its own VR backglass; desktop and cabinet tables (most PuP tables) need VPX's
+    /// default one added, or the PuP pack plays with nothing showing it. VR tables usually don't want it.
+    /// </summary>
+    public static void SetVrAddBackglass(AppSettings s, bool on) =>
+        IniFile.Set(VrIniPath(s), "PlayerVR", "AddBackglass", on ? "1" : "0");
+
+    /// <summary>What VR play will use: VPX's value in the VR overrides (it may have been changed in game), else the setting.</summary>
+    public static bool VrAddBackglass(AppSettings s) =>
+        IniFile.Read(VrIniPath(s)).TryGetValue(("PlayerVR", "AddBackglass"), out var v) && v.Trim() is "0" or "1" ? v.Trim() == "1" : s.VrAddBackglass;
 
     /// <summary>
     /// Desktop play: VR off even if the player's own settings turn it on, and the same plugins as VR, so the

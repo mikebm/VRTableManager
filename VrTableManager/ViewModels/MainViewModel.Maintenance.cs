@@ -227,6 +227,7 @@ public sealed partial class MainViewModel
         HideAdult = s.HideAdult;
         ReturnAfterPlay = s.ReturnAfterPlay;
         VpxUseDoNotUseBuilds = s.VpxUseDoNotUseBuilds;
+        VpxUseNightlyBuilds = s.VpxUseNightlyBuilds;
         FpRunAsAdmin = s.FpRunAsAdmin;
         ApplyPinballUevrProfile = s.ApplyPinballUevrProfile;
         ShowZenReminder = s.ShowZenReminder;
