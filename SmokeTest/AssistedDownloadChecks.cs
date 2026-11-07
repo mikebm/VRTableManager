@@ -96,6 +96,64 @@ public static class AssistedDownloadChecks
         results.Add((names.SequenceEqual(["BTILC_2026_Original_1.0.1.vpx", "BTILC-PuP-v1.01.zip", "Medieval_Madness_2.0.zip"]),
             "assisted: with several pages waiting, each file goes to its own job"));
 
+        // A ROM page ends by itself once the set is complete (here: the clone and then its parent), no DONE.
+        var autoDir = Path.Combine(root, "assisted", "Downloads-auto");
+        Directory.CreateDirectory(autoDir);
+        var autoJob = new JobItem("AFM ROM") { FileNames = ["afm_113b", "afm_113"], FileTypes = [".zip"], NamesMustMatch = true };
+        var auto = new AssistedDownloader(url =>
+        {
+            _ = Task.Run(async () =>
+            {
+                foreach (var n in new[] { "afm_113b.zip", "afm_113.zip" })
+                {
+                    await Task.Delay(300);
+                    File.WriteAllText(Path.Combine(autoDir, n), n);
+                }
+            });
+        }, autoDir) { PollInterval = TimeSpan.FromMilliseconds(200) };
+        var autoGot = await auto.DownloadAllAsync("https://vpuniverse.com/files/file/4-afm-roms/", Path.Combine(root, "assisted", "auto"), autoJob,
+                got => got.Select(Path.GetFileName).Order().SequenceEqual(["afm_113.zip", "afm_113b.zip"]))
+            .WaitAsync(TimeSpan.FromSeconds(10)); // the quiet timeout is 60 s: only the completeness check ends it this soon
+        results.Add((autoGot.Count == 2, "assisted: a ROM page finishes by itself once the set is complete"));
+
+        // DONE pressed while the file is still being saved: it's still taken.
+        var earlyDir = Path.Combine(root, "assisted", "Downloads-early");
+        Directory.CreateDirectory(earlyDir);
+        var earlyJob = new JobItem("D&D ROM") { FileNames = ["dungdrag", "Dungeons & Dragons"], FileTypes = [".zip"], NamesMustMatch = true };
+        var early = new AssistedDownloader(url =>
+        {
+            _ = Task.Run(async () =>
+            {
+                await Task.Delay(200);
+                var part = Path.Combine(earlyDir, "Unconfirmed 99.crdownload");
+                File.WriteAllText(part, "PK");
+                earlyJob.DoneWaitingCommand.Execute(null);
+                await Task.Delay(1500);
+                File.Move(part, Path.Combine(earlyDir, "dungdrag.zip"));
+            });
+        }, earlyDir) { PollInterval = TimeSpan.FromMilliseconds(200), DoneSettle = TimeSpan.FromMilliseconds(800) };
+        var earlyGot = await early.DownloadAllAsync("https://vpuniverse.com/files/file/2-dd-rom/", Path.Combine(root, "assisted", "early"), earlyJob)
+            .WaitAsync(TimeSpan.FromSeconds(15));
+        results.Add((earlyGot.Select(Path.GetFileName).SequenceEqual(["dungdrag.zip"]), "assisted: DONE pressed mid-download still takes the file"));
+
+        // A ROM job alone doesn't take another ROM's file.
+        var strictDir = Path.Combine(root, "assisted", "Downloads-strict");
+        Directory.CreateDirectory(strictDir);
+        var bbJob = new JobItem("B&B ROM") { FileNames = ["beav_butt", "clas1812", "Beavis and Butt-Head Pinballed"], FileTypes = [".zip"], NamesMustMatch = true };
+        var strict = new AssistedDownloader(url =>
+        {
+            _ = Task.Run(async () =>
+            {
+                await Task.Delay(200);
+                File.WriteAllText(Path.Combine(strictDir, "dungdrag.zip"), "dd");
+                await Task.Delay(1200);
+                File.WriteAllText(Path.Combine(strictDir, "beav_butt.zip"), "bb");
+            });
+        }, strictDir) { PollInterval = TimeSpan.FromMilliseconds(200) };
+        var bbGot = await strict.DownloadAsync("https://vpuniverse.com/files/file/3-bb-rom/", Path.Combine(root, "assisted", "strict"), bbJob)
+            .WaitAsync(TimeSpan.FromSeconds(15));
+        results.Add((Path.GetFileName(bbGot) == "beav_butt.zip", "assisted: a ROM job skips a file named for another ROM"));
+
         results.Add((!SitePolicy.AllowsAutomation("https://vpuniverse.com/files/file/42-test/") && !SitePolicy.AllowsAutomation("https://www.vpforums.org/index.php"),
             "table sites aren't automated without their permission"));
         return results;

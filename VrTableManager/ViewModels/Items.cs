@@ -366,6 +366,8 @@ public sealed partial class JobItem : ObservableObject
     public IReadOnlyList<string> FileNames { get; init; } = [];
     /// <summary>The file types this job takes (".vpx", ".zip" …); empty for any.</summary>
     public IReadOnlyList<string> FileTypes { get; init; } = [];
+    /// <summary>Only take a file whose name carries one of <see cref="FileNames"/> (ROMs: any other set is another table's).</summary>
+    public bool NamesMustMatch { get; init; }
 
     public sealed record Handoff(string? File, bool Done);
     readonly object _handoffLock = new();
