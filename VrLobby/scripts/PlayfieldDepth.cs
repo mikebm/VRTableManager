@@ -110,7 +110,7 @@ public static class PlayfieldDepth
     /// <summary>
     /// The table's height map as an RGB image, red the tops and green their undersides (cached in
     /// <paramref name="videoFolder"/>), or null when the table has nothing standing on its playfield worth showing.
-    /// Slow the first time (reads the .vpx): call off the main thread.
+    /// Slow the first time (reads the .vpx): call off the main thread. Never throws.
     /// </summary>
     public static Image? Load(string videoFolder, string vpxPath)
     {
@@ -120,7 +120,8 @@ public static class PlayfieldDepth
             if (File.Exists(cache))
             {
                 var img = new Image();
-                return img.LoadPngFromBuffer(File.ReadAllBytes(cache)) == Error.Ok ? img : null;
+                if (img.LoadPngFromBuffer(File.ReadAllBytes(cache)) == Error.Ok) return img;
+                // Unreadable (left over from a crash): made again below.
             }
             var map = VpxCabinet.HeightMap(vpxPath);
             if (map == null || map.Coverage < 0.03f) return null;
@@ -131,11 +132,20 @@ public static class PlayfieldDepth
                 bytes[i * 3 + 1] = (byte)Math.Round(map.Undersides[i] * 255);
             }
             var made = Image.CreateFromData(map.Width, map.Height, false, Image.Format.Rgb8, bytes);
-            try { File.WriteAllBytes(cache, made.SavePngToBuffer()); } catch (IOException) { } catch (UnauthorizedAccessException) { }
+            // Written aside and renamed into place: the lobby's background warm-up and the selected table's video can
+            // build the same map at once, and neither may read the other's half-written file.
+            var tmp = cache + "." + Guid.NewGuid().ToString("N")[..8] + ".tmp";
+            try
+            {
+                File.WriteAllBytes(tmp, made.SavePngToBuffer());
+                File.Move(tmp, cache, overwrite: true);
+            }
+            catch (Exception e) when (e is IOException or UnauthorizedAccessException) { try { File.Delete(tmp); } catch { } }
             return made;
         }
-        catch (Exception e) when (e is IOException or UnauthorizedAccessException)
+        catch (Exception e)
         {
+            // Depth is an extra: a table the height map can't be read from just plays its video flat.
             GD.PushWarning($"Playfield depth {vpxPath}: {e.Message}");
             return null;
         }

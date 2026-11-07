@@ -765,7 +765,7 @@ public sealed partial class MainViewModel : ObservableObject, IAsyncDisposable
             {
                 item.TableScale = VpxGraphics.ReadTableScale(item.Table.TablePath);
                 item.HasAttractAudio = MediaPackAudio.Existing(item.Table.Folder) != null;
-                item.HasLobbyVideo = LobbyVideo.Existing(item.Table.Folder) != null;
+                item.HasLobbyVideo = item.CanHaveLobbyVideo && LobbyVideo.Existing(item.Table.Folder) != null;
                 item.HasDmdFix = VrDmdFix.HasBackup(item.Table.TablePath);
                 item.DmdFixDeclined = Settings.DmdFixDeclined.Contains(item.Table.TablePath, StringComparer.OrdinalIgnoreCase);
                 RefreshAddonState(item);

@@ -28,43 +28,49 @@ public sealed class RealCabinet
     public Aabb? Backbox { get; init; }
     public int Surfaces => Mesh.GetSurfaceCount();
 
-    float? _glassZ;
+    /// <summary>
+    /// How far forward a backglass panel goes in this cabinet's backbox (lobby z), when it has a backbox. Worked out
+    /// off the main thread by <see cref="ComputeGlassZ"/> as the cabinet is loaded.
+    /// </summary>
+    public float? GlassZ { get; init; }
+
+    /// <summary>Height of the backbox's glass opening: the top 60% of the backbox (the speaker panel is below).</summary>
+    public static float GlassHeight(Aabb box) => Mathf.Min(box.Size.Y * 0.6f, 0.6f);
+
+    /// <summary>Centre height of the glass opening, with a margin inside the frame's top.</summary>
+    public static float GlassCentreY(Aabb box) => box.End.Y - 0.045f - GlassHeight(box) / 2;
 
     /// <summary>
-    /// How far forward a backglass panel goes in this cabinet's backbox (lobby z). A ray from the front into the
-    /// middle of the backbox's opening finds the first surface there: a closed front (the backbox's own printed
-    /// glass) and the panel sits just in front of it; an open frame and it sits on whatever is behind, at most
-    /// 4 cm behind the frame's front edge, so the frame overlaps it like a real backglass. It used to sit a few
-    /// millimetres in front of the frame, wider than the opening, and stood proud of it (The Addams Family).
+    /// A ray from the front into the middle of the backbox's opening finds the first surface there: a closed front
+    /// (the backbox's own printed glass) and the panel sits just in front of it; an open frame and it sits on whatever
+    /// is behind, at most 4 cm behind the frame's front edge, so the frame overlaps it like a real backglass. It used
+    /// to sit a few millimetres in front of the frame, wider than the opening, and stood proud of it (The Addams Family).
+    /// Walks every triangle: call it off the main thread.
     /// </summary>
-    public float GlassZ(Aabb box, float centreY)
+    internal static float ComputeGlassZ(IEnumerable<(Vector3[] Verts, int[] Indices)> surfaces, Aabb box)
     {
-        if (_glassZ is { } known) return known;
         var front = box.End.Z;
         var cx = box.GetCenter().X;
+        var cy = GlassCentreY(box);
         float? hit = null;
-        for (var s = 0; s < Mesh.GetSurfaceCount(); s++)
-        {
-            var arrays = Mesh.SurfaceGetArrays(s);
-            var v = arrays[(int)Godot.Mesh.ArrayType.Vertex].AsVector3Array();
-            var idx = arrays[(int)Godot.Mesh.ArrayType.Index].AsInt32Array();
+        foreach (var (v, idx) in surfaces)
             for (var i = 0; i + 2 < idx.Length; i += 3)
             {
                 Vector3 a = v[idx[i]], b = v[idx[i + 1]], c = v[idx[i + 2]];
                 if (Mathf.Min(a.Z, Mathf.Min(b.Z, c.Z)) > front + 0.02f) continue; // in front of the box (a topper, a lamp)
-                // Does the triangle, seen from the front, cover (cx, centreY)? Then where along z.
+                // Cheap reject: seen from the front, the triangle's outline doesn't reach (cx, cy).
+                if (cx < Mathf.Min(a.X, Mathf.Min(b.X, c.X)) || cx > Mathf.Max(a.X, Mathf.Max(b.X, c.X))
+                    || cy < Mathf.Min(a.Y, Mathf.Min(b.Y, c.Y)) || cy > Mathf.Max(a.Y, Mathf.Max(b.Y, c.Y))) continue;
+                // Does the triangle cover (cx, cy)? Then where along z.
                 var d = (b.X - a.X) * (c.Y - a.Y) - (b.Y - a.Y) * (c.X - a.X);
                 if (Mathf.Abs(d) < 1e-9f) continue;
-                var w1 = ((cx - a.X) * (c.Y - a.Y) - (centreY - a.Y) * (c.X - a.X)) / d;
-                var w2 = ((b.X - a.X) * (centreY - a.Y) - (b.Y - a.Y) * (cx - a.X)) / d;
+                var w1 = ((cx - a.X) * (c.Y - a.Y) - (cy - a.Y) * (c.X - a.X)) / d;
+                var w2 = ((b.X - a.X) * (cy - a.Y) - (b.Y - a.Y) * (cx - a.X)) / d;
                 if (w1 < 0 || w2 < 0 || w1 + w2 > 1) continue;
                 var z = a.Z + w1 * (b.Z - a.Z) + w2 * (c.Z - a.Z);
                 if (hit == null || z > hit) hit = z;
             }
-        }
-        var glass = hit is { } h ? Mathf.Max(h + 0.003f, front - 0.04f) : front - 0.02f;
-        _glassZ = glass;
-        return glass;
+        return hit is { } h ? Mathf.Max(h + 0.003f, front - 0.04f) : front - 0.02f;
     }
 
     public int Textures { get; init; }
@@ -148,11 +154,12 @@ public partial class RealCabinetLoader : Node
                     parsed = Parse(vpx);
                     if (dir != null) CabinetCache.Save(vpx, dir, parsed);
                 }
-                Callable.From(() => Finish(vpx, parsed, sw)).CallDeferred();
+                var glass = GlassZOf(parsed); // walks every triangle: here, not on the main thread
+                Callable.From(() => Finish(vpx, parsed, glass, sw)).CallDeferred();
             }
             catch
             {
-                Callable.From(() => Finish(vpx, null, sw)).CallDeferred();
+                Callable.From(() => Finish(vpx, null, null, sw)).CallDeferred();
             }
             finally { _oneAtATime.Release(); }
         });
@@ -163,7 +170,10 @@ public partial class RealCabinetLoader : Node
     /// table (<see cref="DumpDefault"/>) and shipped with the lobby, so it's there at once, table installed or not.
     /// </summary>
     public static RealCabinet? LoadDefault(string file) =>
-        CabinetCache.TryLoadDump(file, out var parsed) && parsed != null ? Build(parsed) : null;
+        CabinetCache.TryLoadDump(file, out var parsed) && parsed != null ? Build(parsed, GlassZOf(parsed)) : null;
+
+    static float? GlassZOf(Parsed? p) =>
+        p?.Backbox is { } box ? RealCabinet.ComputeGlassZ(p.Surfaces.Select(s => (s.Verts, s.Indices)), box) : null;
 
     /// <summary>
     /// Reads this table's VR cabinet and writes it as the default cabinet file; false if it has none.
@@ -271,11 +281,11 @@ public partial class RealCabinetLoader : Node
         };
     }
 
-    void Finish(string vpx, Parsed? parsed, System.Diagnostics.Stopwatch sw)
+    void Finish(string vpx, Parsed? parsed, float? glassZ, System.Diagnostics.Stopwatch sw)
     {
         _pending.Remove(vpx);
         RealCabinet? cab = null;
-        try { if (parsed != null) cab = Build(parsed); }
+        try { if (parsed != null) cab = Build(parsed, glassZ); }
         catch (Exception e) { GD.PushWarning($"Cabinet for {vpx}: {e.Message}"); }
         LastLoadMs = sw.ElapsedMilliseconds;
         _done[vpx] = cab;
@@ -288,7 +298,7 @@ public partial class RealCabinetLoader : Node
     }
 
     /// <summary>Main-thread part: textures and one mesh, a surface per look.</summary>
-    static RealCabinet Build(Parsed p)
+    static RealCabinet Build(Parsed p, float? glassZ)
     {
         var textures = p.Images.ToDictionary(kv => kv.Key, kv => (Texture2D)ImageTexture.CreateFromImage(kv.Value), StringComparer.OrdinalIgnoreCase);
         var mesh = new ArrayMesh();
@@ -322,6 +332,7 @@ public partial class RealCabinetLoader : Node
             BackglassTextured = bgTextured,
             Kinds = kinds,
             Backbox = p.Backbox,
+            GlassZ = glassZ,
             Textures = p.Images.Count,
             CompressedTextures = p.Images.Values.Count(i => i.IsCompressed()),
         };

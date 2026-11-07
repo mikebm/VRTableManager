@@ -435,13 +435,13 @@
                                           ToolTip.Tip="Download this table's sound file or media pack and keep only its audio, as music\attract (the pack's videos are deleted)"
                                           IsEnabled="{Binding !IsBusy}" Command="{Binding Owner.GetAttractAudioCommand}" CommandParameter="{Binding}" />
                                 <MenuItem Header="Remove attract audio" IsVisible="{Binding HasAttractAudio}" Command="{Binding Owner.RemoveAttractAudioCommand}" CommandParameter="{Binding}" />
-                                <MenuItem Header="{Binding LobbyVideoMenuHeader}" IsVisible="{Binding IsVpx}"
+                                <MenuItem Header="{Binding LobbyVideoMenuHeader}" IsVisible="{Binding CanHaveLobbyVideo}"
                                           ToolTip.Tip="A moving playfield for this table's cabinet in the VR lobby: the playfield video from the catalog's media pack, or VPX's own recording of the attract mode when there isn't one"
                                           IsEnabled="{Binding !IsBusy}" Command="{Binding Owner.GetLobbyVideoCommand}" CommandParameter="{Binding}" />
                                 <MenuItem Header="Record lobby video in VPX" IsVisible="{Binding HasMediaPack}"
                                           ToolTip.Tip="Records the attract mode with VPX instead of using the media pack (a small VPX window opens for about half a minute, sound off)"
                                           IsEnabled="{Binding !IsBusy}" Command="{Binding Owner.RecordLobbyVideoCommand}" CommandParameter="{Binding}" />
-                                <MenuItem Header="Use my own lobby video…" IsVisible="{Binding IsVpx}"
+                                <MenuItem Header="Use my own lobby video…" IsVisible="{Binding CanHaveLobbyVideo}"
                                           ToolTip.Tip="Turns a video file you have (.mp4 works best) into this cabinet's moving playfield in the VR lobby; the first 12 seconds loop"
                                           IsEnabled="{Binding !IsBusy}" Command="{Binding Owner.UseOwnLobbyVideoCommand}" CommandParameter="{Binding}" />
                                 <MenuItem Header="My artwork"

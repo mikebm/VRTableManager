@@ -15,12 +15,14 @@ public sealed partial class MainViewModel
     async Task GetLobbyVideo(InstalledItem item)
     {
         var table = item.Table;
-        if (!TryBeginBusy(table.TablePath)) return;
+        if (!item.CanHaveLobbyVideo || !TryBeginBusy(table.TablePath)) return;
         var record = false;
         try
         {
             var packs = AttractAudioSourcesFor(table).Where(s => !s.IsDirect).ToList();
-            var problem = packs.Count == 0 ? "The catalog has no media pack for this table." : await LobbyVideoFromPacksAsync(table, packs);
+            string? problem;
+            try { problem = packs.Count == 0 ? "The catalog has no media pack for this table." : await LobbyVideoFromPacksAsync(table, packs); }
+            catch (OperationCanceledException) { return; } // you cancelled it: don't offer to record instead
             if (problem == null) return;
             record = await _ui.ChoiceAsync($"Record {item.Title}'s attract mode?",
                 problem + "\n\nVPX can record the table's attract mode instead: a small VPX window opens for about half a minute " +
@@ -31,7 +33,10 @@ public sealed partial class MainViewModel
         if (record) await RecordLobbyVideo(item);
     }
 
-    /// <summary>Tries each media pack until one has a playfield video. Null when it worked, else what went wrong.</summary>
+    /// <summary>
+    /// Tries each media pack until one has a playfield video. Null when it worked, else what went wrong;
+    /// throws <see cref="OperationCanceledException"/> when the job was cancelled.
+    /// </summary>
     async Task<string?> LobbyVideoFromPacksAsync(InstalledTable table, IReadOnlyList<MediaPackAudio.Source> packs)
     {
         var job = new JobItem($"Lobby video for {table.Manifest.GameName}") { FileNames = [table.Manifest.GameName] };
@@ -78,7 +83,7 @@ public sealed partial class MainViewModel
         catch (OperationCanceledException)
         {
             job.Finish("Cancelled", error: true);
-            return "The download was cancelled.";
+            throw;
         }
         finally { CleanJobDownloads(job); }
     }
@@ -98,6 +103,7 @@ public sealed partial class MainViewModel
     async Task<bool> RecordLobbyVideoCoreAsync(InstalledItem item, Action<JobItem>? started = null)
     {
         var table = item.Table;
+        if (!item.CanHaveLobbyVideo) return true;
         if (!TryBeginBusy(table.TablePath)) return true; // something else is running for this table: skip it
         var job = new JobItem($"Recording {table.Manifest.GameName} for the lobby") { FileNames = [table.Manifest.GameName] };
         Jobs.Insert(0, job);
@@ -163,7 +169,7 @@ public sealed partial class MainViewModel
     {
         if (IsBatchRecording) return;
         if (IsLobbyRunning) { PlayStatus = "Close the VR lobby first: recording runs the tables in VPX."; return; }
-        var without = _allInstalled.Where(i => i.IsVpx && LobbyVideo.Existing(i.Table.Folder) == null)
+        var without = _allInstalled.Where(i => i.CanHaveLobbyVideo && !i.Table.IsIncomplete && LobbyVideo.Existing(i.Table.Folder) == null)
             .DistinctBy(i => i.Table.TablePath, StringComparer.OrdinalIgnoreCase).ToList();
         var todo = without.Where(i => !i.NeedsRom).ToList();
         var noRom = without.Count - todo.Count;

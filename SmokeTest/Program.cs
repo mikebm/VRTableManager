@@ -52,6 +52,33 @@ Check(scanned.Count == 1 && scanned[0].Manifest.GameId == "g1", "scan finds the 
 TableInstaller.Remove(scanned[0]);
 Check(!Directory.Exists(folder), "remove deletes the table folder");
 
+// 2a. Another table file of an installed game gets a folder of its own; reinstalling the same one reuses its folder.
+var first = await TableInstaller.InstallAsync(pack, game, tf, settings, _ => { }, CancellationToken.None);
+var tf2 = new VpsTableFile { Id = "t2", TableFormat = "VPX", Version = "2.0", Authors = ["Other"] };
+var second = await TableInstaller.InstallAsync(pack, game, tf2, settings, _ => { }, CancellationToken.None);
+Check(second.Folder == folder + " (2)" && first.Folder == folder, "a second table file of the game installs beside the first, not over it");
+var both = TableInstaller.Scan(settings).Where(t => t.IsVpx).ToList();
+Check(both.Count == 2 && both.Any(t => t.Manifest.TableFileId == "t1") && both.Any(t => t.Manifest.TableFileId == "t2"), "both builds stay listed with their own manifest");
+var again = await TableInstaller.InstallAsync(pack, game, tf, settings, _ => { }, CancellationToken.None);
+Check(again.Folder == folder, "reinstalling the same table file goes back into its folder");
+foreach (var t in TableInstaller.Scan(settings).Where(t => t.IsVpx)) TableInstaller.Remove(t);
+
+// 2b. roms\ and VPinMAME\nvram\ beside a .vpx at the archive's root end up where PinMAME looks.
+var flat = Path.Combine(root, "flat");
+Directory.CreateDirectory(Path.Combine(flat, "roms"));
+Directory.CreateDirectory(Path.Combine(flat, "VPinMAME", "nvram"));
+File.WriteAllText(Path.Combine(flat, "Test Table 1.0.vpx"), "desktop");
+File.WriteAllText(Path.Combine(flat, "VPinMAME", "nvram", "tt_l1.nv"), "nv");
+using (var rom = ZipFile.Open(Path.Combine(flat, "roms", "tt_l1.zip"), ZipArchiveMode.Create)) rom.CreateEntry("rom.bin");
+var flatPack = Path.Combine(root, "flat.zip");
+ZipFile.CreateFromDirectory(flat, flatPack);
+var flatInst = await TableInstaller.InstallAsync(flatPack, game, new VpsTableFile { Id = "t1", TableFormat = "VPX" }, settings, _ => { }, CancellationToken.None);
+Check(File.Exists(Path.Combine(flatInst.Folder, "pinmame", "roms", "tt_l1.zip")) && !Directory.Exists(Path.Combine(flatInst.Folder, "roms")),
+    "roms\\ beside the .vpx moves to pinmame\\roms");
+Check(File.Exists(Path.Combine(flatInst.Folder, "pinmame", "nvram", "tt_l1.nv")) && !Directory.Exists(Path.Combine(flatInst.Folder, "VPinMAME")),
+    "VPinMAME\\nvram beside the .vpx moves to pinmame\\nvram");
+TableInstaller.Remove(flatInst);
+
 // 3. Path-traversal entries are ignored
 var evil = Path.Combine(root, "evil.zip");
 using (var z = ZipFile.Open(evil, ZipArchiveMode.Create)) { z.CreateEntry("../../escaped.txt"); z.CreateEntry("ok.vpx"); }

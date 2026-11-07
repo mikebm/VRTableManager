@@ -87,10 +87,13 @@ public static class VpxImages
 
     /// <summary>
     /// Only part of the playfield ("lowerplayfield" on Black Knight 2000, whose upper half comes from another picture):
-    /// shown alone it left the upper half black, so the VPS picture is used instead.
+    /// shown alone it left the upper half black, so the VPS picture is used instead. Only a word that starts with
+    /// lower/upper counts ("lowerplayfield", "Playfield_Upper", "PlayfieldLower"), not one that has it inside ("Flowers").
     /// </summary>
-    static bool IsPartOfPlayfield(string name) =>
-        name.Contains("lower", StringComparison.OrdinalIgnoreCase) || name.Contains("upper", StringComparison.OrdinalIgnoreCase);
+    static bool IsPartOfPlayfield(string name) => PartOfPlayfield.IsMatch(name);
+
+    static readonly System.Text.RegularExpressions.Regex PartOfPlayfield =
+        new(@"(?:^|(?<=[^A-Za-z]))(?i:lower|upper)|(?<=[a-z])(?:Lower|Upper)");
 
     static bool LooksLikePlayfieldName(string name)
     {
@@ -117,14 +120,14 @@ public static class VpxImages
         return null;
     }
 
+    /// <summary>Raised when the choice of picture changes, so cached picks are made again (2: no "lower"/"upper" parts).</summary>
+    const int PickVersion = 2;
+
     /// <summary>
     /// The playfield picture as a file in <paramref name="cacheDir"/>, extracting it the first time.
     /// Keyed on the table's path, size and date, so an updated table gets its new picture. A table with
     /// no usable picture is remembered too, so it isn't re-read every time. Never throws.
     /// </summary>
-    /// <summary>Raised when the choice of picture changes, so cached picks are made again (2: no "lower"/"upper" parts).</summary>
-    const int PickVersion = 2;
-
     public static string? CachedPlayfield(string vpxPath, string cacheDir)
     {
         try

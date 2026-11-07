@@ -9,6 +9,12 @@ public sealed record InstalledTable(TableManifest Manifest, string TablePath, st
     public bool IsVpx => Manifest.Engine == TableManifest.Vpx;
 
     /// <summary>
+    /// The table shares its folder with other tables (a loose .vpx straight in the tables folder, a Future Pinball
+    /// table in FP's Tables folder), so nothing kept per folder (lobby video, add-ons) can be this table's alone.
+    /// </summary>
+    public bool SharedFolder { get; init; }
+
+    /// <summary>
     /// The ROM(s) to add when none is in pinmame/roms yet. A table loads exactly one ROM: when the
     /// script's cGameName was found this is that one name; otherwise it's VPS's candidates, any of
     /// which will do.
@@ -100,7 +106,7 @@ public static class TableInstaller
             status("Installing files…");
             var installed = await Task.Run(() => isFp
                 ? InstallFp(staging, main, settings)
-                : InstallVpx(staging, main, game, vpsRoms.Union(romNames, StringComparer.OrdinalIgnoreCase).ToList(), settings, tf.Id), ct); // copying can take a while; keep it off the UI thread
+                : InstallVpx(staging, main, game, vpsRoms.Union(romNames, StringComparer.OrdinalIgnoreCase).ToList(), settings, tf.Id, replacing), ct); // copying can take a while; keep it off the UI thread
 
             var manifest = new TableManifest
             {
@@ -126,8 +132,16 @@ public static class TableInstaller
                 AltSound = replacing?.Manifest.AltSound,
             };
 
-            // Updating: the new version usually has a new file name ("… v1.2.vpx"). Remove the old
-            // table file so only one version shows up; ROMs, NVRAM and settings in the folder stay.
+            var table = new InstalledTable(manifest, installed.tablePath, installed.folder);
+            // Ask PinMAME what the ROM really is (aliases, parent sets) before the manifest is saved.
+            if (!isFp && !rom.NoRomNeeded) await Task.Run(() => RomRequirements.Update(table, settings), ct);
+            await File.WriteAllTextAsync(ManifestPathFor(installed.tablePath, isFp), JsonSerializer.Serialize(manifest, Json), ct);
+            // Everything's in place: the folder is no longer half-installed.
+            if (!isFp) File.Delete(Path.Combine(installed.folder, InstallingMarker));
+
+            // Updating: the new version usually has a new file name ("… v1.2.vpx"). Remove the old table file so
+            // only one version shows up; ROMs, NVRAM and settings in the folder stay. Only now, once the new
+            // version is complete: a step above failing must not leave neither version.
             if (replacing != null && !SamePath(replacing.TablePath, installed.tablePath)
                 && Path.GetExtension(replacing.TablePath).Equals(tableExt, StringComparison.OrdinalIgnoreCase)
                 && File.Exists(replacing.TablePath))
@@ -136,13 +150,6 @@ public static class TableInstaller
                 File.Delete(VrDmdFix.BackupPath(replacing.TablePath));
                 if (isFp && File.Exists(ManifestPathFor(replacing.TablePath, true))) File.Delete(ManifestPathFor(replacing.TablePath, true));
             }
-
-            var table = new InstalledTable(manifest, installed.tablePath, installed.folder);
-            // Ask PinMAME what the ROM really is (aliases, parent sets) before the manifest is saved.
-            if (!isFp && !rom.NoRomNeeded) await Task.Run(() => RomRequirements.Update(table, settings), ct);
-            await File.WriteAllTextAsync(ManifestPathFor(installed.tablePath, isFp), JsonSerializer.Serialize(manifest, Json), ct);
-            // Everything's in place: the folder is no longer half-installed.
-            if (!isFp) File.Delete(Path.Combine(installed.folder, InstallingMarker));
             return table;
         }
         finally
@@ -154,9 +161,9 @@ public static class TableInstaller
     // ---- VPX ---------------------------------------------------------------
 
     static (string tablePath, string folder) InstallVpx(string staging, string main, VpsGame game,
-        List<string> romNames, AppSettings settings, string tableFileId)
+        List<string> romNames, AppSettings settings, string tableFileId, InstalledTable? replacing)
     {
-        var folder = Path.Combine(settings.TablesDir, SafeName(game.DisplayTitle));
+        var folder = TableFolderFor(game, tableFileId, settings, replacing);
         Directory.CreateDirectory(folder);
         // Flag the folder until the install completes (see InstalledTable.IsIncomplete).
         File.WriteAllText(Path.Combine(folder, InstallingMarker),
@@ -169,7 +176,11 @@ public static class TableInstaller
         // Cabinet-style packs spread files around (Tables/, VPinMAME/roms/, Music/); pull those in too.
         foreach (var dir in Directory.EnumerateDirectories(staging, "*", SearchOption.AllDirectories))
         {
-            if (dir.StartsWith(contentRoot + Path.DirectorySeparatorChar, StringComparison.OrdinalIgnoreCase)) continue;
+            if (dir.StartsWith(contentRoot + Path.DirectorySeparatorChar, StringComparison.OrdinalIgnoreCase))
+            {
+                RelocateRomFolder(dir, contentRoot, folder);
+                continue;
+            }
             var name = Path.GetFileName(dir).ToLowerInvariant();
             var target = name switch
             {
@@ -211,6 +222,50 @@ public static class TableInstaller
         if (Directory.Exists(pupDir))
             foreach (var pack in PupPacks.PackRoots(pupDir)) PupPackOptions.SetUpForVr(pack);
         return (Path.Combine(folder, Path.GetFileName(main)), folder);
+    }
+
+    /// <summary>
+    /// Where a VPX table installs: an update stays in the folder it's in (the catalog may have renamed the game
+    /// since); the same table file again (a reinstall, or finishing a cut-off install) goes back into its folder;
+    /// another table file of an installed game (its VR build beside the desktop one) gets a folder of its own,
+    /// "Name (2)", so neither table's files or vrtm.json are overwritten.
+    /// </summary>
+    static string TableFolderFor(VpsGame game, string tableFileId, AppSettings settings, InstalledTable? replacing)
+    {
+        if (replacing is { IsVpx: true, SharedFolder: false } && Directory.Exists(replacing.Folder)
+            && !SamePath(replacing.Folder, settings.TablesDir))
+            return replacing.Folder;
+        var baseName = SafeName(game.DisplayTitle);
+        for (var n = 1; ; n++)
+        {
+            var folder = Path.Combine(settings.TablesDir, n == 1 ? baseName : $"{baseName} ({n})");
+            if (!Directory.Exists(folder)) return folder;
+            var owner = ReadManifest(Path.Combine(folder, ManifestName))?.TableFileId ?? ReadMarker(folder)?.TableFileId;
+            if (owner is { Length: > 0 } ? owner == tableFileId : !Directory.EnumerateFiles(folder, "*.vpx").Any()) return folder;
+        }
+    }
+
+    /// <summary>
+    /// A roms\ or nvram\ folder that came beside the .vpx (or in VPinMAME\ beside it) was copied with the table under
+    /// the same path; PinMAME only looks in pinmame\roms and pinmame\nvram, so it's moved there.
+    /// </summary>
+    static void RelocateRomFolder(string dir, string contentRoot, string folder)
+    {
+        var rel = Path.GetRelativePath(contentRoot, dir);
+        var parts = rel.Split(Path.DirectorySeparatorChar, StringSplitOptions.RemoveEmptyEntries);
+        var name = parts[^1].ToLowerInvariant();
+        if (name is not ("roms" or "nvram")) return;
+        if (parts.Length > 2 || (parts.Length == 2 && parts[0].ToLowerInvariant() is not ("vpinmame" or "pinmame"))) return;
+        var copied = Path.Combine(folder, rel);
+        var target = Path.Combine(folder, "pinmame", name);
+        if (SamePath(copied, target) || !Directory.Exists(copied)) return;
+        CopyTree(dir, target);
+        try
+        {
+            Directory.Delete(copied, recursive: true);
+            if (parts.Length == 2) Addons.DeleteIfEmpty(Path.GetDirectoryName(copied)!);
+        }
+        catch (IOException) { /* the copy in pinmame\ is what counts */ }
     }
 
     public static string AddRom(InstalledTable table, string romZip)
@@ -278,7 +333,7 @@ public static class TableInstaller
             // Loose .vpx files from a manual install (not in their own folder).
             foreach (var vpx in Directory.EnumerateFiles(settings.TablesDir, "*.vpx"))
                 result.Add(new InstalledTable(new TableManifest { GameName = Path.GetFileNameWithoutExtension(vpx), VpxFile = Path.GetFileName(vpx) },
-                    vpx, settings.TablesDir));
+                    vpx, settings.TablesDir) { SharedFolder = true });
         }
 
         var fpTables = Path.Combine(settings.FpDir, "Tables");
@@ -292,7 +347,7 @@ public static class TableInstaller
                     GameName = Path.GetFileNameWithoutExtension(fpt),
                     VpxFile = Path.GetFileName(fpt),
                 };
-                result.Add(new InstalledTable(m, fpt, fpTables));
+                result.Add(new InstalledTable(m, fpt, fpTables) { SharedFolder = true });
             }
         }
 

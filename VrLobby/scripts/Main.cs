@@ -1014,7 +1014,11 @@ public partial class Main : Node3D
         Task.Run(() =>
         {
             foreach (var (folder, vpx) in jobs)
-                if (!File.Exists(Path.Combine(folder, PlayfieldDepth.FileName))) PlayfieldDepth.Load(folder, vpx);
+                try
+                {
+                    if (!File.Exists(Path.Combine(folder, PlayfieldDepth.FileName))) PlayfieldDepth.Load(folder, vpx);
+                }
+                catch (Exception e) { GD.PushWarning($"Playfield depth warm-up {vpx}: {e.Message}"); } // one table mustn't stop the rest
         });
     }
 

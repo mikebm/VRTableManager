@@ -236,10 +236,8 @@ public partial class Cabinet : Node3D
         {
             // The glass opening: the top 60% of the backbox (the speaker panel is below), most of its width.
             // Set into the box at its glass (RealCabinet.GlassZ), with a margin inside the frame on every side.
-            var h = Mathf.Min(box.Size.Y * 0.6f, 0.6f);
-            var y = box.End.Y - 0.045f - h / 2;
-            _bgRoom = new Vector2(box.Size.X * 0.86f, h);
-            _bgCentre = new Vector3(box.GetCenter().X, y, real.GlassZ(box, y));
+            _bgRoom = new Vector2(box.Size.X * 0.86f, RealCabinet.GlassHeight(box));
+            _bgCentre = new Vector3(box.GetCenter().X, RealCabinet.GlassCentreY(box), real.GlassZ ?? box.End.Z - 0.02f);
             FitBackglass();
             _backglassPanel.Visible = true;
             _plate.Visible = BackglassUrl == null && !HasBackglassArt;

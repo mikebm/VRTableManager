@@ -45,6 +45,7 @@ public sealed partial class MainViewModel
     async Task UseOwnLobbyVideo(InstalledItem item)
     {
         var table = item.Table;
+        if (!item.CanHaveLobbyVideo) return;
         if (await _ui.PickFileAsync($"Choose a playfield video for {item.Title}", "*.mp4;*.m4v;*.mov;*.wmv;*.avi;*.mkv",
                 startFolder: Environment.GetFolderPath(Environment.SpecialFolder.MyVideos)) is not { } video) return;
         if (!TryBeginBusy(table.TablePath)) return;
