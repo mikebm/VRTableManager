@@ -41,6 +41,13 @@ public sealed class AssistedDownloader
     /// <summary>A multi-file page: stop waiting this long after the last file arrived (or when you press DONE).</summary>
     public TimeSpan QuietAfterLast { get; init; } = TimeSpan.FromSeconds(60);
     public TimeSpan PollInterval { get; init; } = TimeSpan.FromSeconds(1);
+    /// <summary>After DONE: wait at least this long for a file that just finished saving to be picked up…</summary>
+    public TimeSpan DoneSettle { get; init; } = TimeSpan.FromSeconds(4);
+    /// <summary>…and at most this long for one the browser is still writing.</summary>
+    public TimeSpan DoneGraceMax { get; init; } = TimeSpan.FromMinutes(2);
+
+    /// <summary>The browsers' names for a file still downloading (Chrome/Edge, Firefox, Safari-style, generic).</summary>
+    static readonly string[] Partial = [".crdownload", ".part", ".download", ".partial"];
 
     public AssistedDownloader(Action<string> openInBrowser, string? downloadsDir = null)
     {
@@ -70,10 +77,15 @@ public sealed class AssistedDownloader
         (await DownloadCoreAsync(pageUrl, destDir, many: false, job, what))[0];
 
     /// <summary>Like <see cref="DownloadAsync"/>, for a page with several files you want (a ROM page): takes each one you download until you press DONE.</summary>
-    public Task<List<string>> DownloadAllAsync(string pageUrl, string destDir, JobItem job) =>
-        DownloadCoreAsync(pageUrl, destDir, many: true, job);
+    /// <param name="complete">
+    /// Says when the files so far are all that's needed (a ROM set PinMAME can load), so the wait ends by
+    /// itself like a single-file download; DONE and the quiet timeout still end it otherwise.
+    /// </param>
+    public Task<List<string>> DownloadAllAsync(string pageUrl, string destDir, JobItem job, Func<IReadOnlyList<string>, bool>? complete = null) =>
+        DownloadCoreAsync(pageUrl, destDir, many: true, job, complete: complete);
 
-    async Task<List<string>> DownloadCoreAsync(string pageUrl, string destDir, bool many, JobItem job, string? what = null)
+    async Task<List<string>> DownloadCoreAsync(string pageUrl, string destDir, bool many, JobItem job, string? what = null,
+        Func<IReadOnlyList<string>, bool>? complete = null)
     {
         var ct = job.Cts.Token;
         var started = DateTime.UtcNow.AddSeconds(-2);
@@ -86,6 +98,9 @@ public sealed class AssistedDownloader
             var sizes = new Dictionary<string, long>(StringComparer.OrdinalIgnoreCase);
             var got = new List<string>();
             var lastGot = DateTime.UtcNow;
+            DateTime? doneAt = null;
+            var lastBusy = DateTime.MinValue; // last time the browser was seen still writing a file
+            var checkedAt = 0;                // files there were when `complete` was last asked
 
             job.BeginWaiting(pageUrl, many);
             _openInBrowser(pageUrl);
@@ -98,8 +113,13 @@ public sealed class AssistedDownloader
                 // You pointed at a file yourself, or pressed DONE.
                 if (job.TakeHandoff() is { } handoff)
                 {
-                    if (handoff.File is { } picked) { got.Add(CopyIn(picked, destDir)); lastGot = DateTime.UtcNow; }
-                    if (handoff.Done || !many) break;
+                    if (handoff.File is { } picked)
+                    {
+                        got.Add(CopyIn(picked, destDir));
+                        lastGot = DateTime.UtcNow;
+                        if (!many) break;
+                    }
+                    if (handoff.Done) doneAt ??= DateTime.UtcNow;
                 }
                 foreach (var file in FinishedNewFiles(seen, sizes, started))
                 {
@@ -112,19 +132,45 @@ public sealed class AssistedDownloader
                                    + "If it's this one, use I SAVED IT and pick it.");
                         continue;
                     }
+                    if (owner == Owner.NotThis)
+                    {
+                        job.Report($"Got {Path.GetFileName(file)}, but that name doesn't match {string.Join(" / ", job.FileNames.Take(1))}, so it wasn't used. "
+                                   + "If it is the right file, use I SAVED IT and pick it.");
+                        continue;
+                    }
                     got.Add(CopyIn(file, destDir));
                     lastGot = DateTime.UtcNow;
                     if (!many) break;
                 }
-                if (got.Count > 0)
+                if (got.Count > 0 && !many) break;
+                // Everything that's needed has arrived: no DONE to press.
+                if (got.Count > checkedAt && complete != null)
                 {
-                    if (!many) break;
-                    job.Report($"Got {got.Count} file{(got.Count == 1 ? "" : "s")}. Download any others you want from the page, then press DONE.");
+                    checkedAt = got.Count;
+                    bool enough;
+                    try { enough = complete(got); } catch { enough = false; }
+                    if (enough) break;
+                }
+                if (doneAt is { } done)
+                {
+                    // DONE was pressed: a download that's still being saved (or just finished) is still yours.
+                    // Give the browser a moment, and longer while it's still writing a file.
+                    if (PartialDownloads(started)) lastBusy = DateTime.UtcNow;
+                    var quiet = DateTime.UtcNow - (lastBusy > done ? lastBusy : done);
+                    if (quiet > DoneSettle || DateTime.UtcNow - done > DoneGraceMax) break;
+                    job.Report("Waiting for the download to finish saving…");
+                }
+                else if (got.Count > 0)
+                {
+                    job.Report(complete != null
+                        ? $"Got {got.Count} file{(got.Count == 1 ? "" : "s")}, but the set isn't complete yet: download the rest from the page (a parent set, if it lists one), or press DONE."
+                        : $"Got {got.Count} file{(got.Count == 1 ? "" : "s")}. Download any others you want from the page, then press DONE.");
                     if (DateTime.UtcNow - lastGot > QuietAfterLast) break;
                 }
                 await Task.WhenAny(Task.Delay(PollInterval, ct), job.HandoffArrived);
             }
-            if (got.Count == 0) throw new InvalidOperationException("No file was downloaded.");
+            if (got.Count == 0)
+                throw new InvalidOperationException($"No file arrived in {DownloadsDir}. Try again; if your browser saves somewhere else, use I SAVED IT while it waits.");
             job.Report(got.Count == 1 ? $"Got {Path.GetFileName(got[0])}." : $"Got {got.Count} files.");
             return got;
         }
@@ -135,11 +181,24 @@ public sealed class AssistedDownloader
         }
     }
 
-    enum Owner { Mine, Other, Unsure }
+    /// <summary>A file the browser started saving since the wait began and hasn't finished.</summary>
+    bool PartialDownloads(DateTime started)
+    {
+        try
+        {
+            return Directory.Exists(DownloadsDir) && Directory.EnumerateFiles(DownloadsDir)
+                .Any(f => Partial.Contains(Path.GetExtension(f).ToLowerInvariant()) && File.GetLastWriteTimeUtc(f) >= started);
+        }
+        catch { return false; }
+    }
+
+    enum Owner { Mine, Other, Unsure, NotThis }
 
     /// <summary>
     /// Whose a finished file is among the jobs waiting: the only one that takes its type, else the one whose
-    /// names it carries best. Taking it marks it so no other job does.
+    /// names it carries best. Taking it marks it so no other job does. A job that asks for
+    /// <see cref="JobItem.NamesMustMatch"/> (a ROM) doesn't take a file that carries none of its names just
+    /// because nothing else is waiting: dungdrag.zip saved after its own job ended is not beav_butt.zip.
     /// </summary>
     Owner Claim(string file, JobItem me)
     {
@@ -151,6 +210,7 @@ public sealed class AssistedDownloader
             var ext = Path.GetExtension(file).ToLowerInvariant();
             var candidates = _waiting.Where(w => w.started <= written && (w.job.FileTypes.Count == 0 || w.job.FileTypes.Contains(ext))).Select(w => w.job).ToList();
             if (!candidates.Contains(me)) return Owner.Other;
+            if (candidates.Count == 1 && me.NamesMustMatch && Score(Path.GetFileName(file), me.FileNames) == 0) return Owner.NotThis;
             var owner = candidates.Count == 1 ? me : null;
             if (owner == null)
             {
