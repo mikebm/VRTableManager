@@ -535,78 +535,69 @@
       <TabItem Header="GET TABLES">
         <Grid ColumnDefinitions="*,Auto">
 
-          <ScrollViewer Grid.Column="0">
-            <StackPanel Margin="28,22,12,28" Spacing="20">
-
-              <!-- Hero -->
+          <!-- Everything above the cards stays put; only the cards scroll. -->
+          <DockPanel Grid.Column="0">
+            <StackPanel DockPanel.Dock="Top" Margin="28,14,12,6" Spacing="10">
+              <!-- One line: title and source; the match count on a slim score display on the right. -->
               <Grid ColumnDefinitions="*,Auto">
-                <StackPanel Spacing="8" MaxWidth="660" HorizontalAlignment="Left" VerticalAlignment="Center">
-                  <TextBlock Classes="eyebrow" Text="VIRTUAL PINBALL SPREADSHEET · ONE-CLICK INSTALL" />
-                  <TextBlock Classes="display" Text="Get Tables" />
-                  <TextBlock Classes="body"
-                             Text="Every VPX and Future Pinball table on the Virtual Pinball Spreadsheet. Pick one, hit Install, and it's downloaded, unpacked and ready to play in your headset. Sign in to the table site once; the app does the clicking after that." />
+                <StackPanel Orientation="Horizontal" Spacing="14" VerticalAlignment="Center"
+                            ToolTip.Tip="Every VPX and Future Pinball table on the Virtual Pinball Spreadsheet. Pick one, hit Install, and it's downloaded, unpacked and ready to play in your headset. Sign in to the table site once; the app does the clicking after that.">
+                  <TextBlock Classes="h2" Text="Get Tables" VerticalAlignment="Center" />
+                  <TextBlock Classes="eyebrow" Text="VIRTUAL PINBALL SPREADSHEET · ONE-CLICK INSTALL" VerticalAlignment="Center" />
                 </StackPanel>
-
-                <!-- The score display: count in dot-matrix plasma, dot grid showing through -->
-                <Border Grid.Column="1" Classes="dmd" Width="380" Height="150" Margin="24,0,4,0" ClipToBounds="True">
+                <Border Grid.Column="1" Classes="dmd" Height="40" Margin="16,0,4,0" ClipToBounds="True" VerticalAlignment="Center">
                   <Grid>
                     <Border Background="{StaticResource DmdDots}" />
-                    <StackPanel VerticalAlignment="Center" HorizontalAlignment="Center" Spacing="0">
-                      <TextBlock Classes="dmd" FontSize="72" HorizontalAlignment="Center" LineHeight="70"
+                    <StackPanel Orientation="Horizontal" Spacing="10" Margin="16,0" VerticalAlignment="Center" HorizontalAlignment="Center">
+                      <TextBlock Classes="dmd" FontSize="26" VerticalAlignment="Center"
                                  Text="{Binding MatchCount, StringFormat='{}{0:N0}'}" />
-                      <TextBlock Classes="dmd" FontSize="17" LetterSpacing="2" HorizontalAlignment="Center"
+                      <TextBlock Classes="dmd" FontSize="13" LetterSpacing="2" VerticalAlignment="Center"
                                  Text="{Binding TotalCount, StringFormat='TABLES MATCH · OF {0:N0}'}" />
                     </StackPanel>
                   </Grid>
                 </Border>
               </Grid>
 
-              <!-- Toolbar -->
-              <Grid>
-                <Grid.ColumnDefinitions>
-                  <ColumnDefinition Width="*" MaxWidth="460" />
-                  <ColumnDefinition Width="Auto" />
-                  <ColumnDefinition Width="Auto" />
-                  <ColumnDefinition Width="Auto" />
-                  <ColumnDefinition Width="Auto" />
-                </Grid.ColumnDefinitions>
-                <TextBox Grid.Column="0" Text="{Binding SearchText}" PlaceholderText="Search name, manufacturer or author">
+              <!-- Search and filters in one row that wraps when the window is narrow -->
+              <WrapPanel>
+                <WrapPanel.Styles>
+                  <Style Selector="ComboBox">
+                    <Setter Property="Margin" Value="0,0,10,8" />
+                    <Setter Property="MinWidth" Value="150" />
+                    <Setter Property="VerticalAlignment" Value="Center" />
+                  </Style>
+                </WrapPanel.Styles>
+                <TextBox Text="{Binding SearchText}" PlaceholderText="Search name, manufacturer or author" Width="300" Margin="0,0,12,8">
                   <TextBox.InnerLeftContent>
                     <PathIcon Classes="search" Margin="12,0,0,0" />
                   </TextBox.InnerLeftContent>
                 </TextBox>
-                <ListBox Grid.Column="1" Classes="segmented" Margin="14,0,0,0" VerticalAlignment="Center"
+                <ListBox Classes="segmented" Margin="0,0,14,8" VerticalAlignment="Center"
                          ItemsSource="{Binding EngineFilters}" SelectedItem="{Binding EngineFilter}" />
-                <ToggleSwitch Grid.Column="2" Margin="18,0,0,0" IsChecked="{Binding VrOnly}" OnContent="VR-ready only" OffContent="VR-ready only"
+                <ToggleSwitch Margin="0,0,14,8" IsChecked="{Binding VrOnly}" OnContent="VR-ready only" OffContent="VR-ready only"
                               FontWeight="SemiBold" VerticalAlignment="Center" />
-                <Button Grid.Column="3" Classes="icon" Content="⟳" ToolTip.Tip="Refresh catalog" Margin="12,0,0,0"
-                        Command="{Binding RefreshCatalogCommand}" VerticalAlignment="Center" />
-                <TextBlock Grid.Column="4" Classes="mono" Margin="16,0,4,0" VerticalAlignment="Center" Text="{Binding CountLabel}" />
-              </Grid>
-
-              <!-- Narrow down: maker, era, type, order -->
-              <WrapPanel Margin="0,-6,0,0">
-                <WrapPanel.Styles>
-                  <Style Selector="ComboBox">
-                    <Setter Property="Margin" Value="0,0,10,6" />
-                    <Setter Property="MinWidth" Value="150" />
-                  </Style>
-                </WrapPanel.Styles>
                 <ComboBox ItemsSource="{Binding Manufacturers}" SelectedItem="{Binding ManufacturerFilter}" MaxDropDownHeight="420" ToolTip.Tip="Manufacturer" />
                 <ComboBox ItemsSource="{Binding Eras}" SelectedItem="{Binding EraFilter}" ToolTip.Tip="When the real machine came out" />
                 <ComboBox ItemsSource="{Binding MachineTypes}" SelectedItem="{Binding TypeFilter}" ToolTip.Tip="Solid state (1977 on), electro-mechanical, or original designs" />
-                <StackPanel Orientation="Horizontal" Spacing="8" Margin="8,0,10,6">
+                <StackPanel Orientation="Horizontal" Spacing="8" Margin="4,0,10,8" VerticalAlignment="Center">
                   <TextBlock Classes="eyebrow" Foreground="{StaticResource Muted}" Text="SORT" VerticalAlignment="Center" />
                   <ComboBox ItemsSource="{Binding CatalogSorts}" SelectedItem="{Binding CatalogSort}" Margin="0" />
                 </StackPanel>
-                <Button Classes="small" Content="CLEAR FILTERS" Margin="0,0,0,6" VerticalAlignment="Center"
+                <Button Classes="small" Content="CLEAR FILTERS" Margin="0,0,10,8" VerticalAlignment="Center"
                         IsVisible="{Binding HasCatalogFilters}" Command="{Binding ClearCatalogFiltersCommand}" />
+                <Button Classes="icon" Content="⟳" ToolTip.Tip="Refresh catalog" Margin="0,0,12,8"
+                        Command="{Binding RefreshCatalogCommand}" VerticalAlignment="Center" />
+                <TextBlock Classes="mono" Margin="0,0,4,8" VerticalAlignment="Center" Text="{Binding CountLabel}" />
               </WrapPanel>
 
               <StackPanel Orientation="Horizontal" Spacing="10" IsVisible="{Binding IsLoading}">
                 <ProgressBar IsIndeterminate="True" Width="120" />
                 <TextBlock Classes="mono" Text="Loading tables…" />
               </StackPanel>
+            </StackPanel>
+
+          <ScrollViewer>
+            <StackPanel Margin="28,8,12,28" Spacing="20">
 
               <!-- Card grid -->
               <ListBox Classes="grid" ItemsSource="{Binding Games}" SelectedItem="{Binding SelectedGame}">
@@ -648,6 +639,7 @@
                       Command="{Binding ShowMoreCommand}" />
             </StackPanel>
           </ScrollViewer>
+          </DockPanel>
 
           <!-- Detail drawer -->
           <Border Grid.Column="1" Width="470" Background="{StaticResource Surface}"
