@@ -58,6 +58,7 @@ public sealed partial class MainViewModel : ObservableObject, IAsyncDisposable
         HideAdult = Settings.HideAdult;
         ReturnAfterPlay = Settings.ReturnAfterPlay;
         VpxUseDoNotUseBuilds = Settings.VpxUseDoNotUseBuilds;
+        VpxUseNightlyBuilds = Settings.VpxUseNightlyBuilds;
         FpRunAsAdmin = Settings.FpRunAsAdmin;
         ApplyPinballUevrProfile = Settings.ApplyPinballUevrProfile;
         ShowZenReminder = Settings.ShowZenReminder;
@@ -73,7 +74,8 @@ public sealed partial class MainViewModel : ObservableObject, IAsyncDisposable
         UseBuiltInPinmame = Settings.UseBuiltInPinmame;
         UsePupPlugin = Settings.UsePupPlugin;
         UseDisplayPlugins = Settings.UseDisplayPlugins;
-        VrAddBackglass = Settings.VrAddBackglass;
+        // VPX's own value: turning it off or on in VPX's menu during VR play changes it there.
+        VrAddBackglass = VpxSetup.VrAddBackglass(Settings);
         AutoVrRoom = Settings.AutoVrRoom;
         LobbyRecordsRomAudio = Settings.LobbyRecordsRomAudio;
         LobbyWaitsForTable = Settings.LobbyWaitsForTable;
@@ -965,6 +967,7 @@ public sealed partial class MainViewModel : ObservableObject, IAsyncDisposable
     [ObservableProperty] public partial bool HideAdult { get; set; }
     [ObservableProperty] public partial bool ReturnAfterPlay { get; set; }
     [ObservableProperty] public partial bool VpxUseDoNotUseBuilds { get; set; }
+    [ObservableProperty] public partial bool VpxUseNightlyBuilds { get; set; }
     [ObservableProperty] public partial bool FpRunAsAdmin { get; set; }
     [ObservableProperty] public partial string RefreshRate { get; set; }
     [ObservableProperty] public partial string VpxStatus { get; set; } = "";
@@ -988,6 +991,7 @@ public sealed partial class MainViewModel : ObservableObject, IAsyncDisposable
             case nameof(HideAdult): Settings.HideAdult = HideAdult; ApplyFilter(); break;
             case nameof(ReturnAfterPlay): Settings.ReturnAfterPlay = ReturnAfterPlay; break;
             case nameof(VpxUseDoNotUseBuilds): Settings.VpxUseDoNotUseBuilds = VpxUseDoNotUseBuilds; break;
+            case nameof(VpxUseNightlyBuilds): Settings.VpxUseNightlyBuilds = VpxUseNightlyBuilds; break;
             case nameof(FpRunAsAdmin): Settings.FpRunAsAdmin = FpRunAsAdmin; break;
             case nameof(ApplyPinballUevrProfile): Settings.ApplyPinballUevrProfile = ApplyPinballUevrProfile; RefreshSetupStatus(); break;
             case nameof(ShowZenReminder): Settings.ShowZenReminder = ShowZenReminder; break;
@@ -998,7 +1002,10 @@ public sealed partial class MainViewModel : ObservableObject, IAsyncDisposable
             case nameof(UseBuiltInPinmame): Settings.UseBuiltInPinmame = UseBuiltInPinmame; break;
             case nameof(UsePupPlugin): Settings.UsePupPlugin = UsePupPlugin; break;
             case nameof(UseDisplayPlugins): Settings.UseDisplayPlugins = UseDisplayPlugins; break;
-            case nameof(VrAddBackglass): Settings.VrAddBackglass = VrAddBackglass; break;
+            case nameof(VrAddBackglass):
+                Settings.VrAddBackglass = VrAddBackglass;
+                try { VpxSetup.SetVrAddBackglass(Settings, VrAddBackglass); } catch (IOException) { } // VPX folder not there yet: EnsureVrIni sets it
+                break;
             case nameof(AutoVrRoom): Settings.AutoVrRoom = AutoVrRoom; break;
             case nameof(LobbyRecordsRomAudio): Settings.LobbyRecordsRomAudio = LobbyRecordsRomAudio; break;
             case nameof(LobbyWaitsForTable): Settings.LobbyWaitsForTable = LobbyWaitsForTable; break;
@@ -1091,7 +1098,7 @@ public sealed partial class MainViewModel : ObservableObject, IAsyncDisposable
     {
         try
         {
-            var releases = await VpxSetup.FindReleasesAsync(CancellationToken.None, Settings.VpxUseDoNotUseBuilds);
+            var releases = await VpxSetup.FindReleasesAsync(CancellationToken.None, Settings.VpxUseDoNotUseBuilds, Settings.VpxUseNightlyBuilds);
             var (text, hasUpdate) = VpxSetup.DescribeUpdate(releases, VpxSetup.InstalledVersion(Settings));
             LatestVpx = hasUpdate ? $"{text} ({releases.Latest!.Size / 1_048_576} MB)" : text;
         }
@@ -1118,7 +1125,7 @@ public sealed partial class MainViewModel : ObservableObject, IAsyncDisposable
         try
         {
             LatestVpx = "Checking GitHub for the newest VPX build…";
-            var releases = await VpxSetup.FindReleasesAsync(cts.Token, Settings.VpxUseDoNotUseBuilds);
+            var releases = await VpxSetup.FindReleasesAsync(cts.Token, Settings.VpxUseDoNotUseBuilds, Settings.VpxUseNightlyBuilds);
             var installed = VpxSetup.InstalledVersion(Settings);
             var (text, hasUpdate) = VpxSetup.DescribeUpdate(releases, installed);
             // Only install what's offered: no "DO NOT USE" build unless allowed, never an older one over a newer install.
@@ -1313,7 +1320,7 @@ public sealed partial class MainViewModel : ObservableObject, IAsyncDisposable
         try
         {
             var ct = CancellationToken.None;
-            var vpxTask = Try<VpxReleases>(async () => await VpxSetup.FindReleasesAsync(ct, Settings.VpxUseDoNotUseBuilds));
+            var vpxTask = Try<VpxReleases>(async () => await VpxSetup.FindReleasesAsync(ct, Settings.VpxUseDoNotUseBuilds, Settings.VpxUseNightlyBuilds));
             var uevrTask = Try(() => UevrSetup.FindLatestAsync(ct));
             var bamTask = Try(() => BamCheck.LatestAsync(ct));
             var appTask = CheckAppUpdateAsync();

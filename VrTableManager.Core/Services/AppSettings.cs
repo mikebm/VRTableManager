@@ -27,6 +27,11 @@ public sealed class AppSettings
     /// BGFX builds with the newest VR work; off: only builds without that label are offered.
     /// </summary>
     public bool VpxUseDoNotUseBuilds { get; set; } = true;
+    /// <summary>
+    /// Also install and update to VPX's nightly BGFX builds (built from every change to its master branch) when
+    /// they're newer than the newest release. Untested by the VPX team; off by default.
+    /// </summary>
+    public bool VpxUseNightlyBuilds { get; set; }
     /// <summary>0 = runtime default, otherwise 72/80/90/120.</summary>
     public int VrRefreshRate { get; set; }
     /// <summary>Meta Quest Link's spacewarp before VR launches: "Leave as is", "Off" or "Auto" (<see cref="MetaAsw"/>).</summary>
@@ -49,10 +54,12 @@ public sealed class AppSettings
     /// </summary>
     public bool UseDisplayPlugins { get; set; } = true;
     /// <summary>
-    /// VR play adds VPX's default backglass display to tables that have none of their own (desktop and cabinet
-    /// tables), so PuP packs and .directb2s backglasses have somewhere to show. VPX's [PlayerVR] AddBackglass.
+    /// VR play adds VPX's default backglass display ([PlayerVR] AddBackglass), so a desktop or cabinet table's PuP pack
+    /// or .directb2s backglass has somewhere to show. Off by default: VR tables bring their own backglass and DMD, and
+    /// VPX's panel can get in their way. Written only when the checkbox changes (<see cref="VpxSetup.SetVrAddBackglass"/>),
+    /// so turning it off or on in VPX's own menu sticks; a table that wants it can also have it as a table setting.
     /// </summary>
-    public bool VrAddBackglass { get; set; } = true;
+    public bool VrAddBackglass { get; set; }
     /// <summary>
     /// Tables with a hand-set VR room switch in their script (VRRoom = 0 / 1) get it set for the mode being
     /// played: on in VR, off on the desktop (<see cref="VrRoomSwitch"/>). Off: every table plays as it came.

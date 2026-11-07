@@ -161,6 +161,26 @@ Check((rel ?? vpxReleases.Withdrawn)?.AssetName.StartsWith("VPinballX_BGFX-") ==
     var allowed = VpxSetup.ParseReleases($"[{Rel("v10.8.2-100-c", "DO NOT USE - v10.8.2-100-c")},{Rel("v10.8.1-5436-a", "v10.8.1")}]", useDoNotUse: true);
     Check(allowed.Latest?.Tag == "v10.8.2-100-c" && VpxSetup.DescribeUpdate(allowed, "v10.8.1-5436-a").HasUpdate,
         "DO NOT USE setting: the newest BGFX build is installed and offered as an update");
+
+    // Nightly builds (GitHub Actions artifacts of VPX's master branch).
+    var artifacts = $$"""{"artifacts":[{"id":7,"name":"VPinballX_GL-10.8.2-6625-ab-windows-x64-Release.zip","size_in_bytes":1,"expired":false},{"id":8,"name":"VPinballX_BGFX-10.8.2-6625-ab{{(OperatingSystem.IsWindows() ? "-windows-x64-Release.zip" : OperatingSystem.IsMacOS() ? (System.Runtime.InteropServices.RuntimeInformation.OSArchitecture == System.Runtime.InteropServices.Architecture.Arm64 ? "-macos-arm64-Release.dmg" : "-macos-x64-Release.dmg") : "-linux-x64-Release.tar.gz")}}","size_in_bytes":5,"expired":false}]}""";
+    var n = VpxSetup.ParseNightlyArtifacts(artifacts);
+    Check(n is { Nightly: true, Tag: "v10.8.2-6625-ab", Size: 5 } && n.Url == "https://nightly.link/vpinball/vpinball/actions/artifacts/8.zip",
+        "nightly: picks the BGFX artifact for this OS and its nightly.link download");
+    Check(VpxSetup.ParseNightlyArtifacts(artifacts.Replace("\"expired\":false}]", "\"expired\":true}]")) == null, "nightly: expired artifacts are skipped");
+    var withN = VpxSetup.WithNightly(allowed, n);
+    Check(withN.Latest == n && VpxSetup.DescribeUpdate(withN, "v10.8.2-100-c") is { HasUpdate: true } u && u.Text.Contains("(nightly)"),
+        "nightly setting: a newer nightly is offered over the newest release");
+    Check(VpxSetup.WithNightly(allowed, n! with { Tag = "v10.8.1-100-old" }).Latest?.Tag == "v10.8.2-100-c", "nightly setting: an older nightly never replaces a release");
+    Check(VpxSetup.WithNightly(allWithdrawn, n).Withdrawn == null, "nightly setting: no DO NOT USE note once the nightly is newer");
+    Check(!VpxSetup.DescribeUpdate(mixed, "v10.8.2-6625-ab").HasUpdate, "nightly off: an installed nightly is kept, not downgraded");
+}
+
+// 6b. Live nightly lookup
+{
+    var nightly = await VpxSetup.FindNightlyAsync(CancellationToken.None);
+    Console.WriteLine($"newest VPX nightly: {nightly?.Tag} {nightly?.Url} {nightly?.Size / 1_048_576} MB");
+    Check(nightly?.AssetName.StartsWith("VPinballX_BGFX-") == true, "finds the newest nightly BGFX build");
 }
 
 // 6a. VR Table Manager's own updates
