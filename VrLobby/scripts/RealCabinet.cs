@@ -187,7 +187,7 @@ public partial class RealCabinetLoader : Node
             img.GenerateMipmaps();
             // GPU block compression (DXT): ~4-8x less video memory for a ring of cabinets. Uncompressed if
             // this Godot build can't compress at runtime. DetectAlpha first, as compression hides it.
-            var alpha = img.DetectAlpha();
+            var alpha = AlphaOf(img);
             _ = img.Compress(Image.CompressMode.S3Tc, Image.CompressSource.Generic);
             images[name] = img;
             alphaModes[name] = alpha;
@@ -290,6 +290,29 @@ public partial class RealCabinetLoader : Node
     static Vector3 ToGodot(System.Numerics.Vector3 v) => new(v.X, v.Y, v.Z);
 
     static bool IsBackglass(string name) => name.Contains("backglass", StringComparison.OrdinalIgnoreCase);
+
+    /// <summary>
+    /// How a picture's alpha is drawn. VPX only blends a part whose material has opacity on (handled in MaterialFor);
+    /// a texture's alpha just cuts pixels away. So a picture is drawn see-through (blended) only when a real share
+    /// of it is partly transparent, and otherwise as a cut-out. Godot's DetectAlpha calls a picture "blend" over a
+    /// handful of soft edge pixels, which put Big Trouble in Little China's whole cabinet on the blended path:
+    /// there, the cabinet's inside (drawn after its front, in the same mesh) showed through the front panel.
+    /// </summary>
+    internal static Image.AlphaMode AlphaOf(Image img)
+    {
+        if (img.GetFormat() != Image.Format.Rgba8) return img.DetectAlpha(); // no alpha channel (or one we don't read): as Godot says
+        var data = img.GetData();
+        var pixels = img.GetWidth() * img.GetHeight(); // the full-size level; any mipmaps follow it
+        int clear = 0, partial = 0, seen = 0;
+        for (var i = 0; i < pixels; i += 3, seen++)
+        {
+            var a = data[i * 4 + 3];
+            if (a < 8) clear++;
+            else if (a < 248) partial++;
+        }
+        if (clear == 0 && partial == 0) return Image.AlphaMode.None;
+        return partial > seen / 100 ? Image.AlphaMode.Blend : Image.AlphaMode.Bit;
+    }
 
     /// <summary>One flat colour (every sampled pixel within a few levels of the first).</summary>
     internal static bool IsBlank(Image img)

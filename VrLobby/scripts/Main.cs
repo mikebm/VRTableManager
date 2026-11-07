@@ -173,12 +173,21 @@ public partial class Main : Node3D
         _recordRoms = !selfTest && Settings.LobbyRecordsRomAudio;
         _recorder.SettingsPath = _settingsPath;
         _borrowAll = args.ContainsKey("borrow-all");
+        _noDepth = args.ContainsKey("no-depth"); // flat playfield video, for comparing (PlayfieldDepth)
         // --screenshot=<png> [--pitch=<degrees>] (desktop, diagnostic): save one frame once the art is in, then quit.
         if (!_vr && args.GetValueOrDefault("screenshot") is { Length: > 0 } shot)
         {
             if (float.TryParse(args.GetValueOrDefault("pitch"), System.Globalization.CultureInfo.InvariantCulture, out var pitch)
                 && GetViewport().GetCamera3D() is { } cam)
                 cam.Rotation = new Vector3(Mathf.DegToRad(pitch), 0, 0);
+            // --fov=<degrees>: zoom in from the same standing spot (same perspective, closer look).
+            if (float.TryParse(args.GetValueOrDefault("fov"), System.Globalization.CultureInfo.InvariantCulture, out var fov)
+                && GetViewport().GetCamera3D() is { } zoomCam)
+                zoomCam.Fov = fov;
+            // --cam-y=<metres>: eye height for the shot (default standing height), e.g. to look a cabinet's front in the face.
+            if (float.TryParse(args.GetValueOrDefault("cam-y"), System.Globalization.CultureInfo.InvariantCulture, out var camY)
+                && GetViewport().GetCamera3D() is { } lowCam)
+                lowCam.Position = new Vector3(lowCam.Position.X, camY, lowCam.Position.Z);
             GetTree().CreateTimer(6).Timeout += () =>
             {
                 GetViewport().GetTexture().GetImage().SavePng(shot);
@@ -299,7 +308,7 @@ public partial class Main : Node3D
         _heightLabel.NoDepthTest = true;
         _heightLabel.RenderPriority = 20;
         _heightLabel.Position = new Vector3(0, -0.12f, -0.7f);
-        _heightLabel.Modulate = new Color(1, 1, 1, 0);
+        Fade(_heightLabel, Colors.White, Colors.Black, 0);
         cam.AddChild(_heightLabel);
     }
 
@@ -433,7 +442,7 @@ public partial class Main : Node3D
         _flash.NoDepthTest = true;
         _flash.RenderPriority = 10;
         _flash.Position = new Vector3(0, 1.45f, -1.25f);
-        _flash.Modulate = new Color(Palette.Dmd, 0);
+        Fade(_flash, Palette.Dmd, Palette.DmdPanel, 0);
     }
 
     /// <summary>
@@ -577,7 +586,7 @@ public partial class Main : Node3D
     public const string DefaultCabinetFile = "res://cabinet/default.cab";
 
     RealCabinet? _template;
-    bool _borrowAll;
+    bool _borrowAll, _noDepth;
 
     /// <summary>The cabinet tables without their own VR cabinet borrow (null: the default file is missing, the drawn one is used).</summary>
     public RealCabinet? TemplateCabinet => _template;
@@ -744,6 +753,17 @@ public partial class Main : Node3D
         _menuHeld += delta;
         if (_menuHeld >= 1.0) { _menuHeld = -1; Leave("menu button held"); }
         else ShowFlash("HOLD TO LEAVE");
+    }
+
+    /// <summary>
+    /// Fades a label in or out, outline too: a Label3D's outline has its own colour that Modulate doesn't touch, so
+    /// fading only the text left its dark outline hanging in the air as black text. Hidden once fully faded.
+    /// </summary>
+    static void Fade(Label3D label, Color text, Color outline, float alpha)
+    {
+        label.Modulate = new Color(text, alpha);
+        label.OutlineModulate = new Color(outline, alpha);
+        label.Visible = alpha > 0.001f;
     }
 
     void ShowFlash(string? text = null)
@@ -986,7 +1006,7 @@ public partial class Main : Node3D
     {
         if (_video.Playing != null || Shown.Count == 0 || SelectedCabinet is not { Table: { } t } cab || _videoCheckedFor == t.Id) return;
         _videoCheckedFor = t.Id;
-        if (LobbyArt.PlayfieldVideo(t) is var (folder, info)) { _video.Play(cab, folder, info); Trace("video start"); }
+        if (LobbyArt.PlayfieldVideo(t) is var (folder, info)) { _video.Play(cab, folder, info, _noDepth ? null : t.Source.TablePath); Trace("video start"); }
     }
 
     void StopAttract()
@@ -1040,7 +1060,7 @@ public partial class Main : Node3D
         if (_flashTime > 0)
         {
             _flashTime -= delta;
-            _flash.Modulate = new Color(Palette.Dmd, Mathf.Clamp((float)_flashTime / 0.3f, 0f, 0.85f));
+            Fade(_flash, Palette.Dmd, Palette.DmdPanel, Mathf.Clamp((float)_flashTime / 0.3f, 0f, 0.85f));
         }
         _statsCheck -= delta;
         if (_statsCheck <= 0)
@@ -1051,7 +1071,7 @@ public partial class Main : Node3D
         if (_heightShow > 0)
         {
             _heightShow -= delta;
-            _heightLabel.Modulate = new Color(1, 1, 1, Mathf.Clamp((float)_heightShow / 0.4f, 0f, 1f));
+            Fade(_heightLabel, Colors.White, Colors.Black, Mathf.Clamp((float)_heightShow / 0.4f, 0f, 1f));
         }
 
         if (!_vr || _launching || _left == null || _right == null || _ray == null) return;
