@@ -219,7 +219,13 @@ public static class LobbyVideo
             ("PlayfieldHeight", CaptureHeight.ToString()),
             ("SoundVolume", "0"),
             ("MusicVolume", "0"),
+            // VPX fits the playfield to the window itself ("Fit Table") instead of using the table's own cabinet
+            // camera, which a VR edition sets up for its room: g5k's Attack from Mars filmed a whole city block
+            // with the table a speck in the middle. Fitted, every recording is the playfield edge to edge.
+            ("CabinetAutofitMode", "1"),
+            ("ScreenInclination", "0"),
         ]);
+        IniFile.Set(ini, "TableOverride", "ViewCabMode", "2"); // "Window", the cabinet projection autofit works in
         // The plugins stay as for VR play: a table script that creates the B2S or PuP object stops at a script
         // error (a dialog nobody answers) when they're off. Only the playfield window is captured.
         return ini;
