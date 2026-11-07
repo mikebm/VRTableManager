@@ -105,17 +105,17 @@
             </Border>
           </StackPanel>
         </TabItem.Header>
-        <ScrollViewer>
-          <StackPanel Margin="28,22,28,28" Spacing="20">
+        <!-- Everything above the cards stays put; only the cards scroll. -->
+        <DockPanel>
+          <StackPanel DockPanel.Dock="Top" Margin="28,14,28,6" Spacing="10">
+            <!-- One line: title and count, buttons on the right. How Play works is the title's tooltip. -->
             <Grid ColumnDefinitions="*,Auto">
-              <StackPanel Spacing="8">
-                <TextBlock Classes="eyebrow" Text="{Binding InstalledTotal, StringFormat='{}{0} INSTALLED'}" />
-                <TextBlock Classes="display" Text="My Tables" />
-                <TextBlock Classes="body" Text="Hit Play in VR, then put your headset on. This window gets out of the way and comes back when the table closes, so you can pick the next one." />
-                <TextBlock Foreground="{StaticResource Lamp}" FontWeight="SemiBold" Text="{Binding PlayStatus}"
-                           IsVisible="{Binding PlayStatus, Converter={x:Static StringConverters.IsNotNullOrEmpty}}" />
+              <StackPanel Orientation="Horizontal" Spacing="14" VerticalAlignment="Center"
+                          ToolTip.Tip="Hit Play in VR, then put your headset on. This window gets out of the way and comes back when the table closes, so you can pick the next one.">
+                <TextBlock Classes="h2" Text="My Tables" VerticalAlignment="Center" />
+                <TextBlock Classes="eyebrow" Text="{Binding InstalledTotal, StringFormat='{}{0} INSTALLED'}" VerticalAlignment="Center" />
               </StackPanel>
-              <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="10" VerticalAlignment="Bottom">
+              <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="10" VerticalAlignment="Center">
                 <Button Content="＋  ADD A TABLE FILE…" Command="{Binding AddTableFileCommand}"
                         ToolTip.Tip="Install a table zip (or .vpx / .fpt) you already downloaded yourself" />
                 <Button Content="⟳  RESCAN" Command="{Binding RefreshInstalledCommand}" />
@@ -124,17 +124,17 @@
                         ToolTip.Tip="Pick and play tables inside the headset. First time: downloads Godot (117 MB) and builds the lobby." />
               </StackPanel>
             </Grid>
+            <TextBlock Foreground="{StaticResource Lamp}" FontWeight="SemiBold" Text="{Binding PlayStatus}" TextWrapping="Wrap"
+                       IsVisible="{Binding PlayStatus, Converter={x:Static StringConverters.IsNotNullOrEmpty}}" />
 
-            <!-- Table updates banner -->
-            <Border CornerRadius="12" Padding="18,14" BorderBrush="{StaticResource Insert}" BorderThickness="1" Background="#14E5483B"
-                    IsVisible="{Binding TableUpdateCount, Converter={x:Static v:Converters.NonZero}}">
+            <!-- Table updates banner: one slim line -->
+            <Border CornerRadius="10" Padding="14,6" BorderBrush="{StaticResource Insert}" BorderThickness="1" Background="#14E5483B"
+                    IsVisible="{Binding TableUpdateCount, Converter={x:Static v:Converters.NonZero}}"
+                    ToolTip.Tip="Authors released newer versions. Updating keeps your ROMs, high scores and table settings.">
               <Grid ColumnDefinitions="Auto,*,Auto">
-                <TextBlock FontFamily="{StaticResource Display}" FontWeight="Black" FontSize="26" Foreground="{StaticResource Insert}"
-                           Text="{Binding TableUpdateCount}" VerticalAlignment="Center" Margin="0,0,16,0" />
-                <StackPanel Grid.Column="1" VerticalAlignment="Center" Spacing="2">
-                  <TextBlock Classes="title" Text="{Binding TableUpdateText}" />
-                  <TextBlock Classes="muted" Text="Authors released newer versions. Updating keeps your ROMs, high scores and table settings." />
-                </StackPanel>
+                <TextBlock FontFamily="{StaticResource Display}" FontWeight="Black" FontSize="18" Foreground="{StaticResource Insert}"
+                           Text="{Binding TableUpdateCount}" VerticalAlignment="Center" Margin="0,0,10,0" />
+                <TextBlock Grid.Column="1" Classes="title" Text="{Binding TableUpdateText}" VerticalAlignment="Center" />
                 <Button Grid.Column="2" Classes="primary" Content="UPDATE ALL TABLES" Command="{Binding UpdateAllTablesCommand}" VerticalAlignment="Center" />
               </Grid>
             </Border>
@@ -158,7 +158,8 @@
                          ToolTip.Tip="Card size: Text shows no pictures, so many more tables fit" />
               </StackPanel>
               <TextBlock Classes="mono" VerticalAlignment="Center" Margin="0,0,0,8"
-                         Text="{Binding InstalledSizeText, StringFormat='{}{0} on disk · favourites and plays are shared with the VR lobby'}" />
+                         Text="{Binding InstalledSizeText, StringFormat='{}{0} on disk'}"
+                         ToolTip.Tip="Favourites and plays are shared with the VR lobby" />
             </WrapPanel>
             <TextBlock Classes="body" Text="{Binding InstalledEmptyText}"
                        IsVisible="{Binding InstalledEmptyText, Converter={x:Static StringConverters.IsNotNullOrEmpty}}" />
@@ -169,8 +170,10 @@
                 <TextBlock Classes="body" Text="Go to Get Tables, pick a table with the VR badge and press Install." />
               </StackPanel>
             </Border>
+          </StackPanel>
 
-            <ItemsControl ItemsSource="{Binding Installed}">
+          <ScrollViewer>
+            <ItemsControl ItemsSource="{Binding Installed}" Margin="28,8,28,28">
               <ItemsControl.ItemsPanel>
                 <ItemsPanelTemplate><WrapPanel /></ItemsPanelTemplate>
               </ItemsControl.ItemsPanel>
@@ -520,8 +523,8 @@
                 </DataTemplate>
               </ItemsControl.ItemTemplate>
             </ItemsControl>
-          </StackPanel>
-        </ScrollViewer>
+          </ScrollViewer>
+        </DockPanel>
       </TabItem>
 
       <!-- ================= Get tables ================= -->
