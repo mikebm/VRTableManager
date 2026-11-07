@@ -9,6 +9,9 @@ config/description="Pick a table in VR, play it, come back."
 run/main_scene="res://main.tscn"
 config/features=PackedStringArray("4.7", "C#", "Mobile")
 config/icon="res://icon.png"
+; No Godot logo while the lobby starts: just black, the same as the room it opens into.
+boot_splash/show_image=false
+boot_splash/bg_color=Color(0, 0, 0, 1)
 
 [display]
 

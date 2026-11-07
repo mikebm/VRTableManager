@@ -255,6 +255,8 @@ public static class VpxCabinet
         public Dictionary<string, VpxMaterial> Materials = new(StringComparer.OrdinalIgnoreCase);
         public List<Prim> Prims = [];
         public Dictionary<string, (int Space, string? Parent)> Groups = new(StringComparer.OrdinalIgnoreCase);
+        /// <summary>The table's collections (named groups of parts its script switches together), by name.</summary>
+        public Dictionary<string, List<string>> Collections = new(StringComparer.OrdinalIgnoreCase);
     }
 
     /// <summary>Every primitive in the table with its name, visibility and bounds (VPX units), for diagnostics and tests.</summary>
@@ -399,8 +401,20 @@ public static class VpxCabinet
     {
         var candidates = t.Prims.Where(p => p.Use3DMesh && p.Verts != null && p.Indices != null && p.NumVerts > 0
                                             && LooksLikeCabinetPart(p.Name)).ToList();
+        // Many VR tables list their cabinet in a collection ("VRCab", "VR_Cabinet", "VRCabinet", "NewVRCab",
+        // "VR_Table") that the script shows when VR starts. Then a hidden part outside it is for desktop or cabinet
+        // mode, not VR (The Addams Family's speaker "Grill", wider than its backbox; Big Trouble's second cabinet
+        // body). Parts the table shows anyway, and blades (some scripts show those by an option), always count.
+        // Kept only if the cabinet body survives it, in case a collection lists part of a cabinet.
+        var vrCab = t.Collections.Where(c => VrCabinetCollection.IsMatch(c.Key)).SelectMany(c => c.Value)
+            .ToHashSet(StringComparer.OrdinalIgnoreCase);
+        if (vrCab.Count > 0)
+        {
+            var inVr = candidates.Where(p => p.Visible || vrCab.Contains(p.Name) || p.Name.Contains("blade", StringComparison.OrdinalIgnoreCase)).ToList();
+            if (inVr.Any(p => CabinetBody.IsMatch(p.Name))) candidates = inVr;
+        }
         // The body anchors the selection: "PinCab_Cabinet", "CabinetMain", "cab"… (the biggest such part).
-        var body = candidates.Where(p => Regex.IsMatch(p.Name, @"cabinet|^cab$|cabmain|cab_?body", RegexOptions.IgnoreCase))
+        var body = candidates.Where(p => CabinetBody.IsMatch(p.Name))
             .OrderByDescending(p => { var (a, b) = Bounds(p, t); return (b - a).Length(); }).FirstOrDefault();
         if (body == null) return [];
         var (bmin, bmax) = Bounds(body, t);
@@ -490,6 +504,9 @@ public static class VpxCabinet
         return walls;
     }
 
+    static readonly Regex CabinetBody = new(@"cabinet|^cab$|cabmain|cab_?body", RegexOptions.IgnoreCase);
+    static readonly Regex VrCabinetCollection = new(@"^(new)?_?vr_?(cab|cabinet|table)\d*$", RegexOptions.IgnoreCase);
+
     static readonly Regex StrongCabinetName = new(@"pincab|cabinet|^cab|apron|blade|siderail|side_?rail|lockdown|lockbar", RegexOptions.IgnoreCase);
 
     static (Vector3 Min, Vector3 Max) Bounds(Prim p, TableData t)
@@ -561,6 +578,22 @@ public static class VpxCabinet
                 var buf = ReadAll(s);
                 if (type == ItemPrimitive) t.Prims.Add(ReadPrimitive(buf, meshes));
                 else ReadPartGroup(buf, t);
+            }
+        }
+        // Collections live in streams of their own: a NAME and one ITEM per member.
+        for (var i = 0; i < 10_000; i++)
+        {
+            if (!game.TryOpenStream("Collection" + i, out var s) || s == null) break;
+            using (s)
+            {
+                string? name = null;
+                var items = new List<string>();
+                foreach (var (tag, d) in Records(ReadAll(s), 0))
+                {
+                    if (tag == "NAME") name = WStr(d);
+                    else if (tag == "ITEM" && WStr(d) is { Length: > 0 } item) items.Add(item);
+                }
+                if (name != null) t.Collections[name] = items;
             }
         }
         return t;

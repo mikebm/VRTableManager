@@ -56,6 +56,7 @@ public partial class ArtLoader : Node
                 if (img == null) return;
                 if (img.IsCompressed()) img.Decompress();
                 Shrink(img, maxSide);
+                FillHoles(img);
                 var avg = Average(img);
                 img.GenerateMipmaps();
                 _decoded.Enqueue((url, img, avg)); // the GPU upload happens on the main thread (_Process)
@@ -128,6 +129,70 @@ public partial class ArtLoader : Node
         var longest = Math.Max(w, h);
         if (longest <= maxSide) return;
         img.Resize(Math.Max(1, w * maxSide / longest), Math.Max(1, h * maxSide / longest), Image.Interpolation.Bilinear);
+    }
+
+    /// <summary>
+    /// Fills a picture's transparent parts from the art around them and makes it opaque. Many tables' playfield
+    /// pictures have holes (10-26% of 24, Batman, Big Trouble, The Addams Family…) where, in VPX, lit inserts,
+    /// kickers and cut-outs show through from underneath; drawn as they are, the holes came out black. Pull-push:
+    /// the picture is averaged down level by level (only the opaque pixels counting), then each hole takes the
+    /// colour of the level above, so a hole becomes a soft blend of what surrounds it.
+    /// </summary>
+    public static void FillHoles(Image img)
+    {
+        if (img.DetectAlpha() == Image.AlphaMode.None) return;
+        if (img.GetFormat() != Image.Format.Rgba8) img.Convert(Image.Format.Rgba8);
+        int w = img.GetWidth(), h = img.GetHeight();
+        var data = img.GetData();
+        // Level 0: colour weighted by alpha (r, g, b, weight).
+        var levels = new List<(int W, int H, float[] P)>();
+        var p0 = new float[w * h * 4];
+        for (var i = 0; i < w * h; i++)
+        {
+            var a = data[i * 4 + 3] / 255f;
+            p0[i * 4] = data[i * 4] * a; p0[i * 4 + 1] = data[i * 4 + 1] * a; p0[i * 4 + 2] = data[i * 4 + 2] * a; p0[i * 4 + 3] = a;
+        }
+        levels.Add((w, h, p0));
+        // Pull: halve until 1×1, summing 2×2 blocks.
+        while (levels[^1].W > 1 || levels[^1].H > 1)
+        {
+            var (pw, ph, pp) = levels[^1];
+            int nw = Math.Max(1, (pw + 1) / 2), nh = Math.Max(1, (ph + 1) / 2);
+            var np = new float[nw * nh * 4];
+            for (var y = 0; y < ph; y++)
+                for (var x = 0; x < pw; x++)
+                {
+                    int s = (y * pw + x) * 4, d = (y / 2 * nw + x / 2) * 4;
+                    for (var k = 0; k < 4; k++) np[d + k] += pp[s + k];
+                }
+            for (var i = 0; i < nw * nh; i++)
+                if (np[i * 4 + 3] > 1) { var f = 1 / np[i * 4 + 3]; for (var k = 0; k < 4; k++) np[i * 4 + k] *= f; } // keep weight ≤ 1
+            levels.Add((nw, nh, np));
+        }
+        // Push: from coarse to fine, a pixel short of full weight takes the rest from its parent.
+        for (var l = levels.Count - 2; l >= 0; l--)
+        {
+            var (cw, ch, cp) = levels[l];
+            var (uw, _, up) = levels[l + 1];
+            for (var y = 0; y < ch; y++)
+                for (var x = 0; x < cw; x++)
+                {
+                    int i = (y * cw + x) * 4, u = (y / 2 * uw + x / 2) * 4;
+                    var missing = 1 - cp[i + 3];
+                    if (missing <= 0) continue;
+                    var uw8 = up[u + 3] > 0 ? 1 / up[u + 3] : 0;
+                    for (var k = 0; k < 3; k++) cp[i + k] += up[u + k] * uw8 * missing;
+                    cp[i + 3] = 1;
+                }
+        }
+        var out0 = levels[0].P;
+        for (var i = 0; i < w * h; i++)
+        {
+            var a = Math.Max(out0[i * 4 + 3], 1e-6f);
+            for (var k = 0; k < 3; k++) data[i * 4 + k] = (byte)Math.Clamp(out0[i * 4 + k] / a, 0, 255);
+            data[i * 4 + 3] = 255;
+        }
+        img.SetData(w, h, false, Image.Format.Rgba8, data);
     }
 
     /// <summary>Average colour, from a tiny copy (cheap and good enough to tint a cabinet).</summary>
