@@ -77,13 +77,20 @@ public static class VpxImages
     public static VpxImageInfo? PickPlayfield(IReadOnlyList<VpxImageInfo> images, string? namedPlayfield)
     {
         var named = images.FirstOrDefault(i => namedPlayfield != null && string.Equals(i.Name, namedPlayfield, StringComparison.OrdinalIgnoreCase));
-        if (named != null && IsPlayfieldShaped(named)) return named;
+        if (named != null && IsPlayfieldShaped(named) && !IsPartOfPlayfield(named.Name)) return named;
         // Shape alone isn't enough: VLM-baked tables (e.g. Metallica) have no flat playfield picture,
         // and their biggest portrait image is a light overlay. Those fall back to the VPS picture.
-        return images.Where(i => IsPlayfieldShaped(i) && LooksLikePlayfieldName(i.Name))
+        return images.Where(i => IsPlayfieldShaped(i) && LooksLikePlayfieldName(i.Name) && !IsPartOfPlayfield(i.Name))
             .OrderByDescending(i => (long)i.Width * i.Height)
             .FirstOrDefault();
     }
+
+    /// <summary>
+    /// Only part of the playfield ("lowerplayfield" on Black Knight 2000, whose upper half comes from another picture):
+    /// shown alone it left the upper half black, so the VPS picture is used instead.
+    /// </summary>
+    static bool IsPartOfPlayfield(string name) =>
+        name.Contains("lower", StringComparison.OrdinalIgnoreCase) || name.Contains("upper", StringComparison.OrdinalIgnoreCase);
 
     static bool LooksLikePlayfieldName(string name)
     {
@@ -115,6 +122,9 @@ public static class VpxImages
     /// Keyed on the table's path, size and date, so an updated table gets its new picture. A table with
     /// no usable picture is remembered too, so it isn't re-read every time. Never throws.
     /// </summary>
+    /// <summary>Raised when the choice of picture changes, so cached picks are made again (2: no "lower"/"upper" parts).</summary>
+    const int PickVersion = 2;
+
     public static string? CachedPlayfield(string vpxPath, string cacheDir)
     {
         try
@@ -122,7 +132,7 @@ public static class VpxImages
             var fi = new FileInfo(vpxPath);
             if (!fi.Exists) return null;
             var key = Convert.ToHexString(SHA1.HashData(Encoding.UTF8.GetBytes(
-                $"{Path.GetFullPath(vpxPath).ToLowerInvariant()}|{fi.Length}|{fi.LastWriteTimeUtc.Ticks}")));
+                $"{Path.GetFullPath(vpxPath).ToLowerInvariant()}|{fi.Length}|{fi.LastWriteTimeUtc.Ticks}|{PickVersion}")));
             Directory.CreateDirectory(cacheDir);
             var file = Path.Combine(cacheDir, "vpx-" + key + ".img");
             var none = Path.Combine(cacheDir, "vpx-" + key + ".none");

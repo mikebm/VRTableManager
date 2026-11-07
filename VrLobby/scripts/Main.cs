@@ -17,7 +17,7 @@ public partial class Main : Node3D
     const int Side = 5;                                 // cabinets either side of the selected one
     public const int PoolSize = Side * 2 + 1;           // only these 11 cabinet nodes ever exist
     const float SnapAt = 0.0005f;                       // the ring eases to within this much of a step, then stops
-    const float VideoFrom = 0.6f;                       // the playfield video starts once the table is this close (steps)
+    const float VideoFrom = 0.98f;                      // the playfield video starts as soon as the ring turns towards the table (steps)
     const double AttractAfter = 0.5;                    // seconds on a table before its sound plays
     public const float RingFront = 2.1f;                // the ring
     public const float SelectedFront = 0.9f;            // the selected cabinet steps up to about arm's length
@@ -196,6 +196,7 @@ public partial class Main : Node3D
         }
         Rebuild(args.GetValueOrDefault("select", ""));
         LoadBackglassIndex();
+        if (!_noDepth) WarmPlayfieldDepth();
         if (!selfTest) RefreshHighScoreMaps();
 
         if (selfTest)
@@ -999,6 +1000,22 @@ public partial class Main : Node3D
             GD.PushWarning($"Attract sound {file}: {e.Message}");
             return null;
         }
+    }
+
+    /// <summary>
+    /// Builds the height map of every table that has a lobby video, in the background, once: building one reads the
+    /// .vpx (up to a second), and doing that as you arrive at a table held its depth back. Later runs find them cached.
+    /// </summary>
+    void WarmPlayfieldDepth()
+    {
+        var jobs = Library.Select(t => (Video: LobbyArt.PlayfieldVideo(t), t.Source.TablePath)).Where(j => j.Video != null)
+            .Select(j => (j.Video!.Value.Folder, j.TablePath)).ToList();
+        if (jobs.Count == 0) return;
+        Task.Run(() =>
+        {
+            foreach (var (folder, vpx) in jobs)
+                if (!File.Exists(Path.Combine(folder, PlayfieldDepth.FileName))) PlayfieldDepth.Load(folder, vpx);
+        });
     }
 
     /// <summary>The selected cabinet's playfield comes alive with the table's lobby video, when it has one.</summary>

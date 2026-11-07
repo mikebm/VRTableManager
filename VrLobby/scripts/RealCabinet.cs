@@ -27,6 +27,46 @@ public sealed class RealCabinet
     /// <summary>Bounds of the backbox parts, for placing a backglass when the cabinet has none.</summary>
     public Aabb? Backbox { get; init; }
     public int Surfaces => Mesh.GetSurfaceCount();
+
+    float? _glassZ;
+
+    /// <summary>
+    /// How far forward a backglass panel goes in this cabinet's backbox (lobby z). A ray from the front into the
+    /// middle of the backbox's opening finds the first surface there: a closed front (the backbox's own printed
+    /// glass) and the panel sits just in front of it; an open frame and it sits on whatever is behind, at most
+    /// 4 cm behind the frame's front edge, so the frame overlaps it like a real backglass. It used to sit a few
+    /// millimetres in front of the frame, wider than the opening, and stood proud of it (The Addams Family).
+    /// </summary>
+    public float GlassZ(Aabb box, float centreY)
+    {
+        if (_glassZ is { } known) return known;
+        var front = box.End.Z;
+        var cx = box.GetCenter().X;
+        float? hit = null;
+        for (var s = 0; s < Mesh.GetSurfaceCount(); s++)
+        {
+            var arrays = Mesh.SurfaceGetArrays(s);
+            var v = arrays[(int)Godot.Mesh.ArrayType.Vertex].AsVector3Array();
+            var idx = arrays[(int)Godot.Mesh.ArrayType.Index].AsInt32Array();
+            for (var i = 0; i + 2 < idx.Length; i += 3)
+            {
+                Vector3 a = v[idx[i]], b = v[idx[i + 1]], c = v[idx[i + 2]];
+                if (Mathf.Min(a.Z, Mathf.Min(b.Z, c.Z)) > front + 0.02f) continue; // in front of the box (a topper, a lamp)
+                // Does the triangle, seen from the front, cover (cx, centreY)? Then where along z.
+                var d = (b.X - a.X) * (c.Y - a.Y) - (b.Y - a.Y) * (c.X - a.X);
+                if (Mathf.Abs(d) < 1e-9f) continue;
+                var w1 = ((cx - a.X) * (c.Y - a.Y) - (centreY - a.Y) * (c.X - a.X)) / d;
+                var w2 = ((b.X - a.X) * (centreY - a.Y) - (b.Y - a.Y) * (cx - a.X)) / d;
+                if (w1 < 0 || w2 < 0 || w1 + w2 > 1) continue;
+                var z = a.Z + w1 * (b.Z - a.Z) + w2 * (c.Z - a.Z);
+                if (hit == null || z > hit) hit = z;
+            }
+        }
+        var glass = hit is { } h ? Mathf.Max(h + 0.003f, front - 0.04f) : front - 0.02f;
+        _glassZ = glass;
+        return glass;
+    }
+
     public int Textures { get; init; }
     /// <summary>How many textures ended up GPU-compressed (DXT); the rest stayed uncompressed.</summary>
     public int CompressedTextures { get; init; }

@@ -79,7 +79,9 @@ public partial class PlayfieldVideo : Node
     public override void _Process(double delta)
     {
         if (Playing == null || _cab == null) return;
-        if (Interlocked.Exchange(ref _heights, null) is { } heights)
+        // The depth switches on in the same frame as the first video picture, so the still picture never shows
+        // with it and the change is one swap, made while the table is still turning in (Main.VideoFrom).
+        if (FramesShown > 0 && Interlocked.Exchange(ref _heights, null) is { } heights)
             _cab.SetPlayfieldDepth(ImageTexture.CreateFromImage(heights), PlayfieldDepth.DepthOf(heights));
         _untilNext -= delta;
         if (_untilNext > 0 || !_ready.TryDequeue(out var img)) return;
@@ -92,6 +94,8 @@ public partial class PlayfieldVideo : Node
         }
         else _tex.Update(img);
         FramesShown++;
+        if (Interlocked.Exchange(ref _heights, null) is { } ready) // usually here: built before the frames
+            _cab.SetPlayfieldDepth(ImageTexture.CreateFromImage(ready), PlayfieldDepth.DepthOf(ready));
     }
 
     public override void _ExitTree()

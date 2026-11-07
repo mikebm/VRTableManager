@@ -234,12 +234,14 @@ public partial class Cabinet : Node3D
         // always goes on a panel on the backbox front.
         else if ((Borrowed || real.BackglassSurface < 0) && real.Backbox is { } box)
         {
-            var h = Mathf.Min(box.Size.Y * 0.62f, 0.6f);
-            _backglassQuad.Size = new Vector2(Mathf.Min(h * 4 / 3, box.Size.X * 0.92f), h);
-            var y = box.End.Y - 0.04f - h / 2;
-            _backglassPanel.Position = new Vector3(box.GetCenter().X, y, box.End.Z + 0.004f);
+            // The glass opening: the top 60% of the backbox (the speaker panel is below), most of its width.
+            // Set into the box at its glass (RealCabinet.GlassZ), with a margin inside the frame on every side.
+            var h = Mathf.Min(box.Size.Y * 0.6f, 0.6f);
+            var y = box.End.Y - 0.045f - h / 2;
+            _bgRoom = new Vector2(box.Size.X * 0.86f, h);
+            _bgCentre = new Vector3(box.GetCenter().X, y, real.GlassZ(box, y));
+            FitBackglass();
             _backglassPanel.Visible = true;
-            _plate.Position = _backglassPanel.Position + new Vector3(0, 0, 0.002f);
             _plate.Visible = BackglassUrl == null && !HasBackglassArt;
         }
         for (var i = 0; i < real.Mesh.GetSurfaceCount(); i++)
@@ -285,9 +287,31 @@ public partial class Cabinet : Node3D
 
     void PlaceGenericBackglass()
     {
-        _backglassQuad.Size = CabinetKit.BackglassSize;
-        _backglassPanel.Position = new Vector3(0, CabinetKit.BackglassCentreY, CabinetKit.BoxFront - 0.002f);
-        _plate.Position = new Vector3(0, CabinetKit.BackglassCentreY, CabinetKit.BoxFront + 0.002f);
+        _bgRoom = CabinetKit.BackglassSize;
+        _bgCentre = new Vector3(0, CabinetKit.BackglassCentreY, CabinetKit.BoxFront - 0.002f);
+        FitBackglass();
+    }
+
+    /// <summary>Room for the backglass panel (the glass opening) and its centre; see <see cref="FitBackglass"/>.</summary>
+    Vector2 _bgRoom = CabinetKit.BackglassSize;
+    Vector3 _bgCentre;
+
+    /// <summary>
+    /// Sizes the backglass panel to its picture: as big as the opening allows at the picture's own shape, centred.
+    /// It used to be 4:3 whatever the picture, so a wider or taller backglass was squeezed, and on a table's own
+    /// backbox it left strips of the box showing beside it (Beavis and Butt-Head, Terminator 3, The Addams Family).
+    /// </summary>
+    void FitBackglass()
+    {
+        var size = _bgRoom;
+        if (_backglassMat.AlbedoTexture is { } tex && tex.GetHeight() > 0)
+        {
+            var aspect = (float)tex.GetWidth() / tex.GetHeight();
+            size = aspect >= _bgRoom.X / _bgRoom.Y ? new Vector2(_bgRoom.X, _bgRoom.X / aspect) : new Vector2(_bgRoom.Y * aspect, _bgRoom.Y);
+        }
+        _backglassQuad.Size = size;
+        _backglassPanel.Position = _bgCentre;
+        _plate.Position = _bgCentre + new Vector3(0, 0, 0.004f);
     }
 
     /// <summary>Shows a table on this cabinet. Art arrives later through SetPlayfield / SetBackglass.</summary>
@@ -369,6 +393,7 @@ public partial class Cabinet : Node3D
     public void SetBackglass(Texture2D tex, Color average)
     {
         _backglassMat.AlbedoTexture = tex;
+        FitBackglass();
         _plate.Visible = false;
         _baseBody = SideColour(average);
         ApplyColours();
