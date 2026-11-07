@@ -31,7 +31,10 @@ public partial class Cabinet : Node3D
     /// <summary>Colour of the backbox strip, coin lights and flipper buttons.</summary>
     public Color LampColour => _glowMat.AlbedoColor;
 
-    readonly StandardMaterial3D _bodyMat = new() { Roughness = 0.45f, Metallic = 0.15f };
+    // Both sides, like every VR cabinet material (RealCabinetLoader.MaterialFor): it also paints a borrowed cabinet's
+    // art surfaces (DressBorrowed), and those include single-sided panels seen from behind. Drawn one-sided, the back
+    // blade behind the playfield vanished and the floor showed through (Terminator 3 in the Medieval Madness cabinet).
+    readonly StandardMaterial3D _bodyMat = new() { Roughness = 0.45f, Metallic = 0.15f, CullMode = BaseMaterial3D.CullModeEnum.Disabled };
     readonly StandardMaterial3D _glowMat = new() { ShadingMode = BaseMaterial3D.ShadingModeEnum.Unshaded, EmissionEnabled = true };
     // Playfield and backglass are unshaded: the art carries its own lighting (and a backglass is backlit),
     // so dimming is done by tinting them rather than by the room lights.
@@ -244,6 +247,7 @@ public partial class Cabinet : Node3D
     static StandardMaterial3D DmdPanelMaterial => _dmdPanelMat ??= new StandardMaterial3D
     {
         ShadingMode = BaseMaterial3D.ShadingModeEnum.Unshaded, AlbedoColor = Palette.DmdPanel,
+        CullMode = BaseMaterial3D.CullModeEnum.Disabled, // stands in for a VR cabinet part: both sides (see _bodyMat)
     };
 
     /// <summary>

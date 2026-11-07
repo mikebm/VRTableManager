@@ -91,6 +91,8 @@ public static class CabinetKit
     {
         AlbedoColor = new Color(0.32f, 0.32f, 0.35f), AlbedoTexture = GrilleTexture(),
         Metallic = 0.5f, Roughness = 0.55f,
+        // Both sides: it also stands in for a borrowed VR cabinet's speaker grilles, which may be single-sided panels.
+        CullMode = BaseMaterial3D.CullModeEnum.Disabled,
         TextureFilter = BaseMaterial3D.TextureFilterEnum.LinearWithMipmapsAnisotropic,
     };
 
