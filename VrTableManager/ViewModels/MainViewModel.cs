@@ -74,8 +74,7 @@ public sealed partial class MainViewModel : ObservableObject, IAsyncDisposable
         UseBuiltInPinmame = Settings.UseBuiltInPinmame;
         UsePupPlugin = Settings.UsePupPlugin;
         UseDisplayPlugins = Settings.UseDisplayPlugins;
-        // VPX's own value: turning it off or on in VPX's menu during VR play changes it there.
-        VrAddBackglass = VpxSetup.VrAddBackglass(Settings);
+        VrAutoBackglass = Settings.VrAutoBackglass;
         AutoVrRoom = Settings.AutoVrRoom;
         LobbyRecordsRomAudio = Settings.LobbyRecordsRomAudio;
         LobbyWaitsForTable = Settings.LobbyWaitsForTable;
@@ -1002,10 +1001,7 @@ public sealed partial class MainViewModel : ObservableObject, IAsyncDisposable
             case nameof(UseBuiltInPinmame): Settings.UseBuiltInPinmame = UseBuiltInPinmame; break;
             case nameof(UsePupPlugin): Settings.UsePupPlugin = UsePupPlugin; break;
             case nameof(UseDisplayPlugins): Settings.UseDisplayPlugins = UseDisplayPlugins; break;
-            case nameof(VrAddBackglass):
-                Settings.VrAddBackglass = VrAddBackglass;
-                try { VpxSetup.SetVrAddBackglass(Settings, VrAddBackglass); } catch (IOException) { } // VPX folder not there yet: EnsureVrIni sets it
-                break;
+            case nameof(VrAutoBackglass): Settings.VrAutoBackglass = VrAutoBackglass; break;
             case nameof(AutoVrRoom): Settings.AutoVrRoom = AutoVrRoom; break;
             case nameof(LobbyRecordsRomAudio): Settings.LobbyRecordsRomAudio = LobbyRecordsRomAudio; break;
             case nameof(LobbyWaitsForTable): Settings.LobbyWaitsForTable = LobbyWaitsForTable; break;

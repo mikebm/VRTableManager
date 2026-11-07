@@ -55,7 +55,8 @@ public static class VpxIniLayers
         IniFile.Read(path).Where(kv => kv.Value != "" && !NotSettings.Contains(kv.Key.Section, StringComparer.OrdinalIgnoreCase));
 
     /// <summary>Writes the layered settings for this mode to <paramref name="path"/> (the play file by default).</summary>
-    public static Play Build(AppSettings s, bool vr, string? path = null)
+    /// <param name="extra">Settings for this launch only, on top of the overrides; not saved back unless VPX changes them.</param>
+    public static Play Build(AppSettings s, bool vr, string? path = null, IEnumerable<(string Section, string Key, string Value)>? extra = null)
     {
         path ??= PlayPath(s, vr);
         Directory.CreateDirectory(Path.GetDirectoryName(path)!);
@@ -64,6 +65,8 @@ public static class VpxIniLayers
         else File.WriteAllText(path, "");
         foreach (var section in Overrides(OverridePath(s, vr)).GroupBy(kv => kv.Key.Section, StringComparer.OrdinalIgnoreCase))
             IniFile.SetMany(path, section.Key, section.Select(kv => (kv.Key.Key, kv.Value)));
+        foreach (var section in (extra ?? []).GroupBy(e => e.Section, StringComparer.OrdinalIgnoreCase))
+            IniFile.SetMany(path, section.Key, section.Select(e => (e.Key, e.Value)));
         return new Play(path, OverridePath(s, vr), IniFile.Read(path));
     }
 

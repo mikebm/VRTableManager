@@ -168,18 +168,22 @@ public static class PupPackChecks
         yield return (on == "1" && off == "0", "VR ini enables VPX's PUP plugin, and the setting turns it off");
 
         // Without a backglass display in the VR scene, a desktop table's PuP pack plays unseen.
-        // VPX's default backglass in VR: off unless asked for (VR tables bring their own, and it can get in their way),
-        // and once set, a launch never undoes what was chosen in VPX's own menu.
-        string? Bg() => IniFile.Read(VpxSetup.VrIniPath(vs)).GetValueOrDefault(("PlayerVR", "AddBackglass"));
-        var bgDefault = Bg();
-        VpxSetup.SetVrAddBackglass(vs, true);
-        var bgOn = Bg();
-        VpxSetup.EnsureVrIni(vs); // the app setting is still off: the "1" (as if chosen in game) stays
-        var bgKept = Bg();
-        var shown = VpxSetup.VrAddBackglass(vs);
-        VpxSetup.SetVrAddBackglass(vs, false);
-        yield return (new AppSettings().VrAddBackglass == false && bgDefault == "0" && bgOn == "1" && bgKept == "1" && shown && Bg() == "0",
-            $"VR backglass: off by default, the checkbox sets it, and a launch keeps VPX's in-game choice ({bgDefault}/{bgOn}/{bgKept}/{shown})");
+        // VR tables bring their own backbox and DMD, and VPX's panel gets in their way: picked per table, only for that launch.
+        var auto = new AppSettings { VpxDir = vs.VpxDir };
+        TableManifest T(params string[] f) => new() { Features = [.. f] };
+        var picks = (VpxSetup.VrBackglassFor(auto, T("VR", "SSF")), VpxSetup.VrBackglassFor(auto, T("hybrid")), VpxSetup.VrBackglassFor(auto, T("incl. PuP")),
+            VpxSetup.VrBackglassFor(auto, T()), VpxSetup.VrBackglassFor(auto, null), VpxSetup.VrBackglassFor(new AppSettings { VrAutoBackglass = false }, T("incl. PuP")));
+        yield return (picks == ("0", "0", "1", null, null, null),
+            $"VR backglass: off for VR and hybrid tables, on for desktop ones; unknown tables and the setting off leave VPX's own ({picks})");
+
+        IniFile.Set(VpxSetup.VrIniPath(auto), "PlayerVR", "AddBackglass", "1"); // as if saved globally in VPX
+        VpxSetup.EnsureVrIni(auto);
+        var play = VpxIniLayers.Build(auto, vr: true, extra: [("PlayerVR", "AddBackglass", "0")]);
+        var inPlay = IniFile.Read(play.Path).GetValueOrDefault(("PlayerVR", "AddBackglass"));
+        var saved = play.SaveBack();
+        var global = IniFile.Read(VpxSetup.VrIniPath(auto)).GetValueOrDefault(("PlayerVR", "AddBackglass"));
+        yield return (inPlay == "0" && saved == 0 && global == "1",
+            $"VR backglass: one table's pick goes in that launch's play file only; VPX's global value is untouched ({inPlay}/{saved}/{global})");
     }
 
     static string Dir(string root, string name, params (string path, string text)[] entries)

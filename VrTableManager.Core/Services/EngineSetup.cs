@@ -225,26 +225,22 @@ public static class VpxSetup
         var rate = s.VrRefreshRate switch { 72 => 1, 80 => 2, 90 => 3, 120 => 4, _ => 0 };
         IniFile.Set(ini, "PlayerVR", "DisplayRefreshRate", rate.ToString());
         SetPlugins(s, ini);
-        // VPX's default backglass: only set the first time. After that it's the player's (the checkbox, through
-        // SetVrAddBackglass, or VPX's in-game menu, whose change VpxIniLayers saves back here on exit). Setting it
-        // every launch undid the in-game choice.
-        if (!IniFile.Read(ini).TryGetValue(("PlayerVR", "AddBackglass"), out var bg) || bg.Trim() == "")
-            SetVrAddBackglass(s, s.VrAddBackglass);
+        // VPX's default backglass ([PlayerVR] AddBackglass) isn't set here: it's picked per table at launch
+        // (VrBackglassFor), or left to VPX's own setting when that's turned off.
         // Controls aren't copied in: VR play inherits the ones in the player's own VPinballX.ini (and keeps
         // following them) unless it has its own (VpxInput.Import, or remapped during VR play).
     }
 
     /// <summary>
-    /// The "add a backglass in VR" checkbox. The plugins draw a backglass (PuP, B2S) into a display VPX only puts in
-    /// the VR scene when the table has its own VR backglass; desktop and cabinet tables (most PuP tables) need VPX's
-    /// default one added, or the PuP pack plays with nothing showing it. VR tables usually don't want it.
+    /// VPX's default backglass for one VR launch: "0" for a VR table, "1" for a desktop or cabinet one, null to leave
+    /// VPX's own setting. The PuP and B2S plugins draw into a backglass display VPX only puts in the VR scene when the
+    /// table has its own VR backglass, so a desktop table's PuP pack or .directb2s needs VPX's default one added. A
+    /// VR table has its own backbox and DMD, and VPX's panel gets in their way. A table without catalog features
+    /// (added from a loose file) isn't known either way, so VPX decides. VPX's table setting still beats this.
     /// </summary>
-    public static void SetVrAddBackglass(AppSettings s, bool on) =>
-        IniFile.Set(VrIniPath(s), "PlayerVR", "AddBackglass", on ? "1" : "0");
-
-    /// <summary>What VR play will use: VPX's value in the VR overrides (it may have been changed in game), else the setting.</summary>
-    public static bool VrAddBackglass(AppSettings s) =>
-        IniFile.Read(VrIniPath(s)).TryGetValue(("PlayerVR", "AddBackglass"), out var v) && v.Trim() is "0" or "1" ? v.Trim() == "1" : s.VrAddBackglass;
+    public static string? VrBackglassFor(AppSettings s, Models.TableManifest? table) =>
+        !s.VrAutoBackglass || table is null || table.Features.Count == 0 ? null
+        : table.Features.Any(f => f.Equals("VR", StringComparison.OrdinalIgnoreCase) || f.Equals("Hybrid", StringComparison.OrdinalIgnoreCase)) ? "0" : "1";
 
     /// <summary>
     /// Desktop play: VR off even if the player's own settings turn it on, and the same plugins as VR, so the
@@ -361,7 +357,7 @@ public sealed class VpxEngine : IPinballEngine
         ? $"Installed: {v}. {VpxSetup.DescribeOpenXrRuntime()}"
         : "Not installed.";
     public Task<Process> LaunchAsync(AppSettings s, InstalledTable table, bool vr, CancellationToken ct) =>
-        Task.FromResult(Launcher.StartVpx(s, table.TablePath, vr));
+        Task.FromResult(Launcher.StartVpx(s, table.TablePath, vr, table.Manifest));
 }
 
 public sealed class FuturePinballEngine : IPinballEngine
@@ -383,13 +379,15 @@ public static class Engines
 
 public static class Launcher
 {
-    public static Process StartVpx(AppSettings s, string tablePath, bool vr)
+    public static Process StartVpx(AppSettings s, string tablePath, bool vr, Models.TableManifest? table = null)
     {
         var exe = VpxSetup.FindExe(s) ?? throw new InvalidOperationException("Visual Pinball X isn't installed yet (Setup tab).");
         var psi = new ProcessStartInfo(exe) { WorkingDirectory = Path.GetDirectoryName(exe)!, UseShellExecute = false };
         if (vr) VpxSetup.EnsureVrIni(s);
         else VpxSetup.EnsureDesktopIni(s);
-        var play = VpxIniLayers.Build(s, vr);
+        // Only in this launch's play file, not the overrides: the next table gets its own pick.
+        var backglass = vr ? VpxSetup.VrBackglassFor(s, table) : null;
+        var play = VpxIniLayers.Build(s, vr, extra: backglass is null ? null : [("PlayerVR", "AddBackglass", backglass)]);
         if (VrRoomSwitch.Prepare(tablePath, vr, s.AutoVrRoom) is { } changed) PlaySession.Log($"{Path.GetFileName(tablePath)}: {changed}");
         // Without VPX's texture list (written when a table closes) a table's first launch plays very dark.
         if (VpxTextureCache.Prepare(tablePath) is { } textures) PlaySession.Log($"{Path.GetFileName(tablePath)}: {textures}");
