@@ -200,6 +200,48 @@ public sealed record VpxRomInfo(string? GameName, bool UsesPinMame)
     public bool NoRomNeeded => GameName != null && !UsesPinMame;
 }
 
+/// <summary>
+/// The machine script a table loads with <c>LoadVPM "…", "beav_butt.VBS", 3.50</c>. The usual ones (WPC.VBS,
+/// gts3.vbs, sega.vbs …) come with VPX in its scripts folder; a custom ROM (Beavis and Butt-Head's beav_butt) can
+/// need one of its own, offered on the ROM's download page. Without it the script stops at its first line that uses
+/// it and VPX closes: the table can't be played or recorded.
+/// </summary>
+public static partial class MachineScript
+{
+    /// <summary>The .vbs file the table's script loads (or null when it loads none).</summary>
+    public static string? Needed(string vpxPath)
+    {
+        var sidecar = VrRoomSwitch.ScriptPath(vpxPath);
+        var script = File.Exists(sidecar) ? File.ReadAllText(sidecar, Encoding.Latin1) : RomAudio.Script(vpxPath);
+        foreach (Match m in LoadVpmRegex().Matches(script))
+        {
+            var lineStart = script.LastIndexOfAny(['\r', '\n'], m.Index) + 1;
+            if (script.AsSpan(lineStart, m.Index - lineStart).Contains('\'')) continue; // commented out
+            return m.Groups[1].Value;
+        }
+        return null;
+    }
+
+    /// <summary>
+    /// The machine script the table loads when it's in neither of the places VPX looks (next to the table, VPX's
+    /// scripts folder); null when it's there, the table loads none, or the table can't be read. Never throws.
+    /// </summary>
+    public static string? Missing(string vpxPath, AppSettings s)
+    {
+        try
+        {
+            if (Needed(vpxPath) is not { } name) return null;
+            if (VpxSetup.FindExe(s) is not { } exe) return null; // without VPX there's nothing to compare with
+            string[] dirs = [Path.GetDirectoryName(vpxPath)!, Path.Combine(s.VpxDir, "scripts"), Path.Combine(Path.GetDirectoryName(exe)!, "scripts")];
+            return dirs.Any(d => File.Exists(Path.Combine(d, name))) ? null : name;
+        }
+        catch { return null; }
+    }
+
+    [GeneratedRegex("\\bLoadVPM\\b[^\\r\\n\"]*\"[^\"\\r\\n]*\"[ \\t]*,[ \\t]*\"([^\"\\r\\n]+\\.vbs)\"", RegexOptions.IgnoreCase)]
+    private static partial Regex LoadVpmRegex();
+}
+
 public static class RomSources
 {
     /// <summary>

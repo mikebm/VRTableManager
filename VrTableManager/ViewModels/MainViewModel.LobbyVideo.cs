@@ -1,3 +1,4 @@
+using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using VrTableManager.Services;
 
@@ -90,12 +91,17 @@ public sealed partial class MainViewModel
     }
 
     [RelayCommand(AllowConcurrentExecutions = true)]
-    async Task RecordLobbyVideo(InstalledItem item)
+    Task RecordLobbyVideo(InstalledItem item) => RecordLobbyVideoCoreAsync(item);
+
+    /// <summary>Records one table's attract mode in VPX. False when the recording was cancelled.</summary>
+    /// <param name="started">Gets the job as soon as it exists (the batch uses it to stop the running recording).</param>
+    async Task<bool> RecordLobbyVideoCoreAsync(InstalledItem item, Action<JobItem>? started = null)
     {
         var table = item.Table;
-        if (!TryBeginBusy(table.TablePath)) return;
+        if (!TryBeginBusy(table.TablePath)) return true; // something else is running for this table: skip it
         var job = new JobItem($"Recording {table.Manifest.GameName} for the lobby") { FileNames = [table.Manifest.GameName] };
         Jobs.Insert(0, job);
+        started?.Invoke(job);
         try
         {
             if (!_recording.Wait(0))
@@ -105,12 +111,20 @@ public sealed partial class MainViewModel
             }
             try
             {
+                // A table whose machine script is missing stops before it draws anything: say why instead of
+                // running VPX for nothing.
+                if (await Task.Run(() => MachineScript.Missing(table.TablePath, Settings)) is { } vbs)
+                {
+                    job.Finish($"This table needs {vbs}, which isn't installed, so it can't start in VPX. It's usually offered next to " +
+                               $"the ROM on the ROM's download page: save it into the table's folder ({table.Folder}), then record again.", error: true);
+                    return true;
+                }
                 job.Report("VPX is recording the attract mode (a small window, sound off)…");
                 var frames = await LobbyVideo.RecordAsync(Settings, table, job.Cts.Token);
                 if (frames.Count == 0)
                 {
                     job.Finish("VPX recorded nothing. Check that the table starts in VPX (Play) and try again.", error: true);
-                    return;
+                    return true;
                 }
                 job.Report($"Making the lobby frames from {frames.Count} recorded frames…");
                 var info = await Task.Run(() => VideoFrames.FromCapture(frames, table.Folder, job.Cts.Token));
@@ -124,9 +138,79 @@ public sealed partial class MainViewModel
                 _recording.Release();
             }
         }
-        catch (OperationCanceledException) { job.Finish("Cancelled", error: true); }
+        catch (OperationCanceledException) { job.Finish("Cancelled", error: true); return false; }
         catch (Exception e) { job.Finish("Recording failed: " + e.Message, error: true); }
         finally { EndBusy(table.TablePath); }
+        return true;
+    }
+
+    // ---- Record every table at once (My Tables → RECORD LOBBY VIDEOS) ----
+
+    /// <summary>A batch of recordings is running; the toolbar shows its progress and a STOP button.</summary>
+    [ObservableProperty] public partial bool IsBatchRecording { get; set; }
+    [ObservableProperty] public partial string BatchRecordingText { get; set; } = "";
+    JobItem? _batchJob;
+    bool _batchStop;
+
+    /// <summary>
+    /// Records a lobby video in VPX for every VPX table that has none, one after another, so their cabinets get
+    /// a moving playfield with real depth (ramps and toys stand up only over a video). No downloads: recording
+    /// needs nothing but VPX. Tables still missing their ROM are left out (they'd only record an error screen).
+    /// Cancelling a recording, or STOP, ends the batch.
+    /// </summary>
+    [RelayCommand]
+    async Task RecordAllLobbyVideos()
+    {
+        if (IsBatchRecording) return;
+        if (IsLobbyRunning) { PlayStatus = "Close the VR lobby first: recording runs the tables in VPX."; return; }
+        var without = _allInstalled.Where(i => i.IsVpx && LobbyVideo.Existing(i.Table.Folder) == null)
+            .DistinctBy(i => i.Table.TablePath, StringComparer.OrdinalIgnoreCase).ToList();
+        var todo = without.Where(i => !i.NeedsRom).ToList();
+        var noRom = without.Count - todo.Count;
+        var noRomNote = noRom > 0 ? $" {noRom} more need{(noRom == 1 ? "s" : "")} a ROM first and {(noRom == 1 ? "is" : "are")} skipped." : "";
+        if (todo.Count == 0)
+        {
+            PlayStatus = without.Count == 0 ? "Every table already has a lobby video." : "No table can be recorded yet:" + noRomNote;
+            return;
+        }
+        var minutes = Math.Max(1, (int)Math.Ceiling(todo.Count * 40 / 60.0));
+        if (await _ui.ChoiceAsync($"Record lobby videos for {todo.Count} table{(todo.Count == 1 ? "" : "s")}?",
+                $"VPX opens each table in a small window, records its attract mode for about half a minute (sound off) and closes it, " +
+                $"one after another: about {minutes} minute{(minutes == 1 ? "" : "s")} in all. Leave the PC alone meanwhile.{noRomNote}\n\n" +
+                "Tables built only for VR may record their VR room instead of the playfield; remove that table's lobby video afterwards (MORE).",
+                ["RECORD ALL", "CANCEL"]) != 0)
+            return;
+
+        IsBatchRecording = true;
+        _batchStop = false;
+        int recorded = 0, failed = 0;
+        var stopped = false;
+        try
+        {
+            for (var n = 0; n < todo.Count; n++)
+            {
+                if (_batchStop) { stopped = true; break; }
+                BatchRecordingText = $"■  STOP RECORDING ({n + 1}/{todo.Count})";
+                var item = todo[n];
+                if (!await RecordLobbyVideoCoreAsync(item, j => _batchJob = j)) { stopped = true; break; }
+                if (LobbyVideo.Existing(item.Table.Folder) != null) recorded++; else failed++;
+            }
+        }
+        finally
+        {
+            IsBatchRecording = false;
+            _batchJob = null;
+        }
+        PlayStatus = $"Recorded lobby videos for {recorded} table{(recorded == 1 ? "" : "s")}."
+                     + (failed > 0 ? $" {failed} didn't record (the Downloads list says why)." : "")
+                     + (stopped ? $" Stopped; {todo.Count - recorded - failed} not done." : "");
+    }
+
+    [RelayCommand]
+    void StopBatchRecording()
+    {
+        _batchStop = true;
+        _batchJob?.Cts.Cancel();
     }
 
     [RelayCommand]
