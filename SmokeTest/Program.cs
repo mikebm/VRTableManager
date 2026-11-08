@@ -2199,6 +2199,11 @@ foreach (var (ok, name) in VrDmdFixChecks.Run(root))
     Check(ok, name);
 }
 
+foreach (var (ok, name) in VrBackglassChecks.Run(root))
+{
+    Check(ok, name);
+}
+
 foreach (var (ok, name) in VrRoomSwitchChecks.Run(root))
 {
     Check(ok, name);

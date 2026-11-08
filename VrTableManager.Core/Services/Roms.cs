@@ -105,7 +105,30 @@ public static partial class RomDetector
             }
         }
 
-        return false;
+        return DmdModeIsPup(script);
+    }
+
+    /// <summary>
+    /// A display-mode setting whose own comment says the value chosen is PuP:
+    /// <c>Const DMDMode = 2 ' 2=PUP (Only use Pup)</c> in Guardians of the Galaxy. The first assignment is the setting.
+    /// </summary>
+    static bool DmdModeIsPup(string script)
+    {
+        if (script.IndexOf("DMDMode", StringComparison.OrdinalIgnoreCase) < 0)
+        {
+            return false;
+        }
+
+        if (DmdModeRegex().Match(script) is not { Success: true } m)
+        {
+            return false;
+        }
+
+        return Regex.IsMatch(
+            m.Groups["comment"].Value,
+            $@"(?<![0-9])\b{m.Groups["value"].Value}\s*[=:-]\s*\(?\s*PuP\b",
+            RegexOptions.IgnoreCase
+        );
     }
 
     /// <summary>
@@ -259,6 +282,12 @@ public static partial class RomDetector
         RegexOptions.IgnoreCase
     )]
     private static partial Regex OwnDmdSwitchRegex();
+
+    [GeneratedRegex(
+        @"^(?:Const[ \t]+)?DMDMode[ \t]*=[ \t]*(?<value>\d+)[ \t]*'(?<comment>[^\r\n]*)",
+        RegexOptions.IgnoreCase | RegexOptions.Multiline
+    )]
+    private static partial Regex DmdModeRegex();
 }
 
 /// <param name="GameName">cGameName from the script, if found.</param>

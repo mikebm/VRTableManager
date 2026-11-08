@@ -132,6 +132,12 @@ public static class VpxIniLayers
         }
     }
 
+    /// <summary>
+    /// Set for one table's launch and never kept, even if VPX writes them back changed: the PinUP Player folder is
+    /// that table's own folder (<see cref="Launcher.PupRootFor"/>), and kept it would point every table there.
+    /// </summary>
+    static readonly (string Section, string Key)[] PerTableKeys = [("Plugin.PUP", "PUPFolder")];
+
     /// <summary>One launch's play file and what it held when VPX started.</summary>
     public sealed class Play(
         string path,
@@ -153,7 +159,14 @@ public static class VpxIniLayers
                 return 0;
             }
 
-            var changed = Changes(before, IniFile.Read(Path)).ToList();
+            var changed = Changes(before, IniFile.Read(Path))
+                .Where(c =>
+                    !PerTableKeys.Any(k =>
+                        k.Section.Equals(c.Section, StringComparison.OrdinalIgnoreCase)
+                        && k.Key.Equals(c.Key, StringComparison.OrdinalIgnoreCase)
+                    )
+                )
+                .ToList();
             foreach (
                 var section in changed.GroupBy(c => c.Section, StringComparer.OrdinalIgnoreCase)
             )

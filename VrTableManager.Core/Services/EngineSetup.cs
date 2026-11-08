@@ -751,13 +751,28 @@ public static class Launcher
             VpxSetup.EnsureDesktopIni(s);
         }
         // Only in this launch's play file, not the overrides: the next table gets its own pick.
-        var backglass = vr ? VpxSetup.VrBackglassFor(s, table) : null;
-        var play = VpxIniLayers.Build(
-            s,
-            vr,
-            extra: backglass is null ? null : [("PlayerVR", "AddBackglass", backglass)]
-        );
-        if (VrRoomSwitch.Prepare(tablePath, vr, s.AutoVrRoom) is { } changed)
+        var extra = new List<(string, string, string)>();
+        // A VR cabinet with a blank backglass whose PuP pack draws one: VPX's backglass, moved onto the cabinet by
+        // the script copy (VrBackglass). Without it on, the PuP plugin's backglass shows nowhere in VR.
+        var cabinetBackglass =
+            vr && s.UsePupPlugin && s.VrAutoBackglass ? VrBackglass.Find(tablePath) : null;
+        if (cabinetBackglass != null)
+        {
+            extra.Add(("PlayerVR", "AddBackglass", "1"));
+        }
+        else if (vr && VpxSetup.VrBackglassFor(s, table) is { } backglass)
+        {
+            extra.Add(("PlayerVR", "AddBackglass", backglass));
+        }
+        if (s.UsePupPlugin && PupRootFor(tablePath) is { } pupFolder)
+        {
+            extra.Add(("Plugin." + VpxSetup.PupPlugin, "PUPFolder", pupFolder));
+        }
+        var play = VpxIniLayers.Build(s, vr, extra: extra);
+        if (
+            VrRoomSwitch.Prepare(tablePath, vr, s.AutoVrRoom, s.UsePupPlugin, cabinetBackglass) is
+            { } changed
+        )
         {
             PlaySession.Log($"{Path.GetFileName(tablePath)}: {changed}");
         }
@@ -786,6 +801,13 @@ public static class Launcher
                     );
                 }
             }
+            // After the switch: a pack put back on its VR layout by this launch gets them too.
+            foreach (var pack in PupPackOptions.WriteMissingEchoes(pupDir))
+            {
+                PlaySession.Log(
+                    $"{Path.GetFileName(tablePath)}: PuP pack's layout files written as its .bat does ({pack})"
+                );
+            }
         }
 
         foreach (var a in VpxArgs(play.Path, tablePath))
@@ -796,6 +818,20 @@ public static class Launcher
         var proc = Process.Start(psi)!;
         VpxIniLayers.SaveBackOnExit(proc, play, PlaySession.Log);
         return proc;
+    }
+
+    /// <summary>
+    /// The PinUP Player plugin's folder for this launch: the table's own folder, when it has a pupvideos\.
+    /// The plugin finds the pack there either way, but until the pack opens, a script's PuPlayer.GetRoot is the
+    /// plugin's global folder, which is empty when none is set. Scripts that build paths from it as they load
+    /// (<c>PuPlayer.GetRoot &amp; "\" &amp; cGameName</c>) need it to be the table's pupvideos\. The plugin
+    /// (10.8.1 rev 6625) returns it without a trailing backslash, unlike PinUP Player itself; scripts that leave
+    /// the backslash out get one from <see cref="PupRootPaths"/>.
+    /// </summary>
+    public static string? PupRootFor(string tablePath)
+    {
+        var dir = Path.GetDirectoryName(tablePath);
+        return dir != null && Directory.Exists(Path.Combine(dir, PupPacks.FolderName)) ? dir : null;
     }
 
     /// <summary>

@@ -83,7 +83,9 @@ public sealed class AppSettings
     /// <summary>
     /// VR play picks VPX's default backglass display ([PlayerVR] AddBackglass) per table: added for desktop and cabinet
     /// tables, so their PuP pack or .directb2s has somewhere to show; left out for VR tables, which bring their own
-    /// backbox and DMD (<see cref="VpxSetup.VrBackglassFor"/>). Off: VPX's own setting (its menu, saved globally) decides.
+    /// backbox and DMD (<see cref="VpxSetup.VrBackglassFor"/>), except a VR table with a blank backglass its PuP pack
+    /// draws, where it's added and moved onto the cabinet (<see cref="VrBackglass"/>). Off: VPX's own setting (its
+    /// menu, saved globally) decides.
     /// </summary>
     public bool VrAutoBackglass { get; set; } = true;
 

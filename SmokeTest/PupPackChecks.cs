@@ -503,6 +503,154 @@ public static class PupPackChecks
             "desktop play switches a pack to its desktop layout and VR play puts it back exactly; hand-picked layouts stay"
         );
 
+        // Darkest Dungeon: each layout's .bat also writes ScreenType.txt (echo 2 > ScreenType.txt), which the script
+        // reads; the pack ships it as 99. The desktop .bat copies a folder without naming a .pup file.
+        var ddPup = Path.Combine(root, "dd-pup");
+        var dd = Path.Combine(ddPup, "DarkestDungeon");
+        string[] ddVrOpt = [dd, "PuP-Pack_Options", "3 Screen - VR"];
+        string[] ddDeskOpt = [dd, "PuP-Pack_Options", "Desktop"];
+        Directory.CreateDirectory(Path.Combine(ddVrOpt));
+        Directory.CreateDirectory(Path.Combine(ddDeskOpt));
+        File.WriteAllText(Path.Combine([.. ddVrOpt, "screens.pup"]), "vr");
+        File.WriteAllText(Path.Combine([.. ddDeskOpt, "screens.pup"]), "desk");
+        File.WriteAllText(Path.Combine(dd, "screens.pup"), "default");
+        File.WriteAllText(Path.Combine(dd, "ScreenType.txt"), "99\r\n");
+        File.WriteAllText(
+            Path.Combine(dd, "3 Screen - VR.bat"),
+            "rem echo off\r\nxcopy /y \"PuP-Pack_Options\\3 Screen - VR\\*.pup\"\r\ndel pupinit.bat\r\necho 2 > ScreenType.txt\r\n"
+        );
+        File.WriteAllText(
+            Path.Combine(dd, "1 - Desktop.bat"),
+            "rem echo off\r\nxcopy /y \"PuP-Pack_Options\\Desktop\\*\"\r\necho 1 > ScreenType.txt\r\n"
+        );
+        var ddLayout = PupPackOptions.SetUpForVr(dd);
+        string ScreenType() => File.ReadAllText(Path.Combine(dd, "ScreenType.txt"));
+        var ddVr = ScreenType();
+        var ddDesk = PupPackOptions.SwitchFor(ddPup, vr: false);
+        var ddDeskType = ScreenType();
+        PupPackOptions.SwitchFor(ddPup, vr: true);
+        yield return (
+            ddLayout.Applied == "3 Screen - VR"
+                && ddVr == "2 \r\n"
+                && File.ReadAllText(
+                    Path.Combine(dd, PupPackOptions.DefaultBackup, "ScreenType.txt")
+                ) == "99\r\n"
+                && ddDesk.SequenceEqual(["DarkestDungeon: 1 - Desktop"])
+                && ddDeskType == "1 \r\n"
+                && ScreenType() == "2 \r\n"
+                && File.ReadAllText(Path.Combine(dd, "screens.pup")) == "vr",
+            "a layout .bat's echo > file lines are written too (Darkest Dungeon's ScreenType.txt), for VR and desktop"
+        );
+
+        // Set up before echo lines were written: the next launch writes them once, if the layout is still in place.
+        // (An older version left no backup of ScreenType.txt.) Changed by hand after that: left alone.
+        File.Delete(Path.Combine(dd, PupPackOptions.DefaultBackup, "ScreenType.txt"));
+        File.WriteAllText(Path.Combine(dd, "ScreenType.txt"), "99\r\n");
+        var caughtUp = PupPackOptions.WriteMissingEchoes(ddPup);
+        var caughtUpType = ScreenType();
+        File.WriteAllText(Path.Combine(dd, "ScreenType.txt"), "3\r\n");
+        yield return (
+            caughtUp.SequenceEqual(["DarkestDungeon: 3 Screen - VR"])
+                && caughtUpType == "2 \r\n"
+                && PupPackOptions.WriteMissingEchoes(ddPup).Count == 0
+                && ScreenType() == "3\r\n",
+            "a pack set up before echo lines were written gets them on its next launch, once; a hand edit after stays"
+        );
+
+        // The layout folders ship their own ScreenType.txt (99) that the echo replaces: the pack still counts as on
+        // the layout, so it goes to its desktop layout and back.
+        var dd2Pup = Path.Combine(root, "dd2-pup");
+        var dd2 = Path.Combine(dd2Pup, "DarkestDungeon");
+        CopyDir(dd, dd2);
+        Directory.Delete(Path.Combine(dd2, PupPackOptions.DefaultBackup), true);
+        File.Delete(Path.Combine(dd2, PupPackOptions.Marker));
+        File.WriteAllText(Path.Combine(dd2, "screens.pup"), "default");
+        File.WriteAllText(
+            Path.Combine([dd2, "PuP-Pack_Options", "3 Screen - VR", "ScreenType.txt"]),
+            "99\r\n"
+        );
+        File.WriteAllText(
+            Path.Combine([dd2, "PuP-Pack_Options", "Desktop", "ScreenType.txt"]),
+            "99\r\n"
+        );
+        PupPackOptions.SetUpForVr(dd2);
+        var dd2Desk = PupPackOptions.SwitchFor(dd2Pup, vr: false);
+        var dd2DeskType = File.ReadAllText(Path.Combine(dd2, "ScreenType.txt"));
+        var dd2Vr = PupPackOptions.SwitchFor(dd2Pup, vr: true);
+        yield return (
+            dd2Desk.Count == 1
+                && dd2DeskType == "1 \r\n"
+                && dd2Vr.Count == 1
+                && File.ReadAllText(Path.Combine(dd2, "ScreenType.txt")) == "2 \r\n"
+                && File.ReadAllText(Path.Combine(dd2, "screens.pup")) == "vr"
+                && File.ReadAllText(Path.Combine(dd2, PupPackOptions.Marker)).Trim()
+                    == "3 Screen - VR",
+            "a layout folder that ships the echo's file itself still switches to desktop and back"
+        );
+
+        // A menu .bat picks its echo lines at run time: none is taken. A .bat that only quotes a folder isn't a layout.
+        var menuPup = Path.Combine(root, "menu-pup");
+        var menu = Path.Combine(menuPup, "menu");
+        CopyDir(dd2, menu);
+        foreach (var f in Directory.GetFiles(menu, ".vrtm*"))
+        {
+            File.Delete(f);
+        }
+        Directory.Delete(Path.Combine(menu, PupPackOptions.DefaultBackup), true);
+        File.WriteAllText(Path.Combine(menu, "ScreenType.txt"), "99\r\n");
+        File.WriteAllText(
+            Path.Combine(menu, "3 Screen - VR.bat"),
+            "choice /c 12\r\nif errorlevel 2 goto two\r\nxcopy /y \"PuP-Pack_Options\\3 Screen - VR\\*.pup\"\r\necho 1 > ScreenType.txt\r\ngoto end\r\n:two\r\necho 2 > ScreenType.txt\r\n:end\r\n"
+        );
+        File.WriteAllText(
+            Path.Combine(menu, "readme.bat"),
+            "start notepad \"PuP-Pack_Options\\Desktop\"\r\n"
+        );
+        var menuLayout = PupPackOptions.SetUpForVr(menu);
+        yield return (
+            menuLayout.Applied == "3 Screen - VR"
+                && File.ReadAllText(Path.Combine(menu, "ScreenType.txt")) == "99\r\n"
+                && !menuLayout.Options.Contains("readme"),
+            "a menu .bat's echo lines aren't written; a .bat that only quotes a layout folder isn't a layout"
+        );
+
+        // Big Trouble in Little China: set up by an older version, which named the VR layout after its folder ("VR -
+        // 3 Screen"); its .bat ("5 VR - 3 Screen") copies that folder without naming a .pup file, so it's a layout of
+        // its own now. The marker's folder name still finds it, so desktop play still switches.
+        var btPup = Path.Combine(root, "btilc-pup");
+        var bt = Path.Combine(btPup, "BTILC");
+        string[] btVr = [bt, "PuP-Pack_Options", "VR - 3 Screen"];
+        string[] btDesk = [bt, "PuP-Pack_Options", "Desktop - 3 Screen"];
+        Directory.CreateDirectory(Path.Combine(btVr));
+        Directory.CreateDirectory(Path.Combine(btDesk));
+        File.WriteAllText(Path.Combine([.. btVr, "screens.pup"]), "vr");
+        File.WriteAllText(Path.Combine([.. btDesk, "screens.pup"]), "desk");
+        File.WriteAllText(Path.Combine(bt, "screens.pup"), "vr");
+        File.WriteAllText(Path.Combine(bt, "ScreenType.txt"), "2 \r\n");
+        File.WriteAllText(Path.Combine(bt, PupPackOptions.Marker), "VR - 3 Screen");
+        File.WriteAllText(
+            Path.Combine(bt, "5 VR - 3 Screen.bat"),
+            "xcopy /y \"PuP-Pack_Options\\VR - 3 Screen\\*\"\r\necho 2 > ScreenType.txt\r\n"
+        );
+        File.WriteAllText(
+            Path.Combine(bt, "1 - Desktop.bat"),
+            "xcopy /y \"PuP-Pack_Options\\Desktop - 3 Screen\\*\"\r\necho 5 > ScreenType.txt\r\n"
+        );
+        var btDesktop = PupPackOptions.SwitchFor(btPup, vr: false);
+        var btDeskFiles = (
+            File.ReadAllText(Path.Combine(bt, "screens.pup")),
+            File.ReadAllText(Path.Combine(bt, "ScreenType.txt"))
+        );
+        var btBack = PupPackOptions.SwitchFor(btPup, vr: true);
+        yield return (
+            btDesktop.Count == 1
+                && btDeskFiles == ("desk", "5 \r\n")
+                && btBack.Count == 1
+                && File.ReadAllText(Path.Combine(bt, "screens.pup")) == "vr"
+                && File.ReadAllText(Path.Combine(bt, "ScreenType.txt")) == "2 \r\n",
+            "a layout an older version marked by its folder's name still switches to desktop and back"
+        );
+
         // Edited by hand after this app chose the layout (PuP editor, another .bat): never switched again.
         File.WriteAllText(Path.Combine(switchB66, "screens.pup"), "my own");
         var editedOnVr = PupPackOptions.SwitchFor(switchPup, vr: false);
@@ -698,6 +846,16 @@ public static class PupPackChecks
 
     const string FuturamaPlaylists =
         "ScreenNum,Folder,Des,AlphaSort,RestSeconds,Volume,Priority\r\n0,BallLock,,0,-1,100,0\r\n2,Backglass,,0,-1,100,0\r\n";
+
+    static void CopyDir(string from, string to)
+    {
+        foreach (var file in Directory.EnumerateFiles(from, "*", SearchOption.AllDirectories))
+        {
+            var dest = Path.Combine(to, Path.GetRelativePath(from, file));
+            Directory.CreateDirectory(Path.GetDirectoryName(dest)!);
+            File.Copy(file, dest, overwrite: true);
+        }
+    }
 
     static string Dir(string root, string name, params (string path, string text)[] entries)
     {

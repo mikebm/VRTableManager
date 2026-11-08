@@ -129,6 +129,23 @@ static class VpxIniLayersChecks
                 )
             );
 
+            // A table's PinUP Player folder is for that launch only, even if VPX writes it back changed.
+            var pupPlay = VpxIniLayers.Build(
+                s,
+                vr: true,
+                extra: [("Plugin.PUP", "PUPFolder", @"C:\Tables\One")]
+            );
+            IniFile.SetMany(pupPlay.Path, "Plugin.PUP", [("PUPFolder", @"C:\Tables\One\")]);
+            results.Add(
+                (
+                    pupPlay.SaveBack() == 0
+                        && !IniFile
+                            .Read(VpxSetup.VrIniPath(s))
+                            .ContainsKey(("Plugin.PUP", "PUPFolder")),
+                    "layers: a table's PinUP Player folder is never kept for later launches"
+                )
+            );
+
             // No VPinballX.ini in the preferences folder: VPX uses the one beside the exe.
             File.Delete(own);
             results.Add(

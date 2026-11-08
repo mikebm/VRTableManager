@@ -159,6 +159,20 @@ static class VrDmdFixChecks
                 "PuP DMD fix: an old DMD flasher with another name (VR_DMD) is fixed when PuP is the table's only DMD, not when FlexDMD/UltraDMD is on or it uses PinMAME"
             )
         );
+        // Guardians of the Galaxy: UltraDMD is created only when the display mode says so, and the mode is PuP.
+        const string gotg =
+            "Option Explicit\r\nConst DMDMode\t\t\t\t\t= 2\t' 2=PUP (Only use Pup)\r\nSet PuPlayer = CreateObject(\"PinUpPlayer.PinDisplay\")\r\nSub LoadUltraDMD\r\n    Set UltraDMD = CreateObject(\"UltraDMD.DMDObject\")\r\nEnd Sub\r\n";
+        var gotgPup = ScriptTable("gotg", gotg);
+        var gotgUltra = ScriptTable(
+            "gotg ultra",
+            gotg.Replace("DMDMode\t\t\t\t\t= 2", "DMDMode\t\t\t\t\t= 1")
+        );
+        results.Add(
+            (
+                VrDmdFix.Find(gotgPup) is [{ Item: 0 }] && VrDmdFix.Find(gotgUltra).Count == 0,
+                "PuP DMD fix: DMDMode = 2 with \"2=PUP\" in its comment counts as UltraDMD off (Guardians of the Galaxy); another mode doesn't"
+            )
+        );
         VrDmdFix.Apply(tna);
         results.Add(
             (

@@ -161,6 +161,19 @@ public static partial class PupPackOptions
         return switched;
     }
 
+    /// <summary>
+    /// The layout a marker names: by its name, or by its folder's name. An older version named a layout after its
+    /// folder when its .bat didn't mention a .pup file ("VR - 3 Screen"); that .bat is a layout of its own now
+    /// ("5 VR - 3 Screen"), so the folder name must still find it.
+    /// </summary>
+    static Option? Named(List<Option> options, string name) =>
+        options.FirstOrDefault(o => o.Source != null && o.Name == name)
+        ?? options.FirstOrDefault(o =>
+            o.Source != null
+            && Path.GetFileName(Path.TrimEndingDirectorySeparator(o.Source))
+                .Equals(name, StringComparison.OrdinalIgnoreCase)
+        );
+
     /// <summary>The layout this app put the pack on, when the pack's files still match it.</summary>
     static Option? ChosenLayoutInPlace(string pack, List<Option> options)
     {
@@ -171,16 +184,22 @@ public static partial class PupPackOptions
             return null;
         }
 
-        var layout = options.FirstOrDefault(o => o.Source != null && o.Name == chosen);
-        return layout != null && IsInPlace(layout.Source!, pack) ? layout : null;
+        var layout = Named(options, chosen);
+        return layout != null && IsInPlace(layout, pack) ? layout : null;
     }
 
-    /// <summary>Every file of the layout is in the pack, unchanged.</summary>
-    static bool IsInPlace(string source, string pack) =>
-        LayoutFiles(source)
+    /// <summary>
+    /// Every file of the layout is in the pack, unchanged. The files its .bat writes with echo don't count: a
+    /// layout folder may ship one (ScreenType.txt) that the echo then replaces.
+    /// </summary>
+    static bool IsInPlace(Option layout, string pack) =>
+        LayoutFiles(layout.Source!)
+            .Where(rel =>
+                !layout.Echoes.Any(e => e.File.Equals(rel, StringComparison.OrdinalIgnoreCase))
+            )
             .All(rel =>
                 File.Exists(Path.Combine(pack, rel))
-                && SameContent(Path.Combine(pack, rel), Path.Combine(source, rel))
+                && SameContent(Path.Combine(pack, rel), Path.Combine(layout.Source!, rel))
             );
 
     static string? ToDesktop(string pack)
@@ -210,7 +229,10 @@ public static partial class PupPackOptions
         }
 
         var source = desktop[0].Source!;
-        var desktopFiles = LayoutFiles(source).ToList();
+        var desktopFiles = LayoutFiles(source)
+            .Concat(desktop[0].Echoes.Select(e => e.File))
+            .Distinct(StringComparer.OrdinalIgnoreCase)
+            .ToList();
         var vrOnly = LayoutFiles(vrLayout.Source!)
             .Except(desktopFiles, StringComparer.OrdinalIgnoreCase)
             .Where(rel => File.Exists(Path.Combine(pack, rel)))
@@ -232,10 +254,11 @@ public static partial class PupPackOptions
             CopyInto(Path.Combine(pack, rel), Path.Combine(backup, rel));
             File.Delete(Path.Combine(pack, rel));
         }
-        foreach (var rel in desktopFiles)
+        foreach (var rel in LayoutFiles(source))
         {
             CopyInto(Path.Combine(source, rel), Path.Combine(pack, rel));
         }
+        WriteEchoes(desktop[0], pack, backUp: false);
         return desktop[0].Name;
     }
 
@@ -258,8 +281,8 @@ public static partial class PupPackOptions
         var options = FindOptions(pack);
 
         // Changed by hand while on the desktop layout: that's the user's layout now, kept as it is.
-        var desktop = options.FirstOrDefault(o => o.Source != null && o.Name == desktopName);
-        if (desktop != null && !IsInPlace(desktop.Source!, pack))
+        var desktop = desktopName == null ? null : Named(options, desktopName);
+        if (desktop != null && !IsInPlace(desktop, pack))
         {
             File.WriteAllText(Path.Combine(pack, Marker), NoLayout);
             Addons.DeleteFolder(backup);
@@ -292,9 +315,10 @@ public static partial class PupPackOptions
             }
             Addons.DeleteFolder(backup);
         }
-        else if (options.FirstOrDefault(o => o.Source != null && o.Name == vrName) is { } vrLayout)
+        else if (Named(options, vrName) is { } vrLayout)
         {
             CopyLayout(vrLayout.Source!, pack);
+            WriteEchoes(vrLayout, pack, backUp: false);
         }
         File.Delete(markerFile);
         return vrName.Length > 0 ? vrName : "its layout before desktop play";
@@ -357,11 +381,13 @@ public static partial class PupPackOptions
         if (vr.Count == 1)
         {
             CopyLayout(vr[0].Source!, pack);
+            WriteEchoes(vr[0], pack, backUp: true);
             applied = vr[0].Name;
         }
         else if (vr.Count == 0 && OwnFullDmdLayout(pack, options) is { } own)
         {
             CopyLayout(own.Source!, pack);
+            WriteEchoes(own, pack, backUp: true);
             applied = own.Name;
         }
         try
@@ -384,7 +410,119 @@ public static partial class PupPackOptions
         );
     }
 
-    record Option(string Name, string? Source);
+    /// <summary>A layout: its name, the folder its files come from, and the files its .bat writes with echo.</summary>
+    record Option(string Name, string? Source, IReadOnlyList<Echo> Echoes);
+
+    /// <summary>
+    /// A line like <c>echo 2 &gt; ScreenType.txt</c> in a layout's .bat: Darkest Dungeon's script reads the screen
+    /// setup from that file, and the pack ships it as 99 ("not set up"), which shows a "run the batch file" message
+    /// and its apron screens over the playfield. <see cref="Text"/> is what cmd writes: everything up to the &gt;.
+    /// </summary>
+    record Echo(string File, string Text);
+
+    /// <summary>
+    /// Writes the files a layout's .bat writes with echo, as cmd does (the text, then a line break). With
+    /// <paramref name="backUp"/>, the pack's own copy is kept in <see cref="DefaultBackup"/> the first time.
+    /// </summary>
+    /// <param name="onlyOnce">Skip a file already backed up: it was written before, and has been changed since by hand.</param>
+    static bool WriteEchoes(Option layout, string pack, bool backUp, bool onlyOnce = false)
+    {
+        var changed = false;
+        foreach (var e in layout.Echoes)
+        {
+            var dest = Path.Combine(pack, e.File);
+            var bytes = System.Text.Encoding.Latin1.GetBytes(e.Text + "\r\n");
+            if (File.Exists(dest) && File.ReadAllBytes(dest).AsSpan().SequenceEqual(bytes))
+            {
+                continue;
+            }
+
+            var backup = Path.Combine(pack, DefaultBackup, e.File);
+            if (onlyOnce && File.Exists(backup))
+            {
+                continue;
+            }
+            if (backUp && File.Exists(dest) && !File.Exists(backup))
+            {
+                CopyInto(dest, backup);
+            }
+            Directory.CreateDirectory(Path.GetDirectoryName(dest)!);
+            File.WriteAllBytes(dest, bytes);
+            changed = true;
+        }
+        return changed;
+    }
+
+    /// <summary>
+    /// Packs this app put on a layout before it wrote the layout's echo files (Darkest Dungeon's ScreenType.txt
+    /// stayed 99) get them now, when the layout's files are still the ones it copied and the pack isn't on its
+    /// desktop layout. Returns "pack: layout" for each one changed. Never throws.
+    /// </summary>
+    public static List<string> WriteMissingEchoes(string pupDir)
+    {
+        var done = new List<string>();
+        try
+        {
+            if (!Directory.Exists(pupDir))
+            {
+                return done;
+            }
+
+            foreach (var pack in PupPacks.PackRoots(pupDir))
+            {
+                if (File.Exists(Path.Combine(pack, DesktopMarker)))
+                {
+                    continue;
+                }
+
+                if (
+                    ChosenLayoutInPlace(pack, FindOptions(pack)) is { Echoes.Count: > 0 } layout
+                    && WriteEchoes(layout, pack, backUp: true, onlyOnce: true)
+                )
+                {
+                    done.Add($"{Path.GetFileName(pack)}: {layout.Name}");
+                }
+            }
+        }
+        catch (Exception) { } // a pack it can't set up just plays as it is
+        return done;
+    }
+
+    /// <summary>
+    /// The plain echo lines of a .bat that runs straight through. A menu .bat (goto, choice, set /p) picks its
+    /// lines at run time, so none of its echoes is taken. Targets with variables (%~dp0), device names (nul) or a
+    /// path out of the pack are skipped, and so is <c>echo 1&gt;file</c>, which cmd reads as a redirect.
+    /// </summary>
+    static List<Echo> EchoesIn(string bat)
+    {
+        var list = new List<Echo>();
+        if (MenuBatRegex().IsMatch(bat))
+        {
+            return list;
+        }
+
+        foreach (Match m in EchoLineRegex().Matches(bat))
+        {
+            var file = m.Groups["file"].Value.Trim().Replace('/', '\\');
+            var text = m.Groups["text"].Value;
+            if (
+                file.Length == 0
+                || file.Contains('%')
+                || file.Contains(':')
+                || Path.IsPathRooted(file)
+                || file.Contains("..")
+                || DeviceNameRegex().IsMatch(Path.GetFileName(file))
+                || Programs.Contains(Path.GetExtension(file).ToLowerInvariant())
+                || (text.Length > 0 && char.IsDigit(text[^1]))
+            )
+            {
+                continue;
+            }
+
+            list.Add(new(file, text));
+        }
+        return list;
+    }
 
     /// <summary>
     /// With no layout named for VR: the one layout whose FullDMD (screen 5, what the VR cabinet's DMD shows) is a
@@ -480,13 +618,26 @@ public static partial class PupPackOptions
             {
                 continue;
             }
-            if (!text.Contains(".pup", StringComparison.OrdinalIgnoreCase))
+            // "1 - Desktop.bat" copies PuP-Pack_Options\Desktop\* without naming a .pup file: one that copies a
+            // layout folder in the options folder counts too.
+            var name = Path.GetFileNameWithoutExtension(bat)!;
+            var source = FolderNamed(name) ?? SourceIn(text, pack);
+            if (
+                !text.Contains(".pup", StringComparison.OrdinalIgnoreCase)
+                && !(
+                    source != null
+                    && CopyCommandRegex().IsMatch(text)
+                    && folders.Any(f =>
+                        Path.GetFullPath(f)
+                            .Equals(Path.GetFullPath(source), StringComparison.OrdinalIgnoreCase)
+                    )
+                )
+            )
             {
                 continue;
             }
 
-            var name = Path.GetFileNameWithoutExtension(bat)!;
-            list.Add(new(name, FolderNamed(name) ?? SourceIn(text, pack)));
+            list.Add(new(name, source, EchoesIn(text)));
         }
         foreach (var f in folders.Order(StringComparer.OrdinalIgnoreCase))
         {
@@ -498,7 +649,7 @@ public static partial class PupPackOptions
                 )
             )
             {
-                list.Add(new(Path.GetFileName(f)!, f));
+                list.Add(new(Path.GetFileName(f)!, f, []));
             }
         }
 
@@ -597,4 +748,26 @@ public static partial class PupPackOptions
 
     [GeneratedRegex("\"([^\"\\r\\n]+)\"")]
     private static partial Regex QuotedPathRegex();
+
+    /// <summary><c>echo 2 &gt; ScreenType.txt</c> (not <c>&gt;&gt;</c>, not echo off): the text up to &gt;, and the file.</summary>
+    [GeneratedRegex(
+        @"^[ \t]*@?echo[ \t]+(?<text>[^>\r\n]*)>[ \t]*""?(?<file>[^""\r\n<>|&]+?)""?[ \t]*\r?$",
+        RegexOptions.IgnoreCase | RegexOptions.Multiline
+    )]
+    private static partial Regex EchoLineRegex();
+
+    [GeneratedRegex(
+        @"^[ \t]*(?:goto|choice|set[ \t]+/p|:[A-Za-z])",
+        RegexOptions.IgnoreCase | RegexOptions.Multiline
+    )]
+    private static partial Regex MenuBatRegex();
+
+    [GeneratedRegex(@"^(?:con|prn|aux|nul|com\d|lpt\d)(?:\.|$)", RegexOptions.IgnoreCase)]
+    private static partial Regex DeviceNameRegex();
+
+    [GeneratedRegex(
+        @"^[ \t]*@?(?:xcopy|copy|robocopy)\b",
+        RegexOptions.IgnoreCase | RegexOptions.Multiline
+    )]
+    private static partial Regex CopyCommandRegex();
 }
