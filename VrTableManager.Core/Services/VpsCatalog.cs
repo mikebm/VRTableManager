@@ -27,7 +27,8 @@ public static class VpsCatalog
         path ??= CachePath;
         try
         {
-            if (!File.Exists(path)) return null;
+            if (!File.Exists(path))
+                return null;
             using var stream = File.OpenRead(path);
             return JsonSerializer.Deserialize<List<VpsGame>>(stream, Json);
         }
@@ -37,9 +38,14 @@ public static class VpsCatalog
         }
     }
 
-    public static async Task<List<VpsGame>> LoadAsync(bool forceRefresh, CancellationToken ct = default)
+    public static async Task<List<VpsGame>> LoadAsync(
+        bool forceRefresh,
+        CancellationToken ct = default
+    )
     {
-        var cacheFresh = File.Exists(CachePath) && DateTime.UtcNow - File.GetLastWriteTimeUtc(CachePath) < MaxAge;
+        var cacheFresh =
+            File.Exists(CachePath)
+            && DateTime.UtcNow - File.GetLastWriteTimeUtc(CachePath) < MaxAge;
         if (forceRefresh || !cacheFresh)
         {
             try
@@ -63,7 +69,8 @@ public static class VpsCatalog
             .ToList();
     }
 
-    public static bool IsVpx(VpsTableFile t) => string.Equals(t.TableFormat, "VPX", StringComparison.OrdinalIgnoreCase);
+    public static bool IsVpx(VpsTableFile t) =>
+        string.Equals(t.TableFormat, "VPX", StringComparison.OrdinalIgnoreCase);
 
     public static bool HasFeature(VpsFile f, string feature) =>
         f.Features?.Any(x => string.Equals(x, feature, StringComparison.OrdinalIgnoreCase)) == true;
@@ -92,14 +99,23 @@ public static class Http
     /// Downloads to <paramref name="dest"/>. A connection that stops sending (a VPN, firewall or antivirus holding
     /// it open) fails after <see cref="StallTimeout"/> with a <see cref="TimeoutException"/> instead of hanging.
     /// </summary>
-    public static async Task DownloadFileAsync(string url, string dest, IProgress<double>? progress, CancellationToken ct)
+    public static async Task DownloadFileAsync(
+        string url,
+        string dest,
+        IProgress<double>? progress,
+        CancellationToken ct
+    )
     {
         using var stall = CancellationTokenSource.CreateLinkedTokenSource(ct);
         var host = Uri.TryCreate(url, UriKind.Absolute, out var u) ? u.Host : url;
         try
         {
             stall.CancelAfter(StallTimeout);
-            using var resp = await Client.GetAsync(url, HttpCompletionOption.ResponseHeadersRead, stall.Token);
+            using var resp = await Client.GetAsync(
+                url,
+                HttpCompletionOption.ResponseHeadersRead,
+                stall.Token
+            );
             resp.EnsureSuccessStatusCode();
             var total = resp.Content.Headers.ContentLength;
             await using var src = await resp.Content.ReadAsStreamAsync(stall.Token);
@@ -113,13 +129,16 @@ public static class Http
                 stall.CancelAfter(StallTimeout);
                 await dst.WriteAsync(buffer.AsMemory(0, n), ct);
                 read += n;
-                if (total > 0) progress?.Report((double)read / total.Value);
+                if (total > 0)
+                    progress?.Report((double)read / total.Value);
             }
         }
         catch (OperationCanceledException) when (!ct.IsCancellationRequested)
         {
-            throw new TimeoutException($"The download from {host} stopped: nothing arrived for {StallTimeout.TotalSeconds:0} seconds. " +
-                "A VPN, firewall or antivirus may be blocking it.");
+            throw new TimeoutException(
+                $"The download from {host} stopped: nothing arrived for {StallTimeout.TotalSeconds:0} seconds. "
+                    + "A VPN, firewall or antivirus may be blocking it."
+            );
         }
     }
 }

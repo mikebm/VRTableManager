@@ -19,13 +19,14 @@ namespace VrTableManager.Services;
 public static class VrDmdFix
 {
     const int FlasherType = 20;
-    const int ExtRender = 4;     // FlasherData::EXT_RENDER
-    const int ScoreView = 2;     // VPXWINDOW_ScoreView
+    const int ExtRender = 4; // FlasherData::EXT_RENDER
+    const int ScoreView = 2; // VPXWINDOW_ScoreView
     public const string BackupSuffix = ".dmdfix.bak";
 
     public record Flasher(int Item, string Name);
 
     public static string BackupPath(string vpx) => vpx + BackupSuffix;
+
     public static bool HasBackup(string vpx) => File.Exists(BackupPath(vpx));
 
     /// <summary>
@@ -36,7 +37,8 @@ public static class VrDmdFix
     /// </summary>
     public static IReadOnlyList<Flasher> Find(string vpx)
     {
-        List<Flasher> named = [], other = [];
+        List<Flasher> named = [],
+            other = [];
         try
         {
             using var root = RootStorage.OpenRead(vpx);
@@ -46,14 +48,22 @@ public static class VrDmdFix
                 {
                     var d = ReadAll(s);
                     if (IsOldDmd(d, out var name))
-                        (name.Contains("pup", StringComparison.OrdinalIgnoreCase) ? named : other).Add(new(i, name));
+                        (
+                            name.Contains("pup", StringComparison.OrdinalIgnoreCase) ? named : other
+                        ).Add(new(i, name));
                 }
         }
-        catch (Exception) { return []; }
-        if (other.Count == 0) return named;
+        catch (Exception)
+        {
+            return [];
+        }
+        if (other.Count == 0)
+            return named;
         // Reading the script means reading the whole file, so only when there's a flasher it would decide.
         var script = RomDetector.Inspect(vpx);
-        return script is { UsesPup: true, UsesPinMame: false, UsesOwnDmd: false } ? [.. named, .. other.OrderBy(f => f.Item)] : named;
+        return script is { UsesPup: true, UsesPinMame: false, UsesOwnDmd: false }
+            ? [.. named, .. other.OrderBy(f => f.Item)]
+            : named;
     }
 
     /// <summary>
@@ -64,7 +74,8 @@ public static class VrDmdFix
     public static IReadOnlyList<Flasher> Apply(string vpx)
     {
         var flashers = Find(vpx);
-        if (flashers.Count == 0) return flashers;
+        if (flashers.Count == 0)
+            return flashers;
         File.Copy(vpx, BackupPath(vpx), overwrite: true);
         var tmp = vpx + ".dmdfix.tmp";
         File.Copy(vpx, tmp, overwrite: true);
@@ -83,17 +94,29 @@ public static class VrDmdFix
                 }
                 root.Flush();
             }
-            if (Find(tmp).Count != 0) throw new InvalidOperationException("the patched table still has the old DMD setting");
+            if (Find(tmp).Count != 0)
+                throw new InvalidOperationException(
+                    "the patched table still has the old DMD setting"
+                );
             File.Move(tmp, vpx, overwrite: true);
         }
-        finally { if (File.Exists(tmp)) File.Delete(tmp); }
+        finally
+        {
+            if (File.Exists(tmp))
+                File.Delete(tmp);
+        }
         return flashers;
     }
 
     /// <summary>Puts the backed-up original back.</summary>
     public static void Undo(string vpx) => File.Move(BackupPath(vpx), vpx, overwrite: true);
 
-    static byte[] ReadAll(Stream s) { var ms = new MemoryStream(); s.CopyTo(ms); return ms.ToArray(); }
+    static byte[] ReadAll(Stream s)
+    {
+        var ms = new MemoryStream();
+        s.CopyTo(ms);
+        return ms.ToArray();
+    }
 
     record struct Record(int Offset, int Size, string Tag);
 
@@ -104,12 +127,14 @@ public static class VrDmdFix
     static List<Record> TopRecords(byte[] d)
     {
         var list = new List<Record>();
-        for (int p = 4; p + 8 <= d.Length;)
+        for (int p = 4; p + 8 <= d.Length; )
         {
             int len = BitConverter.ToInt32(d, p);
-            if (len < 4 || p + 4 + len > d.Length) break;
+            if (len < 4 || p + 4 + len > d.Length)
+                break;
             var tag = Encoding.ASCII.GetString(d, p + 4, 4);
-            if (tag is "DPNT" or "ENDB") break;
+            if (tag is "DPNT" or "ENDB")
+                break;
             list.Add(new(p, 4 + len, tag));
             p += 4 + len;
         }
@@ -120,8 +145,10 @@ public static class VrDmdFix
     static bool IsOldDmd(byte[] d, out string name)
     {
         name = "";
-        if (d.Length < 4 || BitConverter.ToInt32(d, 0) != FlasherType) return false;
-        bool dmd = false, modern = false;
+        if (d.Length < 4 || BitConverter.ToInt32(d, 0) != FlasherType)
+            return false;
+        bool dmd = false,
+            modern = false;
         foreach (var r in TopRecords(d))
         {
             var data = r.Offset + 8;
@@ -129,10 +156,18 @@ public static class VrDmdFix
             {
                 case "NAME" when r.Size >= 12:
                     var n = BitConverter.ToInt32(d, data);
-                    name = Encoding.Unicode.GetString(d, data + 4, Math.Clamp(n * 2, 0, r.Size - 12));
+                    name = Encoding.Unicode.GetString(
+                        d,
+                        data + 4,
+                        Math.Clamp(n * 2, 0, r.Size - 12)
+                    );
                     break;
-                case "IDMD" when r.Size == 12: dmd = BitConverter.ToInt32(d, data) != 0; break;
-                case "RDMD": modern = true; break;
+                case "IDMD" when r.Size == 12:
+                    dmd = BitConverter.ToInt32(d, data) != 0;
+                    break;
+                case "RDMD":
+                    modern = true;
+                    break;
             }
         }
         return dmd && !modern;
@@ -149,7 +184,11 @@ public static class VrDmdFix
         foreach (var r in records.Where(r => r.Tag is "IDMD" or "RSTL"))
         {
             w.Write(d, p, r.Offset - p);
-            if (r == idmd) { WriteInt(w, "RDMD", ExtRender); WriteInt(w, "RSTL", ScoreView); }
+            if (r == idmd)
+            {
+                WriteInt(w, "RDMD", ExtRender);
+                WriteInt(w, "RSTL", ScoreView);
+            }
             p = r.Offset + r.Size;
         }
         w.Write(d, p, d.Length - p);
@@ -165,5 +204,7 @@ public static class VrDmdFix
 
     /// <summary>VPX builds before 10.8.1 don't know RDMD: the patch would turn the DMD into a plain flasher there.</summary>
     public static bool EngineSupportsFix(string? installedTag) =>
-        installedTag != null && System.Version.TryParse(installedTag.TrimStart('v').Split('-')[0], out var v) && v >= new System.Version(10, 8, 1);
+        installedTag != null
+        && System.Version.TryParse(installedTag.TrimStart('v').Split('-')[0], out var v)
+        && v >= new System.Version(10, 8, 1);
 }

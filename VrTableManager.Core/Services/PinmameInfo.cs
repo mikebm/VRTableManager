@@ -26,9 +26,10 @@ public static class PinmameInfo
     {
         var dll = RomAudio.PinmameDll(s);
         var chain = new List<PinmameGame>();
-        for (var name = game; name != null && chain.Count < 4 && !chain.Any(g => g.Name == name);)
+        for (var name = game; name != null && chain.Count < 4 && !chain.Any(g => g.Name == name); )
         {
-            if (Query(dll, pinmameDir, [name]).GetValueOrDefault(name) is not { } g) break;
+            if (Query(dll, pinmameDir, [name]).GetValueOrDefault(name) is not { } g)
+                break;
             chain.Add(g);
             name = g.CloneOf;
         }
@@ -36,32 +37,51 @@ public static class PinmameInfo
     }
 
     /// <summary>Which of these names PinMAME knows (the rest are aliases, typos or not ROM names at all).</summary>
-    public static Dictionary<string, PinmameGame> Query(string dll, string pinmameDir, IReadOnlyCollection<string> names)
+    public static Dictionary<string, PinmameGame> Query(
+        string dll,
+        string pinmameDir,
+        IReadOnlyCollection<string> names
+    )
     {
         var result = new Dictionary<string, PinmameGame>(StringComparer.OrdinalIgnoreCase);
-        if (!OperatingSystem.IsWindows() || !File.Exists(dll) || names.Count == 0) return result;
+        if (!OperatingSystem.IsWindows() || !File.Exists(dll) || names.Count == 0)
+            return result;
         lock (RomAudio.OneAtATime)
         {
             try
             {
                 var lib = NativeLibrary.Load(dll);
-                var setConfig = Marshal.GetDelegateForFunctionPointer<SetConfigFn>(NativeLibrary.GetExport(lib, "PinmameSetConfig"));
-                var getGame = Marshal.GetDelegateForFunctionPointer<GetGameFn>(NativeLibrary.GetExport(lib, "PinmameGetGame"));
-                var dir = pinmameDir.EndsWith('\\') || pinmameDir.EndsWith('/') ? pinmameDir : pinmameDir + Path.DirectorySeparatorChar;
+                var setConfig = Marshal.GetDelegateForFunctionPointer<SetConfigFn>(
+                    NativeLibrary.GetExport(lib, "PinmameSetConfig")
+                );
+                var getGame = Marshal.GetDelegateForFunctionPointer<GetGameFn>(
+                    NativeLibrary.GetExport(lib, "PinmameGetGame")
+                );
+                var dir =
+                    pinmameDir.EndsWith('\\') || pinmameDir.EndsWith('/')
+                        ? pinmameDir
+                        : pinmameDir + Path.DirectorySeparatorChar;
                 var config = new Config { SampleRate = 48000, VpmPath = dir };
                 setConfig(ref config);
                 PinmameGame? last = null;
-                GameCallback cb = (ref Game g, IntPtr _) => last = new PinmameGame(
-                    Marshal.PtrToStringAnsi(g.Name) ?? "", Marshal.PtrToStringAnsi(g.CloneOf) is { Length: > 0 } c ? c : null,
-                    Marshal.PtrToStringAnsi(g.Description) ?? "", g.Found != 0);
+                GameCallback cb = (ref Game g, IntPtr _) =>
+                    last = new PinmameGame(
+                        Marshal.PtrToStringAnsi(g.Name) ?? "",
+                        Marshal.PtrToStringAnsi(g.CloneOf) is { Length: > 0 } c ? c : null,
+                        Marshal.PtrToStringAnsi(g.Description) ?? "",
+                        g.Found != 0
+                    );
                 foreach (var n in names)
                 {
                     last = null;
-                    if (getGame(n, cb, IntPtr.Zero) == StatusOk && last != null) result[n] = last;
+                    if (getGame(n, cb, IntPtr.Zero) == StatusOk && last != null)
+                        result[n] = last;
                 }
                 GC.KeepAlive(cb);
             }
-            catch { /* old or missing DLL: no answers */ }
+            catch
+            { /* old or missing DLL: no answers */
+            }
         }
         return result;
     }
@@ -70,21 +90,47 @@ public static class PinmameInfo
     [StructLayout(LayoutKind.Sequential, CharSet = CharSet.Ansi)]
     struct Config
     {
-        public int AudioFormat, SampleRate;
-        [MarshalAs(UnmanagedType.ByValTStr, SizeConst = 512)] public string VpmPath;
-        public IntPtr OnStateUpdated, OnDisplayAvailable, OnDisplayUpdated, OnAudioAvailable, OnAudioUpdated,
-            OnMechAvailable, OnMechUpdated, OnSolenoidUpdated, OnConsoleDataUpdated, IsKeyPressed, OnLogMessage, OnSoundCommand;
+        public int AudioFormat,
+            SampleRate;
+
+        [MarshalAs(UnmanagedType.ByValTStr, SizeConst = 512)]
+        public string VpmPath;
+        public IntPtr OnStateUpdated,
+            OnDisplayAvailable,
+            OnDisplayUpdated,
+            OnAudioAvailable,
+            OnAudioUpdated,
+            OnMechAvailable,
+            OnMechUpdated,
+            OnSolenoidUpdated,
+            OnConsoleDataUpdated,
+            IsKeyPressed,
+            OnLogMessage,
+            OnSoundCommand;
     }
 
     [StructLayout(LayoutKind.Sequential)]
     struct Game
     {
-        public IntPtr Name, CloneOf, Description, Year, Manufacturer;
+        public IntPtr Name,
+            CloneOf,
+            Description,
+            Year,
+            Manufacturer;
         public uint Flags;
         public int Found;
     }
 
-    [UnmanagedFunctionPointer(CallingConvention.Cdecl)] delegate void SetConfigFn(ref Config config);
-    [UnmanagedFunctionPointer(CallingConvention.Cdecl)] delegate void GameCallback(ref Game game, IntPtr user);
-    [UnmanagedFunctionPointer(CallingConvention.Cdecl)] delegate int GetGameFn([MarshalAs(UnmanagedType.LPStr)] string name, GameCallback cb, IntPtr user);
+    [UnmanagedFunctionPointer(CallingConvention.Cdecl)]
+    delegate void SetConfigFn(ref Config config);
+
+    [UnmanagedFunctionPointer(CallingConvention.Cdecl)]
+    delegate void GameCallback(ref Game game, IntPtr user);
+
+    [UnmanagedFunctionPointer(CallingConvention.Cdecl)]
+    delegate int GetGameFn(
+        [MarshalAs(UnmanagedType.LPStr)] string name,
+        GameCallback cb,
+        IntPtr user
+    );
 }

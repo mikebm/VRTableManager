@@ -1,5 +1,4 @@
 <Project Sdk="Microsoft.NET.Sdk">
-
   <!-- Shared by the manager app, the VR lobby (Godot) and the smoke tests:
        VPS models, table scanning/installing, and the launch engines. No UI code here. -->
   <PropertyGroup>
@@ -14,5 +13,4 @@
     <PackageReference Include="SevenZipExtractor" Version="1.0.19" />
     <PackageReference Include="SharpCompress" Version="0.50.5" />
   </ItemGroup>
-
 </Project>

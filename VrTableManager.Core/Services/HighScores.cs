@@ -29,7 +29,17 @@ public static class HighScores
     static readonly SemaphoreSlim Gate = new(1, 1);
     static readonly Lock IndexLock = new();
     static (DateTime Stamp, Dictionary<string, string> Map)? _index;
-    static readonly Lazy<string?> VpxDir = new(() => { try { return AppSettings.Load().VpxDir; } catch { return null; } });
+    static readonly Lazy<string?> VpxDir = new(() =>
+    {
+        try
+        {
+            return AppSettings.Load().VpxDir;
+        }
+        catch
+        {
+            return null;
+        }
+    });
 
     public static string MapsDir => Path.Combine(AppSettings.DataDir, "nvram-maps");
     static string IndexPath => Path.Combine(MapsDir, "index.json");
@@ -42,26 +52,39 @@ public static class HighScores
             await Gate.WaitAsync(ct);
             try
             {
-                if (File.Exists(IndexPath) && DateTime.UtcNow - File.GetLastWriteTimeUtc(IndexPath) < MaxAge) return true;
+                if (
+                    File.Exists(IndexPath)
+                    && DateTime.UtcNow - File.GetLastWriteTimeUtc(IndexPath) < MaxAge
+                )
+                    return true;
                 var zip = MapsDir + ".download.zip";
                 var staging = MapsDir + ".new";
                 await Http.DownloadFileAsync(ArchiveUrl, zip, null, ct);
-                if (Directory.Exists(staging)) Directory.Delete(staging, true);
+                if (Directory.Exists(staging))
+                    Directory.Delete(staging, true);
                 ExtractMaps(zip, staging);
                 File.Delete(zip);
-                if (!File.Exists(Path.Combine(staging, "index.json"))) return false;
+                if (!File.Exists(Path.Combine(staging, "index.json")))
+                    return false;
                 File.SetLastWriteTimeUtc(Path.Combine(staging, "index.json"), DateTime.UtcNow);
                 lock (IndexLock)
                 {
-                    if (Directory.Exists(MapsDir)) Directory.Delete(MapsDir, true);
+                    if (Directory.Exists(MapsDir))
+                        Directory.Delete(MapsDir, true);
                     Directory.Move(staging, MapsDir);
                     _index = null;
                 }
                 return true;
             }
-            finally { Gate.Release(); }
+            finally
+            {
+                Gate.Release();
+            }
         }
-        catch { return false; }
+        catch
+        {
+            return false;
+        }
     }
 
     /// <summary>Keeps index.json, platforms/*.json and maps/**/*.map.json from the repo archive.</summary>
@@ -72,14 +95,18 @@ public static class HighScores
         foreach (var e in zip.Entries)
         {
             var slash = e.FullName.IndexOf('/');
-            if (slash < 0 || e.FullName.EndsWith('/')) continue;
+            if (slash < 0 || e.FullName.EndsWith('/'))
+                continue;
             var rel = e.FullName[(slash + 1)..];
-            var keep = rel == "index.json"
-                       || (rel.StartsWith("platforms/") && rel.EndsWith(".json"))
-                       || (rel.StartsWith("maps/") && rel.EndsWith(".map.json"));
-            if (!keep || rel.Contains("..")) continue;
+            var keep =
+                rel == "index.json"
+                || (rel.StartsWith("platforms/") && rel.EndsWith(".json"))
+                || (rel.StartsWith("maps/") && rel.EndsWith(".map.json"));
+            if (!keep || rel.Contains(".."))
+                continue;
             var path = Path.GetFullPath(Path.Combine(dest, rel));
-            if (!path.StartsWith(root, StringComparison.OrdinalIgnoreCase)) continue;
+            if (!path.StartsWith(root, StringComparison.OrdinalIgnoreCase))
+                continue;
             Directory.CreateDirectory(Path.GetDirectoryName(path)!);
             using var src = e.Open();
             using var dst = File.Create(path);
@@ -92,11 +119,15 @@ public static class HighScores
     {
         try
         {
-            if (!table.IsVpx) return [];
+            if (!table.IsVpx)
+                return [];
             var nv = FindNv(table);
             return nv == null ? [] : Read(nv.Value.Rom, nv.Value.Path);
         }
-        catch { return []; }
+        catch
+        {
+            return [];
+        }
     }
 
     /// <summary>Same, from a ROM name and nv file path (for tests).</summary>
@@ -104,15 +135,28 @@ public static class HighScores
     {
         try
         {
-            if (string.IsNullOrWhiteSpace(romName) || !File.Exists(nvPath)) return [];
-            if (MapPathFor(romName) is not { } mapPath) return [];
+            if (string.IsNullOrWhiteSpace(romName) || !File.Exists(nvPath))
+                return [];
+            if (MapPathFor(romName) is not { } mapPath)
+                return [];
             var map = File.ReadAllText(mapPath);
-            var platformName = (JsonNode.Parse(map)?["_metadata"]?["platform"] as JsonValue)?.ToString();
-            var platformPath = platformName == null ? null : Path.Combine(MapsDir, "platforms", platformName + ".json");
-            var platform = platformPath != null && File.Exists(platformPath) ? File.ReadAllText(platformPath) : null;
+            var platformName = (
+                JsonNode.Parse(map)?["_metadata"]?["platform"] as JsonValue
+            )?.ToString();
+            var platformPath =
+                platformName == null
+                    ? null
+                    : Path.Combine(MapsDir, "platforms", platformName + ".json");
+            var platform =
+                platformPath != null && File.Exists(platformPath)
+                    ? File.ReadAllText(platformPath)
+                    : null;
             return Decode(map, platform, File.ReadAllBytes(nvPath));
         }
-        catch { return []; }
+        catch
+        {
+            return [];
+        }
     }
 
     /// <summary>
@@ -124,44 +168,63 @@ public static class HighScores
     {
         var roms = table.Manifest.RomNames.ToList();
         var romDir = Path.Combine(table.Folder, "pinmame", "roms");
-        if (Directory.Exists(romDir)) roms.AddRange(Directory.EnumerateFiles(romDir, "*.zip").Select(Path.GetFileNameWithoutExtension).OfType<string>());
-        roms = roms.Where(r => !string.IsNullOrWhiteSpace(r)).Distinct(StringComparer.OrdinalIgnoreCase).ToList();
-        if (roms.Count == 0) return null;
+        if (Directory.Exists(romDir))
+            roms.AddRange(
+                Directory
+                    .EnumerateFiles(romDir, "*.zip")
+                    .Select(Path.GetFileNameWithoutExtension)
+                    .OfType<string>()
+            );
+        roms = roms.Where(r => !string.IsNullOrWhiteSpace(r))
+            .Distinct(StringComparer.OrdinalIgnoreCase)
+            .ToList();
+        if (roms.Count == 0)
+            return null;
 
-        var own = roms.Select(r => (Rom: r, Path: Path.Combine(table.Folder, "pinmame", "nvram", r + ".nv")))
+        var own = roms.Select(r =>
+                (Rom: r, Path: Path.Combine(table.Folder, "pinmame", "nvram", r + ".nv"))
+            )
             .Where(x => File.Exists(x.Path))
             .OrderByDescending(x => File.GetLastWriteTimeUtc(x.Path))
             .FirstOrDefault();
-        if (own.Path != null) return own;
+        if (own.Path != null)
+            return own;
         // A table with its own pinmame folder keeps its scores there; a shared folder's file would be
         // another install's scores (e.g. an old VPinMAME setup), not this table's.
-        if (Directory.Exists(Path.Combine(table.Folder, "pinmame"))) return null;
+        if (Directory.Exists(Path.Combine(table.Folder, "pinmame")))
+            return null;
 
         foreach (var dir in SharedNvramDirs())
-            foreach (var r in roms)
-                if (File.Exists(Path.Combine(dir, r + ".nv"))) return (r, Path.Combine(dir, r + ".nv"));
+        foreach (var r in roms)
+            if (File.Exists(Path.Combine(dir, r + ".nv")))
+                return (r, Path.Combine(dir, r + ".nv"));
         return null;
     }
 
     static IEnumerable<string> SharedNvramDirs()
     {
-        if (VpxDir.Value is { Length: > 0 } vpx) yield return Path.Combine(vpx, "VPinMAME", "nvram");
+        if (VpxDir.Value is { Length: > 0 } vpx)
+            yield return Path.Combine(vpx, "VPinMAME", "nvram");
         string? classic = null;
         if (OperatingSystem.IsWindows())
         {
             try
             {
-                using var key = Microsoft.Win32.Registry.CurrentUser.OpenSubKey(@"Software\Freeware\Visual PinMame\globals");
+                using var key = Microsoft.Win32.Registry.CurrentUser.OpenSubKey(
+                    @"Software\Freeware\Visual PinMame\globals"
+                );
                 classic = key?.GetValue("nvram_directory") as string;
             }
             catch { }
         }
-        if (!string.IsNullOrWhiteSpace(classic)) yield return classic;
+        if (!string.IsNullOrWhiteSpace(classic))
+            yield return classic;
     }
 
     static string? MapPathFor(string rom)
     {
-        if (!File.Exists(IndexPath)) return null;
+        if (!File.Exists(IndexPath))
+            return null;
         Dictionary<string, string> index;
         lock (IndexLock)
         {
@@ -171,12 +234,18 @@ public static class HighScores
                 var map = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
                 if (JsonNode.Parse(File.ReadAllText(IndexPath)) is JsonObject o)
                     foreach (var (k, v) in o)
-                        if (!k.StartsWith('_') && v is JsonValue s && s.TryGetValue<string>(out var p)) map[k] = p;
+                        if (
+                            !k.StartsWith('_')
+                            && v is JsonValue s
+                            && s.TryGetValue<string>(out var p)
+                        )
+                            map[k] = p;
                 _index = cached = (stamp, map);
             }
             index = cached.Map;
         }
-        if (!index.TryGetValue(rom, out var rel) || rel.Contains("..")) return null;
+        if (!index.TryGetValue(rom, out var rel) || rel.Contains(".."))
+            return null;
         var path = Path.Combine(MapsDir, rel.Replace('/', Path.DirectorySeparatorChar));
         return File.Exists(path) ? path : null;
     }
@@ -192,17 +261,25 @@ public static class HighScores
         var result = new List<HighScore>();
         try
         {
-            if (JsonNode.Parse(mapJson) is not JsonObject map) return result;
+            if (JsonNode.Parse(mapJson) is not JsonObject map)
+                return result;
             var meta = map["_metadata"] as JsonObject ?? new JsonObject();
             var platform = platformJson == null ? null : JsonNode.Parse(platformJson) as JsonObject;
             var mem = new Memory(platform, meta, nv);
             foreach (var section in new[] { "high_scores", "mode_champions" })
             {
-                if (map[section] is not JsonArray entries) continue;
+                if (map[section] is not JsonArray entries)
+                    continue;
                 foreach (var entry in Expand(entries))
                 {
-                    try { if (Entry(entry, mem) is { } hs) result.Add(hs); }
-                    catch { /* one odd entry shouldn't hide the rest */ }
+                    try
+                    {
+                        if (Entry(entry, mem) is { } hs)
+                            result.Add(hs);
+                    }
+                    catch
+                    { /* one odd entry shouldn't hide the rest */
+                    }
                 }
             }
         }
@@ -213,10 +290,12 @@ public static class HighScores
     static HighScore? Entry(JsonObject e, Memory mem)
     {
         var label = (e["label"] as JsonValue)?.ToString() ?? "";
-        if (label.StartsWith('_')) return null;
+        if (label.StartsWith('_'))
+            return null;
         var initials = e["initials"] is JsonObject i ? Text(i, mem) : null;
         var score = e["score"] is JsonObject s ? Number(s, mem) : null;
-        if (string.IsNullOrEmpty(initials) && (score ?? 0) == 0) return null;
+        if (string.IsNullOrEmpty(initials) && (score ?? 0) == 0)
+            return null;
         return new HighScore(label, initials ?? "", score ?? 0);
     }
 
@@ -225,8 +304,13 @@ public static class HighScores
     {
         foreach (var node in entries)
         {
-            if (node is not JsonObject e) continue;
-            if (e["repeat"] is not JsonObject rep) { yield return e; continue; }
+            if (node is not JsonObject e)
+                continue;
+            if (e["repeat"] is not JsonObject rep)
+            {
+                yield return e;
+                continue;
+            }
             var count = (int)Math.Min(ToLong(rep["count"]) ?? 0, 1000);
             var step = ToLong(rep["step"]) ?? 0;
             for (var n = 0; n < count; n++)
@@ -235,7 +319,10 @@ public static class HighScores
                 copy.Remove("repeat");
                 foreach (var key in new[] { "label", "short_label" })
                     if (copy[key] is JsonValue v && v.TryGetValue<string>(out var text))
-                        copy[key] = text.Replace("{#}", (n + 1).ToString(CultureInfo.InvariantCulture));
+                        copy[key] = text.Replace(
+                            "{#}",
+                            (n + 1).ToString(CultureInfo.InvariantCulture)
+                        );
                 foreach (var (_, child) in copy.ToList())
                     if (child is JsonObject d)
                         d["start"] = (ToLong(d["start"]) ?? 0) + step * n;
@@ -249,22 +336,27 @@ public static class HighScores
     {
         var enc = Str(d["encoding"]);
         var bytes = mem.Bytes(d, enc);
-        if (bytes == null) return null;
+        if (bytes == null)
+            return null;
         decimal value = 0;
         switch (enc)
         {
             case "bcd":
-                foreach (var b in bytes) value = value * 100 + Digit(b >> 4) * 10 + Digit(b & 0xF);
+                foreach (var b in bytes)
+                    value = value * 100 + Digit(b >> 4) * 10 + Digit(b & 0xF);
                 break;
             case "int" or "bits" or "bool" or "enum":
-                foreach (var b in bytes) value = value * 256 + b;
+                foreach (var b in bytes)
+                    value = value * 256 + b;
                 break;
             default:
                 return null;
         }
         value *= ToDecimal(d["scale"]) ?? 1;
         value += ToDecimal(d["offset"]) ?? 0;
-        return value <= 0 ? 0 : value >= long.MaxValue ? long.MaxValue : (long)value;
+        return value <= 0 ? 0
+            : value >= long.MaxValue ? long.MaxValue
+            : (long)value;
 
         static int Digit(int n) => n > 9 ? 0 : n;
     }
@@ -272,9 +364,11 @@ public static class HighScores
     /// <summary>"ch" strings, as nvram_parser.py formats them: an unused entry (equal to its default) is "".</summary>
     static string? Text(JsonObject d, Memory mem)
     {
-        if (Str(d["encoding"]) != "ch") return null;
+        if (Str(d["encoding"]) != "ch")
+            return null;
         var bytes = mem.Bytes(d, "ch");
-        if (bytes == null) return null;
+        if (bytes == null)
+            return null;
         var charMap = Str(mem.Meta["char_map"]);
         var stopAtNull = (Str(d["null"]) ?? "ignore") != "ignore";
         var sb = new StringBuilder();
@@ -283,23 +377,37 @@ public static class HighScores
             char c;
             if (charMap != null)
             {
-                if (b >= charMap.Length) continue;
+                if (b >= charMap.Length)
+                    continue;
                 c = charMap[b];
             }
-            else if (b == 0 && stopAtNull) break;
-            else c = (char)b;
-            if (IsPrintable(c)) sb.Append(c);
+            else if (b == 0 && stopAtNull)
+                break;
+            else
+                c = (char)b;
+            if (IsPrintable(c))
+                sb.Append(c);
         }
         var text = sb.ToString();
-        if (text == (Str(d["default"]) ?? "   ")) return "";
+        if (text == (Str(d["default"]) ?? "   "))
+            return "";
         return text.Trim();
     }
 
     /// <summary>Python's str.isprintable() for Latin-1: no control/format characters or non-space separators.</summary>
-    static bool IsPrintable(char c) => c == ' ' || char.GetUnicodeCategory(c) is not (
-        UnicodeCategory.Control or UnicodeCategory.Format or UnicodeCategory.Surrogate or UnicodeCategory.PrivateUse
-        or UnicodeCategory.OtherNotAssigned or UnicodeCategory.SpaceSeparator or UnicodeCategory.LineSeparator
-        or UnicodeCategory.ParagraphSeparator);
+    static bool IsPrintable(char c) =>
+        c == ' '
+        || char.GetUnicodeCategory(c)
+            is not (
+                UnicodeCategory.Control
+                or UnicodeCategory.Format
+                or UnicodeCategory.Surrogate
+                or UnicodeCategory.PrivateUse
+                or UnicodeCategory.OtherNotAssigned
+                or UnicodeCategory.SpaceSeparator
+                or UnicodeCategory.LineSeparator
+                or UnicodeCategory.ParagraphSeparator
+            );
 
     /// <summary>The .nv contents placed at the platform's NVRAM address, plus the layout's byte order and nibble settings.</summary>
     sealed class Memory
@@ -345,17 +453,20 @@ public static class HighScores
         public List<int>? Bytes(JsonObject d, string? encoding)
         {
             var offsets = Offsets(d);
-            if (offsets.Count == 0) return null;
+            if (offsets.Count == 0)
+                return null;
             var bytes = new List<int>(offsets.Count);
             foreach (var a in offsets)
             {
                 var i = a - _base;
-                if (i < 0 || i >= _size) return null;
+                if (i < 0 || i >= _size)
+                    return null;
                 bytes.Add(_nv[i]);
             }
 
             var littleEndian = (Str(d["endian"]) ?? (_bigEndian ? "big" : "little")) == "little";
-            if (littleEndian && encoding is "bcd" or "int" or "bits" or "bool") bytes.Reverse();
+            if (littleEndian && encoding is "bcd" or "int" or "bits" or "bool")
+                bytes.Reverse();
 
             var nibble = NibbleFor(d, offsets[0]);
             if (nibble != "both")
@@ -367,22 +478,30 @@ public static class HighScores
                 {
                     var n = nibble == "low" ? bytes[k] & 0x0F : bytes[k] >> 4;
                     value = (value << 4) + n;
-                    if ((bytes.Count - k - 1) % 2 == 0) { packed.Add(value); value = 0; }
+                    if ((bytes.Count - k - 1) % 2 == 0)
+                    {
+                        packed.Add(value);
+                        value = 0;
+                    }
                 }
                 bytes = packed;
             }
 
             if (ToLong(d["mask"]) is { } mask)
-                for (var k = 0; k < bytes.Count; k++) bytes[k] &= (int)mask;
+                for (var k = 0; k < bytes.Count; k++)
+                    bytes[k] &= (int)mask;
             return bytes;
         }
 
         string NibbleFor(JsonObject d, long address)
         {
-            if (d["packed"] is JsonValue p && p.TryGetValue<bool>(out var packed) && !packed) return "low";
-            if (Str(d["nibble"]) is { } own) return own;
+            if (d["packed"] is JsonValue p && p.TryGetValue<bool>(out var packed) && !packed)
+                return "low";
+            if (Str(d["nibble"]) is { } own)
+                return own;
             foreach (var (start, size, nibble) in _layout)
-                if (address >= start && address < start + size) return nibble;
+                if (address >= start && address < start + size)
+                    return nibble;
             return "both";
         }
 
@@ -392,33 +511,54 @@ public static class HighScores
             if (d["offsets"] is JsonArray list)
                 return list.Select(o => ToLong(o)).OfType<long>().Select(o => start + o).ToList();
             var end = start;
-            if (ToLong(d["length"]) is { } length) end = start + Math.Clamp(length, 1, 4096) - 1;
-            else if (ToLong(d["end"]) is { } e && e >= start && e - start < 4096) end = e;
+            if (ToLong(d["length"]) is { } length)
+                end = start + Math.Clamp(length, 1, 4096) - 1;
+            else if (ToLong(d["end"]) is { } e && e >= start && e - start < 4096)
+                end = e;
             var result = new List<long>();
-            for (var a = start; a <= end; a++) result.Add(a);
+            for (var a = start; a <= end; a++)
+                result.Add(a);
             return result;
         }
     }
 
     // ---- JSON helpers (map numbers are ints or "0x…" strings) ----------------------------
 
-    static string? Str(JsonNode? n) => n is JsonValue v && v.TryGetValue<string>(out var s) ? s : null;
+    static string? Str(JsonNode? n) =>
+        n is JsonValue v && v.TryGetValue<string>(out var s) ? s : null;
 
     static long? ToLong(JsonNode? n)
     {
-        if (n is not JsonValue v) return null;
-        if (v.TryGetValue<long>(out var l)) return l;
-        if (v.TryGetValue<double>(out var d)) return (long)d;
-        if (!v.TryGetValue<string>(out var s)) return null;
+        if (n is not JsonValue v)
+            return null;
+        if (v.TryGetValue<long>(out var l))
+            return l;
+        if (v.TryGetValue<double>(out var d))
+            return (long)d;
+        if (!v.TryGetValue<string>(out var s))
+            return null;
         s = s.Trim();
         if (s.StartsWith("0x", StringComparison.OrdinalIgnoreCase))
-            return long.TryParse(s[2..], NumberStyles.HexNumber, CultureInfo.InvariantCulture, out var h) ? h : null;
-        return long.TryParse(s, NumberStyles.Integer, CultureInfo.InvariantCulture, out var x) ? x : null;
+            return long.TryParse(
+                s[2..],
+                NumberStyles.HexNumber,
+                CultureInfo.InvariantCulture,
+                out var h
+            )
+                ? h
+                : null;
+        return long.TryParse(s, NumberStyles.Integer, CultureInfo.InvariantCulture, out var x)
+            ? x
+            : null;
     }
 
     static decimal? ToDecimal(JsonNode? n)
     {
-        if (n is JsonValue v && v.TryGetValue<double>(out var d) && v.GetValueKind() == System.Text.Json.JsonValueKind.Number)
+        if (
+            n is JsonValue v
+            && v.TryGetValue<double>(out var d)
+            && v.GetValueKind() == System.Text.Json.JsonValueKind.Number
+        )
             return (decimal)d;
         return ToLong(n);
     }

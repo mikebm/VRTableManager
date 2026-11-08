@@ -23,11 +23,13 @@ public static class VpxImages
     {
         using var root = RootStorage.OpenRead(vpxPath);
         var game = root.OpenStorage("GameStg");
-        if (!game.TryOpenStream("GameData", out var data) || data == null) return null;
+        if (!game.TryOpenStream("GameData", out var data) || data == null)
+            return null;
         using (data)
         {
             foreach (var (tag, payload) in Records(ReadAll(data, 4 * 1024 * 1024)))
-                if (tag == "IMAG") return ReadString(payload);
+                if (tag == "IMAG")
+                    return ReadString(payload);
         }
         return null;
     }
@@ -40,19 +42,26 @@ public static class VpxImages
         var game = root.OpenStorage("GameStg");
         for (var i = 0; i < 10_000; i++)
         {
-            if (!game.TryOpenStream("Image" + i, out var s) || s == null) break;
+            if (!game.TryOpenStream("Image" + i, out var s) || s == null)
+                break;
             using (s)
             {
                 string? name = null;
-                int w = 0, h = 0;
+                int w = 0,
+                    h = 0;
                 foreach (var (tag, payload) in Records(ReadAll(s, HeaderBytes)))
                 {
-                    if (tag == "NAME" && name == null) name = ReadString(payload);
-                    else if (tag == "WDTH" && payload.Length >= 4) w = BitConverter.ToInt32(payload, 0);
-                    else if (tag == "HGHT" && payload.Length >= 4) h = BitConverter.ToInt32(payload, 0);
-                    else if (tag is "JPEG" or "BITS") break; // the picture itself starts here
+                    if (tag == "NAME" && name == null)
+                        name = ReadString(payload);
+                    else if (tag == "WDTH" && payload.Length >= 4)
+                        w = BitConverter.ToInt32(payload, 0);
+                    else if (tag == "HGHT" && payload.Length >= 4)
+                        h = BitConverter.ToInt32(payload, 0);
+                    else if (tag is "JPEG" or "BITS")
+                        break; // the picture itself starts here
                 }
-                if (name != null) list.Add(new VpxImageInfo(i, name, w, h));
+                if (name != null)
+                    list.Add(new VpxImageInfo(i, name, w, h));
             }
         }
         return list;
@@ -74,13 +83,23 @@ public static class VpxImages
     public static bool IsPlayfieldShaped(VpxImageInfo i) =>
         i.Width >= 512 && i.Height >= i.Width * 1.5 && i.Height <= i.Width * 3.2;
 
-    public static VpxImageInfo? PickPlayfield(IReadOnlyList<VpxImageInfo> images, string? namedPlayfield)
+    public static VpxImageInfo? PickPlayfield(
+        IReadOnlyList<VpxImageInfo> images,
+        string? namedPlayfield
+    )
     {
-        var named = images.FirstOrDefault(i => namedPlayfield != null && string.Equals(i.Name, namedPlayfield, StringComparison.OrdinalIgnoreCase));
-        if (named != null && IsPlayfieldShaped(named) && !IsPartOfPlayfield(named.Name)) return named;
+        var named = images.FirstOrDefault(i =>
+            namedPlayfield != null
+            && string.Equals(i.Name, namedPlayfield, StringComparison.OrdinalIgnoreCase)
+        );
+        if (named != null && IsPlayfieldShaped(named) && !IsPartOfPlayfield(named.Name))
+            return named;
         // Shape alone isn't enough: VLM-baked tables (e.g. Metallica) have no flat playfield picture,
         // and their biggest portrait image is a light overlay. Those fall back to the VPS picture.
-        return images.Where(i => IsPlayfieldShaped(i) && LooksLikePlayfieldName(i.Name) && !IsPartOfPlayfield(i.Name))
+        return images
+            .Where(i =>
+                IsPlayfieldShaped(i) && LooksLikePlayfieldName(i.Name) && !IsPartOfPlayfield(i.Name)
+            )
             .OrderByDescending(i => (long)i.Width * i.Height)
             .FirstOrDefault();
     }
@@ -92,13 +111,19 @@ public static class VpxImages
     /// </summary>
     static bool IsPartOfPlayfield(string name) => PartOfPlayfield.IsMatch(name);
 
-    static readonly System.Text.RegularExpressions.Regex PartOfPlayfield =
-        new(@"(?:^|(?<=[^A-Za-z]))(?i:lower|upper)|(?<=[a-z])(?:Lower|Upper)");
+    static readonly System.Text.RegularExpressions.Regex PartOfPlayfield = new(
+        @"(?:^|(?<=[^A-Za-z]))(?i:lower|upper)|(?<=[a-z])(?:Lower|Upper)"
+    );
 
     static bool LooksLikePlayfieldName(string name)
     {
         var n = name.ToLowerInvariant();
-        return n.Contains("playfield") || n == "pf" || n.StartsWith("pf_") || n.StartsWith("pf ") || n.EndsWith("_pf") || n.Contains("_pf_");
+        return n.Contains("playfield")
+            || n == "pf"
+            || n.StartsWith("pf_")
+            || n.StartsWith("pf ")
+            || n.EndsWith("_pf")
+            || n.Contains("_pf_");
     }
 
     /// <summary>The encoded bytes of Image{index}: the DATA record that follows its JPEG marker.</summary>
@@ -106,15 +131,19 @@ public static class VpxImages
     {
         using var root = RootStorage.OpenRead(vpxPath);
         var game = root.OpenStorage("GameStg");
-        if (!game.TryOpenStream("Image" + index, out var s) || s == null) return null;
+        if (!game.TryOpenStream("Image" + index, out var s) || s == null)
+            return null;
         using (s)
         {
             var inJpeg = false;
             foreach (var (tag, payload) in Records(ReadAll(s, int.MaxValue)))
             {
-                if (tag == "JPEG") inJpeg = true;      // an encoded picture follows (despite the name: PNG, JPEG, WebP…)
-                else if (tag == "BITS") return null;    // old raw bitmap: not worth decoding here
-                else if (inJpeg && tag == "DATA") return payload;
+                if (tag == "JPEG")
+                    inJpeg = true; // an encoded picture follows (despite the name: PNG, JPEG, WebP…)
+                else if (tag == "BITS")
+                    return null; // old raw bitmap: not worth decoding here
+                else if (inJpeg && tag == "DATA")
+                    return payload;
             }
         }
         return null;
@@ -133,14 +162,22 @@ public static class VpxImages
         try
         {
             var fi = new FileInfo(vpxPath);
-            if (!fi.Exists) return null;
-            var key = Convert.ToHexString(SHA1.HashData(Encoding.UTF8.GetBytes(
-                $"{Path.GetFullPath(vpxPath).ToLowerInvariant()}|{fi.Length}|{fi.LastWriteTimeUtc.Ticks}|{PickVersion}")));
+            if (!fi.Exists)
+                return null;
+            var key = Convert.ToHexString(
+                SHA1.HashData(
+                    Encoding.UTF8.GetBytes(
+                        $"{Path.GetFullPath(vpxPath).ToLowerInvariant()}|{fi.Length}|{fi.LastWriteTimeUtc.Ticks}|{PickVersion}"
+                    )
+                )
+            );
             Directory.CreateDirectory(cacheDir);
             var file = Path.Combine(cacheDir, "vpx-" + key + ".img");
             var none = Path.Combine(cacheDir, "vpx-" + key + ".none");
-            if (File.Exists(file)) return file;
-            if (File.Exists(none)) return null;
+            if (File.Exists(file))
+                return file;
+            if (File.Exists(none))
+                return null;
             var bytes = ExtractPlayfield(vpxPath);
             if (bytes == null || bytes.Length < 16)
             {
@@ -167,7 +204,8 @@ public static class VpxImages
         while (pos + 8 <= buf.Length)
         {
             var len = BitConverter.ToInt32(buf, pos);
-            if (len < 4 || pos + 4 + len > buf.Length) yield break;
+            if (len < 4 || pos + 4 + len > buf.Length)
+                yield break;
             var tag = Encoding.ASCII.GetString(buf, pos + 4, 4);
             var data = new byte[len - 4];
             Buffer.BlockCopy(buf, pos + 8, data, 0, data.Length);
@@ -179,9 +217,11 @@ public static class VpxImages
     /// <summary>VPX strings: [int32 length][bytes].</summary>
     static string? ReadString(byte[] data)
     {
-        if (data.Length < 4) return null;
+        if (data.Length < 4)
+            return null;
         var n = BitConverter.ToInt32(data, 0);
-        if (n < 0 || 4 + n > data.Length) return null;
+        if (n < 0 || 4 + n > data.Length)
+            return null;
         return Encoding.Latin1.GetString(data, 4, n).TrimEnd('\0');
     }
 
@@ -193,7 +233,8 @@ public static class VpxImages
         while (read < length)
         {
             var n = s.Read(buf, read, length - read);
-            if (n <= 0) break;
+            if (n <= 0)
+                break;
             read += n;
         }
         return read == length ? buf : buf[..read];

@@ -1,5 +1,4 @@
 <Project Sdk="Godot.NET.Sdk/4.7.2">
-
   <PropertyGroup>
     <TargetFramework>net10.0</TargetFramework>
     <EnableDynamicLoading>true</EnableDynamicLoading>
@@ -12,5 +11,4 @@
     <!-- Same table scanning, engines and lobby logic as VR Table Manager. -->
     <ProjectReference Include="..\VrTableManager.Core\VrTableManager.Core.csproj" />
   </ItemGroup>
-
 </Project>

@@ -14,15 +14,17 @@ public partial class PlayfieldVideo : Node
     const int Ahead = 4;
 
     readonly ConcurrentQueue<Image> _ready = new();
-    Image? _heights;  // the table's height map, handed over from the worker (PlayfieldDepth)
+    Image? _heights; // the table's height map, handed over from the worker (PlayfieldDepth)
     CancellationTokenSource? _cts;
     Task? _worker;
     ImageTexture? _tex;
     Cabinet? _cab;
-    double _frameTime, _untilNext;
+    double _frameTime,
+        _untilNext;
 
     /// <summary>Folder of the video playing now, or null.</summary>
     public string? Playing { get; private set; }
+
     /// <summary>Frames put on the playfield since it started (tests).</summary>
     public int FramesShown { get; private set; }
     public event Action? FirstFrameShown;
@@ -37,11 +39,19 @@ public partial class PlayfieldVideo : Node
         FramesShown = 0;
         var cts = _cts = new CancellationTokenSource();
         var ct = cts.Token;
-        _worker = Task.Run(() =>
-        {
-            if (vpxPath != null && PlayfieldDepth.Load(folder, vpxPath) is { } h && !ct.IsCancellationRequested) Volatile.Write(ref _heights, h);
-            Decode(folder, info.Frames, ct);
-        }, ct);
+        _worker = Task.Run(
+            () =>
+            {
+                if (
+                    vpxPath != null
+                    && PlayfieldDepth.Load(folder, vpxPath) is { } h
+                    && !ct.IsCancellationRequested
+                )
+                    Volatile.Write(ref _heights, h);
+                Decode(folder, info.Frames, ct);
+            },
+            ct
+        );
     }
 
     void Decode(string folder, int frames, CancellationToken ct)
@@ -50,11 +60,17 @@ public partial class PlayfieldVideo : Node
         {
             for (var i = 0; !ct.IsCancellationRequested; i = (i + 1) % frames)
             {
-                while (_ready.Count >= Ahead && !ct.IsCancellationRequested) Thread.Sleep(5);
+                while (_ready.Count >= Ahead && !ct.IsCancellationRequested)
+                    Thread.Sleep(5);
                 var img = new Image();
-                if (img.LoadJpgFromBuffer(File.ReadAllBytes(LobbyVideo.FramePath(folder, i))) != Error.Ok) continue;
+                if (
+                    img.LoadJpgFromBuffer(File.ReadAllBytes(LobbyVideo.FramePath(folder, i)))
+                    != Error.Ok
+                )
+                    continue;
                 img.GenerateMipmaps(); // the playfield material samples mipmaps (it's seen at a low angle)
-                if (!ct.IsCancellationRequested) _ready.Enqueue(img);
+                if (!ct.IsCancellationRequested)
+                    _ready.Enqueue(img);
             }
         }
         catch (Exception e) when (e is IOException or UnauthorizedAccessException)
@@ -78,21 +94,31 @@ public partial class PlayfieldVideo : Node
 
     public override void _Process(double delta)
     {
-        if (Playing == null || _cab == null) return;
+        if (Playing == null || _cab == null)
+            return;
         // The depth switches on in the same frame as the first video picture, so the still picture never shows
         // with it and the change is one swap, made while the table is still turning in (Main.VideoFrom).
         if (FramesShown > 0 && Interlocked.Exchange(ref _heights, null) is { } heights)
-            _cab.SetPlayfieldDepth(ImageTexture.CreateFromImage(heights), PlayfieldDepth.DepthOf(heights));
+            _cab.SetPlayfieldDepth(
+                ImageTexture.CreateFromImage(heights),
+                PlayfieldDepth.DepthOf(heights)
+            );
         _untilNext -= delta;
-        if (_untilNext > 0 || !_ready.TryDequeue(out var img)) return;
+        if (_untilNext > 0 || !_ready.TryDequeue(out var img))
+            return;
         _untilNext = Math.Max(_untilNext + _frameTime, 0); // keep the pace; don't rush to catch up after a stall
-        if (_tex == null || _tex.GetWidth() != img.GetWidth() || _tex.GetHeight() != img.GetHeight())
+        if (
+            _tex == null
+            || _tex.GetWidth() != img.GetWidth()
+            || _tex.GetHeight() != img.GetHeight()
+        )
         {
             _tex = ImageTexture.CreateFromImage(img);
             _cab.SetPlayfieldVideo(_tex);
             FirstFrameShown?.Invoke();
         }
-        else _tex.Update(img);
+        else
+            _tex.Update(img);
         FramesShown++;
         if (Interlocked.Exchange(ref _heights, null) is { } ready) // usually here: built before the frames
             _cab.SetPlayfieldDepth(ImageTexture.CreateFromImage(ready), PlayfieldDepth.DepthOf(ready));
@@ -102,7 +128,11 @@ public partial class PlayfieldVideo : Node
     {
         Stop();
         // The worker uses Godot's Image: let it finish before the engine shuts down under it.
-        try { _worker?.Wait(1000); } catch (AggregateException) { }
+        try
+        {
+            _worker?.Wait(1000);
+        }
+        catch (AggregateException) { }
         _worker = null;
     }
 }

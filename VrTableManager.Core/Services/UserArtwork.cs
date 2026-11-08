@@ -16,7 +16,12 @@ namespace VrTableManager.Services;
 /// </summary>
 public static class UserArtwork
 {
-    public enum Kind { Card, Playfield, Backglass }
+    public enum Kind
+    {
+        Card,
+        Playfield,
+        Backglass,
+    }
 
     public const string FolderName = "artwork";
     public static readonly string[] PictureExts = [".png", ".jpg", ".jpeg", ".webp", ".bmp"];
@@ -28,9 +33,16 @@ public static class UserArtwork
 
     public static string FolderFor(InstalledTable t)
     {
-        if (t.IsVpx && File.Exists(Path.Combine(t.Folder, "vrtm.json"))) return Path.Combine(t.Folder, FolderName);
-        var hash = Convert.ToHexString(SHA1.HashData(Encoding.UTF8.GetBytes(t.TablePath.ToLowerInvariant())))[..10];
-        var name = new string(Path.GetFileNameWithoutExtension(t.TablePath).Select(c => Path.GetInvalidFileNameChars().Contains(c) ? '_' : c).ToArray());
+        if (t.IsVpx && File.Exists(Path.Combine(t.Folder, "vrtm.json")))
+            return Path.Combine(t.Folder, FolderName);
+        var hash = Convert.ToHexString(
+            SHA1.HashData(Encoding.UTF8.GetBytes(t.TablePath.ToLowerInvariant()))
+        )[..10];
+        var name = new string(
+            Path.GetFileNameWithoutExtension(t.TablePath)
+                .Select(c => Path.GetInvalidFileNameChars().Contains(c) ? '_' : c)
+                .ToArray()
+        );
         return Path.Combine(AppSettings.DataDir, FolderName, $"{name}-{hash}");
     }
 
@@ -38,16 +50,27 @@ public static class UserArtwork
     public static string? Find(InstalledTable t, Kind kind)
     {
         var dir = FolderFor(t);
-        if (!Directory.Exists(dir)) return null;
+        if (!Directory.Exists(dir))
+            return null;
         try
         {
-            return Directory.EnumerateFiles(dir, FileStem(kind) + ".*")
-                .Where(f => PictureExts.Contains(Path.GetExtension(f).ToLowerInvariant()) && new FileInfo(f).Length > 0)
+            return Directory
+                .EnumerateFiles(dir, FileStem(kind) + ".*")
+                .Where(f =>
+                    PictureExts.Contains(Path.GetExtension(f).ToLowerInvariant())
+                    && new FileInfo(f).Length > 0
+                )
                 .OrderByDescending(File.GetLastWriteTimeUtc)
                 .FirstOrDefault();
         }
-        catch (IOException) { return null; }
-        catch (UnauthorizedAccessException) { return null; }
+        catch (IOException)
+        {
+            return null;
+        }
+        catch (UnauthorizedAccessException)
+        {
+            return null;
+        }
     }
 
     /// <summary>The art key for <see cref="Find"/>'s picture, for the app's and the lobby's image loaders; null when there's none.</summary>
@@ -57,7 +80,8 @@ public static class UserArtwork
     /// <summary>The file behind a <see cref="Key"/>, or null when <paramref name="key"/> isn't a local one.</summary>
     public static string? PathOf(string key)
     {
-        if (!key.StartsWith(LocalScheme, StringComparison.Ordinal)) return null;
+        if (!key.StartsWith(LocalScheme, StringComparison.Ordinal))
+            return null;
         var rest = key[LocalScheme.Length..];
         var bar = rest.LastIndexOf('|');
         return bar > 0 ? rest[..bar] : rest;
@@ -67,7 +91,10 @@ public static class UserArtwork
     public static string Set(InstalledTable t, Kind kind, string picture)
     {
         var ext = Path.GetExtension(picture).ToLowerInvariant();
-        if (!PictureExts.Contains(ext)) throw new InvalidOperationException($"Use a {string.Join(", ", PictureExts.Select(e => e.TrimStart('.')))} picture.");
+        if (!PictureExts.Contains(ext))
+            throw new InvalidOperationException(
+                $"Use a {string.Join(", ", PictureExts.Select(e => e.TrimStart('.')))} picture."
+            );
         var dir = Directory.CreateDirectory(FolderFor(t)).FullName;
         var target = Path.Combine(dir, FileStem(kind) + ext);
         var tmp = target + ".tmp";
@@ -82,8 +109,13 @@ public static class UserArtwork
     public static void Remove(InstalledTable t, Kind kind)
     {
         var dir = FolderFor(t);
-        if (!Directory.Exists(dir)) return;
-        foreach (var f in Directory.EnumerateFiles(dir, FileStem(kind) + ".*").Where(f => PictureExts.Contains(Path.GetExtension(f).ToLowerInvariant())))
+        if (!Directory.Exists(dir))
+            return;
+        foreach (
+            var f in Directory
+                .EnumerateFiles(dir, FileStem(kind) + ".*")
+                .Where(f => PictureExts.Contains(Path.GetExtension(f).ToLowerInvariant()))
+        )
             File.Delete(f);
     }
 }

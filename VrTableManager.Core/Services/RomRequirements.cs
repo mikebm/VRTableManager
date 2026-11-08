@@ -19,10 +19,12 @@ public static class RomRequirements
     /// <summary>Updates the table's manifest (RomNames, RomParents, RomAlias). Returns true when anything changed.</summary>
     public static bool Update(InstalledTable t, AppSettings s)
     {
-        if (!t.IsVpx || !File.Exists(t.TablePath)) return false;
+        if (!t.IsVpx || !File.Exists(t.TablePath))
+            return false;
         var m = t.Manifest;
         // Only counts as checked when PinMAME could be asked; otherwise try again once VPX is installed.
-        if (File.Exists(RomAudio.PinmameDll(s))) m.RomCheck = Version;
+        if (File.Exists(RomAudio.PinmameDll(s)))
+            m.RomCheck = Version;
         var before = (string.Join(",", m.RomNames), string.Join(",", m.RomParents), m.RomAlias);
         AltPacks.FixLayout(t.Folder);
 
@@ -34,7 +36,8 @@ public static class RomRequirements
             m.RomAlias = null;
             return Changed();
         }
-        if (info.GameName is not { } name) return Changed();
+        if (info.GameName is not { } name)
+            return Changed();
 
         var pinmameDir = Path.Combine(t.Folder, "pinmame");
         var dll = RomAudio.PinmameDll(s);
@@ -48,7 +51,10 @@ public static class RomRequirements
 
         var game = name;
         m.RomAlias = null;
-        if (known.TryGetValue(name, out var direct) && !direct.Name.Equals(name, StringComparison.OrdinalIgnoreCase))
+        if (
+            known.TryGetValue(name, out var direct)
+            && !direct.Name.Equals(name, StringComparison.OrdinalIgnoreCase)
+        )
         {
             // PinMAME already resolves it through alias.txt (written on an earlier check).
             game = direct.Name;
@@ -57,8 +63,11 @@ public static class RomRequirements
         else if (!known.ContainsKey(name))
         {
             // Not a real ROM set, so an alias. Prefer the target the alias name is built on ("afm_113b" for "afm_113b_me").
-            var target = info.AliasTargets.Where(known.ContainsKey)
-                .OrderByDescending(a => name.StartsWith(a, StringComparison.OrdinalIgnoreCase) ? a.Length : 0)
+            var target = info
+                .AliasTargets.Where(known.ContainsKey)
+                .OrderByDescending(a =>
+                    name.StartsWith(a, StringComparison.OrdinalIgnoreCase) ? a.Length : 0
+                )
                 .FirstOrDefault();
             if (target != null)
             {
@@ -72,7 +81,8 @@ public static class RomRequirements
         m.RomParents = ParentsNeeded(s, pinmameDir, game);
         return Changed();
 
-        bool Changed() => before != (string.Join(",", m.RomNames), string.Join(",", m.RomParents), m.RomAlias);
+        bool Changed() =>
+            before != (string.Join(",", m.RomNames), string.Join(",", m.RomParents), m.RomAlias);
     }
 
     /// <summary>
@@ -81,9 +91,14 @@ public static class RomRequirements
     /// </summary>
     public static void RefreshParents(InstalledTable t, AppSettings s)
     {
-        if (!t.IsVpx || t.Manifest.RomNames.Count != 1) return;
+        if (!t.IsVpx || t.Manifest.RomNames.Count != 1)
+            return;
         var pinmameDir = Path.Combine(t.Folder, "pinmame");
-        if (RomZip(pinmameDir, t.Manifest.RomNames[0]) && PinmameInfo.Family(s, pinmameDir, t.Manifest.RomNames[0]).Count == 0) return; // no PinMAME to ask: keep what's known
+        if (
+            RomZip(pinmameDir, t.Manifest.RomNames[0])
+            && PinmameInfo.Family(s, pinmameDir, t.Manifest.RomNames[0]).Count == 0
+        )
+            return; // no PinMAME to ask: keep what's known
         t.Manifest.RomParents = ParentsNeeded(s, pinmameDir, t.Manifest.RomNames[0]);
     }
 
@@ -94,12 +109,16 @@ public static class RomRequirements
     /// </summary>
     static List<string> ParentsNeeded(AppSettings s, string pinmameDir, string game)
     {
-        if (!RomZip(pinmameDir, game)) return [];
+        if (!RomZip(pinmameDir, game))
+            return [];
         var family = PinmameInfo.Family(s, pinmameDir, game);
-        return family.Count > 0 && !family[0].Found ? family.Skip(1).Select(g => g.Name).ToList() : [];
+        return family.Count > 0 && !family[0].Found
+            ? family.Skip(1).Select(g => g.Name).ToList()
+            : [];
     }
 
-    static bool RomZip(string pinmameDir, string rom) => File.Exists(Path.Combine(pinmameDir, "roms", rom + ".zip"));
+    static bool RomZip(string pinmameDir, string rom) =>
+        File.Exists(Path.Combine(pinmameDir, "roms", rom + ".zip"));
 
     /// <summary>Adds "alias,rom" to pinmame\alias.txt (VPX 10.8.1's PinMAME reads it from the table's pinmame folder).</summary>
     public static void WriteAlias(string pinmameDir, string alias, string rom)
@@ -107,9 +126,18 @@ public static class RomRequirements
         var file = Path.Combine(pinmameDir, "alias.txt");
         var lines = File.Exists(file) ? File.ReadAllLines(file).ToList() : [];
         var line = $"{alias},{rom}";
-        var existing = lines.FindIndex(l => l.Split(',', 2)[0].Trim().Equals(alias, StringComparison.OrdinalIgnoreCase));
-        if (existing >= 0 && lines[existing].Trim().Equals(line, StringComparison.OrdinalIgnoreCase)) return;
-        if (existing >= 0) lines[existing] = line; else lines.Add(line);
+        var existing = lines.FindIndex(l =>
+            l.Split(',', 2)[0].Trim().Equals(alias, StringComparison.OrdinalIgnoreCase)
+        );
+        if (
+            existing >= 0
+            && lines[existing].Trim().Equals(line, StringComparison.OrdinalIgnoreCase)
+        )
+            return;
+        if (existing >= 0)
+            lines[existing] = line;
+        else
+            lines.Add(line);
         Directory.CreateDirectory(pinmameDir);
         File.WriteAllLines(file, lines);
     }

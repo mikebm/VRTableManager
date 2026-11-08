@@ -20,6 +20,7 @@ static class CabinetCache
 {
     /// <summary>Bump when what Parse makes changes (texture size, merging, materials, which parts), so old files are re-read.</summary>
     const int Version = 7; // 4: cabinets tipped forward to stand on all four legs, and the playfield slope; 5: the table's own playfield walls; 6: alpha read by RealCabinetLoader.AlphaOf; 7: VR cabinet collections
+
     /// <summary>
     /// Layout of the bundled default cabinet. Separate from <see cref="Version"/> so a change in which parts a
     /// table's cabinet keeps doesn't throw away the shipped file; bump only when the file layout changes.
@@ -31,7 +32,12 @@ static class CabinetCache
     public static string DefaultDir => Path.Combine(AppSettings.DataDir, "cabinet-cache");
 
     public static string FileFor(string vpx, string dir) =>
-        Path.Combine(dir, Convert.ToHexString(SHA1.HashData(Encoding.UTF8.GetBytes(Path.GetFullPath(vpx).ToLowerInvariant()))) + ".cab");
+        Path.Combine(
+            dir,
+            Convert.ToHexString(
+                SHA1.HashData(Encoding.UTF8.GetBytes(Path.GetFullPath(vpx).ToLowerInvariant()))
+            ) + ".cab"
+        );
 
     /// <summary>True if the cache knows this version of the table: its cabinet, or null when it has none.</summary>
     public static bool TryLoad(string vpx, string dir, out Parsed? parsed)
@@ -41,11 +47,18 @@ static class CabinetCache
         {
             var fi = new FileInfo(vpx);
             var file = FileFor(vpx, dir);
-            if (!fi.Exists || !File.Exists(file)) return false;
+            if (!fi.Exists || !File.Exists(file))
+                return false;
             using var r = new BinaryReader(new BufferedStream(File.OpenRead(file), 1 << 16));
-            if (!r.ReadBytes(Magic.Length).AsSpan().SequenceEqual(Magic) || r.ReadInt32() != Version
-                || r.ReadInt64() != fi.Length || r.ReadInt64() != fi.LastWriteTimeUtc.Ticks) return false;
-            if (!r.ReadBoolean()) return true; // known: no VR cabinet in this table
+            if (
+                !r.ReadBytes(Magic.Length).AsSpan().SequenceEqual(Magic)
+                || r.ReadInt32() != Version
+                || r.ReadInt64() != fi.Length
+                || r.ReadInt64() != fi.LastWriteTimeUtc.Ticks
+            )
+                return false;
+            if (!r.ReadBoolean())
+                return true; // known: no VR cabinet in this table
             parsed = ReadBody(r);
             return true;
         }
@@ -64,7 +77,8 @@ static class CabinetCache
         try
         {
             var fi = new FileInfo(vpx);
-            if (!fi.Exists) return;
+            if (!fi.Exists)
+                return;
             Directory.CreateDirectory(dir);
             using (var w = new BinaryWriter(new BufferedStream(File.Create(tmp), 1 << 16)))
             {
@@ -73,13 +87,18 @@ static class CabinetCache
                 w.Write(fi.Length);
                 w.Write(fi.LastWriteTimeUtc.Ticks);
                 w.Write(parsed != null);
-                if (parsed != null) WriteBody(w, parsed);
+                if (parsed != null)
+                    WriteBody(w, parsed);
             }
             File.Move(tmp, file, overwrite: true);
         }
         catch
         {
-            try { File.Delete(tmp); } catch { } // full disk or read-only folder: just no cache this time
+            try
+            {
+                File.Delete(tmp);
+            }
+            catch { } // full disk or read-only folder: just no cache this time
         }
     }
 
@@ -90,7 +109,11 @@ static class CabinetCache
         try
         {
             using var r = new BinaryReader(new BufferedStream(File.OpenRead(file), 1 << 16));
-            if (!r.ReadBytes(DumpMagic.Length).AsSpan().SequenceEqual(DumpMagic) || r.ReadInt32() != DumpVersion) return false;
+            if (
+                !r.ReadBytes(DumpMagic.Length).AsSpan().SequenceEqual(DumpMagic)
+                || r.ReadInt32() != DumpVersion
+            )
+                return false;
             parsed = ReadBody(r);
             return true;
         }
@@ -112,7 +135,10 @@ static class CabinetCache
             WriteBody(w, parsed);
             return true;
         }
-        catch { return false; }
+        catch
+        {
+            return false;
+        }
     }
 
     static Parsed ReadBody(BinaryReader r)
@@ -129,7 +155,8 @@ static class CabinetCache
         {
             var name = r.ReadString();
             alpha[name] = (Image.AlphaMode)r.ReadInt32();
-            int w = r.ReadInt32(), h = r.ReadInt32();
+            int w = r.ReadInt32(),
+                h = r.ReadInt32();
             var mips = r.ReadBoolean();
             var format = (Image.Format)r.ReadInt32();
             images[name] = Image.CreateFromData(w, h, mips, format, r.ReadBytes(r.ReadInt32()));
@@ -141,36 +168,67 @@ static class CabinetCache
             var name = r.ReadString();
             var image = r.ReadBoolean() ? r.ReadString() : null;
             var material = r.ReadBoolean()
-                ? new VpxMaterial(r.ReadString(), r.ReadUInt32(), r.ReadBoolean(), r.ReadSingle(), r.ReadSingle(), r.ReadBoolean())
+                ? new VpxMaterial(
+                    r.ReadString(),
+                    r.ReadUInt32(),
+                    r.ReadBoolean(),
+                    r.ReadSingle(),
+                    r.ReadSingle(),
+                    r.ReadBoolean()
+                )
                 : null;
             var lit = r.ReadSingle();
             var bg = r.ReadBoolean();
-            surfaces.Add(new SurfaceData(name, ReadArray<Vector3>(r), ReadArray<Vector3>(r), ReadArray<Vector2>(r), ReadArray<int>(r),
-                image, material, lit, bg));
+            surfaces.Add(
+                new SurfaceData(
+                    name,
+                    ReadArray<Vector3>(r),
+                    ReadArray<Vector3>(r),
+                    ReadArray<Vector2>(r),
+                    ReadArray<int>(r),
+                    image,
+                    material,
+                    lit,
+                    bg
+                )
+            );
         }
 
         return new Parsed
         {
-            Surfaces = surfaces, Images = images, Alpha = alpha,
-            PlayfieldCentre = centre, PlayfieldSize = size, PlayfieldSlope = slope, Bounds = bounds, Backbox = backbox,
+            Surfaces = surfaces,
+            Images = images,
+            Alpha = alpha,
+            PlayfieldCentre = centre,
+            PlayfieldSize = size,
+            PlayfieldSlope = slope,
+            Bounds = bounds,
+            Backbox = backbox,
         };
     }
 
     static void WriteBody(BinaryWriter w, Parsed parsed)
     {
         WriteVector3(w, parsed.PlayfieldCentre);
-        w.Write(parsed.PlayfieldSize.X); w.Write(parsed.PlayfieldSize.Y);
+        w.Write(parsed.PlayfieldSize.X);
+        w.Write(parsed.PlayfieldSize.Y);
         w.Write(parsed.PlayfieldSlope);
-        WriteVector3(w, parsed.Bounds.Position); WriteVector3(w, parsed.Bounds.Size);
+        WriteVector3(w, parsed.Bounds.Position);
+        WriteVector3(w, parsed.Bounds.Size);
         w.Write(parsed.Backbox.HasValue);
-        if (parsed.Backbox is { } box) { WriteVector3(w, box.Position); WriteVector3(w, box.Size); }
+        if (parsed.Backbox is { } box)
+        {
+            WriteVector3(w, box.Position);
+            WriteVector3(w, box.Size);
+        }
 
         w.Write(parsed.Images.Count);
         foreach (var (name, img) in parsed.Images)
         {
             w.Write(name);
             w.Write((int)parsed.Alpha.GetValueOrDefault(name));
-            w.Write(img.GetWidth()); w.Write(img.GetHeight());
+            w.Write(img.GetWidth());
+            w.Write(img.GetHeight());
             w.Write(img.HasMipmaps());
             w.Write((int)img.GetFormat());
             var data = img.GetData();
@@ -183,32 +241,48 @@ static class CabinetCache
         {
             w.Write(s.Name);
             w.Write(s.Image != null);
-            if (s.Image != null) w.Write(s.Image);
+            if (s.Image != null)
+                w.Write(s.Image);
             w.Write(s.Material != null);
             if (s.Material is { } m)
             {
-                w.Write(m.Name); w.Write(m.BaseColour); w.Write(m.IsMetal);
-                w.Write(m.Roughness); w.Write(m.Opacity); w.Write(m.OpacityActive);
+                w.Write(m.Name);
+                w.Write(m.BaseColour);
+                w.Write(m.IsMetal);
+                w.Write(m.Roughness);
+                w.Write(m.Opacity);
+                w.Write(m.OpacityActive);
             }
             w.Write(s.Lit);
             w.Write(s.Backglass);
-            WriteArray<Vector3>(w, s.Verts); WriteArray<Vector3>(w, s.Norms); WriteArray<Vector2>(w, s.Uvs); WriteArray<int>(w, s.Indices);
+            WriteArray<Vector3>(w, s.Verts);
+            WriteArray<Vector3>(w, s.Norms);
+            WriteArray<Vector2>(w, s.Uvs);
+            WriteArray<int>(w, s.Indices);
         }
     }
 
-    static Vector3 ReadVector3(BinaryReader r) => new(r.ReadSingle(), r.ReadSingle(), r.ReadSingle());
+    static Vector3 ReadVector3(BinaryReader r) =>
+        new(r.ReadSingle(), r.ReadSingle(), r.ReadSingle());
 
-    static void WriteVector3(BinaryWriter w, Vector3 v) { w.Write(v.X); w.Write(v.Y); w.Write(v.Z); }
+    static void WriteVector3(BinaryWriter w, Vector3 v)
+    {
+        w.Write(v.X);
+        w.Write(v.Y);
+        w.Write(v.Z);
+    }
 
     /// <summary>Plain structs (vectors, ints) as one block of bytes.</summary>
-    static T[] ReadArray<T>(BinaryReader r) where T : unmanaged
+    static T[] ReadArray<T>(BinaryReader r)
+        where T : unmanaged
     {
         var items = new T[r.ReadInt32()];
         r.BaseStream.ReadExactly(MemoryMarshal.AsBytes(items.AsSpan()));
         return items;
     }
 
-    static void WriteArray<T>(BinaryWriter w, T[] items) where T : unmanaged
+    static void WriteArray<T>(BinaryWriter w, T[] items)
+        where T : unmanaged
     {
         w.Write(items.Length);
         w.Write(MemoryMarshal.AsBytes(items.AsSpan()));

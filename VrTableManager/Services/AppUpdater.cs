@@ -6,7 +6,15 @@ using System.Text.Json;
 namespace VrTableManager.Services;
 
 /// <summary>A published release of this app on GitHub.</summary>
-public sealed record AppRelease(string Tag, string Version, string Url, long Size, string? Sha256Url, string PageUrl, string Notes);
+public sealed record AppRelease(
+    string Tag,
+    string Version,
+    string Url,
+    long Size,
+    string? Sha256Url,
+    string PageUrl,
+    string Notes
+);
 
 /// <summary>
 /// Keeps VR Table Manager itself up to date from its GitHub releases (the zip scripts\release.ps1 publishes).
@@ -25,8 +33,13 @@ public static class AppUpdater
     {
         get
         {
-            var v = Assembly.GetEntryAssembly()?.GetCustomAttribute<AssemblyInformationalVersionAttribute>()?.InformationalVersion
-                ?? Assembly.GetEntryAssembly()?.GetName().Version?.ToString(3) ?? "0.0.0";
+            var v =
+                Assembly
+                    .GetEntryAssembly()
+                    ?.GetCustomAttribute<AssemblyInformationalVersionAttribute>()
+                    ?.InformationalVersion
+                ?? Assembly.GetEntryAssembly()?.GetName().Version?.ToString(3)
+                ?? "0.0.0";
             return v.Split('+')[0];
         }
     }
@@ -39,7 +52,8 @@ public static class AppUpdater
         get
         {
             for (var dir = AppContext.BaseDirectory; dir != null; dir = Path.GetDirectoryName(dir))
-                if (File.Exists(Path.Combine(dir, "VR Table Manager.slnx"))) return true;
+                if (File.Exists(Path.Combine(dir, "VR Table Manager.slnx")))
+                    return true;
             return false;
         }
     }
@@ -47,29 +61,51 @@ public static class AppUpdater
     /// <summary>The newest non-prerelease release with a Windows zip, or null.</summary>
     public static async Task<AppRelease?> FindLatestAsync(CancellationToken ct)
     {
-        try { return ParseLatest(await Http.Client.GetStringAsync(LatestApi, ct)); }
-        catch (HttpRequestException e) when (e.StatusCode == System.Net.HttpStatusCode.NotFound) { return null; } // no releases yet
+        try
+        {
+            return ParseLatest(await Http.Client.GetStringAsync(LatestApi, ct));
+        }
+        catch (HttpRequestException e) when (e.StatusCode == System.Net.HttpStatusCode.NotFound)
+        {
+            return null;
+        } // no releases yet
     }
 
     public static AppRelease? ParseLatest(string json)
     {
         using var doc = JsonDocument.Parse(json);
         var rel = doc.RootElement;
-        if (rel.GetProperty("draft").GetBoolean() || rel.GetProperty("prerelease").GetBoolean()) return null;
+        if (rel.GetProperty("draft").GetBoolean() || rel.GetProperty("prerelease").GetBoolean())
+            return null;
         var tag = rel.GetProperty("tag_name").GetString() ?? "";
-        string? zip = null, sha = null;
+        string? zip = null,
+            sha = null;
         long size = 0;
         foreach (var asset in rel.GetProperty("assets").EnumerateArray())
         {
             var name = asset.GetProperty("name").GetString() ?? "";
             var url = asset.GetProperty("browser_download_url").GetString();
-            if (name.StartsWith("VrTableManager-") && name.EndsWith("-win-x64.zip")) { zip = url; size = asset.GetProperty("size").GetInt64(); }
-            else if (name.StartsWith("VrTableManager-") && name.EndsWith("-win-x64.zip.sha256")) sha = url;
+            if (name.StartsWith("VrTableManager-") && name.EndsWith("-win-x64.zip"))
+            {
+                zip = url;
+                size = asset.GetProperty("size").GetInt64();
+            }
+            else if (name.StartsWith("VrTableManager-") && name.EndsWith("-win-x64.zip.sha256"))
+                sha = url;
         }
-        if (zip == null) return null;
-        return new AppRelease(tag, tag.TrimStart('v', 'V'), zip, size, sha,
-            rel.TryGetProperty("html_url", out var h) ? h.GetString() ?? ReleasesPage : ReleasesPage,
-            rel.TryGetProperty("body", out var b) ? b.GetString() ?? "" : "");
+        if (zip == null)
+            return null;
+        return new AppRelease(
+            tag,
+            tag.TrimStart('v', 'V'),
+            zip,
+            size,
+            sha,
+            rel.TryGetProperty("html_url", out var h)
+                ? h.GetString() ?? ReleasesPage
+                : ReleasesPage,
+            rel.TryGetProperty("body", out var b) ? b.GetString() ?? "" : ""
+        );
     }
 
     /// <summary>True when <paramref name="a"/> is a later version than <paramref name="b"/> ("1.2.0" &gt; "1.2.0-beta.1" &gt; "1.1.9").</summary>
@@ -78,14 +114,21 @@ public static class AppUpdater
         static (Version v, string pre) Parse(string s)
         {
             var parts = s.Trim().TrimStart('v', 'V').Split('-', 2);
-            return (Version.TryParse(parts[0], out var v) ? v : new Version(0, 0), parts.Length > 1 ? parts[1] : "");
+            return (
+                Version.TryParse(parts[0], out var v) ? v : new Version(0, 0),
+                parts.Length > 1 ? parts[1] : ""
+            );
         }
         var (va, pa) = Parse(a);
         var (vb, pb) = Parse(b);
-        if (va != vb) return va > vb;
-        if (pa == pb) return false;
-        if (pa == "") return true;   // a release is newer than its prereleases
-        if (pb == "") return false;
+        if (va != vb)
+            return va > vb;
+        if (pa == pb)
+            return false;
+        if (pa == "")
+            return true; // a release is newer than its prereleases
+        if (pb == "")
+            return false;
         return string.CompareOrdinal(pa, pb) > 0;
     }
 
@@ -99,18 +142,28 @@ public static class AppUpdater
             File.Delete(probe);
             return true;
         }
-        catch { return false; }
+        catch
+        {
+            return false;
+        }
     }
 
     /// <summary>
     /// Downloads and unpacks the release, then starts the script that swaps it in once this process exits.
     /// The caller closes the app straight after.
     /// </summary>
-    public static async Task PrepareAsync(AppRelease rel, IProgress<double> progress, Action<string> status, CancellationToken ct)
+    public static async Task PrepareAsync(
+        AppRelease rel,
+        IProgress<double> progress,
+        Action<string> status,
+        CancellationToken ct
+    )
     {
-        if (!OperatingSystem.IsWindows()) throw new PlatformNotSupportedException("Self-update is Windows-only.");
+        if (!OperatingSystem.IsWindows())
+            throw new PlatformNotSupportedException("Self-update is Windows-only.");
         var work = Path.Combine(Path.GetTempPath(), "vrtm-update-" + rel.Version);
-        if (Directory.Exists(work)) Directory.Delete(work, recursive: true);
+        if (Directory.Exists(work))
+            Directory.Delete(work, recursive: true);
         Directory.CreateDirectory(work);
         var zip = Path.Combine(work, "update.zip");
 
@@ -120,37 +173,66 @@ public static class AppUpdater
         if (rel.Sha256Url != null)
         {
             status("Checking the download…");
-            var expected = (await Http.Client.GetStringAsync(rel.Sha256Url, ct)).Split(' ', '\t', '\n')[0].Trim().ToLowerInvariant();
+            var expected = (await Http.Client.GetStringAsync(rel.Sha256Url, ct))
+                .Split(' ', '\t', '\n')[0]
+                .Trim()
+                .ToLowerInvariant();
             await using var f = File.OpenRead(zip);
             var actual = Convert.ToHexStringLower(await SHA256.HashDataAsync(f, ct));
-            if (actual != expected) throw new InvalidDataException("The download doesn't match its published SHA-256. Try again later.");
+            if (actual != expected)
+                throw new InvalidDataException(
+                    "The download doesn't match its published SHA-256. Try again later."
+                );
         }
 
         status("Unpacking…");
         var staging = Path.Combine(work, "files");
         await Task.Run(() => TableInstaller.Extract(zip, staging), ct);
         // The zip holds one VrTableManager\ folder.
-        var newFiles = Directory.Exists(Path.Combine(staging, "VrTableManager")) ? Path.Combine(staging, "VrTableManager") : staging;
+        var newFiles = Directory.Exists(Path.Combine(staging, "VrTableManager"))
+            ? Path.Combine(staging, "VrTableManager")
+            : staging;
         if (!File.Exists(Path.Combine(newFiles, "VrTableManager.exe")))
             throw new InvalidDataException("The release zip doesn't contain VrTableManager.exe.");
 
         var exe = Environment.ProcessPath ?? Path.Combine(InstallDir, "VrTableManager.exe");
         var script = Path.Combine(work, "apply-update.ps1");
-        await File.WriteAllTextAsync(script, $$"""
+        await File.WriteAllTextAsync(
+            script,
+            $$"""
             $ErrorActionPreference = 'SilentlyContinue'
             Wait-Process -Id {{Environment.ProcessId}} -Timeout 120
             Start-Sleep -Milliseconds 500
             # /E: everything, keeping files the new version doesn't have (the lobby's imported assets etc.).
-            robocopy '{{Esc(newFiles)}}' '{{Esc(InstallDir)}}' /E /R:30 /W:1 /NFL /NDL /NJH /NJS /NP | Out-Null
+            robocopy '{{Esc(newFiles)}}' '{{Esc(
+                InstallDir
+            )}}' /E /R:30 /W:1 /NFL /NDL /NJH /NJS /NP | Out-Null
             $ok = $LASTEXITCODE -lt 8
             if ($ok) { Start-Process -FilePath '{{Esc(exe)}}' -ArgumentList '--updated' }
             else { Start-Process -FilePath '{{Esc(exe)}}' -ArgumentList '--update-failed' }
             Start-Sleep -Seconds 2
             if ($ok) { Remove-Item -LiteralPath '{{Esc(work)}}' -Recurse -Force }
-            """, ct);
+            """,
+            ct
+        );
 
-        var psi = new ProcessStartInfo("powershell.exe") { UseShellExecute = false, CreateNoWindow = true };
-        foreach (var a in new[] { "-NoProfile", "-ExecutionPolicy", "Bypass", "-WindowStyle", "Hidden", "-File", script })
+        var psi = new ProcessStartInfo("powershell.exe")
+        {
+            UseShellExecute = false,
+            CreateNoWindow = true,
+        };
+        foreach (
+            var a in new[]
+            {
+                "-NoProfile",
+                "-ExecutionPolicy",
+                "Bypass",
+                "-WindowStyle",
+                "Hidden",
+                "-File",
+                script,
+            }
+        )
             psi.ArgumentList.Add(a);
         Process.Start(psi);
         status("Restarting to finish the update…");

@@ -12,33 +12,72 @@ static class VpxIniLayersChecks
         Environment.SetEnvironmentVariable("VRTM_VPX_PREFS", prefs);
         try
         {
-            var s = new AppSettings { VpxDir = Path.Combine(dir, "vpx"), TablesDir = Path.Combine(dir, "tables") };
+            var s = new AppSettings
+            {
+                VpxDir = Path.Combine(dir, "vpx"),
+                TablesDir = Path.Combine(dir, "tables"),
+            };
             Directory.CreateDirectory(s.VpxDir);
             File.WriteAllText(Path.Combine(s.VpxDir, "vrtm-version.txt"), "v10.8.1-5436-af26b2d93");
-            File.WriteAllText(Path.Combine(s.VpxDir, "VPinballX.ini"), "[Player]\nAAFactor = 0.5\n"); // VPX prefers the one in its preferences folder
+            File.WriteAllText(
+                Path.Combine(s.VpxDir, "VPinballX.ini"),
+                "[Player]\nAAFactor = 0.5\n"
+            ); // VPX prefers the one in its preferences folder
             var own = Path.Combine(prefs, "10.8", "VPinballX.ini");
             Directory.CreateDirectory(Path.GetDirectoryName(own)!);
-            File.WriteAllText(own, "; my settings\n[Player]\nAAFactor = 2\nMSAASamples = \n\n[Input]\nMapping.LeftFlipper = SDL.Pad;4\n\n[Plugin.PinMAME]\nEnable = \n");
-            results.Add((VpxIniLayers.BasePath(s) == own, "layers: the base is the VPinballX.ini VPX itself loads (preferences folder for its version, before the one beside the exe)"));
+            File.WriteAllText(
+                own,
+                "; my settings\n[Player]\nAAFactor = 2\nMSAASamples = \n\n[Input]\nMapping.LeftFlipper = SDL.Pad;4\n\n[Plugin.PinMAME]\nEnable = \n"
+            );
+            results.Add(
+                (
+                    VpxIniLayers.BasePath(s) == own,
+                    "layers: the base is the VPinballX.ini VPX itself loads (preferences folder for its version, before the one beside the exe)"
+                )
+            );
 
             VpxSetup.EnsureVrIni(s);
-            IniFile.SetMany(VpxSetup.VrIniPath(s), "Player", [("MSAASamples", "1"), ("AAFactor", "")]);
+            IniFile.SetMany(
+                VpxSetup.VrIniPath(s),
+                "Player",
+                [("MSAASamples", "1"), ("AAFactor", "")]
+            );
             var vr = VpxIniLayers.Build(s, vr: true);
             var v = IniFile.Read(vr.Path);
-            results.Add((v.GetValueOrDefault(("Player", "AAFactor")) == "2" && v.GetValueOrDefault(("Player", "MSAASamples")) == "1"
-                         && v.GetValueOrDefault(("PlayerVR", "AskToTurnOn")) == "0" && v.GetValueOrDefault(("Plugin.PinMAME", "Enable")) == "1"
-                         && v.GetValueOrDefault(("Input", "Mapping.LeftFlipper")) == "SDL.Pad;4" && File.ReadAllText(vr.Path).StartsWith("; my settings"),
-                "layers: VR play gets the player's settings and controls, with the VR overrides on top (an empty override is no override)"));
+            results.Add(
+                (
+                    v.GetValueOrDefault(("Player", "AAFactor")) == "2"
+                        && v.GetValueOrDefault(("Player", "MSAASamples")) == "1"
+                        && v.GetValueOrDefault(("PlayerVR", "AskToTurnOn")) == "0"
+                        && v.GetValueOrDefault(("Plugin.PinMAME", "Enable")) == "1"
+                        && v.GetValueOrDefault(("Input", "Mapping.LeftFlipper")) == "SDL.Pad;4"
+                        && File.ReadAllText(vr.Path).StartsWith("; my settings"),
+                    "layers: VR play gets the player's settings and controls, with the VR overrides on top (an empty override is no override)"
+                )
+            );
 
             File.WriteAllText(own, File.ReadAllText(own).Replace("AAFactor = 2", "AAFactor = 1.5"));
-            results.Add((VpxGraphics.Read(VpxIniLayers.Effective(s, vr: true)).RenderScale == 1.5 && IniFile.Read(VpxIniLayers.Build(s, vr: true).Path).GetValueOrDefault(("Player", "AAFactor")) == "1.5",
-                "layers: a change to the player's own VPinballX.ini reaches the next VR launch"));
+            results.Add(
+                (
+                    VpxGraphics.Read(VpxIniLayers.Effective(s, vr: true)).RenderScale == 1.5
+                        && IniFile
+                            .Read(VpxIniLayers.Build(s, vr: true).Path)
+                            .GetValueOrDefault(("Player", "AAFactor")) == "1.5",
+                    "layers: a change to the player's own VPinballX.ini reaches the next VR launch"
+                )
+            );
 
             VpxSetup.EnsureDesktopIni(s);
             var d = IniFile.Read(VpxIniLayers.Build(s, vr: false).Path);
-            results.Add((d.GetValueOrDefault(("PlayerVR", "AskToTurnOn")) == "2" && d.GetValueOrDefault(("Plugin.PinMAME", "Enable")) == "1"
-                         && d.GetValueOrDefault(("Player", "MSAASamples")) == "" && d.GetValueOrDefault(("Player", "AAFactor")) == "1.5",
-                "layers: desktop play has VR off and the built-in PinMAME on (ROMs from the table's folder), without the VR overrides"));
+            results.Add(
+                (
+                    d.GetValueOrDefault(("PlayerVR", "AskToTurnOn")) == "2"
+                        && d.GetValueOrDefault(("Plugin.PinMAME", "Enable")) == "1"
+                        && d.GetValueOrDefault(("Player", "MSAASamples")) == ""
+                        && d.GetValueOrDefault(("Player", "AAFactor")) == "1.5",
+                    "layers: desktop play has VR off and the built-in PinMAME on (ROMs from the table's folder), without the VR overrides"
+                )
+            );
 
             // VPX rewrites the play file when the table closes: keep real changes as VR overrides.
             var ownBefore = File.ReadAllBytes(own);
@@ -48,17 +87,36 @@ static class VpxIniLayersChecks
             IniFile.SetMany(play.Path, "Version", [("VPinballX", "10.8.1")]);
             var kept = play.SaveBack();
             var o = IniFile.Read(VpxSetup.VrIniPath(s));
-            results.Add((kept == 1 && o.GetValueOrDefault(("PlayerVR", "TableX")) == "5.0" && o.GetValueOrDefault(("Player", "AAFactor")) == ""
-                         && !o.ContainsKey(("Version", "VPinballX")) && File.ReadAllBytes(own).SequenceEqual(ownBefore),
-                "layers: a setting changed during play is kept for that mode; reformatted values and VPX bookkeeping aren't; the player's file is untouched"));
-            results.Add((play.SaveBack() == 0 && VrView.Read(VpxIniLayers.Effective(s, vr: true)).X == 5,
-                "layers: saving back happens once per launch, and the kept setting is used next time"));
+            results.Add(
+                (
+                    kept == 1
+                        && o.GetValueOrDefault(("PlayerVR", "TableX")) == "5.0"
+                        && o.GetValueOrDefault(("Player", "AAFactor")) == ""
+                        && !o.ContainsKey(("Version", "VPinballX"))
+                        && File.ReadAllBytes(own).SequenceEqual(ownBefore),
+                    "layers: a setting changed during play is kept for that mode; reformatted values and VPX bookkeeping aren't; the player's file is untouched"
+                )
+            );
+            results.Add(
+                (
+                    play.SaveBack() == 0 && VrView.Read(VpxIniLayers.Effective(s, vr: true)).X == 5,
+                    "layers: saving back happens once per launch, and the kept setting is used next time"
+                )
+            );
 
             // No VPinballX.ini in the preferences folder: VPX uses the one beside the exe.
             File.Delete(own);
-            results.Add((VpxIniLayers.BasePath(s) == Path.Combine(s.VpxDir, "VPinballX.ini"), "layers: without a preferences-folder ini, the one beside VPX is the base"));
+            results.Add(
+                (
+                    VpxIniLayers.BasePath(s) == Path.Combine(s.VpxDir, "VPinballX.ini"),
+                    "layers: without a preferences-folder ini, the one beside VPX is the base"
+                )
+            );
         }
-        finally { Environment.SetEnvironmentVariable("VRTM_VPX_PREFS", oldPrefs); }
+        finally
+        {
+            Environment.SetEnvironmentVariable("VRTM_VPX_PREFS", oldPrefs);
+        }
         return results;
     }
 }

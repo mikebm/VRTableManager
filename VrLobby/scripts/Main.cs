@@ -13,15 +13,16 @@ namespace VrLobby;
 public partial class Main : Node3D
 {
     // Ring of cabinets (distances are to the cabinet's front edge, from the player standing at the origin)
-    static readonly float Step = Mathf.DegToRad(34f);  // room for a 0.74 m cabinet plus a gap at the ring distance
-    const int Side = 5;                                 // cabinets either side of the selected one
-    public const int PoolSize = Side * 2 + 1;           // only these 11 cabinet nodes ever exist
-    const float SnapAt = 0.0005f;                       // the ring eases to within this much of a step, then stops
-    const float VideoFrom = 0.98f;                      // the playfield video starts as soon as the ring turns towards the table (steps)
-    const double AttractAfter = 0.5;                    // seconds on a table before its sound plays
-    public const float RingFront = 2.1f;                // the ring
-    public const float SelectedFront = 0.9f;            // the selected cabinet steps up to about arm's length
+    static readonly float Step = Mathf.DegToRad(34f); // room for a 0.74 m cabinet plus a gap at the ring distance
+    const int Side = 5; // cabinets either side of the selected one
+    public const int PoolSize = Side * 2 + 1; // only these 11 cabinet nodes ever exist
+    const float SnapAt = 0.0005f; // the ring eases to within this much of a step, then stops
+    const float VideoFrom = 0.98f; // the playfield video starts as soon as the ring turns towards the table (steps)
+    const double AttractAfter = 0.5; // seconds on a table before its sound plays
+    public const float RingFront = 2.1f; // the ring
+    public const float SelectedFront = 0.9f; // the selected cabinet steps up to about arm's length
     static readonly float AngleAway = Mathf.DegToRad(12f);
+
     // Jump rail: a curved console at knee height, just in front of the selected cabinet
     const float RailR = 0.8f;
     const float RailY = 0.5f;
@@ -44,14 +45,19 @@ public partial class Main : Node3D
     readonly Node3D _ring = new();
     readonly Node3D _rail = new();
     readonly List<(Label3D Label, int Group)> _railItems = [];
-    readonly Label3D _header = new(), _status = new(), _hint = new(), _flash = new(), _scores = new();
-    readonly MeshInstance3D _scoresPanel = new();   // dark DMD glass behind the high scores
-    readonly Dictionary<string, IReadOnlyList<string>> _scoreLines = [];   // per table id; .nv files only change while a table runs (StartPlaying drops that table's lines)
+    readonly Label3D _header = new(),
+        _status = new(),
+        _hint = new(),
+        _flash = new(),
+        _scores = new();
+    readonly MeshInstance3D _scoresPanel = new(); // dark DMD glass behind the high scores
+    readonly Dictionary<string, IReadOnlyList<string>> _scoreLines = []; // per table id; .nv files only change while a table runs (StartPlaying drops that table's lines)
     readonly Dictionary<string, double> _held = new() { ["x"] = 0, ["jump"] = 0 };
     readonly Dictionary<string, double> _cool = new() { ["x"] = 0, ["jump"] = 0 };
     readonly AudioStreamPlayer3D _attract = new() { VolumeDb = -12f, UnitSize = 3f };
     readonly Dictionary<string, string?> _attractFiles = [];
     readonly PlayfieldVideo _video = new();
+
     /// <summary>Folder of the lobby video playing on the selected cabinet, or null.</summary>
     public string? VideoPlaying => _video.Playing;
     public int VideoFramesShown => _video.FramesShown;
@@ -60,29 +66,48 @@ public partial class Main : Node3D
     // --perf-trace (diagnostic): steps through tables by itself and prints every slow frame with what happened in it.
     bool _perfTrace;
     readonly List<string> _perfEvents = [];
-    double _perfClock, _perfNextStep = 2.0;
-    int _perfSteps, _perfStepCount = 8;
-    void Trace(string what) { if (!_perfTrace) return; _perfEvents.Add(what); GD.Print($"  {_perfClock:0.00}s {what}"); }
+    double _perfClock,
+        _perfNextStep = 2.0;
+    int _perfSteps,
+        _perfStepCount = 8;
+
+    void Trace(string what)
+    {
+        if (!_perfTrace)
+            return;
+        _perfEvents.Add(what);
+        GD.Print($"  {_perfClock:0.00}s {what}");
+    }
+
     readonly RomRecorder _recorder = new();
     bool _recordRoms;
     Dictionary<string, string>? _backglass;
-    Font? _dmdFont, _displayFont, _bodyFont;   // Doto (dot-matrix), Big Shoulders Display, Archivo
+    Font? _dmdFont,
+        _displayFont,
+        _bodyFont; // Doto (dot-matrix), Big Shoulders Display, Archivo
 
     // Height adjustment: the player's rig (XR origin, or the desktop camera's parent) is raised or
     // lowered by State.HeightOffset. Moving the rig rather than the room keeps every layout constant
     // as-is, and recentering (which moves the tracking origin, not this node) never touches it.
     Node3D _rig = null!;
     readonly Label3D _heightLabel = new();
-    double _heightShow, _statsCheck = 2.0;
+    double _heightShow,
+        _statsCheck = 2.0;
     bool _heightDirty;
 
     bool _vr;
     float _scroll;
-    int _hoverSlot = -1, _hoverRail = -1;
-    double _hoverTime, _flashTime, _settled, _attractLeft;
+    int _hoverSlot = -1,
+        _hoverRail = -1;
+    double _hoverTime,
+        _flashTime,
+        _settled,
+        _attractLeft;
     bool _launching;
-    string? _settingsPath, _statePath;
-    XRController3D? _left, _right;
+    string? _settingsPath,
+        _statePath;
+    XRController3D? _left,
+        _right;
     RayCast3D? _ray;
     OpenXRInterface? _xr;
 
@@ -90,15 +115,18 @@ public partial class Main : Node3D
     // lamp chase, until the table takes the headset over. Without it you'd wait in an empty view.
     LobbyTable? _loading;
     string? _statusFile;
-    double _loadingTime, _loadingPoll, _unfocused;
+    double _loadingTime,
+        _loadingPoll,
+        _unfocused;
     readonly Node3D _chase = new();
     readonly List<StandardMaterial3D> _chaseLamps = [];
     const double LoadingGiveUp = 180; // seconds; then the lobby closes anyway, as it used to straight away
+
     // Playing (StartPlaying): the table has the headset and the lobby waits behind it, everything hidden, so
     // it can take the headset straight back when the table closes instead of starting up again.
     bool _playing;
-    double _returning = -1;     // seconds since the table closed, until the runtime gives us focus back; -1 when not waiting
-    const double ReturnGiveUp = 8;  // then the lobby restarts itself, which gets a fresh session
+    double _returning = -1; // seconds since the table closed, until the runtime gives us focus back; -1 when not waiting
+    const double ReturnGiveUp = 8; // then the lobby restarts itself, which gets a fresh session
     readonly List<(Node3D Node, bool Was)> _hidden = [];
     public bool IsPlaying => _playing;
     public bool IsLoading => _loading != null;
@@ -135,23 +163,40 @@ public partial class Main : Node3D
         // --dump-cabinet=<table.vpx>: write that table's VR cabinet as the default cabinet, then quit.
         if (args.GetValueOrDefault("dump-cabinet") is { Length: > 0 } dumpVpx)
         {
-            var ok = RealCabinetLoader.DumpDefault(dumpVpx, ProjectSettings.GlobalizePath(DefaultCabinetFile));
-            GD.Print(ok ? $"Default cabinet written from {dumpVpx}" : $"No VR cabinet in {dumpVpx}");
+            var ok = RealCabinetLoader.DumpDefault(
+                dumpVpx,
+                ProjectSettings.GlobalizePath(DefaultCabinetFile)
+            );
+            GD.Print(
+                ok ? $"Default cabinet written from {dumpVpx}" : $"No VR cabinet in {dumpVpx}"
+            );
             GetTree().Quit(ok ? 0 : 1);
             return;
         }
         // The default cabinet before any table shows, so nothing ever appears in the drawn one first.
-        _template = RealCabinetLoader.LoadDefault(ProjectSettings.GlobalizePath(DefaultCabinetFile));
-        if (_template == null) GD.PushWarning($"No default cabinet at {DefaultCabinetFile}: tables without their own use the drawn cabinet.");
+        _template = RealCabinetLoader.LoadDefault(
+            ProjectSettings.GlobalizePath(DefaultCabinetFile)
+        );
+        if (_template == null)
+            GD.PushWarning(
+                $"No default cabinet at {DefaultCabinetFile}: tables without their own use the drawn cabinet."
+            );
         // --settings / --state (or VRLOBBY_SETTINGS / VRLOBBY_STATE) point elsewhere; used by the self-test.
-        _settingsPath = args.GetValueOrDefault("settings") ?? NullIfEmpty(System.Environment.GetEnvironmentVariable("VRLOBBY_SETTINGS"));
-        _statePath = args.GetValueOrDefault("state") ?? NullIfEmpty(System.Environment.GetEnvironmentVariable("VRLOBBY_STATE"));
+        _settingsPath =
+            args.GetValueOrDefault("settings")
+            ?? NullIfEmpty(System.Environment.GetEnvironmentVariable("VRLOBBY_SETTINGS"));
+        _statePath =
+            args.GetValueOrDefault("state")
+            ?? NullIfEmpty(System.Environment.GetEnvironmentVariable("VRLOBBY_STATE"));
         var selfTest = args.ContainsKey("selftest");
         _perfTrace = args.ContainsKey("perf-trace");
-        if (int.TryParse(args.GetValueOrDefault("perf-trace"), out var steps) && steps >= 0) _perfStepCount = steps;
+        if (int.TryParse(args.GetValueOrDefault("perf-trace"), out var steps) && steps >= 0)
+            _perfStepCount = steps;
         if (selfTest && _settingsPath == null)
         {
-            var fx = Tests.LobbyFixture.Create(Path.Combine(OS.GetUserDataDir(), "selftest-fixture"));
+            var fx = Tests.LobbyFixture.Create(
+                Path.Combine(OS.GetUserDataDir(), "selftest-fixture")
+            );
             _settingsPath = fx.Settings;
             _statePath = Path.Combine(fx.Root, "state.json");
             _cabs.CacheDir = Path.Combine(fx.Root, "cabinet-cache"); // a fresh cache each run, not the real one
@@ -177,16 +222,31 @@ public partial class Main : Node3D
         // --screenshot=<png> [--pitch=<degrees>] (desktop, diagnostic): save one frame once the art is in, then quit.
         if (!_vr && args.GetValueOrDefault("screenshot") is { Length: > 0 } shot)
         {
-            if (float.TryParse(args.GetValueOrDefault("pitch"), System.Globalization.CultureInfo.InvariantCulture, out var pitch)
-                && GetViewport().GetCamera3D() is { } cam)
+            if (
+                float.TryParse(
+                    args.GetValueOrDefault("pitch"),
+                    System.Globalization.CultureInfo.InvariantCulture,
+                    out var pitch
+                ) && GetViewport().GetCamera3D() is { } cam
+            )
                 cam.Rotation = new Vector3(Mathf.DegToRad(pitch), 0, 0);
             // --fov=<degrees>: zoom in from the same standing spot (same perspective, closer look).
-            if (float.TryParse(args.GetValueOrDefault("fov"), System.Globalization.CultureInfo.InvariantCulture, out var fov)
-                && GetViewport().GetCamera3D() is { } zoomCam)
+            if (
+                float.TryParse(
+                    args.GetValueOrDefault("fov"),
+                    System.Globalization.CultureInfo.InvariantCulture,
+                    out var fov
+                ) && GetViewport().GetCamera3D() is { } zoomCam
+            )
                 zoomCam.Fov = fov;
             // --cam-y=<metres>: eye height for the shot (default standing height), e.g. to look a cabinet's front in the face.
-            if (float.TryParse(args.GetValueOrDefault("cam-y"), System.Globalization.CultureInfo.InvariantCulture, out var camY)
-                && GetViewport().GetCamera3D() is { } lowCam)
+            if (
+                float.TryParse(
+                    args.GetValueOrDefault("cam-y"),
+                    System.Globalization.CultureInfo.InvariantCulture,
+                    out var camY
+                ) && GetViewport().GetCamera3D() is { } lowCam
+            )
                 lowCam.Position = new Vector3(lowCam.Position.X, camY, lowCam.Position.Z);
             GetTree().CreateTimer(6).Timeout += () =>
             {
@@ -196,11 +256,18 @@ public partial class Main : Node3D
         }
         Rebuild(args.GetValueOrDefault("select", ""));
         LoadBackglassIndex();
-        if (!_noDepth) WarmPlayfieldDepth();
-        if (!selfTest) RefreshHighScoreMaps();
+        if (!_noDepth)
+            WarmPlayfieldDepth();
+        if (!selfTest)
+            RefreshHighScoreMaps();
 
         if (selfTest)
-            Callable.From(() => { _ = SelfTest.RunAsync(this); }).CallDeferred();
+            Callable
+                .From(() =>
+                {
+                    _ = SelfTest.RunAsync(this);
+                })
+                .CallDeferred();
     }
 
     /// <summary>
@@ -214,7 +281,10 @@ public partial class Main : Node3D
             var bytes = Godot.FileAccess.GetFileAsBytes(path);
             return bytes.Length == 0 ? null : new FontFile { Data = bytes };
         }
-        catch { return null; }
+        catch
+        {
+            return null;
+        }
     }
 
     /// <summary>
@@ -227,9 +297,12 @@ public partial class Main : Node3D
         {
             var bytes = Godot.FileAccess.GetFileAsBytes("res://icon.png");
             var img = new Image();
-            if (bytes.Length > 0 && img.LoadPngFromBuffer(bytes) == Error.Ok) DisplayServer.SetIcon(img);
+            if (bytes.Length > 0 && img.LoadPngFromBuffer(bytes) == Error.Ok)
+                DisplayServer.SetIcon(img);
         }
-        catch { /* cosmetic only */ }
+        catch
+        { /* cosmetic only */
+        }
     }
 
     /// <summary>Backglass pictures come from the manager's cached VPS catalog (no network); ~8 MB, so it's read in the background.</summary>
@@ -239,12 +312,15 @@ public partial class Main : Node3D
             .ContinueWith(t =>
             {
                 var index = t.IsCompletedSuccessfully ? t.Result : new Dictionary<string, string>();
-                Callable.From(() =>
-                {
-                    _backglass = index;
-                    foreach (var cab in _pool)
-                        if (cab.Table != null) AssignCabinet(cab, cab.Index, requestArt: true);
-                }).CallDeferred();
+                Callable
+                    .From(() =>
+                    {
+                        _backglass = index;
+                        foreach (var cab in _pool)
+                            if (cab.Table != null)
+                                AssignCabinet(cab, cab.Index, requestArt: true);
+                    })
+                    .CallDeferred();
             });
     }
 
@@ -259,11 +335,15 @@ public partial class Main : Node3D
             _xr = xr;
             GetViewport().UseXR = true;
             DisplayServer.WindowSetVsyncMode(DisplayServer.VSyncMode.Disabled); // the headset paces frames
-            xr!.SessionStopping += () => Leave("the headset ended the VR session (Quest Link disconnected, or the app was closed from the Quest menu)");
+            xr!.SessionStopping += () =>
+                Leave(
+                    "the headset ended the VR session (Quest Link disconnected, or the app was closed from the Quest menu)"
+                );
             // Holding the Quest's Oculus button recenters. keep_height = true leaves the floor where the
             // headset put it (project.godot asks for the Local Floor reference space), and the user's
             // height offset lives on the rig node, so recentering can't wipe it.
-            xr.PoseRecentered += () => XRServer.CenterOnHmd(XRServer.RotationMode.ResetButKeepTilt, true);
+            xr.PoseRecentered += () =>
+                XRServer.CenterOnHmd(XRServer.RotationMode.ResetButKeepTilt, true);
 
             var origin = new XROrigin3D();
             AddChild(origin);
@@ -273,27 +353,39 @@ public partial class Main : Node3D
             AttachHeightLabel(cam);
             _left = MakeController(origin, "left_hand");
             _right = MakeController(origin, "right_hand");
-            _ray = new RayCast3D { TargetPosition = new Vector3(0, 0, -6), CollideWithAreas = true, CollideWithBodies = false };
-            _right.AddChild(_ray);
-            _right.AddChild(new MeshInstance3D
+            _ray = new RayCast3D
             {
-                Mesh = new BoxMesh { Size = new Vector3(0.004f, 0.004f, 3f) },
-                Position = new Vector3(0, 0, -1.5f),
-                MaterialOverride = new StandardMaterial3D
+                TargetPosition = new Vector3(0, 0, -6),
+                CollideWithAreas = true,
+                CollideWithBodies = false,
+            };
+            _right.AddChild(_ray);
+            _right.AddChild(
+                new MeshInstance3D
                 {
-                    ShadingMode = BaseMaterial3D.ShadingModeEnum.Unshaded,
-                    AlbedoColor = new Color(Palette.Lamp, 0.6f),
-                    Transparency = BaseMaterial3D.TransparencyEnum.Alpha,
-                },
-                CastShadow = GeometryInstance3D.ShadowCastingSetting.Off,
-            });
+                    Mesh = new BoxMesh { Size = new Vector3(0.004f, 0.004f, 3f) },
+                    Position = new Vector3(0, 0, -1.5f),
+                    MaterialOverride = new StandardMaterial3D
+                    {
+                        ShadingMode = BaseMaterial3D.ShadingModeEnum.Unshaded,
+                        AlbedoColor = new Color(Palette.Lamp, 0.6f),
+                        Transparency = BaseMaterial3D.TransparencyEnum.Alpha,
+                    },
+                    CastShadow = GeometryInstance3D.ShadowCastingSetting.Off,
+                }
+            );
         }
         else
         {
             // Desktop: roughly where you would stand, tilted down a little so the cabinet, the title above it and the rail all fit.
             _rig = new Node3D();
             AddChild(_rig);
-            var cam = new Camera3D { Position = new Vector3(0, 1.62f, 0.3f), Rotation = new Vector3(Mathf.DegToRad(-15), 0, 0), Fov = 80 };
+            var cam = new Camera3D
+            {
+                Position = new Vector3(0, 1.62f, 0.3f),
+                Rotation = new Vector3(Mathf.DegToRad(-15), 0, 0),
+                Fov = 80,
+            };
             _rig.AddChild(cam);
             AttachHeightLabel(cam);
         }
@@ -318,61 +410,83 @@ public partial class Main : Node3D
         // Aim pose follows where the controller points, so the laser feels natural.
         var c = new XRController3D { Tracker = tracker, Pose = "aim" };
         origin.AddChild(c);
-        c.AddChild(new MeshInstance3D { Mesh = new BoxMesh { Size = new Vector3(0.035f, 0.035f, 0.12f) } });
+        c.AddChild(
+            new MeshInstance3D { Mesh = new BoxMesh { Size = new Vector3(0.035f, 0.035f, 0.12f) } }
+        );
         c.ButtonPressed += name => OnButton(name, c);
         return c;
     }
 
-
     void BuildRoom()
     {
-        AddChild(new WorldEnvironment
-        {
-            Environment = new Godot.Environment
+        AddChild(
+            new WorldEnvironment
             {
-                BackgroundMode = Godot.Environment.BGMode.Color,
-                BackgroundColor = Palette.Bg,
-                AmbientLightSource = Godot.Environment.AmbientSource.Color,
-                AmbientLightColor = new Color(0.24f, 0.24f, 0.26f),
-                // The background stays flat black, but reflections come from a small generated map of
-                // the room, so chrome (lockbar, rails, speaker rings) has something to mirror.
-                Sky = new Sky { SkyMaterial = new PanoramaSkyMaterial { Panorama = ReflectionSky() }, RadianceSize = Sky.RadianceSizeEnum.Size128 },
-                ReflectedLightSource = Godot.Environment.ReflectionSource.Sky,
-                // AgX rolls highlights off instead of clipping them: a white cabinet front under the spotlight
-                // keeps its print rather than turning into a flat orange-white block.
-                TonemapMode = Godot.Environment.ToneMapper.Agx,
-                TonemapExposure = 1.25f,
-                GlowEnabled = true,
-                GlowIntensity = 0.7f,
-                // Only light sources bloom: at the default 1.0, a white lockbar or rail under the spotlight haloed too.
-                GlowHdrThreshold = 1.5f,
-                // Distant cabinets and walls fade into the dark instead of ending at a hard edge.
-                FogEnabled = true,
-                FogLightColor = Palette.Bg,
-                FogDensity = 0.03f,
-                FogSkyAffect = 0f,
-            },
-        });
+                Environment = new Godot.Environment
+                {
+                    BackgroundMode = Godot.Environment.BGMode.Color,
+                    BackgroundColor = Palette.Bg,
+                    AmbientLightSource = Godot.Environment.AmbientSource.Color,
+                    AmbientLightColor = new Color(0.24f, 0.24f, 0.26f),
+                    // The background stays flat black, but reflections come from a small generated map of
+                    // the room, so chrome (lockbar, rails, speaker rings) has something to mirror.
+                    Sky = new Sky
+                    {
+                        SkyMaterial = new PanoramaSkyMaterial { Panorama = ReflectionSky() },
+                        RadianceSize = Sky.RadianceSizeEnum.Size128,
+                    },
+                    ReflectedLightSource = Godot.Environment.ReflectionSource.Sky,
+                    // AgX rolls highlights off instead of clipping them: a white cabinet front under the spotlight
+                    // keeps its print rather than turning into a flat orange-white block.
+                    TonemapMode = Godot.Environment.ToneMapper.Agx,
+                    TonemapExposure = 1.25f,
+                    GlowEnabled = true,
+                    GlowIntensity = 0.7f,
+                    // Only light sources bloom: at the default 1.0, a white lockbar or rail under the spotlight haloed too.
+                    GlowHdrThreshold = 1.5f,
+                    // Distant cabinets and walls fade into the dark instead of ending at a hard edge.
+                    FogEnabled = true,
+                    FogLightColor = Palette.Bg,
+                    FogDensity = 0.03f,
+                    FogSkyAffect = 0f,
+                },
+            }
+        );
 
         // Arcade carpet underfoot and a black drop ceiling with neon tubes overhead (ArcadeRoom); the far wall
         // stays neutral dark grey, so the lamps, the neon and the DMDs are the light in the room.
         AddChild(ArcadeRoom.Floor(15));
         AddChild(ArcadeRoom.Ceiling(7.2f));
-        AddChild(new MeshInstance3D
-        {
-            Mesh = new CylinderMesh { TopRadius = 7, BottomRadius = 7, Height = 4.5f, RadialSegments = 48, CapTop = false, CapBottom = false },
-            MaterialOverride = new StandardMaterial3D { AlbedoColor = new Color(0.05f, 0.05f, 0.055f), CullMode = BaseMaterial3D.CullModeEnum.Disabled, Roughness = 0.9f },
-            Position = new Vector3(0, 2.25f, 0),
-            CastShadow = GeometryInstance3D.ShadowCastingSetting.Off,
-        });
+        AddChild(
+            new MeshInstance3D
+            {
+                Mesh = new CylinderMesh
+                {
+                    TopRadius = 7,
+                    BottomRadius = 7,
+                    Height = 4.5f,
+                    RadialSegments = 48,
+                    CapTop = false,
+                    CapBottom = false,
+                },
+                MaterialOverride = new StandardMaterial3D
+                {
+                    AlbedoColor = new Color(0.05f, 0.05f, 0.055f),
+                    CullMode = BaseMaterial3D.CullModeEnum.Disabled,
+                    Roughness = 0.9f,
+                },
+                Position = new Vector3(0, 2.25f, 0),
+                CastShadow = GeometryInstance3D.ShadowCastingSetting.Off,
+            }
+        );
 
         // Trim: rows of small incandescent lamps (like a marquee or a playfield's GI string) and chrome
         // edges, kept dim so the cabinets stay the brightest things in the room. Each row is one draw call.
         var ringOut = RingFront + CabinetKit.Length + 0.35f;
-        AddChild(LampRow(ringOut, 0.02f, 72, 0.018f, 1.2f));      // on the floor behind the cabinets
-        AddChild(ChromeRing(ringOut + 0.06f, 0.006f, 0.008f));     // with a chrome edge
-        AddChild(ChromeRing(0.5f, 0.004f, 0.006f));                // a chrome circle round your feet
-        AddChild(LampRow(6.9f, 3.0f, 120, 0.025f, 0.7f));         // one row high on the far wall
+        AddChild(LampRow(ringOut, 0.02f, 72, 0.018f, 1.2f)); // on the floor behind the cabinets
+        AddChild(ChromeRing(ringOut + 0.06f, 0.006f, 0.008f)); // with a chrome edge
+        AddChild(ChromeRing(0.5f, 0.004f, 0.006f)); // a chrome circle round your feet
+        AddChild(LampRow(6.9f, 3.0f, 120, 0.025f, 0.7f)); // one row high on the far wall
 
         // A warm spotlight on the selected cabinet (the only shadow-casting light), and a neutral fill. It's the only
         // thing that makes the selected cabinet brighter: a table brightens as it swings into the pool of light and
@@ -380,20 +494,37 @@ public partial class Main : Node3D
         // so the pool covers one cabinet and fades out on the floor around it rather than ending in a hard ring.
         var spot = new SpotLight3D
         {
-            SpotAngle = 24, SpotRange = 7, LightEnergy = 9, LightColor = Colors.White.Lerp(Palette.Lamp, 0.3f),
-            ShadowEnabled = true, SpotAngleAttenuation = 2.2f,
+            SpotAngle = 24,
+            SpotRange = 7,
+            LightEnergy = 9,
+            LightColor = Colors.White.Lerp(Palette.Lamp, 0.3f),
+            ShadowEnabled = true,
+            SpotAngleAttenuation = 2.2f,
             // Godot's default offsets (3 cm, plus a normal offset) let a strip of light through just under a
             // lockdown bar onto the cabinet front, which should sit in the bar's shadow.
-            ShadowBias = 0.004f, ShadowNormalBias = 0.3f,
+            ShadowBias = 0.004f,
+            ShadowNormalBias = 0.3f,
         };
         AddChild(spot);
         var cabCentre = -(SelectedFront + CabinetKit.Length / 2);
         // High and a little in front of the cabinet, like a ceiling can light over your shoulder: from there it reaches
         // the playfield, the backglass and the cabinet's front. (A short-range key light just above the lockdown bar
         // used to help it, and blew the bar out: it was half a metre away, the rest of the cabinet two.)
-        spot.LookAtFromPosition(new Vector3(0, 3.6f, cabCentre + 1.1f), new Vector3(0, 0.85f, cabCentre), Vector3.Up);
+        spot.LookAtFromPosition(
+            new Vector3(0, 3.6f, cabCentre + 1.1f),
+            new Vector3(0, 0.85f, cabCentre),
+            Vector3.Up
+        );
         // Fill from behind you, so cabinet fronts and sides around the ring read; no shadows (one shadowed light is enough).
-        AddChild(new OmniLight3D { Position = new Vector3(0, 2.6f, 0.6f), OmniRange = 8, LightEnergy = 1.2f, LightColor = new Color(0.92f, 0.92f, 0.95f) });
+        AddChild(
+            new OmniLight3D
+            {
+                Position = new Vector3(0, 2.6f, 0.6f),
+                OmniRange = 8,
+                LightEnergy = 1.2f,
+                LightColor = new Color(0.92f, 0.92f, 0.95f),
+            }
+        );
 
         // Title (DMD orange, dot-matrix) and stats float above the selected cabinet's backbox;
         // the hint sits under the rail.
@@ -425,7 +556,11 @@ public partial class Main : Node3D
         _scores.VerticalAlignment = VerticalAlignment.Top;
         _scores.Position = _status.Position;
         _scoresPanel.Mesh = new QuadMesh();
-        _scoresPanel.MaterialOverride = new StandardMaterial3D { ShadingMode = BaseMaterial3D.ShadingModeEnum.Unshaded, AlbedoColor = Palette.DmdPanel };
+        _scoresPanel.MaterialOverride = new StandardMaterial3D
+        {
+            ShadingMode = BaseMaterial3D.ShadingModeEnum.Unshaded,
+            AlbedoColor = Palette.DmdPanel,
+        };
         _scoresPanel.CastShadow = GeometryInstance3D.ShadowCastingSetting.Off;
         _scoresPanel.Visible = false;
         AddChild(_scoresPanel);
@@ -438,9 +573,9 @@ public partial class Main : Node3D
         _hint.Rotation = new Vector3(RailTilt, 0, 0);
         _hint.Text = _vr
             ? "Stick ← → browse  ·  ↑ ↓ jump A–Z  ·  Trigger or A: play  ·  Y: random  ·  B: filter  ·  Right grip: favourite  ·  Menu: quit\n"
-              + "Height: hold left grip + left stick ↑ ↓  ·  left grip + click left stick: reset"
+                + "Height: hold left grip + left stick ↑ ↓  ·  left grip + click left stick: reset"
             : "← → browse  ·  ↑ ↓ / PgUp PgDn / type a letter: jump  ·  Enter: play  ·  Ctrl+R or ?: random  ·  Tab: filter  ·  F: favourite  ·  Esc: quit\n"
-              + "Height: + / −  ·  Home: reset";
+                + "Height: + / −  ·  Home: reset";
         _flash.Font = _dmdFont;
         _flash.FontSize = 260;
         _flash.OutlineSize = 40;
@@ -458,16 +593,21 @@ public partial class Main : Node3D
     /// </summary>
     static ImageTexture ReflectionSky()
     {
-        const int w = 128, h = 64;
+        const int w = 128,
+            h = 64;
         var img = Image.CreateEmpty(w, h, false, Image.Format.Rgbah);
         for (var y = 0; y < h; y++)
         {
-            var v = (y + 0.5f) / h;                    // 0 = up, 0.5 = horizon, 1 = down
-            var c = new Color(0.035f, 0.035f, 0.04f);    // the room
-            c += new Color(1f, 0.98f, 0.95f) * (3.2f * Mathf.Exp(-Mathf.Pow((v - 0.16f) / 0.06f, 2)));   // ceiling light
-            c += Palette.Lamp * (0.8f * Mathf.Exp(-Mathf.Pow((v - 0.45f) / 0.015f, 2)));                  // lamps round the room
-            if (v > 0.5f) c *= 0.35f;                                                                      // dark floor
-            for (var x = 0; x < w; x++) img.SetPixel(x, y, c);
+            var v = (y + 0.5f) / h; // 0 = up, 0.5 = horizon, 1 = down
+            var c = new Color(0.035f, 0.035f, 0.04f); // the room
+            c +=
+                new Color(1f, 0.98f, 0.95f)
+                * (3.2f * Mathf.Exp(-Mathf.Pow((v - 0.16f) / 0.06f, 2))); // ceiling light
+            c += Palette.Lamp * (0.8f * Mathf.Exp(-Mathf.Pow((v - 0.45f) / 0.015f, 2))); // lamps round the room
+            if (v > 0.5f)
+                c *= 0.35f; // dark floor
+            for (var x = 0; x < w; x++)
+                img.SetPixel(x, y, c);
         }
         return ImageTexture.CreateFromImage(img);
     }
@@ -478,13 +618,25 @@ public partial class Main : Node3D
         var mm = new MultiMesh
         {
             TransformFormat = MultiMesh.TransformFormatEnum.Transform3D,
-            Mesh = new SphereMesh { Radius = bulb, Height = bulb * 2, RadialSegments = 8, Rings = 4 },
+            Mesh = new SphereMesh
+            {
+                Radius = bulb,
+                Height = bulb * 2,
+                RadialSegments = 8,
+                Rings = 4,
+            },
             InstanceCount = count,
         };
         for (var i = 0; i < count; i++)
         {
             var a = Mathf.Tau * i / count;
-            mm.SetInstanceTransform(i, new Transform3D(Basis.Identity, new Vector3(Mathf.Sin(a) * radius, y, -Mathf.Cos(a) * radius)));
+            mm.SetInstanceTransform(
+                i,
+                new Transform3D(
+                    Basis.Identity,
+                    new Vector3(Mathf.Sin(a) * radius, y, -Mathf.Cos(a) * radius)
+                )
+            );
         }
         return new MultiMeshInstance3D
         {
@@ -492,19 +644,29 @@ public partial class Main : Node3D
             MaterialOverride = new StandardMaterial3D
             {
                 ShadingMode = BaseMaterial3D.ShadingModeEnum.Unshaded,
-                AlbedoColor = Palette.Lamp, EmissionEnabled = true, Emission = Palette.Lamp, EmissionEnergyMultiplier = energy,
+                AlbedoColor = Palette.Lamp,
+                EmissionEnabled = true,
+                Emission = Palette.Lamp,
+                EmissionEnergyMultiplier = energy,
             },
             CastShadow = GeometryInstance3D.ShadowCastingSetting.Off,
         };
     }
 
-    static MeshInstance3D ChromeRing(float radius, float y, float thickness) => new()
-    {
-        Mesh = new TorusMesh { InnerRadius = radius - thickness, OuterRadius = radius + thickness, Rings = 96, RingSegments = 8 },
-        MaterialOverride = CabinetKit.ChromeMaterial,
-        Position = new Vector3(0, y, 0),
-        CastShadow = GeometryInstance3D.ShadowCastingSetting.Off,
-    };
+    static MeshInstance3D ChromeRing(float radius, float y, float thickness) =>
+        new()
+        {
+            Mesh = new TorusMesh
+            {
+                InnerRadius = radius - thickness,
+                OuterRadius = radius + thickness,
+                Rings = 96,
+                RingSegments = 8,
+            },
+            MaterialOverride = CabinetKit.ChromeMaterial,
+            Position = new Vector3(0, y, 0),
+            CastShadow = GeometryInstance3D.ShadowCastingSetting.Off,
+        };
 
     // ---- Height ------------------------------------------------------------------
 
@@ -529,7 +691,8 @@ public partial class Main : Node3D
 
     public void SaveHeight()
     {
-        if (!_heightDirty) return;
+        if (!_heightDirty)
+            return;
         State.Save();
         _heightDirty = false;
     }
@@ -548,40 +711,60 @@ public partial class Main : Node3D
         Shown = view.List;
         Groups = view.Groups;
         selectId = LobbyLibrary.NormalizeId(selectId);
-        Selected = Math.Max(0, Shown.FindIndex(t => string.Equals(t.Id, selectId, StringComparison.OrdinalIgnoreCase)));
+        Selected = Math.Max(
+            0,
+            Shown.FindIndex(t => string.Equals(t.Id, selectId, StringComparison.OrdinalIgnoreCase))
+        );
         _scroll = Selected;
-        foreach (var cab in _pool) cab.Park(); // the list changed: every cabinet gets re-assigned
+        foreach (var cab in _pool)
+            cab.Park(); // the list changed: every cabinet gets re-assigned
         BuildRail();
         UpdateSelection();
         Layout();
     }
 
     /// <summary>Selected cabinet's slot, or null when the list is empty.</summary>
-    public Cabinet? SelectedCabinet => _pool.FirstOrDefault(c => c.Index == Selected && c.Table != null);
+    public Cabinet? SelectedCabinet =>
+        _pool.FirstOrDefault(c => c.Index == Selected && c.Table != null);
 
     void AssignCabinet(Cabinet cab, int index, bool requestArt)
     {
         var t = Shown[index];
-        cab.Assign(index, t, LobbyArt.PlayfieldSource(t), LobbyArt.BackglassFor(t, _backglass), State.IsFavourite(t.Id));
+        cab.Assign(
+            index,
+            t,
+            LobbyArt.PlayfieldSource(t),
+            LobbyArt.BackglassFor(t, _backglass),
+            State.IsFavourite(t.Id)
+        );
         // Already read this table's own cabinet (or know it has none)? Show it straight away.
         ShowCabinetFor(cab);
-        if (requestArt) RequestArt(cab);
+        if (requestArt)
+            RequestArt(cab);
     }
 
     void RequestArt(Cabinet cab)
     {
         // Playfield: the table file's own picture at up to 2048 px, else the VPS picture.
         if (cab.PlayfieldUrl != null && !cab.HasPlayfieldArt && cab.Table != null)
-            _art.Request(cab.PlayfieldUrl, LobbyArt.PlayfieldUrl(cab.Table), ArtLoader.PlayfieldMaxSide);
-        if (cab.BackglassUrl != null && !cab.HasBackglassArt) _art.Request(cab.BackglassUrl);
+            _art.Request(
+                cab.PlayfieldUrl,
+                LobbyArt.PlayfieldUrl(cab.Table),
+                ArtLoader.PlayfieldMaxSide
+            );
+        if (cab.BackglassUrl != null && !cab.HasBackglassArt)
+            _art.Request(cab.BackglassUrl);
         // The table's own VR cabinet, read in the background the first time it's needed.
-        if (cab.Table != null && VpxFile(cab.Table) is { } vpx && !_cabs.IsKnown(vpx)) _cabs.Request(vpx);
+        if (cab.Table != null && VpxFile(cab.Table) is { } vpx && !_cabs.IsKnown(vpx))
+            _cabs.Request(vpx);
     }
 
     /// <summary>The table's .vpx, if it's a VPX table (only those carry a VR cabinet).</summary>
     static string? VpxFile(LobbyTable t) =>
-        t.Engine == VrTableManager.Models.TableManifest.Vpx && t.Source.TablePath.EndsWith(".vpx", StringComparison.OrdinalIgnoreCase)
-            ? t.Source.TablePath : null;
+        t.Engine == VrTableManager.Models.TableManifest.Vpx
+        && t.Source.TablePath.EndsWith(".vpx", StringComparison.OrdinalIgnoreCase)
+            ? t.Source.TablePath
+            : null;
 
     // ---- Cabinets: the table's own, else the template, else the drawn one --------------
 
@@ -592,7 +775,8 @@ public partial class Main : Node3D
     public const string DefaultCabinetFile = "res://cabinet/default.cab";
 
     RealCabinet? _template;
-    bool _borrowAll, _noDepth;
+    bool _borrowAll,
+        _noDepth;
 
     /// <summary>The cabinet tables without their own VR cabinet borrow (null: the default file is missing, the drawn one is used).</summary>
     public RealCabinet? TemplateCabinet => _template;
@@ -601,28 +785,35 @@ public partial class Main : Node3D
     public void SetTemplate(RealCabinet? template)
     {
         _template = template;
-        foreach (var cab in _pool) if (cab.Table != null) ShowCabinetFor(cab);
+        foreach (var cab in _pool)
+            if (cab.Table != null)
+                ShowCabinetFor(cab);
     }
 
     void ShowCabinetFor(Cabinet cab)
     {
-        if (cab.Table == null) return;
+        if (cab.Table == null)
+            return;
         var vpx = VpxFile(cab.Table);
         // --borrow-all (diagnostic): every table borrows the template, to preview how it dresses other tables.
         var own = vpx != null && !_borrowAll ? _cabs.Get(vpx) : null;
-        if (own != null) cab.ShowReal(own);
+        if (own != null)
+            cab.ShowReal(own);
         // Not read yet: it may have its own, so show nothing rather than the default cabinet swapping out.
-        else if (vpx != null && !_borrowAll && !_cabs.IsKnown(vpx)) cab.ShowLoading();
-        else if (_template != null) cab.ShowReal(_template, borrowed: true);
-        else cab.ShowReal(null);
+        else if (vpx != null && !_borrowAll && !_cabs.IsKnown(vpx))
+            cab.ShowLoading();
+        else if (_template != null)
+            cab.ShowReal(_template, borrowed: true);
+        else
+            cab.ShowReal(null);
     }
 
     void OnCabinetReady(string vpx, RealCabinet? real)
     {
         Trace("cabinet " + Path.GetFileNameWithoutExtension(vpx));
-        foreach (var cab in _pool) ShowCabinetFor(cab);
+        foreach (var cab in _pool)
+            ShowCabinetFor(cab);
     }
-
 
     /// <summary>
     /// Places the pooled cabinets around the ring. Table i always lands in slot i mod 11, so scrolling
@@ -641,8 +832,10 @@ public partial class Main : Node3D
                 cab.Park();
                 continue;
             }
-            if (cab.Index != i || cab.Table != Shown[i]) AssignCabinet(cab, i, settledEnough);
-            else if (settledEnough) RequestArt(cab);
+            if (cab.Index != i || cab.Table != Shown[i])
+                AssignCabinet(cab, i, settledEnough);
+            else if (settledEnough)
+                RequestArt(cab);
 
             var offset = i - _scroll;
             var a = offset * Step;
@@ -651,7 +844,11 @@ public partial class Main : Node3D
             var dist = front + CabinetKit.Length / 2;
             cab.Position = new Vector3(Mathf.Sin(a) * dist, 0, -Mathf.Cos(a) * dist);
             // Face the player, then turn neighbours a little away so the selected one stands out.
-            cab.Rotation = new Vector3(0, -a + Mathf.Sign(offset) * Mathf.Min(Mathf.Abs(offset), 1f) * AngleAway, 0);
+            cab.Rotation = new Vector3(
+                0,
+                -a + Mathf.Sign(offset) * Mathf.Min(Mathf.Abs(offset), 1f) * AngleAway,
+                0
+            );
             cab.SetFocus(focus, i == Selected);
         }
     }
@@ -662,12 +859,15 @@ public partial class Main : Node3D
 
     void BuildRail()
     {
-        foreach (var (label, _) in _railItems) label.QueueFree();
+        foreach (var (label, _) in _railItems)
+            label.QueueFree();
         _railItems.Clear();
-        if (Groups.Count == 0) return;
+        if (Groups.Count == 0)
+            return;
         var current = LobbyNav.GroupAt(Groups, Selected);
         // Letters all fit; long lists (manufacturers) show a window around the current one.
-        int first = 0, count = Groups.Count;
+        int first = 0,
+            count = Groups.Count;
         if (!LetterRail && count > 9)
         {
             first = Math.Clamp(current - 4, 0, count - 9);
@@ -690,7 +890,15 @@ public partial class Main : Node3D
                 Rotation = new Vector3(RailTilt, -a, 0),
             };
             var area = new Area3D();
-            area.AddChild(new CollisionShape3D { Shape = new BoxShape3D { Size = new Vector3(LetterRail ? 0.06f : 0.2f, 0.08f, 0.02f) } });
+            area.AddChild(
+                new CollisionShape3D
+                {
+                    Shape = new BoxShape3D
+                    {
+                        Size = new Vector3(LetterRail ? 0.06f : 0.2f, 0.08f, 0.02f),
+                    },
+                }
+            );
             area.SetMeta("rail_group", g);
             label.AddChild(area);
             _rail.AddChild(label);
@@ -707,7 +915,12 @@ public partial class Main : Node3D
             // Windowed rail: rebuild when the current group reaches the edge of the window.
             var firstShown = _railItems[0].Group;
             var lastShown = _railItems[^1].Group;
-            if (current < firstShown || current > lastShown || (current == firstShown && current > 0) || (current == lastShown && current < Groups.Count - 1))
+            if (
+                current < firstShown
+                || current > lastShown
+                || (current == firstShown && current > 0)
+                || (current == lastShown && current < Groups.Count - 1)
+            )
             {
                 Callable.From(BuildRail).CallDeferred();
                 return;
@@ -717,7 +930,7 @@ public partial class Main : Node3D
         {
             if (g == current)
             {
-                label.Modulate = Palette.Lamp;   // lit, like a playfield insert
+                label.Modulate = Palette.Lamp; // lit, like a playfield insert
                 label.Scale = Vector3.One * 1.35f;
             }
             else if (Groups[g].Index == -1)
@@ -727,7 +940,8 @@ public partial class Main : Node3D
             }
             else
             {
-                label.Modulate = g == _hoverRail ? Palette.Lamp.Lightened(0.35f) : new Color(Palette.Text, 0.8f);
+                label.Modulate =
+                    g == _hoverRail ? Palette.Lamp.Lightened(0.35f) : new Color(Palette.Text, 0.8f);
                 label.Scale = Vector3.One * (g == _hoverRail ? 1.2f : 1f);
             }
         }
@@ -735,7 +949,8 @@ public partial class Main : Node3D
 
     public void JumpToGroup(int g)
     {
-        if (g < 0 || g >= Groups.Count) return;
+        if (g < 0 || g >= Groups.Count)
+            return;
         Select(LobbyNav.IndexForGroup(Groups, g));
         ShowFlash();
     }
@@ -754,11 +969,24 @@ public partial class Main : Node3D
     /// <summary>Holding the menu button for a second leaves the lobby; letting go sooner cancels.</summary>
     void TrackMenuHold(double delta)
     {
-        if (_menuHeld < 0) return;
-        if (_left?.IsButtonPressed("menu_button") != true && _right?.IsButtonPressed("menu_button") != true) { _menuHeld = -1; return; }
+        if (_menuHeld < 0)
+            return;
+        if (
+            _left?.IsButtonPressed("menu_button") != true
+            && _right?.IsButtonPressed("menu_button") != true
+        )
+        {
+            _menuHeld = -1;
+            return;
+        }
         _menuHeld += delta;
-        if (_menuHeld >= 1.0) { _menuHeld = -1; Leave("menu button held"); }
-        else ShowFlash("HOLD TO LEAVE");
+        if (_menuHeld >= 1.0)
+        {
+            _menuHeld = -1;
+            Leave("menu button held");
+        }
+        else
+            ShowFlash("HOLD TO LEAVE");
     }
 
     /// <summary>
@@ -777,7 +1005,8 @@ public partial class Main : Node3D
         if (text == null)
         {
             var g = LobbyNav.GroupAt(Groups, Selected);
-            if (g == -1) return;
+            if (g == -1)
+                return;
             text = Groups[g].Label;
         }
         _flash.Text = text;
@@ -807,15 +1036,31 @@ public partial class Main : Node3D
         _header.Text = (State.IsFavourite(t.Id) ? "★ " : "") + t.Title;
         var where = $"{Selected + 1} / {Shown.Count}  ·  {State.Filter}";
         var g = LobbyNav.GroupAt(Groups, Selected);
-        if (g != -1 && State.Filter is "Manufacturer" or "Decade") where += ": " + Groups[g].Label;
+        if (g != -1 && State.Filter is "Manufacturer" or "Decade")
+            where += ": " + Groups[g].Label;
         // Shared with the manager: plays and time are counted by VrTableManager --play.
-        var lines = new List<string> { t.Subtitle, LobbyText.Stats(State.Stats, t.Id, DateTime.Now), where };
-        if (t.MissingRoms.Count > 0) lines.Add("Needs ROM: " + string.Join(", ", t.MissingRoms) + ".zip (add it in VR Table Manager)");
+        var lines = new List<string>
+        {
+            t.Subtitle,
+            LobbyText.Stats(State.Stats, t.Id, DateTime.Now),
+            where,
+        };
+        if (t.MissingRoms.Count > 0)
+            lines.Add(
+                "Needs ROM: "
+                    + string.Join(", ", t.MissingRoms)
+                    + ".zip (add it in VR Table Manager)"
+            );
         _status.Text = string.Join("\n", lines);
         _status.Modulate = t.MissingRoms.Count > 0 ? Palette.Red.Lightened(0.25f) : Palette.Text;
         // An error about this table (it failed to start) stays until you move on, through stats refreshes.
-        if (_error is { } e && e.TableId == t.Id) { _status.Text = e.Message; _status.Modulate = Palette.Red.Lightened(0.25f); }
-        else _error = null;
+        if (_error is { } e && e.TableId == t.Id)
+        {
+            _status.Text = e.Message;
+            _status.Modulate = Palette.Red.Lightened(0.25f);
+        }
+        else
+            _error = null;
         ShowScores(t);
     }
 
@@ -830,31 +1075,54 @@ public partial class Main : Node3D
     {
         _scores.Text = "";
         _scoresPanel.Visible = false;
-        if (t.Engine != VrTableManager.Models.TableManifest.Vpx) return;
-        if (_scoreLines.TryGetValue(t.Id, out var lines)) { PlaceScores(lines); return; }
-        var id = t.Id;
-        Task.Run(() => LobbyText.HighScoreLines(HighScores.Read(t.Source))).ContinueWith(task =>
+        if (t.Engine != VrTableManager.Models.TableManifest.Vpx)
+            return;
+        if (_scoreLines.TryGetValue(t.Id, out var lines))
         {
-            if (!IsInstanceValid(this)) return;
-            var result = task.IsCompletedSuccessfully ? task.Result : [];
-            Callable.From(() =>
+            PlaceScores(lines);
+            return;
+        }
+        var id = t.Id;
+        Task.Run(() => LobbyText.HighScoreLines(HighScores.Read(t.Source)))
+            .ContinueWith(task =>
             {
-                _scoreLines[id] = result;
-                if (Shown.Count > 0 && Shown[Selected].Id == id) PlaceScores(result);
-            }).CallDeferred();
-        });
+                if (!IsInstanceValid(this))
+                    return;
+                var result = task.IsCompletedSuccessfully ? task.Result : [];
+                Callable
+                    .From(() =>
+                    {
+                        _scoreLines[id] = result;
+                        if (Shown.Count > 0 && Shown[Selected].Id == id)
+                            PlaceScores(result);
+                    })
+                    .CallDeferred();
+            });
     }
 
     void PlaceScores(IReadOnlyList<string> lines)
     {
         _scores.Text = string.Join("\n", lines);
         _scoresPanel.Visible = lines.Count > 0;
-        if (lines.Count == 0) return;
+        if (lines.Count == 0)
+            return;
         // Just under however many lines the stats text wrapped to, on a dark DMD-glass panel so the
         // lamps on the far wall don't run through the dots.
-        var statusSize = (_status.Font ?? ThemeDB.FallbackFont).GetMultilineStringSize(_status.Text, HorizontalAlignment.Center, _status.Width, _status.FontSize);
-        _scores.Position = _status.Position + Vector3.Down * (statusSize.Y * _status.PixelSize + 0.035f);
-        var size = (_scores.Font ?? ThemeDB.FallbackFont).GetMultilineStringSize(_scores.Text, HorizontalAlignment.Center, -1, _scores.FontSize) * _scores.PixelSize;
+        var statusSize = (_status.Font ?? ThemeDB.FallbackFont).GetMultilineStringSize(
+            _status.Text,
+            HorizontalAlignment.Center,
+            _status.Width,
+            _status.FontSize
+        );
+        _scores.Position =
+            _status.Position + Vector3.Down * (statusSize.Y * _status.PixelSize + 0.035f);
+        var size =
+            (_scores.Font ?? ThemeDB.FallbackFont).GetMultilineStringSize(
+                _scores.Text,
+                HorizontalAlignment.Center,
+                -1,
+                _scores.FontSize
+            ) * _scores.PixelSize;
         ((QuadMesh)_scoresPanel.Mesh).Size = size + new Vector2(0.06f, 0.025f);
         _scoresPanel.Position = _scores.Position + new Vector3(0, -size.Y / 2, -0.004f);
     }
@@ -863,27 +1131,36 @@ public partial class Main : Node3D
     void RefreshHighScoreMaps()
     {
         var had = File.Exists(Path.Combine(HighScores.MapsDir, "index.json"));
-        HighScores.EnsureMapsAsync(CancellationToken.None).ContinueWith(task =>
-        {
-            if (had || !task.IsCompletedSuccessfully || !task.Result || !IsInstanceValid(this)) return;
-            Callable.From(() =>
+        HighScores
+            .EnsureMapsAsync(CancellationToken.None)
+            .ContinueWith(task =>
             {
-                _scoreLines.Clear();
-                if (Shown.Count > 0) ShowScores(Shown[Selected]);
-            }).CallDeferred();
-        });
+                if (had || !task.IsCompletedSuccessfully || !task.Result || !IsInstanceValid(this))
+                    return;
+                Callable
+                    .From(() =>
+                    {
+                        _scoreLines.Clear();
+                        if (Shown.Count > 0)
+                            ShowScores(Shown[Selected]);
+                    })
+                    .CallDeferred();
+            });
     }
 
     public string ScoresText => _scores.Text;
 
     public void Select(int i)
     {
-        if (Shown.Count == 0) return;
+        if (Shown.Count == 0)
+            return;
         var before = Selected;
         Selected = Math.Clamp(i, 0, Shown.Count - 1);
-        if (Selected == before) return;
+        if (Selected == before)
+            return;
         // Long jumps (A → M) start the animation a few cabinets away instead of spinning through dozens.
-        if (Mathf.Abs(Selected - _scroll) > Side * 2) _scroll = Selected + Mathf.Sign(_scroll - Selected) * Side;
+        if (Mathf.Abs(Selected - _scroll) > Side * 2)
+            _scroll = Selected + Mathf.Sign(_scroll - Selected) * Side;
         UpdateSelection();
         _left?.TriggerHapticPulse("haptic", 0.0, 0.3, 0.05, 0.0);
         _right?.TriggerHapticPulse("haptic", 0.0, 0.3, 0.05, 0.0);
@@ -892,7 +1169,8 @@ public partial class Main : Node3D
     /// <summary>Picks a different table at random from what's shown (Y on the controller, Ctrl+R or ? on the keyboard).</summary>
     public void SelectRandom()
     {
-        if (Shown.Count < 2) return;
+        if (Shown.Count < 2)
+            return;
         var r = Random.Shared.Next(Shown.Count - 1);
         Select(r >= Selected ? r + 1 : r);
         ShowFlash("?");
@@ -901,7 +1179,9 @@ public partial class Main : Node3D
     public void CycleFilter()
     {
         var current = Shown.Count > 0 ? Shown[Selected].Id : "";
-        State.Filter = LobbyNav.Filters[(Array.IndexOf(LobbyNav.Filters, State.Filter) + 1) % LobbyNav.Filters.Length];
+        State.Filter = LobbyNav.Filters[
+            (Array.IndexOf(LobbyNav.Filters, State.Filter) + 1) % LobbyNav.Filters.Length
+        ];
         State.Save();
         Rebuild(current);
         ShowFlash(State.Filter);
@@ -910,7 +1190,8 @@ public partial class Main : Node3D
     public string HeaderText => _header.Text;
     public string StatusText => _status.Text;
 
-    static bool IsStatsFilter(string filter) => filter is "Favourites" or "Recently played" or "Most played";
+    static bool IsStatsFilter(string filter) =>
+        filter is "Favourites" or "Recently played" or "Most played";
 
     /// <summary>
     /// Picks up favourites / plays changed by the manager (or the --play launcher) while the lobby is open.
@@ -918,17 +1199,22 @@ public partial class Main : Node3D
     /// </summary>
     public bool RefreshFromStats()
     {
-        if (!State.RefreshStats()) return false;
+        if (!State.RefreshStats())
+            return false;
         foreach (var cab in _pool)
-            if (cab.Table != null) cab.SetFavourite(State.IsFavourite(cab.Table.Id));
-        if (IsStatsFilter(State.Filter)) Rebuild(Shown.Count > 0 ? Shown[Selected].Id : "");
-        else UpdateSelection();
+            if (cab.Table != null)
+                cab.SetFavourite(State.IsFavourite(cab.Table.Id));
+        if (IsStatsFilter(State.Filter))
+            Rebuild(Shown.Count > 0 ? Shown[Selected].Id : "");
+        else
+            UpdateSelection();
         return true;
     }
 
     public void ToggleFavourite()
     {
-        if (Shown.Count == 0) return;
+        if (Shown.Count == 0)
+            return;
         var t = Shown[Selected];
         var on = State.ToggleFavourite(t.Id);
         SelectedCabinet?.SetFavourite(on);
@@ -946,39 +1232,56 @@ public partial class Main : Node3D
     /// </summary>
     void MaybePlayAttract()
     {
-        if (Shown.Count == 0 || AttractPlaying != null) return;
+        if (Shown.Count == 0 || AttractPlaying != null)
+            return;
         var t = Shown[Selected];
-        if (!_attractFiles.TryGetValue(t.Id, out var file)) _attractFiles[t.Id] = file = LobbyArt.AttractSound(t);
+        if (!_attractFiles.TryGetValue(t.Id, out var file))
+            _attractFiles[t.Id] = file = LobbyArt.AttractSound(t);
         if (file == null)
         {
             // A ROM table: record its own sound in the background, once; it plays when ready.
-            if (_recordRoms) _recorder.Request(t);
+            if (_recordRoms)
+                _recorder.Request(t);
             return;
         }
         // Read off the main thread: a recorded ROM sound is a WAV of several MB, and reading it on the main
         // thread cost the headset a frame just as the table arrived.
-        if (_attractLoading == t.Id) return;
+        if (_attractLoading == t.Id)
+            return;
         _attractLoading = t.Id;
         var id = t.Id;
-        Task.Run(() => LoadSound(file)).ContinueWith(task =>
-        {
-            if (!_closing) Callable.From(() => PlayLoadedSound(task, id, file)).CallDeferred();
-        });
+        Task.Run(() => LoadSound(file))
+            .ContinueWith(task =>
+            {
+                if (!_closing)
+                    Callable.From(() => PlayLoadedSound(task, id, file)).CallDeferred();
+            });
     }
 
     /// <summary>Set when the lobby leaves the tree: background work finishing after that doesn't call back in.</summary>
     volatile bool _closing;
+
     public override void _ExitTree() => _closing = true;
 
     void PlayLoadedSound(Task<AudioStream?> task, string id, string file)
     {
-        if (_attractLoading != id) return; // moved on (or stopped) while it loaded
+        if (_attractLoading != id)
+            return; // moved on (or stopped) while it loaded
         _attractLoading = null;
         var stream = task.IsCompletedSuccessfully ? task.Result : null;
-        if (stream == null) { _attractFiles[id] = null; return; } // unreadable: don't try again
-        if (_launching || AttractPlaying != null || Shown.Count == 0 || Shown[Selected].Id != id) return;
+        if (stream == null)
+        {
+            _attractFiles[id] = null;
+            return;
+        } // unreadable: don't try again
+        if (_launching || AttractPlaying != null || Shown.Count == 0 || Shown[Selected].Id != id)
+            return;
         _attract.Stream = stream;
-        _attract.Position = new Vector3(0, CabinetKit.BackglassCentreY, -(SelectedFront + CabinetKit.Length) + CabinetKit.BoxDepth);
+        _attract.Position = new Vector3(
+            0,
+            CabinetKit.BackglassCentreY,
+            -(SelectedFront + CabinetKit.Length) + CabinetKit.BoxDepth
+        );
         _attract.VolumeDb = -12f;
         _attract.Play();
         Trace("attract " + Path.GetFileName(file));
@@ -1013,32 +1316,51 @@ public partial class Main : Node3D
     /// </summary>
     void WarmPlayfieldDepth()
     {
-        var jobs = Library.Select(t => (Video: LobbyArt.PlayfieldVideo(t), t.Source.TablePath)).Where(j => j.Video != null)
-            .Select(j => (j.Video!.Value.Folder, j.TablePath)).ToList();
-        if (jobs.Count == 0) return;
+        var jobs = Library
+            .Select(t => (Video: LobbyArt.PlayfieldVideo(t), t.Source.TablePath))
+            .Where(j => j.Video != null)
+            .Select(j => (j.Video!.Value.Folder, j.TablePath))
+            .ToList();
+        if (jobs.Count == 0)
+            return;
         Task.Run(() =>
         {
             foreach (var (folder, vpx) in jobs)
                 try
                 {
-                    if (!File.Exists(Path.Combine(folder, PlayfieldDepth.FileName))) PlayfieldDepth.Load(folder, vpx);
+                    if (!File.Exists(Path.Combine(folder, PlayfieldDepth.FileName)))
+                        PlayfieldDepth.Load(folder, vpx);
                 }
-                catch (Exception e) { GD.PushWarning($"Playfield depth warm-up {vpx}: {e.Message}"); } // one table mustn't stop the rest
+                catch (Exception e)
+                {
+                    GD.PushWarning($"Playfield depth warm-up {vpx}: {e.Message}");
+                } // one table mustn't stop the rest
         });
     }
 
     /// <summary>The selected cabinet's playfield comes alive with the table's lobby video, when it has one.</summary>
     void MaybePlayVideo()
     {
-        if (_video.Playing != null || Shown.Count == 0 || SelectedCabinet is not { Table: { } t } cab || _videoCheckedFor == t.Id) return;
+        if (
+            _video.Playing != null
+            || Shown.Count == 0
+            || SelectedCabinet is not { Table: { } t } cab
+            || _videoCheckedFor == t.Id
+        )
+            return;
         _videoCheckedFor = t.Id;
-        if (LobbyArt.PlayfieldVideo(t) is var (folder, info)) { _video.Play(cab, folder, info, _noDepth ? null : t.Source.TablePath); Trace("video start"); }
+        if (LobbyArt.PlayfieldVideo(t) is var (folder, info))
+        {
+            _video.Play(cab, folder, info, _noDepth ? null : t.Source.TablePath);
+            Trace("video start");
+        }
     }
 
     void StopAttract()
     {
         _attractLoading = null;
-        if (AttractPlaying == null) return;
+        if (AttractPlaying == null)
+            return;
         _attract.Stop();
         AttractPlaying = null;
     }
@@ -1047,21 +1369,29 @@ public partial class Main : Node3D
 
     public override void _Process(double delta)
     {
-        if (_perfTrace) PerfTrace(delta);
+        if (_perfTrace)
+            PerfTrace(delta);
         TrackMenuHold(delta);
         if (_loading != null)
         {
-            if (_playing) UpdatePlaying(delta);
-            else UpdateLoading(delta);
+            if (_playing)
+                UpdatePlaying(delta);
+            else
+                UpdateLoading(delta);
         }
-        if (_returning >= 0) WatchReturn(delta);
+        if (_returning >= 0)
+            WatchReturn(delta);
         var d = (float)delta;
         if (!Mathf.IsEqualApprox(_scroll, Selected))
         {
             _scroll = Mathf.Lerp(_scroll, Selected, 1f - Mathf.Exp(-9f * d));
             // Ease all the way in before the last step: a cabinet travels 1.2 m per step, so snapping at 1% left
             // stopped it dead from 11 cm/s, a visible jerk in the headset. At 0.05% it's under 6 mm/s.
-            if (Mathf.Abs(_scroll - Selected) < SnapAt) { _scroll = Selected; Trace("snap"); }
+            if (Mathf.Abs(_scroll - Selected) < SnapAt)
+            {
+                _scroll = Selected;
+                Trace("snap");
+            }
             Layout();
         }
         if (Shown.Count > 0 && !_launching)
@@ -1069,24 +1399,40 @@ public partial class Main : Node3D
             var away = Mathf.Abs(_scroll - Selected);
             // The playfield video starts while the table is still coming in (decoding its first frame takes a
             // moment), so it's already playing when it arrives instead of swapping in after it stops.
-            if (away < VideoFrom) MaybePlayVideo();
+            if (away < VideoFrom)
+                MaybePlayVideo();
             // The sound waits until it has (nearly) arrived and you've stayed on it for a moment.
             if (away < 0.02f)
             {
                 _settled += delta;
-                if (_settled > AttractAfter) MaybePlayAttract();
+                if (_settled > AttractAfter)
+                    MaybePlayAttract();
             }
         }
         if (AttractPlaying != null)
         {
             _attractLeft -= delta;
-            if (_attractLeft < 1.5) _attract.VolumeDb = Mathf.Lerp(-40f, -12f, Mathf.Clamp((float)_attractLeft / 1.5f, 0f, 1f));
-            if (_attractLeft <= 0) { _attract.Stop(); _attractLeft = double.MaxValue; } // played once per selection
+            if (_attractLeft < 1.5)
+                _attract.VolumeDb = Mathf.Lerp(
+                    -40f,
+                    -12f,
+                    Mathf.Clamp((float)_attractLeft / 1.5f, 0f, 1f)
+                );
+            if (_attractLeft <= 0)
+            {
+                _attract.Stop();
+                _attractLeft = double.MaxValue;
+            } // played once per selection
         }
         if (_flashTime > 0)
         {
             _flashTime -= delta;
-            Fade(_flash, Palette.Dmd, Palette.DmdPanel, Mathf.Clamp((float)_flashTime / 0.3f, 0f, 0.85f));
+            Fade(
+                _flash,
+                Palette.Dmd,
+                Palette.DmdPanel,
+                Mathf.Clamp((float)_flashTime / 0.3f, 0f, 0.85f)
+            );
         }
         _statsCheck -= delta;
         if (_statsCheck <= 0)
@@ -1097,10 +1443,16 @@ public partial class Main : Node3D
         if (_heightShow > 0)
         {
             _heightShow -= delta;
-            Fade(_heightLabel, Colors.White, Colors.Black, Mathf.Clamp((float)_heightShow / 0.4f, 0f, 1f));
+            Fade(
+                _heightLabel,
+                Colors.White,
+                Colors.Black,
+                Mathf.Clamp((float)_heightShow / 0.4f, 0f, 1f)
+            );
         }
 
-        if (!_vr || _launching || _left == null || _right == null || _ray == null) return;
+        if (!_vr || _launching || _left == null || _right == null || _ray == null)
+            return;
 
         var lv = _left.GetVector2("primary");
         var rv = _right.GetVector2("primary");
@@ -1110,18 +1462,22 @@ public partial class Main : Node3D
         if (_left.GetFloat("grip") > 0.6f)
         {
             var next = LobbyHeight.Step(State.HeightOffset, lv.Y, delta);
-            if (next != State.HeightOffset) SetHeight(next);
-            else if (_heightShow < 0.5) ShowHeight(); // keep the readout up while gripping
+            if (next != State.HeightOffset)
+                SetHeight(next);
+            else if (_heightShow < 0.5)
+                ShowHeight(); // keep the readout up while gripping
             lv = Vector2.Zero;
         }
-        else SaveHeight();
+        else
+            SaveHeight();
 
         // Either stick ← → turns the ring (faster while held); ↑ ↓ jumps between rail groups.
         var step = Stick("x", Strongest(lv.X, rv.X), delta);
         if (step != 0)
         {
             Select(Selected + step);
-            if (_held["x"] > 0.6) ShowFlash(); // moving fast: show which letter we're passing
+            if (_held["x"] > 0.6)
+                ShowFlash(); // moving fast: show which letter we're passing
         }
         var j = Stick("jump", Strongest(lv.Y, rv.Y), delta);
         if (j != 0)
@@ -1131,11 +1487,14 @@ public partial class Main : Node3D
         }
 
         // Pointing: at a cabinet for a moment selects it; at the rail highlights a group.
-        int slot = -1, rail = -1;
+        int slot = -1,
+            rail = -1;
         if (_ray.IsColliding() && _ray.GetCollider() is GodotObject hit)
         {
-            if (hit.HasMeta("cabinet_slot")) slot = hit.GetMeta("cabinet_slot").AsInt32();
-            else if (hit.HasMeta("rail_group")) rail = hit.GetMeta("rail_group").AsInt32();
+            if (hit.HasMeta("cabinet_slot"))
+                slot = hit.GetMeta("cabinet_slot").AsInt32();
+            else if (hit.HasMeta("rail_group"))
+                rail = hit.GetMeta("rail_group").AsInt32();
         }
         if (rail != _hoverRail)
         {
@@ -1150,7 +1509,8 @@ public partial class Main : Node3D
         else if (slot != -1 && _pool[slot].Index is var idx && idx >= 0 && idx != Selected)
         {
             _hoverTime += delta;
-            if (_hoverTime > 0.25) Select(idx);
+            if (_hoverTime > 0.25)
+                Select(idx);
         }
     }
 
@@ -1163,10 +1523,12 @@ public partial class Main : Node3D
             _cool[channel] = 0;
             return 0;
         }
-        if (Mathf.Abs(value) < 0.6f) return 0;
+        if (Mathf.Abs(value) < 0.6f)
+            return 0;
         _held[channel] += delta;
         _cool[channel] -= delta;
-        if (_cool[channel] > 0) return 0;
+        if (_cool[channel] > 0)
+            return 0;
         _cool[channel] = LobbyNav.RepeatInterval(_held[channel]);
         return value > 0 ? 1 : -1;
     }
@@ -1178,7 +1540,11 @@ public partial class Main : Node3D
         if (_launching)
         {
             // While a table loads, holding Menu still closes the lobby (the table carries on loading).
-            if (button == "menu_button" && _loading != null) { _menuHeld = 0; ShowFlash("HOLD TO LEAVE"); }
+            if (button == "menu_button" && _loading != null)
+            {
+                _menuHeld = 0;
+                ShowFlash("HOLD TO LEAVE");
+            }
             return;
         }
         switch (button)
@@ -1189,46 +1555,95 @@ public partial class Main : Node3D
                     JumpToGroup(_hoverRail);
                     return;
                 }
-                if (controller == _right && _hoverSlot != -1 && _pool[_hoverSlot].Index >= 0) Select(_pool[_hoverSlot].Index);
+                if (controller == _right && _hoverSlot != -1 && _pool[_hoverSlot].Index >= 0)
+                    Select(_pool[_hoverSlot].Index);
                 _ = LaunchAsync();
                 break;
-            case "by_button" when controller == _left: SelectRandom(); break;   // Y
-            case "by_button": CycleFilter(); break;                             // B
+            case "by_button" when controller == _left:
+                SelectRandom();
+                break; // Y
+            case "by_button":
+                CycleFilter();
+                break; // B
             // The left grip is the height "shift" key, so only the right grip favourites.
-            case "grip_click" when controller == _right: ToggleFavourite(); break;
-            case "primary_click" when controller == _left && _left!.GetFloat("grip") > 0.6f: ResetHeight(); break;
+            case "grip_click" when controller == _right:
+                ToggleFavourite();
+                break;
+            case "primary_click" when controller == _left && _left!.GetFloat("grip") > 0.6f:
+                ResetHeight();
+                break;
             // Leaving takes a 1 s hold (see _Process): a single press, easy to make when reaching for a
             // VPX-style menu, used to close the lobby at once and looked like a crash.
-            case "menu_button": _menuHeld = 0; ShowFlash("HOLD TO LEAVE"); break;
+            case "menu_button":
+                _menuHeld = 0;
+                ShowFlash("HOLD TO LEAVE");
+                break;
         }
     }
 
     public override void _UnhandledInput(InputEvent @event)
     {
-        if (@event is not InputEventKey { Pressed: true } k) return;
+        if (@event is not InputEventKey { Pressed: true } k)
+            return;
         if (_launching)
         {
-            if (k.Keycode == Key.Escape && _loading != null) Leave("Escape pressed while " + _loading.Title + " was loading");
+            if (k.Keycode == Key.Escape && _loading != null)
+                Leave("Escape pressed while " + _loading.Title + " was loading");
             return;
         }
         switch (k.Keycode)
         {
-            case Key.Right: Select(Selected + 1); break;
-            case Key.Left: Select(Selected - 1); break;
-            case Key.Down or Key.Pagedown: Select(LobbyNav.Jump(Groups, Selected, 1)); ShowFlash(); break;
-            case Key.Up or Key.Pageup: Select(LobbyNav.Jump(Groups, Selected, -1)); ShowFlash(); break;
-            case Key.Enter or Key.KpEnter or Key.Space: _ = LaunchAsync(); break;
-            case Key.Escape: Leave("Escape pressed"); break;
-            case Key.Tab: CycleFilter(); break;
+            case Key.Right:
+                Select(Selected + 1);
+                break;
+            case Key.Left:
+                Select(Selected - 1);
+                break;
+            case Key.Down or Key.Pagedown:
+                Select(LobbyNav.Jump(Groups, Selected, 1));
+                ShowFlash();
+                break;
+            case Key.Up or Key.Pageup:
+                Select(LobbyNav.Jump(Groups, Selected, -1));
+                ShowFlash();
+                break;
+            case Key.Enter or Key.KpEnter or Key.Space:
+                _ = LaunchAsync();
+                break;
+            case Key.Escape:
+                Leave("Escape pressed");
+                break;
+            case Key.Tab:
+                CycleFilter();
+                break;
             // Plain letters jump through the alphabet, so random is Ctrl+R or "?".
-            case Key.R when k.CtrlPressed: SelectRandom(); break;
-            case Key.Slash: SelectRandom(); break;
-            case Key.F when !k.CtrlPressed: ToggleFavourite(); break;
-            case Key.Equal or Key.KpAdd: SetHeight(State.HeightOffset + LobbyHeight.KeyStep); SaveHeight(); break;
-            case Key.Minus or Key.KpSubtract: SetHeight(State.HeightOffset - LobbyHeight.KeyStep); SaveHeight(); break;
-            case Key.Home: ResetHeight(); break;
+            case Key.R when k.CtrlPressed:
+                SelectRandom();
+                break;
+            case Key.Slash:
+                SelectRandom();
+                break;
+            case Key.F when !k.CtrlPressed:
+                ToggleFavourite();
+                break;
+            case Key.Equal or Key.KpAdd:
+                SetHeight(State.HeightOffset + LobbyHeight.KeyStep);
+                SaveHeight();
+                break;
+            case Key.Minus or Key.KpSubtract:
+                SetHeight(State.HeightOffset - LobbyHeight.KeyStep);
+                SaveHeight();
+                break;
+            case Key.Home:
+                ResetHeight();
+                break;
             default:
-                if (!k.CtrlPressed && k.Unicode is > 0 and < 128 && char.IsLetterOrDigit((char)k.Unicode)) JumpToKey((char)k.Unicode);
+                if (
+                    !k.CtrlPressed
+                    && k.Unicode is > 0 and < 128
+                    && char.IsLetterOrDigit((char)k.Unicode)
+                )
+                    JumpToKey((char)k.Unicode);
                 break;
         }
     }
@@ -1238,10 +1653,18 @@ public partial class Main : Node3D
     void PerfTrace(double delta)
     {
         _perfClock += delta;
-        if (delta > 0.010) GD.Print($"SLOW {delta * 1000:0} ms at {_perfClock:0.00}s (scroll {_scroll - Selected:0.000}, settled {_settled:0.00}): {string.Join(", ", _perfEvents)}");
+        if (delta > 0.010)
+            GD.Print(
+                $"SLOW {delta * 1000:0} ms at {_perfClock:0.00}s (scroll {_scroll - Selected:0.000}, settled {_settled:0.00}): {string.Join(", ", _perfEvents)}"
+            );
         _perfEvents.Clear();
-        if (_perfClock < _perfNextStep) return;
-        if (_perfSteps++ == _perfStepCount) { GetTree().Quit(); return; }
+        if (_perfClock < _perfNextStep)
+            return;
+        if (_perfSteps++ == _perfStepCount)
+        {
+            GetTree().Quit();
+            return;
+        }
         _perfNextStep = _perfClock + 3.0;
         GD.Print($"STEP {_perfSteps} at {_perfClock:0.00}s");
         Select(Selected + 1);
@@ -1252,15 +1675,19 @@ public partial class Main : Node3D
         Trace("art " + Path.GetFileName(url));
         foreach (var cab in _pool)
         {
-            if (cab.Table == null) continue;
-            if (cab.PlayfieldUrl == url) cab.SetPlayfield(tex);
-            if (cab.BackglassUrl == url) cab.SetBackglass(tex, average);
+            if (cab.Table == null)
+                continue;
+            if (cab.PlayfieldUrl == url)
+                cab.SetPlayfield(tex);
+            if (cab.BackglassUrl == url)
+                cab.SetBackglass(tex, average);
         }
     }
 
     async Task LaunchAsync()
     {
-        if (Shown.Count == 0) return;
+        if (Shown.Count == 0)
+            return;
         var t = Shown[Selected];
         if (LobbyLauncher.CheckReady(t, Settings) is { } problem)
         {
@@ -1291,7 +1718,8 @@ public partial class Main : Node3D
             return;
         }
         State.MarkPlayed(t.Id);
-        if (!wait) Leave("starting " + t.Title); // ends our OpenXR session so the table gets the headset
+        if (!wait)
+            Leave("starting " + t.Title); // ends our OpenXR session so the table gets the headset
     }
 
     // ---- Loading screen --------------------------------------------------------------
@@ -1301,16 +1729,30 @@ public partial class Main : Node3D
     {
         const int count = 15;
         const float gap = 0.075f;
-        var mesh = new SphereMesh { Radius = 0.016f, Height = 0.032f, RadialSegments = 12, Rings = 6 };
+        var mesh = new SphereMesh
+        {
+            Radius = 0.016f,
+            Height = 0.032f,
+            RadialSegments = 12,
+            Rings = 6,
+        };
         for (var i = 0; i < count; i++)
         {
-            var mat = new StandardMaterial3D { ShadingMode = BaseMaterial3D.ShadingModeEnum.Unshaded, AlbedoColor = Palette.DmdPanel };
-            _chaseLamps.Add(mat);
-            _chase.AddChild(new MeshInstance3D
+            var mat = new StandardMaterial3D
             {
-                Mesh = mesh, MaterialOverride = mat, CastShadow = GeometryInstance3D.ShadowCastingSetting.Off,
-                Position = new Vector3((i - (count - 1) / 2f) * gap, 0, 0),
-            });
+                ShadingMode = BaseMaterial3D.ShadingModeEnum.Unshaded,
+                AlbedoColor = Palette.DmdPanel,
+            };
+            _chaseLamps.Add(mat);
+            _chase.AddChild(
+                new MeshInstance3D
+                {
+                    Mesh = mesh,
+                    MaterialOverride = mat,
+                    CastShadow = GeometryInstance3D.ShadowCastingSetting.Off,
+                    Position = new Vector3((i - (count - 1) / 2f) * gap, 0, 0),
+                }
+            );
         }
         _chase.Position = new Vector3(0, 2.1f, -1.8f);
         _chase.Visible = false;
@@ -1328,7 +1770,8 @@ public partial class Main : Node3D
         _error = null; // an old failure of this table mustn't come back after it plays fine
         _loadingTime = _unfocused = 0;
         _loadingPoll = 0.25;
-        foreach (var cab in _pool) cab.Visible = cab.Index == Selected && cab.Table == t;
+        foreach (var cab in _pool)
+            cab.Visible = cab.Index == Selected && cab.Table == t;
         _rail.Visible = _hint.Visible = _scores.Visible = _scoresPanel.Visible = false;
         _chase.Visible = true;
         _header.Text = t.Title;
@@ -1351,18 +1794,21 @@ public partial class Main : Node3D
     /// <summary>Back to the ring: the table failed or closed before it reached the headset.</summary>
     void StopLoading()
     {
-        if (_loading == null) return;
+        if (_loading == null)
+            return;
         _loading = null;
         _statusFile = null;
         _launching = false;
-        foreach (var cab in _pool) cab.Visible = cab.Index >= 0;
+        foreach (var cab in _pool)
+            cab.Visible = cab.Index >= 0;
         _rail.Visible = _hint.Visible = _scores.Visible = true;
         _chase.Visible = false;
         UpdateSelection();
     }
 
     void ShowLoadingText() =>
-        _status.Text = $"Loading{new string('.', 1 + (int)(_loadingTime * 2) % 3),-3}  {(int)_loadingTime} s";
+        _status.Text =
+            $"Loading{new string('.', 1 + (int)(_loadingTime * 2) % 3), -3}  {(int)_loadingTime} s";
 
     void UpdateLoading(double delta)
     {
@@ -1371,12 +1817,19 @@ public partial class Main : Node3D
         var head = (int)(_loadingTime * 12) % n;
         for (var i = 0; i < n; i++)
         {
-            var glow = ((head - i + n) % n) switch { 0 => 1f, 1 => 0.5f, 2 => 0.22f, _ => 0.06f };
+            var glow = ((head - i + n) % n) switch
+            {
+                0 => 1f,
+                1 => 0.5f,
+                2 => 0.22f,
+                _ => 0.06f,
+            };
             _chaseLamps[i].AlbedoColor = Palette.DmdPanel.Lerp(Palette.Lamp, glow);
         }
 
         _loadingPoll -= delta;
-        if (_loadingPoll > 0) return;
+        if (_loadingPoll > 0)
+            return;
         _loadingPoll = 0.25;
         var t = _loading!;
         var st = _statusFile != null ? PlayStatus.Read(_statusFile) : null;
@@ -1389,7 +1842,9 @@ public partial class Main : Node3D
         if (st?.State == PlayStatus.Exited)
         {
             StopLoading();
-            ShowError($"{t.Title} closed while it was loading. Try playing it from VR Table Manager to see what went wrong.");
+            ShowError(
+                $"{t.Title} closed while it was loading. Try playing it from VR Table Manager to see what went wrong."
+            );
             return;
         }
         ShowLoadingText();
@@ -1397,7 +1852,8 @@ public partial class Main : Node3D
         var running = st?.State == PlayStatus.Running || (st == null && _loadingTime > 5);
         if (!_vr)
         {
-            if (running) Leave("started " + t.Title);
+            if (running)
+                Leave("started " + t.Title);
             return;
         }
         // The runtime gives the headset's focus to the newest app, so once the table's own session starts ours
@@ -1407,12 +1863,15 @@ public partial class Main : Node3D
             _unfocused += 0.25;
             if (_unfocused >= 0.5)
             {
-                if (Settings.LobbyStaysOpen && _statusFile != null) StartPlaying(t);
-                else Leave(t.Title + " took over the headset");
+                if (Settings.LobbyStaysOpen && _statusFile != null)
+                    StartPlaying(t);
+                else
+                    Leave(t.Title + " took over the headset");
                 return;
             }
         }
-        else _unfocused = 0;
+        else
+            _unfocused = 0;
         if (_loadingTime > LoadingGiveUp)
         {
             Leave($"still waiting for {t.Title} after {LoadingGiveUp:0} s");
@@ -1442,18 +1901,22 @@ public partial class Main : Node3D
     void UpdatePlaying(double delta)
     {
         _loadingPoll -= delta;
-        if (_loadingPoll > 0) return;
+        if (_loadingPoll > 0)
+            return;
         _loadingPoll = 0.5;
         var st = _statusFile != null ? PlayStatus.Read(_statusFile) : null;
-        if (st?.State is PlayStatus.Exited or PlayStatus.Failed) ComeBack(_loading!.Title + " closed");
+        if (st?.State is PlayStatus.Exited or PlayStatus.Failed)
+            ComeBack(_loading!.Title + " closed");
         // No status to go by: the headset's focus coming back means the table is gone.
-        else if (st == null && _xr?.GetSessionState() == OpenXRInterface.SessionState.Focused) ComeBack("focus came back");
+        else if (st == null && _xr?.GetSessionState() == OpenXRInterface.SessionState.Focused)
+            ComeBack("focus came back");
     }
 
     /// <summary>The table closed: the room comes back on the table you played, and we wait for the headset's focus.</summary>
     void ComeBack(string why)
     {
-        foreach (var (n, was) in _hidden) n.Visible = was;
+        foreach (var (n, was) in _hidden)
+            n.Visible = was;
         _hidden.Clear();
         _playing = false;
         StopLoading(); // the ring, rail and the table's stats again
@@ -1474,15 +1937,19 @@ public partial class Main : Node3D
             _returning = -1;
             return;
         }
-        if (_returning < ReturnGiveUp) return;
+        if (_returning < ReturnGiveUp)
+            return;
         _returning = -1;
         var id = Shown.Count > 0 ? Shown[Selected].Id : "";
-        if (LobbyLauncher.Restart(id, _settingsPath, _statePath) is { } error) GD.PushWarning("Couldn't restart the lobby: " + error);
-        else Leave($"the headset didn't come back after {ReturnGiveUp:0} s; started a fresh lobby");
+        if (LobbyLauncher.Restart(id, _settingsPath, _statePath) is { } error)
+            GD.PushWarning("Couldn't restart the lobby: " + error);
+        else
+            Leave($"the headset didn't come back after {ReturnGiveUp:0} s; started a fresh lobby");
     }
 
     /// <summary>Self-test: what happens when the table takes over the headset, without a headset.</summary>
     public void StartPlayingForTest() => StartPlaying(_loading!);
+
     public bool RoomVisible => _ring.Visible;
 
     (string TableId, string Message)? _error;
@@ -1499,10 +1966,13 @@ public partial class Main : Node3D
         var d = new Dictionary<string, string>();
         foreach (var a in OS.GetCmdlineUserArgs())
         {
-            if (!a.StartsWith("--")) continue;
+            if (!a.StartsWith("--"))
+                continue;
             var eq = a.IndexOf('=');
-            if (eq > 2) d[a[2..eq]] = a[(eq + 1)..];
-            else d[a[2..]] = "";
+            if (eq > 2)
+                d[a[2..eq]] = a[(eq + 1)..];
+            else
+                d[a[2..]] = "";
         }
         return d;
     }

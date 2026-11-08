@@ -11,35 +11,58 @@ public sealed partial class MainViewModel
     AppRelease? _appLatest;
 
     public string AppVersionText => $"VR Table Manager {AppUpdater.CurrentVersion}";
-    [ObservableProperty] public partial string AppUpdateText { get; set; } = "";
-    [ObservableProperty] public partial bool HasAppUpdate { get; set; }
-    [ObservableProperty] public partial bool IsUpdatingApp { get; set; }
-    [ObservableProperty] public partial double AppUpdateProgress { get; set; }
+
+    [ObservableProperty]
+    public partial string AppUpdateText { get; set; } = "";
+
+    [ObservableProperty]
+    public partial bool HasAppUpdate { get; set; }
+
+    [ObservableProperty]
+    public partial bool IsUpdatingApp { get; set; }
+
+    [ObservableProperty]
+    public partial double AppUpdateProgress { get; set; }
 
     /// <summary>At startup: say how the last update went, then offer a new release unless it was skipped.</summary>
     async Task StartupAppUpdateAsync()
     {
         var args = Environment.GetCommandLineArgs();
         if (args.Contains("--updated"))
-            await _ui.ChoiceAsync("Updated", $"VR Table Manager is now version {AppUpdater.CurrentVersion}.", ["OK"]);
+            await _ui.ChoiceAsync(
+                "Updated",
+                $"VR Table Manager is now version {AppUpdater.CurrentVersion}.",
+                ["OK"]
+            );
         else if (args.Contains("--update-failed"))
-            await _ui.ChoiceAsync("Update didn't finish",
+            await _ui.ChoiceAsync(
+                "Update didn't finish",
                 "The new files couldn't be copied into the app's folder (a file may have been in use). You're still on "
-                + AppUpdater.CurrentVersion + ". Try again from Setup → Updates, or download the release yourself.", ["OK"]);
+                    + AppUpdater.CurrentVersion
+                    + ". Try again from Setup → Updates, or download the release yourself.",
+                ["OK"]
+            );
 
         await CheckAppUpdateAsync();
-        if (!HasAppUpdate || _appLatest is not { } rel || rel.Version == Settings.SkippedAppVersion) return;
+        if (!HasAppUpdate || _appLatest is not { } rel || rel.Version == Settings.SkippedAppVersion)
+            return;
         var notes = rel.Notes.Trim();
-        if (notes.Length > 600) notes = notes[..600].TrimEnd() + "…";
-        var pick = await _ui.ChoiceAsync($"VR Table Manager {rel.Version} is out",
+        if (notes.Length > 600)
+            notes = notes[..600].TrimEnd() + "…";
+        var pick = await _ui.ChoiceAsync(
+            $"VR Table Manager {rel.Version} is out",
             $"You have {AppUpdater.CurrentVersion}. Update now? The app closes, updates and opens again; your tables and settings stay as they are.",
-            ["UPDATE NOW", "SKIP THIS VERSION", "LATER"], notes == "" ? null : notes);
-        if (pick == 0) await UpdateAppAsync();
+            ["UPDATE NOW", "SKIP THIS VERSION", "LATER"],
+            notes == "" ? null : notes
+        );
+        if (pick == 0)
+            await UpdateAppAsync();
         else if (pick == 1)
         {
             Settings.SkippedAppVersion = rel.Version;
             Settings.Save();
-            AppUpdateText = $"{rel.Version} is available (skipped; it won't be offered at startup again).";
+            AppUpdateText =
+                $"{rel.Version} is available (skipped; it won't be offered at startup again).";
         }
     }
 
@@ -55,9 +78,13 @@ public sealed partial class MainViewModel
         try
         {
             _appLatest = await AppUpdater.FindLatestAsync(CancellationToken.None);
-            HasAppUpdate = _appLatest != null && AppUpdater.IsNewer(_appLatest.Version, AppUpdater.CurrentVersion);
-            AppUpdateText = _appLatest == null ? $"{AppUpdater.CurrentVersion}. No release found on GitHub."
-                : HasAppUpdate ? $"{AppUpdater.CurrentVersion} → {_appLatest.Version} ({_appLatest.Size / 1_048_576} MB)"
+            HasAppUpdate =
+                _appLatest != null
+                && AppUpdater.IsNewer(_appLatest.Version, AppUpdater.CurrentVersion);
+            AppUpdateText =
+                _appLatest == null ? $"{AppUpdater.CurrentVersion}. No release found on GitHub."
+                : HasAppUpdate
+                    ? $"{AppUpdater.CurrentVersion} → {_appLatest.Version} ({_appLatest.Size / 1_048_576} MB)"
                 : $"Up to date ({AppUpdater.CurrentVersion}).";
         }
         catch (Exception e)
@@ -70,7 +97,8 @@ public sealed partial class MainViewModel
     [RelayCommand]
     async Task UpdateAppAsync()
     {
-        if (IsUpdatingApp || _appLatest is not { } rel) return;
+        if (IsUpdatingApp || _appLatest is not { } rel)
+            return;
         if (IsLobbyRunning)
         {
             AppUpdateText = "Quit the VR lobby first, then update.";
@@ -79,21 +107,35 @@ public sealed partial class MainViewModel
         if (!AppUpdater.CanWriteInstallDir())
         {
             // Under Program Files or another protected folder: let the user replace it themselves.
-            AppUpdateText = "This app's folder can't be written to, so it can't update itself. Download the new release and unzip it over this one.";
+            AppUpdateText =
+                "This app's folder can't be written to, so it can't update itself. Download the new release and unzip it over this one.";
             _ui.OpenExternal(rel.PageUrl);
             return;
         }
         var running = Jobs.Count(j => !j.IsDone && !j.IsError);
-        if (running > 0 && !await _ui.ConfirmAsync("Update now?",
-                $"{running} job{(running == 1 ? " is" : "s are")} still running. Unfinished downloads are offered again after the update."))
+        if (
+            running > 0
+            && !await _ui.ConfirmAsync(
+                "Update now?",
+                $"{running} job{(running == 1 ? " is" : "s are")} still running. Unfinished downloads are offered again after the update."
+            )
+        )
             return;
 
         IsUpdatingApp = true;
         try
         {
             var progress = new Progress<double>(p => AppUpdateProgress = p * 100);
-            await AppUpdater.PrepareAsync(rel, progress, s => Avalonia.Threading.Dispatcher.UIThread.Post(() => AppUpdateText = s), CancellationToken.None);
-            (Avalonia.Application.Current?.ApplicationLifetime as IClassicDesktopStyleApplicationLifetime)?.Shutdown();
+            await AppUpdater.PrepareAsync(
+                rel,
+                progress,
+                s => Avalonia.Threading.Dispatcher.UIThread.Post(() => AppUpdateText = s),
+                CancellationToken.None
+            );
+            (
+                Avalonia.Application.Current?.ApplicationLifetime
+                as IClassicDesktopStyleApplicationLifetime
+            )?.Shutdown();
         }
         catch (Exception e)
         {

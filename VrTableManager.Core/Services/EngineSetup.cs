@@ -6,7 +6,13 @@ using System.Text.Json;
 namespace VrTableManager.Services;
 
 /// <param name="Nightly">A build from VPX's master branch (GitHub Actions), not a published release.</param>
-public sealed record VpxRelease(string Tag, string AssetName, string Url, long Size, bool Nightly = false);
+public sealed record VpxRelease(
+    string Tag,
+    string AssetName,
+    string Url,
+    long Size,
+    bool Nightly = false
+);
 
 /// <param name="Latest">Newest BGFX build that's fine to use.</param>
 /// <param name="Withdrawn">Newest BGFX build renamed "DO NOT USE", when it's newer than <paramref name="Latest"/>.</param>
@@ -15,18 +21,27 @@ public sealed record VpxReleases(VpxRelease? Latest, VpxRelease? Withdrawn);
 /// <summary>Installs Visual Pinball X (BGFX build, which does VR through OpenXR) and prepares a VR settings file.</summary>
 public static class VpxSetup
 {
-    const string ReleasesApi = "https://api.github.com/repos/vpinball/vpinball/releases?per_page=30";
+    const string ReleasesApi =
+        "https://api.github.com/repos/vpinball/vpinball/releases?per_page=30";
     const string VersionFile = "vrtm-version.txt";
 
     /// <summary>Asset name suffix for this OS. BGFX is the build with OpenXR VR support.</summary>
     static string AssetSuffix =>
         OperatingSystem.IsWindows() ? "-windows-x64-Release.zip"
-        : OperatingSystem.IsMacOS() ? (RuntimeInformation.OSArchitecture == Architecture.Arm64 ? "-macos-arm64-Release.dmg" : "-macos-x64-Release.dmg")
+        : OperatingSystem.IsMacOS()
+            ? (
+                RuntimeInformation.OSArchitecture == Architecture.Arm64
+                    ? "-macos-arm64-Release.dmg"
+                    : "-macos-x64-Release.dmg"
+            )
         : "-linux-x64-Release.tar.gz";
 
     /// <summary>The newest usable BGFX build, or null.</summary>
-    public static async Task<VpxRelease?> FindLatestAsync(CancellationToken ct, bool useDoNotUse = false, bool nightly = false) =>
-        (await FindReleasesAsync(ct, useDoNotUse, nightly)).Latest;
+    public static async Task<VpxRelease?> FindLatestAsync(
+        CancellationToken ct,
+        bool useDoNotUse = false,
+        bool nightly = false
+    ) => (await FindReleasesAsync(ct, useDoNotUse, nightly)).Latest;
 
     /// <summary>
     /// What GitHub offers: the newest BGFX build that's fine to use, and the newest one the VPX team has
@@ -35,20 +50,32 @@ public static class VpxSetup
     /// whatever VPX is installed and says why. With <paramref name="nightly"/> (the "nightly builds" setting),
     /// the newest master-branch build stands in for the release when it's newer.
     /// </summary>
-    public static async Task<VpxReleases> FindReleasesAsync(CancellationToken ct, bool useDoNotUse = false, bool nightly = false)
+    public static async Task<VpxReleases> FindReleasesAsync(
+        CancellationToken ct,
+        bool useDoNotUse = false,
+        bool nightly = false
+    )
     {
-        var releases = ParseReleases(await Http.Client.GetStringAsync(ReleasesApi, ct), useDoNotUse);
+        var releases = ParseReleases(
+            await Http.Client.GetStringAsync(ReleasesApi, ct),
+            useDoNotUse
+        );
         return nightly ? WithNightly(releases, await FindNightlyAsync(ct)) : releases;
     }
 
     /// <summary>The nightly build in place of the release when it's newer (it then supersedes any "DO NOT USE" note too).</summary>
     public static VpxReleases WithNightly(VpxReleases r, VpxRelease? nightly) =>
-        nightly == null || (r.Latest != null && !IsNewer(nightly.Tag, r.Latest.Tag)) ? r
-        : new VpxReleases(nightly, r.Withdrawn != null && IsNewer(r.Withdrawn.Tag, nightly.Tag) ? r.Withdrawn : null);
+        nightly == null || (r.Latest != null && !IsNewer(nightly.Tag, r.Latest.Tag))
+            ? r
+            : new VpxReleases(
+                nightly,
+                r.Withdrawn != null && IsNewer(r.Withdrawn.Tag, nightly.Tag) ? r.Withdrawn : null
+            );
 
     // Every push to VPX's master branch builds all platforms in the "vpinball" workflow. GitHub only hands
     // workflow artifacts to signed-in users; nightly.link serves the same files publicly.
-    const string NightlyRunsApi = "https://api.github.com/repos/vpinball/vpinball/actions/workflows/vpinball.yml/runs?branch=master&event=push&status=success&per_page=1";
+    const string NightlyRunsApi =
+        "https://api.github.com/repos/vpinball/vpinball/actions/workflows/vpinball.yml/runs?branch=master&event=push&status=success&per_page=1";
     const string NightlyDownload = "https://nightly.link/vpinball/vpinball/actions/artifacts/";
 
     /// <summary>The BGFX build from the newest successful master-branch run, or null.</summary>
@@ -56,7 +83,8 @@ public static class VpxSetup
     {
         using var runs = JsonDocument.Parse(await Http.Client.GetStringAsync(NightlyRunsApi, ct));
         var run = runs.RootElement.GetProperty("workflow_runs").EnumerateArray().FirstOrDefault();
-        if (run.ValueKind != JsonValueKind.Object) return null;
+        if (run.ValueKind != JsonValueKind.Object)
+            return null;
         var artifactsUrl = run.GetProperty("artifacts_url").GetString() + "?per_page=100";
         return ParseNightlyArtifacts(await Http.Client.GetStringAsync(artifactsUrl, ct));
     }
@@ -67,11 +95,21 @@ public static class VpxSetup
         foreach (var a in doc.RootElement.GetProperty("artifacts").EnumerateArray())
         {
             var name = a.GetProperty("name").GetString() ?? "";
-            if (a.GetProperty("expired").GetBoolean() || !name.StartsWith("VPinballX_BGFX-") || !name.EndsWith(AssetSuffix)) continue;
+            if (
+                a.GetProperty("expired").GetBoolean()
+                || !name.StartsWith("VPinballX_BGFX-")
+                || !name.EndsWith(AssetSuffix)
+            )
+                continue;
             // "VPinballX_BGFX-10.8.1-6625-2ad1916b2-windows-x64-Release.zip" → "v10.8.1-6625-2ad1916b2"
             var tag = "v" + name["VPinballX_BGFX-".Length..^AssetSuffix.Length];
-            return new VpxRelease(tag, name, NightlyDownload + a.GetProperty("id").GetInt64() + ".zip",
-                a.GetProperty("size_in_bytes").GetInt64(), Nightly: true);
+            return new VpxRelease(
+                tag,
+                name,
+                NightlyDownload + a.GetProperty("id").GetInt64() + ".zip",
+                a.GetProperty("size_in_bytes").GetInt64(),
+                Nightly: true
+            );
         }
         return null;
     }
@@ -82,11 +120,14 @@ public static class VpxSetup
         VpxRelease? withdrawn = null;
         foreach (var rel in doc.RootElement.EnumerateArray())
         {
-            if (rel.GetProperty("draft").GetBoolean()) continue;
+            if (rel.GetProperty("draft").GetBoolean())
+                continue;
             var name = rel.TryGetProperty("name", out var n) ? n.GetString() ?? "" : "";
             var asset = BgfxAsset(rel);
-            if (asset == null) continue;
-            if (useDoNotUse || !name.StartsWith("DO NOT USE", StringComparison.OrdinalIgnoreCase)) return new VpxReleases(asset, withdrawn);
+            if (asset == null)
+                continue;
+            if (useDoNotUse || !name.StartsWith("DO NOT USE", StringComparison.OrdinalIgnoreCase))
+                return new VpxReleases(asset, withdrawn);
             withdrawn ??= asset;
         }
         return new VpxReleases(null, withdrawn);
@@ -98,8 +139,12 @@ public static class VpxSetup
         {
             var an = asset.GetProperty("name").GetString() ?? "";
             if (an.StartsWith("VPinballX_BGFX-") && an.EndsWith(AssetSuffix))
-                return new VpxRelease(rel.GetProperty("tag_name").GetString()!, an,
-                    asset.GetProperty("browser_download_url").GetString()!, asset.GetProperty("size").GetInt64());
+                return new VpxRelease(
+                    rel.GetProperty("tag_name").GetString()!,
+                    an,
+                    asset.GetProperty("browser_download_url").GetString()!,
+                    asset.GetProperty("size").GetInt64()
+                );
         }
         return null;
     }
@@ -111,24 +156,31 @@ public static class VpxSetup
             ? $" The VPX team has marked newer builds (up to {w.Tag}) \"DO NOT USE\" on GitHub, so they aren't offered."
             : "";
         if (r.Latest == null)
-            return (installed != null
-                ? $"Keeping your installed {installed}.{note}"
+            return (
+                installed != null ? $"Keeping your installed {installed}.{note}"
                 : r.Withdrawn != null
                     ? $"No VR (BGFX) build is available to install right now.{note} Check github.com/vpinball/vpinball/releases."
-                    : "No VPX release found for this OS.", false);
+                : "No VPX release found for this OS.",
+                false
+            );
         var latest = r.Latest.Nightly ? $"{r.Latest.Tag} (nightly)" : r.Latest.Tag;
-        if (installed == null) return ($"Not installed. Latest is {latest}.{note}", false);
-        if (installed == r.Latest.Tag || SameBuild(installed, r.Latest.Tag)) return ($"Up to date ({installed}).{note}", false);
+        if (installed == null)
+            return ($"Not installed. Latest is {latest}.{note}", false);
+        if (installed == r.Latest.Tag || SameBuild(installed, r.Latest.Tag))
+            return ($"Up to date ({installed}).{note}", false);
         // Installed something newer than the newest usable build (e.g. a build later marked DO NOT USE): keep it.
-        if (installed == r.Withdrawn?.Tag || IsNewer(installed, r.Latest.Tag)) return ($"Keeping your installed {installed}.{note}", false);
+        if (installed == r.Withdrawn?.Tag || IsNewer(installed, r.Latest.Tag))
+            return ($"Keeping your installed {installed}.{note}", false);
         return ($"{installed} → {latest}", true);
     }
 
     static (Version v, int build) ParseTag(string t)
     {
         var parts = t.TrimStart('v').Split('-');
-        return (Version.TryParse(parts[0], out var v) ? v : new Version(0, 0),
-            parts.Length > 1 && int.TryParse(parts[1], out var n) ? n : 0);
+        return (
+            Version.TryParse(parts[0], out var v) ? v : new Version(0, 0),
+            parts.Length > 1 && int.TryParse(parts[1], out var n) ? n : 0
+        );
     }
 
     /// <summary>Compares tags like "v10.8.1-5436-af26b2d93" by their version and build number.</summary>
@@ -147,27 +199,43 @@ public static class VpxSetup
     /// </summary>
     public static string? InstalledVersion(AppSettings s)
     {
-        if (FindExe(s) is not { } exe) return null;
+        if (FindExe(s) is not { } exe)
+            return null;
         var f = Path.Combine(s.VpxDir, VersionFile);
-        if (File.Exists(f)) return File.ReadAllText(f).Trim();
+        if (File.Exists(f))
+            return File.ReadAllText(f).Trim();
         return TagFromProductVersion(FileVersionInfo.GetVersionInfo(exe).ProductVersion);
     }
 
     public static string? TagFromProductVersion(string? productVersion)
     {
         var p = (productVersion ?? "").Trim().Split('.');
-        if (p.Length < 4 || !p.Take(4).All(x => int.TryParse(x, out _))) return null;
+        if (p.Length < 4 || !p.Take(4).All(x => int.TryParse(x, out _)))
+            return null;
         return $"v{p[0]}.{p[1]}.{p[2]}-{p[3]}" + (p.Length > 4 && p[4] != "" ? "-" + p[4] : "");
     }
 
-    public static async Task InstallAsync(AppSettings s, VpxRelease rel, IProgress<double> progress, Action<string> status, CancellationToken ct)
+    public static async Task InstallAsync(
+        AppSettings s,
+        VpxRelease rel,
+        IProgress<double> progress,
+        Action<string> status,
+        CancellationToken ct
+    )
     {
         var tmp = Path.Combine(Path.GetTempPath(), rel.AssetName);
         status($"Downloading {rel.AssetName} ({rel.Size / 1_048_576} MB)…");
-        try { await Http.DownloadFileAsync(rel.Url, tmp, progress, ct); }
+        try
+        {
+            await Http.DownloadFileAsync(rel.Url, tmp, progress, ct);
+        }
         catch
         {
-            try { File.Delete(tmp); } catch { } // don't leave a half download in Temp
+            try
+            {
+                File.Delete(tmp);
+            }
+            catch { } // don't leave a half download in Temp
             throw;
         }
         // A nightly comes as a GitHub artifact: always a zip. On Windows that zip is the build itself; elsewhere
@@ -177,8 +245,12 @@ public static class VpxSetup
             var wrapped = tmp + ".zip";
             File.Move(tmp, wrapped, overwrite: true);
             using (var zip = ZipFile.OpenRead(wrapped))
-                (zip.GetEntry(rel.AssetName) ?? throw new InvalidDataException($"{rel.AssetName} wasn't in the nightly download."))
-                    .ExtractToFile(tmp, overwrite: true);
+                (
+                    zip.GetEntry(rel.AssetName)
+                    ?? throw new InvalidDataException(
+                        $"{rel.AssetName} wasn't in the nightly download."
+                    )
+                ).ExtractToFile(tmp, overwrite: true);
             File.Delete(wrapped);
         }
 
@@ -200,19 +272,28 @@ public static class VpxSetup
 
     public static string? FindExe(AppSettings s)
     {
-        if (!Directory.Exists(s.VpxDir)) return null;
-        var files = Directory.EnumerateFiles(s.VpxDir, "VPinballX*", SearchOption.AllDirectories)
-            .Where(f => OperatingSystem.IsWindows() ? f.EndsWith(".exe", StringComparison.OrdinalIgnoreCase) : Path.GetExtension(f) == "")
+        if (!Directory.Exists(s.VpxDir))
+            return null;
+        var files = Directory
+            .EnumerateFiles(s.VpxDir, "VPinballX*", SearchOption.AllDirectories)
+            .Where(f =>
+                OperatingSystem.IsWindows()
+                    ? f.EndsWith(".exe", StringComparison.OrdinalIgnoreCase)
+                    : Path.GetExtension(f) == ""
+            )
             .ToList();
-        return files.FirstOrDefault(f => Path.GetFileName(f).Contains("BGFX", StringComparison.OrdinalIgnoreCase))
-            ?? files.FirstOrDefault();
+        return files.FirstOrDefault(f =>
+                Path.GetFileName(f).Contains("BGFX", StringComparison.OrdinalIgnoreCase)
+            ) ?? files.FirstOrDefault();
     }
 
     /// <summary>The manager's VR overrides on top of the player's own VPinballX.ini (<see cref="VpxIniLayers"/>).</summary>
-    public static string VrIniPath(AppSettings s) => Path.Combine(s.VpxDir, "VrTableManager-VR.ini");
+    public static string VrIniPath(AppSettings s) =>
+        Path.Combine(s.VpxDir, "VrTableManager-VR.ini");
 
     /// <summary>The manager's desktop overrides on top of the player's own VPinballX.ini (<see cref="VpxIniLayers"/>).</summary>
-    public static string DesktopIniPath(AppSettings s) => Path.Combine(s.VpxDir, "VrTableManager-Desktop.ini");
+    public static string DesktopIniPath(AppSettings s) =>
+        Path.Combine(s.VpxDir, "VrTableManager-Desktop.ini");
 
     /// <summary>
     /// VPX reads [PlayerVR] AskToTurnOn (0 = Enabled, 1 = Autodetect, 2 = Disabled).
@@ -222,7 +303,14 @@ public static class VpxSetup
     {
         var ini = VrIniPath(s);
         IniFile.Set(ini, "PlayerVR", "AskToTurnOn", "0");
-        var rate = s.VrRefreshRate switch { 72 => 1, 80 => 2, 90 => 3, 120 => 4, _ => 0 };
+        var rate = s.VrRefreshRate switch
+        {
+            72 => 1,
+            80 => 2,
+            90 => 3,
+            120 => 4,
+            _ => 0,
+        };
         IniFile.Set(ini, "PlayerVR", "DisplayRefreshRate", rate.ToString());
         SetPlugins(s, ini);
         // VPX's default backglass ([PlayerVR] AddBackglass) isn't set here: it's picked per table at launch
@@ -240,7 +328,12 @@ public static class VpxSetup
     /// </summary>
     public static string? VrBackglassFor(AppSettings s, Models.TableManifest? table) =>
         !s.VrAutoBackglass || table is null || table.Features.Count == 0 ? null
-        : table.Features.Any(f => f.Equals("VR", StringComparison.OrdinalIgnoreCase) || f.Equals("Hybrid", StringComparison.OrdinalIgnoreCase)) ? "0" : "1";
+        : table.Features.Any(f =>
+            f.Equals("VR", StringComparison.OrdinalIgnoreCase)
+            || f.Equals("Hybrid", StringComparison.OrdinalIgnoreCase)
+        )
+            ? "0"
+        : "1";
 
     /// <summary>
     /// Desktop play: VR off even if the player's own settings turn it on, and the same plugins as VR, so the
@@ -260,13 +353,15 @@ public static class VpxSetup
         // puts them); without it VPX falls back to a separately installed VPinMAME and its global roms
         // folder. Serum, VNI and AltSound are its colorization and sound companions, read from the table folder.
         var on = s.UseBuiltInPinmame ? "1" : "0";
-        foreach (var plugin in BuiltInPinmamePlugins) IniFile.Set(ini, "Plugin." + plugin, "Enable", on);
+        foreach (var plugin in BuiltInPinmamePlugins)
+            IniFile.Set(ini, "Plugin." + plugin, "Enable", on);
         // PinUP Player plugin: plays a table's pupvideos\<pack> on the backglass/DMD; tables without one are unaffected.
         IniFile.Set(ini, "Plugin." + PupPlugin, "Enable", s.UsePupPlugin ? "1" : "0");
         // FlexDMD stands in for the FlexDMD/UltraDMD components many originals draw their DMD with (Jaws,
         // Mass Effect); B2S shows a table's .directb2s backglass. Set explicitly rather than left to VPX's default.
         var display = s.UseDisplayPlugins ? "1" : "0";
-        foreach (var plugin in DisplayPlugins) IniFile.Set(ini, "Plugin." + plugin, "Enable", display);
+        foreach (var plugin in DisplayPlugins)
+            IniFile.Set(ini, "Plugin." + plugin, "Enable", display);
     }
 
     /// <summary>Id of VPX's PinUP Player plugin (plugins\pup\plugin.cfg).</summary>
@@ -280,12 +375,16 @@ public static class VpxSetup
     /// <summary>Which OpenXR runtime VPX will talk to (Windows only).</summary>
     public static string DescribeOpenXrRuntime()
     {
-        if (!OperatingSystem.IsWindows()) return "Check your OpenXR runtime (e.g. SteamVR or Monado).";
+        if (!OperatingSystem.IsWindows())
+            return "Check your OpenXR runtime (e.g. SteamVR or Monado).";
         try
         {
-            using var key = Microsoft.Win32.Registry.LocalMachine.OpenSubKey(@"SOFTWARE\Khronos\OpenXR\1");
+            using var key = Microsoft.Win32.Registry.LocalMachine.OpenSubKey(
+                @"SOFTWARE\Khronos\OpenXR\1"
+            );
             var path = key?.GetValue("ActiveRuntime") as string;
-            if (string.IsNullOrEmpty(path)) return "No OpenXR runtime found. Install the Meta Quest Link app (or SteamVR / Virtual Desktop).";
+            if (string.IsNullOrEmpty(path))
+                return "No OpenXR runtime found. Install the Meta Quest Link app (or SteamVR / Virtual Desktop).";
             return $"Active OpenXR runtime: {OpenXrRuntimes.NameFor(path)}";
         }
         catch (Exception e)
@@ -302,26 +401,49 @@ public static class FpSetup
     {
         yield return @"C:\Games\Future Pinball";
         yield return @"C:\Future Pinball";
-        yield return Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ProgramFilesX86), "Future Pinball");
-        yield return Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ProgramFiles), "Future Pinball");
-        yield return Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.UserProfile), "VPinball", "Future Pinball");
+        yield return Path.Combine(
+            Environment.GetFolderPath(Environment.SpecialFolder.ProgramFilesX86),
+            "Future Pinball"
+        );
+        yield return Path.Combine(
+            Environment.GetFolderPath(Environment.SpecialFolder.ProgramFiles),
+            "Future Pinball"
+        );
+        yield return Path.Combine(
+            Environment.GetFolderPath(Environment.SpecialFolder.UserProfile),
+            "VPinball",
+            "Future Pinball"
+        );
     }
 
-    public static string? AutoDetect() => OperatingSystem.IsWindows()
-        ? CandidateDirs().FirstOrDefault(d => File.Exists(Path.Combine(d, "Future Pinball.exe")))
-        : null;
+    public static string? AutoDetect() =>
+        OperatingSystem.IsWindows()
+            ? CandidateDirs()
+                .FirstOrDefault(d => File.Exists(Path.Combine(d, "Future Pinball.exe")))
+            : null;
 
     public static string LoaderPath(AppSettings s) => Path.Combine(s.FpDir, "BAM", "FPLoader.exe");
 
     public static string Describe(AppSettings s)
     {
-        if (!OperatingSystem.IsWindows()) return "Future Pinball is Windows-only.";
-        if (string.IsNullOrWhiteSpace(s.FpDir) || !File.Exists(Path.Combine(s.FpDir, "Future Pinball.exe")))
+        if (!OperatingSystem.IsWindows())
+            return "Future Pinball is Windows-only.";
+        if (
+            string.IsNullOrWhiteSpace(s.FpDir)
+            || !File.Exists(Path.Combine(s.FpDir, "Future Pinball.exe"))
+        )
             return "Future Pinball not found. Install it, then choose its folder.";
         if (!File.Exists(LoaderPath(s)))
             return "Future Pinball found, but BAM is missing (BAM\\FPLoader.exe). Install BAM to enable VR.";
-        var vr = File.Exists(Path.Combine(s.FpDir, "BAM", "openvr_api.dll"))
-            || Directory.EnumerateFiles(Path.Combine(s.FpDir, "BAM"), "*OpenVR*", SearchOption.TopDirectoryOnly).Any();
+        var vr =
+            File.Exists(Path.Combine(s.FpDir, "BAM", "openvr_api.dll"))
+            || Directory
+                .EnumerateFiles(
+                    Path.Combine(s.FpDir, "BAM"),
+                    "*OpenVR*",
+                    SearchOption.TopDirectoryOnly
+                )
+                .Any();
         return vr
             ? "Future Pinball + BAM-OpenVR ready. Start SteamVR before playing."
             : "Future Pinball + BAM found, but BAM-OpenVR isn't. Add the BAM-OpenVR files for VR.";
@@ -338,12 +460,16 @@ public interface IPinballEngine
     string Id { get; }
     string DisplayName { get; }
     bool SupportsDesktopMode { get; }
+
     /// <summary>One-line readiness summary for the Setup tab.</summary>
     string DescribeSetup(AppSettings s);
+
     /// <summary>Tables this engine owns that don't come from the file installer (e.g. store-bought tables).</summary>
     IEnumerable<InstalledTable> ListExtraTables(AppSettings s) => [];
+
     /// <summary>False when the tables belong to a store (Steam/Epic), so the app must not remove files.</summary>
     bool ManagesFiles => true;
+
     /// <summary>Starts the table and returns the process whose exit means "back to the picker".</summary>
     Task<Process> LaunchAsync(AppSettings s, InstalledTable table, bool vr, CancellationToken ct);
 }
@@ -353,49 +479,98 @@ public sealed class VpxEngine : IPinballEngine
     public string Id => Models.TableManifest.Vpx;
     public string DisplayName => "Visual Pinball X";
     public bool SupportsDesktopMode => true;
-    public string DescribeSetup(AppSettings s) => VpxSetup.InstalledVersion(s) is { } v
-        ? $"Installed: {v}. {VpxSetup.DescribeOpenXrRuntime()}"
-        : "Not installed.";
-    public Task<Process> LaunchAsync(AppSettings s, InstalledTable table, bool vr, CancellationToken ct) =>
-        Task.FromResult(Launcher.StartVpx(s, table.TablePath, vr, table.Manifest));
+
+    public string DescribeSetup(AppSettings s) =>
+        VpxSetup.InstalledVersion(s) is { } v
+            ? $"Installed: {v}. {VpxSetup.DescribeOpenXrRuntime()}"
+            : "Not installed.";
+
+    public Task<Process> LaunchAsync(
+        AppSettings s,
+        InstalledTable table,
+        bool vr,
+        CancellationToken ct
+    ) => Task.FromResult(Launcher.StartVpx(s, table.TablePath, vr, table.Manifest));
 }
 
 public sealed class FuturePinballEngine : IPinballEngine
 {
     public string Id => Models.TableManifest.FuturePinball;
     public string DisplayName => "Future Pinball (BAM)";
+
     // BAM decides VR vs desktop itself (VR when BAM-OpenVR is installed and SteamVR is running).
     public bool SupportsDesktopMode => false;
+
     public string DescribeSetup(AppSettings s) => FpSetup.Describe(s);
-    public Task<Process> LaunchAsync(AppSettings s, InstalledTable table, bool vr, CancellationToken ct) =>
-        Task.FromResult(Launcher.StartFp(s, table.TablePath));
+
+    public Task<Process> LaunchAsync(
+        AppSettings s,
+        InstalledTable table,
+        bool vr,
+        CancellationToken ct
+    ) => Task.FromResult(Launcher.StartFp(s, table.TablePath));
 }
 
 public static class Engines
 {
-    public static readonly IReadOnlyList<IPinballEngine> All = [new VpxEngine(), new FuturePinballEngine(), new PinballFxUevrEngine(), new PinballMUevrEngine()];
+    public static readonly IReadOnlyList<IPinballEngine> All =
+    [
+        new VpxEngine(),
+        new FuturePinballEngine(),
+        new PinballFxUevrEngine(),
+        new PinballMUevrEngine(),
+    ];
+
     public static IPinballEngine For(string id) => All.FirstOrDefault(e => e.Id == id) ?? All[0];
 }
 
 public static class Launcher
 {
-    public static Process StartVpx(AppSettings s, string tablePath, bool vr, Models.TableManifest? table = null)
+    public static Process StartVpx(
+        AppSettings s,
+        string tablePath,
+        bool vr,
+        Models.TableManifest? table = null
+    )
     {
-        var exe = VpxSetup.FindExe(s) ?? throw new InvalidOperationException("Visual Pinball X isn't installed yet (Setup tab).");
-        var psi = new ProcessStartInfo(exe) { WorkingDirectory = Path.GetDirectoryName(exe)!, UseShellExecute = false };
-        if (vr) VpxSetup.EnsureVrIni(s);
-        else VpxSetup.EnsureDesktopIni(s);
+        var exe =
+            VpxSetup.FindExe(s)
+            ?? throw new InvalidOperationException(
+                "Visual Pinball X isn't installed yet (Setup tab)."
+            );
+        var psi = new ProcessStartInfo(exe)
+        {
+            WorkingDirectory = Path.GetDirectoryName(exe)!,
+            UseShellExecute = false,
+        };
+        if (vr)
+            VpxSetup.EnsureVrIni(s);
+        else
+            VpxSetup.EnsureDesktopIni(s);
         // Only in this launch's play file, not the overrides: the next table gets its own pick.
         var backglass = vr ? VpxSetup.VrBackglassFor(s, table) : null;
-        var play = VpxIniLayers.Build(s, vr, extra: backglass is null ? null : [("PlayerVR", "AddBackglass", backglass)]);
-        if (VrRoomSwitch.Prepare(tablePath, vr, s.AutoVrRoom) is { } changed) PlaySession.Log($"{Path.GetFileName(tablePath)}: {changed}");
+        var play = VpxIniLayers.Build(
+            s,
+            vr,
+            extra: backglass is null ? null : [("PlayerVR", "AddBackglass", backglass)]
+        );
+        if (VrRoomSwitch.Prepare(tablePath, vr, s.AutoVrRoom) is { } changed)
+            PlaySession.Log($"{Path.GetFileName(tablePath)}: {changed}");
         // Without VPX's texture list (written when a table closes) a table's first launch plays very dark.
-        if (VpxTextureCache.Prepare(tablePath) is { } textures) PlaySession.Log($"{Path.GetFileName(tablePath)}: {textures}");
+        if (VpxTextureCache.Prepare(tablePath) is { } textures)
+            PlaySession.Log($"{Path.GetFileName(tablePath)}: {textures}");
         // PuP packs installed before VR layouts were chosen (or copied from another install) get theirs now, once.
         if (vr && s.UsePupPlugin)
-            foreach (var pack in PupPackOptions.SetUpOnce(Path.Combine(Path.GetDirectoryName(tablePath)!, PupPacks.FolderName)))
-                PlaySession.Log($"{Path.GetFileName(tablePath)}: PuP pack switched to its VR layout ({pack})");
-        foreach (var a in VpxArgs(play.Path, tablePath)) psi.ArgumentList.Add(a);
+            foreach (
+                var pack in PupPackOptions.SetUpOnce(
+                    Path.Combine(Path.GetDirectoryName(tablePath)!, PupPacks.FolderName)
+                )
+            )
+                PlaySession.Log(
+                    $"{Path.GetFileName(tablePath)}: PuP pack switched to its VR layout ({pack})"
+                );
+        foreach (var a in VpxArgs(play.Path, tablePath))
+            psi.ArgumentList.Add(a);
         var proc = Process.Start(psi)!;
         VpxIniLayers.SaveBackOnExit(proc, play, PlaySession.Log);
         return proc;
@@ -410,7 +585,8 @@ public static class Launcher
     public static List<string> VpxArgs(string? iniPath, string tablePath)
     {
         var args = new List<string>();
-        if (iniPath != null) args.AddRange(["-Ini", iniPath]);
+        if (iniPath != null)
+            args.AddRange(["-Ini", iniPath]);
         args.AddRange(["-Play", tablePath]);
         return args;
     }
@@ -418,7 +594,8 @@ public static class Launcher
     public static Process StartFp(AppSettings s, string tablePath)
     {
         var loader = FpSetup.LoaderPath(s);
-        if (!File.Exists(loader)) throw new InvalidOperationException("BAM's FPLoader.exe wasn't found (Setup tab).");
+        if (!File.Exists(loader))
+            throw new InvalidOperationException("BAM's FPLoader.exe wasn't found (Setup tab).");
         var psi = new ProcessStartInfo(loader)
         {
             WorkingDirectory = Path.GetDirectoryName(loader)!,

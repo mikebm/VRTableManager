@@ -21,17 +21,24 @@ public static class LobbyVideo
 {
     public const string FolderName = "lobby-video";
     public const string InfoFile = "video.json";
+
     /// <summary>Frame rate of the lobby loop: smooth enough for flashing inserts, small on disk.</summary>
     public const int Fps = 15;
+
     /// <summary>At most this many frames (12 s); attract shows repeat, and VPX trims its recording to one loop.</summary>
     public const int MaxFrames = 180;
+
     /// <summary>Portrait frame size the lobby uses (the playfield seen from above, top of the table up).</summary>
-    public const int Width = 720, Height = 1280;
+    public const int Width = 720,
+        Height = 1280;
 
     public sealed record Info(int Fps, int Frames, int Width, int Height, string Source);
 
-    public static string Folder(string tableFolder) => Path.Combine(tableFolder, "medias", FolderName);
-    public static string FramePath(string folder, int index) => Path.Combine(folder, $"{index:0000}.jpg");
+    public static string Folder(string tableFolder) =>
+        Path.Combine(tableFolder, "medias", FolderName);
+
+    public static string FramePath(string folder, int index) =>
+        Path.Combine(folder, $"{index:0000}.jpg");
 
     static readonly JsonSerializerOptions Json = new() { WriteIndented = true };
 
@@ -42,17 +49,25 @@ public static class LobbyVideo
         try
         {
             var path = Path.Combine(folder, InfoFile);
-            if (!File.Exists(path)) return null;
+            if (!File.Exists(path))
+                return null;
             var info = JsonSerializer.Deserialize<Info>(File.ReadAllText(path));
-            return info is { Frames: > 0, Fps: > 0 } && File.Exists(FramePath(folder, info.Frames - 1)) ? info : null;
+            return
+                info is { Frames: > 0, Fps: > 0 } && File.Exists(FramePath(folder, info.Frames - 1))
+                ? info
+                : null;
         }
-        catch (Exception e) when (e is IOException or JsonException or UnauthorizedAccessException) { return null; }
+        catch (Exception e) when (e is IOException or JsonException or UnauthorizedAccessException)
+        {
+            return null;
+        }
     }
 
     public static void Remove(string tableFolder)
     {
         var folder = Folder(tableFolder);
-        if (Directory.Exists(folder)) Directory.Delete(folder, true);
+        if (Directory.Exists(folder))
+            Directory.Delete(folder, true);
     }
 
     /// <summary>Writes one picture as a lobby frame: scaled to fit <see cref="Width"/>×<see cref="Height"/>, turned, JPEG.</summary>
@@ -69,7 +84,9 @@ public static class LobbyVideo
     /// </summary>
     public sealed class Builder : IDisposable
     {
-        readonly string _tableFolder, _staging, _source;
+        readonly string _tableFolder,
+            _staging,
+            _source;
         public int Count { get; private set; }
 
         public Builder(string tableFolder, string source)
@@ -77,7 +94,8 @@ public static class LobbyVideo
             _tableFolder = tableFolder;
             _source = source;
             _staging = Folder(tableFolder) + ".new";
-            if (Directory.Exists(_staging)) Directory.Delete(_staging, true);
+            if (Directory.Exists(_staging))
+                Directory.Delete(_staging, true);
             Directory.CreateDirectory(_staging);
         }
 
@@ -85,9 +103,13 @@ public static class LobbyVideo
 
         public Info Commit()
         {
-            if (Count == 0) throw new InvalidDataException("No frames.");
+            if (Count == 0)
+                throw new InvalidDataException("No frames.");
             var info = new Info(Fps, Count, Width, Height, _source);
-            File.WriteAllText(Path.Combine(_staging, InfoFile), JsonSerializer.Serialize(info, Json));
+            File.WriteAllText(
+                Path.Combine(_staging, InfoFile),
+                JsonSerializer.Serialize(info, Json)
+            );
             Remove(_tableFolder);
             Directory.Move(_staging, Folder(_tableFolder));
             return info;
@@ -95,7 +117,12 @@ public static class LobbyVideo
 
         public void Dispose()
         {
-            try { if (Directory.Exists(_staging)) Directory.Delete(_staging, true); } catch { }
+            try
+            {
+                if (Directory.Exists(_staging))
+                    Directory.Delete(_staging, true);
+            }
+            catch { }
         }
     }
 
@@ -111,29 +138,68 @@ public static class LobbyVideo
     /// </summary>
     public static int? PlayfieldScore(string entryPath, long size, string gameName)
     {
-        if (size <= 0 || !VideoExts.Contains(Path.GetExtension(entryPath).ToLowerInvariant())) return null;
-        var parts = entryPath.Replace('\\', '/').Split('/', StringSplitOptions.RemoveEmptyEntries).Select(Normalize).ToArray();
+        if (size <= 0 || !VideoExts.Contains(Path.GetExtension(entryPath).ToLowerInvariant()))
+            return null;
+        var parts = entryPath
+            .Replace('\\', '/')
+            .Split('/', StringSplitOptions.RemoveEmptyEntries)
+            .Select(Normalize)
+            .ToArray();
         var folders = parts[..^1];
         var file = Normalize(Path.GetFileNameWithoutExtension(entryPath));
-        string[] others = ["backglass", "backbox", "dmd", "fulldmd", "topper", "loading", "launch", "help", "info", "flyer", "wheel", "menu", "other", "instruction", "tutorial", "audio", "desktop"];
-        if (folders.Any(f => others.Any(f.Contains)) || others.Any(o => file.StartsWith(o))) return null;
+        string[] others =
+        [
+            "backglass",
+            "backbox",
+            "dmd",
+            "fulldmd",
+            "topper",
+            "loading",
+            "launch",
+            "help",
+            "info",
+            "flyer",
+            "wheel",
+            "menu",
+            "other",
+            "instruction",
+            "tutorial",
+            "audio",
+            "desktop",
+        ];
+        if (folders.Any(f => others.Any(f.Contains)) || others.Any(o => file.StartsWith(o)))
+            return null;
         var score = 0;
-        if (folders.Any(f => f is "playfield" or "tablevideos" or "tablevideo" or "table")) score += 50;
-        else if (folders.Any(f => f.Contains("playfield") || f.Contains("table"))) score += 25;
-        else if (!file.Contains("playfield")) return null; // a video somewhere else is some other screen
-        if (file.Contains("playfield")) score += 20;
-        if (Normalize(gameName) is { Length: > 2 } name && file.Contains(name)) score += 10;
-        if (Path.GetExtension(entryPath).Equals(".mp4", StringComparison.OrdinalIgnoreCase)) score += 5; // plays as is; .f4v needs a copy
+        if (folders.Any(f => f is "playfield" or "tablevideos" or "tablevideo" or "table"))
+            score += 50;
+        else if (folders.Any(f => f.Contains("playfield") || f.Contains("table")))
+            score += 25;
+        else if (!file.Contains("playfield"))
+            return null; // a video somewhere else is some other screen
+        if (file.Contains("playfield"))
+            score += 20;
+        if (Normalize(gameName) is { Length: > 2 } name && file.Contains(name))
+            score += 10;
+        if (Path.GetExtension(entryPath).Equals(".mp4", StringComparison.OrdinalIgnoreCase))
+            score += 5; // plays as is; .f4v needs a copy
         return score;
     }
 
-    public static string? PickPlayfield(IEnumerable<(string path, long size)> entries, string gameName) =>
-        entries.Select(e => (e.path, e.size, score: PlayfieldScore(e.path, e.size, gameName)))
+    public static string? PickPlayfield(
+        IEnumerable<(string path, long size)> entries,
+        string gameName
+    ) =>
+        entries
+            .Select(e => (e.path, e.size, score: PlayfieldScore(e.path, e.size, gameName)))
             .Where(e => e.score != null)
-            .OrderByDescending(e => e.score).ThenByDescending(e => e.size).ThenBy(e => e.path, StringComparer.OrdinalIgnoreCase)
-            .Select(e => e.path).FirstOrDefault();
+            .OrderByDescending(e => e.score)
+            .ThenByDescending(e => e.size)
+            .ThenBy(e => e.path, StringComparer.OrdinalIgnoreCase)
+            .Select(e => e.path)
+            .FirstOrDefault();
 
-    static string Normalize(string s) => new(s.ToLowerInvariant().Where(char.IsLetterOrDigit).ToArray());
+    static string Normalize(string s) =>
+        new(s.ToLowerInvariant().Where(char.IsLetterOrDigit).ToArray());
 
     /// <summary>
     /// Saves a downloaded media pack's playfield video as <c>medias\(Playfield) &lt;folder name&gt;.&lt;ext&gt;</c>
@@ -148,7 +214,9 @@ public static class LobbyVideo
             using var src = File.OpenRead(downloaded);
             return WriteVideo(src, ext, tableFolder);
         }
-        return ArchiveExts.Contains(ext) ? FromArchive(downloaded, tableFolder, gameName, nested: true) : null;
+        return ArchiveExts.Contains(ext)
+            ? FromArchive(downloaded, tableFolder, gameName, nested: true)
+            : null;
     }
 
     /// <summary>The playfield video saved in the table's medias folder, if any.</summary>
@@ -156,31 +224,51 @@ public static class LobbyVideo
     {
         var medias = Path.Combine(tableFolder, "medias");
         return Directory.Exists(medias)
-            ? Directory.EnumerateFiles(medias, "(Playfield) *").FirstOrDefault(f => VideoExts.Contains(Path.GetExtension(f).ToLowerInvariant()))
+            ? Directory
+                .EnumerateFiles(medias, "(Playfield) *")
+                .FirstOrDefault(f => VideoExts.Contains(Path.GetExtension(f).ToLowerInvariant()))
             : null;
     }
 
     static string? FromArchive(string archivePath, string tableFolder, string gameName, bool nested)
     {
         using var archive = ArchiveFactory.OpenArchive(archivePath);
-        var files = archive.Entries.Where(e => !e.IsDirectory && !string.IsNullOrEmpty(e.Key)).ToList();
+        var files = archive
+            .Entries.Where(e => !e.IsDirectory && !string.IsNullOrEmpty(e.Key))
+            .ToList();
         if (PickPlayfield(files.Select(e => (e.Key!, e.Size)), gameName) is { } best)
         {
             using var src = files.First(e => e.Key == best).OpenEntryStream();
             return WriteVideo(src, Path.GetExtension(best).ToLowerInvariant(), tableFolder);
         }
-        if (!nested) return null;
-        foreach (var inner in files.Where(e => ArchiveExts.Contains(Path.GetExtension(e.Key!).ToLowerInvariant())))
+        if (!nested)
+            return null;
+        foreach (
+            var inner in files.Where(e =>
+                ArchiveExts.Contains(Path.GetExtension(e.Key!).ToLowerInvariant())
+            )
+        )
         {
-            var tmp = Path.Combine(Path.GetDirectoryName(Path.GetFullPath(archivePath))!, "inner-" + Guid.NewGuid().ToString("N")[..8] + Path.GetExtension(inner.Key!));
+            var tmp = Path.Combine(
+                Path.GetDirectoryName(Path.GetFullPath(archivePath))!,
+                "inner-" + Guid.NewGuid().ToString("N")[..8] + Path.GetExtension(inner.Key!)
+            );
             try
             {
                 using (var src = inner.OpenEntryStream())
                 using (var dst = File.Create(tmp))
                     src.CopyTo(dst);
-                if (FromArchive(tmp, tableFolder, gameName, nested: false) is { } saved) return saved;
+                if (FromArchive(tmp, tableFolder, gameName, nested: false) is { } saved)
+                    return saved;
             }
-            finally { try { File.Delete(tmp); } catch { } }
+            finally
+            {
+                try
+                {
+                    File.Delete(tmp);
+                }
+                catch { }
+            }
         }
         return null;
     }
@@ -188,10 +276,18 @@ public static class LobbyVideo
     static string WriteVideo(Stream src, string ext, string tableFolder)
     {
         var medias = Directory.CreateDirectory(Path.Combine(tableFolder, "medias")).FullName;
-        var dest = Path.Combine(medias, $"(Playfield) {Path.GetFileName(Path.TrimEndingDirectorySeparator(tableFolder))}{ext}");
+        var dest = Path.Combine(
+            medias,
+            $"(Playfield) {Path.GetFileName(Path.TrimEndingDirectorySeparator(tableFolder))}{ext}"
+        );
         var tmp = dest + ".tmp";
-        using (var dst = File.Create(tmp)) src.CopyTo(dst);
-        if (ExistingPlayfieldVideo(tableFolder) is { } old && !old.Equals(dest, StringComparison.OrdinalIgnoreCase)) File.Delete(old);
+        using (var dst = File.Create(tmp))
+            src.CopyTo(dst);
+        if (
+            ExistingPlayfieldVideo(tableFolder) is { } old
+            && !old.Equals(dest, StringComparison.OrdinalIgnoreCase)
+        )
+            File.Delete(old);
         File.Move(tmp, dest, overwrite: true);
         return dest;
     }
@@ -199,7 +295,8 @@ public static class LobbyVideo
     // ---- Recorded with VPX ---------------------------------------------------------------
 
     /// <summary>Landscape window VPX records in; cabinet view turns the table a quarter so it fills it.</summary>
-    public const int CaptureWidth = 1280, CaptureHeight = 720;
+    public const int CaptureWidth = 1280,
+        CaptureHeight = 720;
 
     /// <summary>
     /// The settings file for a recording: the VR one (same plugins, ROMs and controls) with VR off, cabinet view
@@ -211,20 +308,23 @@ public static class LobbyVideo
         var ini = Path.Combine(AppSettings.DataDir, "lobby-capture.ini");
         VpxIniLayers.Build(s, vr: true, ini); // the player's settings with the VR ones on top; nothing is saved back
         IniFile.Set(ini, "PlayerVR", "AskToTurnOn", "2"); // VR disabled
-        IniFile.SetMany(ini, "Player",
-        [
-            ("BGSet", "1"), // cabinet view: the playfield from above
-            ("PlayfieldFullScreen", "0"),
-            ("PlayfieldWidth", CaptureWidth.ToString()),
-            ("PlayfieldHeight", CaptureHeight.ToString()),
-            ("SoundVolume", "0"),
-            ("MusicVolume", "0"),
-            // VPX fits the playfield to the window itself ("Fit Table") instead of using the table's own cabinet
-            // camera, which a VR edition sets up for its room: g5k's Attack from Mars filmed a whole city block
-            // with the table a speck in the middle. Fitted, every recording is the playfield edge to edge.
-            ("CabinetAutofitMode", "1"),
-            ("ScreenInclination", "0"),
-        ]);
+        IniFile.SetMany(
+            ini,
+            "Player",
+            [
+                ("BGSet", "1"), // cabinet view: the playfield from above
+                ("PlayfieldFullScreen", "0"),
+                ("PlayfieldWidth", CaptureWidth.ToString()),
+                ("PlayfieldHeight", CaptureHeight.ToString()),
+                ("SoundVolume", "0"),
+                ("MusicVolume", "0"),
+                // VPX fits the playfield to the window itself ("Fit Table") instead of using the table's own cabinet
+                // camera, which a VR edition sets up for its room: g5k's Attack from Mars filmed a whole city block
+                // with the table a speck in the middle. Fitted, every recording is the playfield edge to edge.
+                ("CabinetAutofitMode", "1"),
+                ("ScreenInclination", "0"),
+            ]
+        );
         IniFile.Set(ini, "TableOverride", "ViewCabMode", "2"); // "Window", the cabinet projection autofit works in
         // The plugins stay as for VR play: a table script that creates the B2S or PuP object stops at a script
         // error (a dialog nobody answers) when they're off. Only the playfield window is captured.
@@ -236,13 +336,21 @@ public static class LobbyVideo
 
     public static List<string> CapturedFrames(InstalledTable t) =>
         Directory.Exists(CaptureFolder(t))
-            ? Directory.EnumerateFiles(CaptureFolder(t), "Playfield_*.qoi").Order(StringComparer.OrdinalIgnoreCase).ToList()
+            ? Directory
+                .EnumerateFiles(CaptureFolder(t), "Playfield_*.qoi")
+                .Order(StringComparer.OrdinalIgnoreCase)
+                .ToList()
             : [];
 
     public static void DeleteCapture(InstalledTable t)
     {
-        foreach (var f in CapturedFrames(t)) File.Delete(f);
-        try { Directory.Delete(CaptureFolder(t)); } catch (IOException) { } // other files there aren't ours
+        foreach (var f in CapturedFrames(t))
+            File.Delete(f);
+        try
+        {
+            Directory.Delete(CaptureFolder(t));
+        }
+        catch (IOException) { } // other files there aren't ours
     }
 
     /// <summary>
@@ -250,14 +358,29 @@ public static class LobbyVideo
     /// window, skips the start-up, records up to <see cref="MaxFrames"/> frames and trims them to one loop of
     /// the attract show, then closes by itself.
     /// </summary>
-    public static async Task<List<string>> RecordAsync(AppSettings s, InstalledTable t, CancellationToken ct)
+    public static async Task<List<string>> RecordAsync(
+        AppSettings s,
+        InstalledTable t,
+        CancellationToken ct
+    )
     {
-        var exe = VpxSetup.FindExe(s) ?? throw new InvalidOperationException("Visual Pinball X isn't installed yet (Setup tab).");
-        if (!t.IsVpx || !File.Exists(t.TablePath)) throw new InvalidOperationException("Only VPX tables can be recorded.");
+        var exe =
+            VpxSetup.FindExe(s)
+            ?? throw new InvalidOperationException(
+                "Visual Pinball X isn't installed yet (Setup tab)."
+            );
+        if (!t.IsVpx || !File.Exists(t.TablePath))
+            throw new InvalidOperationException("Only VPX tables can be recorded.");
         DeleteCapture(t);
-        var psi = new ProcessStartInfo(exe) { WorkingDirectory = Path.GetDirectoryName(exe)!, UseShellExecute = false };
-        foreach (var a in CaptureArgs(WriteCaptureIni(s), t.TablePath)) psi.ArgumentList.Add(a);
-        using var proc = Process.Start(psi) ?? throw new InvalidOperationException("VPX didn't start.");
+        var psi = new ProcessStartInfo(exe)
+        {
+            WorkingDirectory = Path.GetDirectoryName(exe)!,
+            UseShellExecute = false,
+        };
+        foreach (var a in CaptureArgs(WriteCaptureIni(s), t.TablePath))
+            psi.ArgumentList.Add(a);
+        using var proc =
+            Process.Start(psi) ?? throw new InvalidOperationException("VPX didn't start.");
         try
         {
             using var timeout = CancellationTokenSource.CreateLinkedTokenSource(ct);
@@ -266,8 +389,13 @@ public static class LobbyVideo
         }
         catch (OperationCanceledException)
         {
-            try { proc.Kill(entireProcessTree: true); } catch { }
-            if (ct.IsCancellationRequested) throw;
+            try
+            {
+                proc.Kill(entireProcessTree: true);
+            }
+            catch { }
+            if (ct.IsCancellationRequested)
+                throw;
             throw new TimeoutException("VPX didn't finish recording within 3 minutes.");
         }
         return CapturedFrames(t);

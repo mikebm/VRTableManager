@@ -21,23 +21,29 @@ public static partial class RomDetector
     /// </summary>
     public static VpxRomInfo Inspect(string vpxPath)
     {
-        if (!File.Exists(vpxPath)) return new(null, false);
-        const int Chunk = 4 << 20, Overlap = 256;
+        if (!File.Exists(vpxPath))
+            return new(null, false);
+        const int Chunk = 4 << 20,
+            Overlap = 256;
         var buffer = new byte[Chunk + Overlap];
         var carry = 0;
-        string? gameName = null, pupName = null;
+        string? gameName = null,
+            pupName = null;
         var pinMame = false;
         var pup = false;
         bool? pupSwitch = null;
-        bool ownDmd = false, ownDmdOff = false;
+        bool ownDmd = false,
+            ownDmdOff = false;
         var aliasTargets = new List<string>();
         using var fs = File.OpenRead(vpxPath);
-        int read, chunksAfter = 0;
+        int read,
+            chunksAfter = 0;
         // Alias lines sit near cGameName (Mass Effect's is six lines on), so read one more chunk after
         // both answers are in rather than the whole file (tables run to hundreds of MB).
         while (chunksAfter < 2 && (read = fs.Read(buffer, carry, Chunk)) > 0)
         {
-            if (gameName != null && pinMame) chunksAfter++;
+            if (gameName != null && pinMame)
+                chunksAfter++;
             var total = carry + read;
             var text = Encoding.Latin1.GetString(buffer, 0, total);
             gameName ??= FromScript(text);
@@ -48,7 +54,8 @@ public static partial class RomDetector
             ownDmd = ownDmd || CreatesOwnDmd(text);
             ownDmdOff = ownDmdOff || OwnDmdSwitchedOff(text);
             foreach (var a in AliasTargetsIn(text))
-                if (!aliasTargets.Contains(a, StringComparer.OrdinalIgnoreCase)) aliasTargets.Add(a);
+                if (!aliasTargets.Contains(a, StringComparer.OrdinalIgnoreCase))
+                    aliasTargets.Add(a);
             // Keep the tail so a match split across chunks is still found.
             var keep = Math.Min(Overlap, total);
             Buffer.BlockCopy(buffer, total - keep, buffer, 0, keep);
@@ -56,7 +63,10 @@ public static partial class RomDetector
         }
         return new(gameName, pinMame)
         {
-            AliasTargets = aliasTargets, UsesPup = pup, PupName = pupName, PupOff = pupSwitch == false,
+            AliasTargets = aliasTargets,
+            UsesPup = pup,
+            PupName = pupName,
+            PupOff = pupSwitch == false,
             UsesOwnDmd = ownDmd && !ownDmdOff,
         };
     }
@@ -74,9 +84,10 @@ public static partial class RomDetector
     public static bool OwnDmdSwitchedOff(string script)
     {
         foreach (var word in (string[])["UseFlexDMD", "UseUltraDMD"])
-            foreach (var line in CodeLinesWith(script, word))
-                if (OwnDmdSwitchRegex().Match(line) is { Success: true } m)
-                    return m.Groups[1].Value is "0" || m.Groups[1].Value.Equals("False", StringComparison.OrdinalIgnoreCase);
+        foreach (var line in CodeLinesWith(script, word))
+            if (OwnDmdSwitchRegex().Match(line) is { Success: true } m)
+                return m.Groups[1].Value is "0"
+                    || m.Groups[1].Value.Equals("False", StringComparison.OrdinalIgnoreCase);
         return false;
     }
 
@@ -88,7 +99,8 @@ public static partial class RomDetector
     {
         foreach (var line in CodeLinesWith(script, "usePUP"))
             if (UsePupSwitchRegex().Match(line) is { Success: true } m)
-                return m.Groups[1].Value is "1" || m.Groups[1].Value.Equals("True", StringComparison.OrdinalIgnoreCase);
+                return m.Groups[1].Value is "1"
+                    || m.Groups[1].Value.Equals("True", StringComparison.OrdinalIgnoreCase);
         return null;
     }
 
@@ -100,12 +112,22 @@ public static partial class RomDetector
     {
         foreach (var line in CodeLinesWith(script, "Init"))
         {
-            if (PupInitRegex().Match(line) is not { Success: true } m) continue;
-            if (m.Groups[1].Success) return m.Groups[1].Value;
+            if (PupInitRegex().Match(line) is not { Success: true } m)
+                continue;
+            if (m.Groups[1].Success)
+                return m.Groups[1].Value;
             var variable = m.Groups[2].Value;
-            if (variable.Equals("cGameName", StringComparison.OrdinalIgnoreCase)) return gameName ?? FromScript(script);
+            if (variable.Equals("cGameName", StringComparison.OrdinalIgnoreCase))
+                return gameName ?? FromScript(script);
             foreach (var assign in CodeLinesWith(script, variable))
-                if (Regex.Match(assign, $@"\b{Regex.Escape(variable)}[ \t]*=[ \t]*""([^""\r\n]{{1,64}})""", RegexOptions.IgnoreCase) is { Success: true } a)
+                if (
+                    Regex.Match(
+                        assign,
+                        $@"\b{Regex.Escape(variable)}[ \t]*=[ \t]*""([^""\r\n]{{1,64}})""",
+                        RegexOptions.IgnoreCase
+                    ) is
+                    { Success: true } a
+                )
                     return a.Groups[1].Value;
         }
         return null;
@@ -118,14 +140,19 @@ public static partial class RomDetector
     public static string? FromScript(string script)
     {
         foreach (var line in CodeLinesWith(script, "cGameName"))
-            if (GameNameRegex().Match(line) is { Success: true } m) return m.Groups[1].Value;
+            if (GameNameRegex().Match(line) is { Success: true } m)
+                return m.Groups[1].Value;
         return null;
     }
 
     /// <summary>ROM names on (uncommented) script lines that mention an alias, e.g. <c>EnsureVPMAlias cGameName, "afm_113b"</c>.</summary>
     public static List<string> AliasTargetsIn(string script) =>
-        CodeLinesWith(script, "alias").Select(l => AliasRegex().Match(l)).Where(m => m.Success)
-            .Select(m => m.Groups[1].Value).Distinct(StringComparer.OrdinalIgnoreCase).ToList();
+        CodeLinesWith(script, "alias")
+            .Select(l => AliasRegex().Match(l))
+            .Where(m => m.Success)
+            .Select(m => m.Groups[1].Value)
+            .Distinct(StringComparer.OrdinalIgnoreCase)
+            .ToList();
 
     public static bool UsesPinMame(string script) => PinMameRegex().IsMatch(script);
 
@@ -136,17 +163,23 @@ public static partial class RomDetector
     /// </summary>
     static IEnumerable<string> CodeLinesWith(string text, string word)
     {
-        for (var i = text.IndexOf(word, StringComparison.OrdinalIgnoreCase); i >= 0; i = text.IndexOf(word, i + word.Length, StringComparison.OrdinalIgnoreCase))
+        for (
+            var i = text.IndexOf(word, StringComparison.OrdinalIgnoreCase);
+            i >= 0;
+            i = text.IndexOf(word, i + word.Length, StringComparison.OrdinalIgnoreCase)
+        )
         {
             var start = text.LastIndexOfAny(['\r', '\n'], i) + 1;
             var end = text.IndexOfAny(['\r', '\n'], i);
-            if (end < 0) end = text.Length;
+            if (end < 0)
+                end = text.Length;
             // A "line" can run through binary data; only look nearby.
             start = Math.Max(start, i - 300);
             end = Math.Min(end, i + 300);
             var line = text[start..end];
             var comment = line.IndexOf('\'');
-            if (comment >= 0 && comment < i - start) continue; // the word is inside a comment
+            if (comment >= 0 && comment < i - start)
+                continue; // the word is inside a comment
             yield return comment >= 0 ? line[..comment] : line;
         }
     }
@@ -164,7 +197,10 @@ public static partial class RomDetector
     private static partial Regex PupRegex();
 
     /// <summary><c>PuPlayer.Init pBackglass, "name"</c> or <c>PuPlayer.B2SInit "", variable</c>.</summary>
-    [GeneratedRegex("\\bPuPlayer\\.(?:B2S)?Init[ \\t(]+(?:[A-Za-z0-9_]+|\"[^\"\\r\\n]*\")[ \\t]*,[ \\t]*(?:\"([^\"\\r\\n]{1,64})\"|([A-Za-z_][A-Za-z0-9_]*))", RegexOptions.IgnoreCase)]
+    [GeneratedRegex(
+        "\\bPuPlayer\\.(?:B2S)?Init[ \\t(]+(?:[A-Za-z0-9_]+|\"[^\"\\r\\n]*\")[ \\t]*,[ \\t]*(?:\"([^\"\\r\\n]{1,64})\"|([A-Za-z_][A-Za-z0-9_]*))",
+        RegexOptions.IgnoreCase
+    )]
     private static partial Regex PupInitRegex();
 
     [GeneratedRegex("\\busePUP[ \\t]*=[ \\t]*(True|False|1|0)\\b", RegexOptions.IgnoreCase)]
@@ -173,7 +209,10 @@ public static partial class RomDetector
     [GeneratedRegex("\"(?:FlexDMD\\.FlexDMD|UltraDMD\\.DMDObject)\"", RegexOptions.IgnoreCase)]
     private static partial Regex OwnDmdObjectRegex();
 
-    [GeneratedRegex("\\bUse(?:Flex|Ultra)DMD[ \\t]*=[ \\t]*(True|False|\\d)\\b", RegexOptions.IgnoreCase)]
+    [GeneratedRegex(
+        "\\bUse(?:Flex|Ultra)DMD[ \\t]*=[ \\t]*(True|False|\\d)\\b",
+        RegexOptions.IgnoreCase
+    )]
     private static partial Regex OwnDmdSwitchRegex();
 }
 
@@ -189,10 +228,13 @@ public sealed record VpxRomInfo(string? GameName, bool UsesPinMame)
 
     /// <summary>The script creates PinUP Player (<c>PinUpPlayer.PinDisplay</c>), so it has a PuP pack.</summary>
     public bool UsesPup { get; init; }
+
     /// <summary>The pack folder it opens (pupvideos\&lt;name&gt;), when the script names it.</summary>
     public string? PupName { get; init; }
+
     /// <summary>The script has PuP turned off (<c>usePUP = False</c>): a pack won't show until it's set to True.</summary>
     public bool PupOff { get; init; }
+
     /// <summary>The script draws its own DMD with FlexDMD or UltraDMD (created, and not switched off).</summary>
     public bool UsesOwnDmd { get; init; }
 
@@ -212,11 +254,14 @@ public static partial class MachineScript
     public static string? Needed(string vpxPath)
     {
         var sidecar = VrRoomSwitch.ScriptPath(vpxPath);
-        var script = File.Exists(sidecar) ? File.ReadAllText(sidecar, Encoding.Latin1) : RomAudio.Script(vpxPath);
+        var script = File.Exists(sidecar)
+            ? File.ReadAllText(sidecar, Encoding.Latin1)
+            : RomAudio.Script(vpxPath);
         foreach (Match m in LoadVpmRegex().Matches(script))
         {
             var lineStart = script.LastIndexOfAny(['\r', '\n'], m.Index) + 1;
-            if (script.AsSpan(lineStart, m.Index - lineStart).Contains('\'')) continue; // commented out
+            if (script.AsSpan(lineStart, m.Index - lineStart).Contains('\''))
+                continue; // commented out
             return m.Groups[1].Value;
         }
         return null;
@@ -230,15 +275,28 @@ public static partial class MachineScript
     {
         try
         {
-            if (Needed(vpxPath) is not { } name) return null;
-            if (VpxSetup.FindExe(s) is not { } exe) return null; // without VPX there's nothing to compare with
-            string[] dirs = [Path.GetDirectoryName(vpxPath)!, Path.Combine(s.VpxDir, "scripts"), Path.Combine(Path.GetDirectoryName(exe)!, "scripts")];
+            if (Needed(vpxPath) is not { } name)
+                return null;
+            if (VpxSetup.FindExe(s) is not { } exe)
+                return null; // without VPX there's nothing to compare with
+            string[] dirs =
+            [
+                Path.GetDirectoryName(vpxPath)!,
+                Path.Combine(s.VpxDir, "scripts"),
+                Path.Combine(Path.GetDirectoryName(exe)!, "scripts"),
+            ];
             return dirs.Any(d => File.Exists(Path.Combine(d, name))) ? null : name;
         }
-        catch { return null; }
+        catch
+        {
+            return null;
+        }
     }
 
-    [GeneratedRegex("\\bLoadVPM\\b[^\\r\\n\"]*\"[^\"\\r\\n]*\"[ \\t]*,[ \\t]*\"([^\"\\r\\n]+\\.vbs)\"", RegexOptions.IgnoreCase)]
+    [GeneratedRegex(
+        "\\bLoadVPM\\b[^\\r\\n\"]*\"[^\"\\r\\n]*\"[ \\t]*,[ \\t]*\"([^\"\\r\\n]+\\.vbs)\"",
+        RegexOptions.IgnoreCase
+    )]
     private static partial Regex LoadVpmRegex();
 }
 
@@ -250,15 +308,20 @@ public static class RomSources
     /// </summary>
     public static bool IsUsable(string url, string? romName)
     {
-        if (romName != null && romName.EndsWith(".bin", StringComparison.OrdinalIgnoreCase)) return false;
-        if (!Uri.TryCreate(url, UriKind.Absolute, out var u)) return false;
-        if (u.Host.EndsWith("sternpinball.com", StringComparison.OrdinalIgnoreCase)) return false;
+        if (romName != null && romName.EndsWith(".bin", StringComparison.OrdinalIgnoreCase))
+            return false;
+        if (!Uri.TryCreate(url, UriKind.Absolute, out var u))
+            return false;
+        if (u.Host.EndsWith("sternpinball.com", StringComparison.OrdinalIgnoreCase))
+            return false;
         return !u.AbsolutePath.EndsWith(".bin", StringComparison.OrdinalIgnoreCase);
     }
 
     /// <summary>Opens a VPUniverse file search for a ROM the catalog can't download.</summary>
     public static string VpuSearchUrl(string romName) =>
-        "https://vpuniverse.com/search/?q=" + Uri.EscapeDataString(romName) + "&type=downloads_file";
+        "https://vpuniverse.com/search/?q="
+        + Uri.EscapeDataString(romName)
+        + "&type=downloads_file";
 }
 
 /// <summary>Puts a downloaded ROM into a table's pinmame/roms folder.</summary>
@@ -278,7 +341,9 @@ public static class RomInstaller
         if (ext == ".zip")
         {
             using var z = ZipFile.OpenRead(downloaded);
-            var nested = z.Entries.Where(e => e.Name.EndsWith(".zip", StringComparison.OrdinalIgnoreCase)).ToList();
+            var nested = z
+                .Entries.Where(e => e.Name.EndsWith(".zip", StringComparison.OrdinalIgnoreCase))
+                .ToList();
             if (nested.Count == 0)
             {
                 // The download is the ROM.
@@ -286,26 +351,51 @@ public static class RomInstaller
                 File.Copy(downloaded, dest, overwrite: true);
                 return [dest];
             }
-            return PlaceNested(nested.Select(e => (e.Name, (Action<string>)(d => e.ExtractToFile(d, true)))).ToList(), romsDir, romName);
+            return PlaceNested(
+                nested
+                    .Select(e => (e.Name, (Action<string>)(d => e.ExtractToFile(d, true))))
+                    .ToList(),
+                romsDir,
+                romName
+            );
         }
 
         if (ext is ".7z" or ".rar")
         {
-            var tmp = Path.Combine(Path.GetTempPath(), "vrtm-rom-" + Guid.NewGuid().ToString("N")[..8]);
+            var tmp = Path.Combine(
+                Path.GetTempPath(),
+                "vrtm-rom-" + Guid.NewGuid().ToString("N")[..8]
+            );
             try
             {
                 TableInstaller.Extract(downloaded, tmp);
-                var zips = Directory.EnumerateFiles(tmp, "*.zip", SearchOption.AllDirectories).ToList();
-                if (zips.Count == 0) throw new InvalidDataException("No ROM zip inside the download.");
-                return PlaceNested(zips.Select(f => (Path.GetFileName(f), (Action<string>)(d => File.Copy(f, d, true)))).ToList(), romsDir, romName);
+                var zips = Directory
+                    .EnumerateFiles(tmp, "*.zip", SearchOption.AllDirectories)
+                    .ToList();
+                if (zips.Count == 0)
+                    throw new InvalidDataException("No ROM zip inside the download.");
+                return PlaceNested(
+                    zips.Select(f =>
+                            (Path.GetFileName(f), (Action<string>)(d => File.Copy(f, d, true)))
+                        )
+                        .ToList(),
+                    romsDir,
+                    romName
+                );
             }
             finally
             {
-                try { Directory.Delete(tmp, true); } catch { }
+                try
+                {
+                    Directory.Delete(tmp, true);
+                }
+                catch { }
             }
         }
 
-        throw new InvalidDataException($"Unexpected ROM download type: {Path.GetFileName(downloaded)}");
+        throw new InvalidDataException(
+            $"Unexpected ROM download type: {Path.GetFileName(downloaded)}"
+        );
     }
 
     /// <summary>
@@ -314,9 +404,14 @@ public static class RomInstaller
     /// and need their parent set beside them, so keeping the whole family is what makes the table's
     /// ROM load. A single download goes through <see cref="Install"/> (renamed to <paramref name="romName"/> if needed).
     /// </summary>
-    public static List<string> InstallAll(IReadOnlyList<string> downloads, InstalledTable table, string romName)
+    public static List<string> InstallAll(
+        IReadOnlyList<string> downloads,
+        InstalledTable table,
+        string romName
+    )
     {
-        if (downloads.Count == 1) return Install(downloads[0], table, romName);
+        if (downloads.Count == 1)
+            return Install(downloads[0], table, romName);
 
         var romsDir = Path.Combine(table.Folder, "pinmame", "roms");
         Directory.CreateDirectory(romsDir);
@@ -327,7 +422,9 @@ public static class RomInstaller
             if (ext == ".zip")
             {
                 using var z = ZipFile.OpenRead(file);
-                var nested = z.Entries.Where(e => e.Name.EndsWith(".zip", StringComparison.OrdinalIgnoreCase)).ToList();
+                var nested = z
+                    .Entries.Where(e => e.Name.EndsWith(".zip", StringComparison.OrdinalIgnoreCase))
+                    .ToList();
                 if (nested.Count == 0)
                 {
                     var dest = Path.Combine(romsDir, Path.GetFileName(file));
@@ -346,11 +443,20 @@ public static class RomInstaller
             }
             else if (ext is ".7z" or ".rar")
             {
-                var tmp = Path.Combine(Path.GetTempPath(), "vrtm-rom-" + Guid.NewGuid().ToString("N")[..8]);
+                var tmp = Path.Combine(
+                    Path.GetTempPath(),
+                    "vrtm-rom-" + Guid.NewGuid().ToString("N")[..8]
+                );
                 try
                 {
                     TableInstaller.Extract(file, tmp);
-                    foreach (var inner in Directory.EnumerateFiles(tmp, "*.zip", SearchOption.AllDirectories))
+                    foreach (
+                        var inner in Directory.EnumerateFiles(
+                            tmp,
+                            "*.zip",
+                            SearchOption.AllDirectories
+                        )
+                    )
                     {
                         var dest = Path.Combine(romsDir, Path.GetFileName(inner));
                         File.Copy(inner, dest, true);
@@ -359,20 +465,36 @@ public static class RomInstaller
                 }
                 finally
                 {
-                    try { Directory.Delete(tmp, true); } catch { }
+                    try
+                    {
+                        Directory.Delete(tmp, true);
+                    }
+                    catch { }
                 }
             }
         }
-        if (placed.Count == 0) throw new InvalidDataException("None of the downloads contained a ROM zip.");
+        if (placed.Count == 0)
+            throw new InvalidDataException("None of the downloads contained a ROM zip.");
         return placed;
     }
 
-    static List<string> PlaceNested(List<(string name, Action<string> save)> zips, string romsDir, string romName)
+    static List<string> PlaceNested(
+        List<(string name, Action<string> save)> zips,
+        string romsDir,
+        string romName
+    )
     {
-        var match = zips.Where(z => Path.GetFileNameWithoutExtension(z.name).Equals(romName, StringComparison.OrdinalIgnoreCase)).ToList();
-        if (match.Count == 0 && zips.Count == 1) match = [(romName + ".zip", zips[0].save)];
+        var match = zips.Where(z =>
+                Path.GetFileNameWithoutExtension(z.name)
+                    .Equals(romName, StringComparison.OrdinalIgnoreCase)
+            )
+            .ToList();
+        if (match.Count == 0 && zips.Count == 1)
+            match = [(romName + ".zip", zips[0].save)];
         if (match.Count == 0)
-            throw new InvalidDataException($"The download has {zips.Count} ROM zips but none called {romName}.zip.");
+            throw new InvalidDataException(
+                $"The download has {zips.Count} ROM zips but none called {romName}.zip."
+            );
         var placed = new List<string>();
         foreach (var (name, save) in match)
         {

@@ -9,7 +9,10 @@ public sealed record PupNames(string? Script, IReadOnlyList<string> Roms)
     /// <summary>The script ships with <c>usePUP = False</c>: the pack only shows once that's set to True.</summary>
     public bool ScriptTurnsPupOff { get; init; }
 
-    public IReadOnlyList<string> All => (Script is { } s ? Roms.Prepend(s) : Roms).Distinct(StringComparer.OrdinalIgnoreCase).ToList();
+    public IReadOnlyList<string> All =>
+        (Script is { } s ? Roms.Prepend(s) : Roms)
+            .Distinct(StringComparer.OrdinalIgnoreCase)
+            .ToList();
 }
 
 /// <param name="Record">What to record in the table's manifest.</param>
@@ -27,10 +30,21 @@ public sealed record PupInstall(InstalledAddon Record, PupLayout Layout);
 public static class PupPacks
 {
     public const string FolderName = "pupvideos";
+
     /// <summary>Files that mark a PuP pack folder.</summary>
     static readonly string[] PackFiles = ["screens.pup", "playlists.pup", "triggers.pup"];
+
     /// <summary>Folder names in packs that hold packs rather than being one.</summary>
-    static readonly string[] Containers = ["pupvideos", "pinupsystem", "pinup", "pup", "puppack", "pup pack", "pup-pack"];
+    static readonly string[] Containers =
+    [
+        "pupvideos",
+        "pinupsystem",
+        "pinup",
+        "pup",
+        "puppack",
+        "pup pack",
+        "pup-pack",
+    ];
 
     /// <summary>The catalog's tag for a table whose own page also offers its pack, as a file beside the .vpx.</summary>
     public const string BundledFeature = "incl. PuP";
@@ -41,26 +55,48 @@ public static class PupPacks
     /// </summary>
     public static List<VpsFile> SourcesFor(VpsGame game, InstalledTable? t = null)
     {
-        var packs = (game.PupPackFiles ?? []).Where(f => Addons.UsableUrl(f) != null).OrderByDescending(f => f.UpdatedAt ?? 0).ToList();
-        if (t != null && game.TableFiles?.FirstOrDefault(f => f.Id == t.Manifest.TableFileId) is { } tf
-            && VpsCatalog.HasFeature(tf, BundledFeature) && Addons.UsableUrl(tf) != null)
+        var packs = (game.PupPackFiles ?? [])
+            .Where(f => Addons.UsableUrl(f) != null)
+            .OrderByDescending(f => f.UpdatedAt ?? 0)
+            .ToList();
+        if (
+            t != null
+            && game.TableFiles?.FirstOrDefault(f => f.Id == t.Manifest.TableFileId) is { } tf
+            && VpsCatalog.HasFeature(tf, BundledFeature)
+            && Addons.UsableUrl(tf) != null
+        )
             packs.Insert(0, tf);
         return packs;
     }
 
     /// <summary>"v1.1 by Hawkeyez88, Xkane47 — Mini PUP-pack", or for a table's own page "From the table's page (v1.0.1)".</summary>
-    public static string Describe(VpsFile f) => f is VpsTableFile
-        ? "From the table's page" + (string.IsNullOrWhiteSpace(f.Version) ? "" : $" (v{f.Version.Trim().TrimStart('v', 'V')})")
-        : Addons.Describe(f, "PuP pack");
+    public static string Describe(VpsFile f) =>
+        f is VpsTableFile
+            ? "From the table's page"
+                + (
+                    string.IsNullOrWhiteSpace(f.Version)
+                        ? ""
+                        : $" (v{f.Version.Trim().TrimStart('v', 'V')})"
+                )
+            : Addons.Describe(f, "PuP pack");
 
     /// <summary>The pack folders in a table's pupvideos\, and which one this app installed.</summary>
     public static AddonState StateOf(InstalledTable t)
     {
         var root = Path.Combine(t.Folder, FolderName);
-        if (!Directory.Exists(root)) return AddonState.None;
-        var folders = Directory.EnumerateDirectories(root).Where(IsPackFolder).Select(d => Path.GetFileName(d)!)
-            .OrderBy(n => n, StringComparer.OrdinalIgnoreCase).ToList();
-        var tracked = t.Manifest.PupPack is { } p && folders.Contains(p.Folder, StringComparer.OrdinalIgnoreCase) ? p : null;
+        if (!Directory.Exists(root))
+            return AddonState.None;
+        var folders = Directory
+            .EnumerateDirectories(root)
+            .Where(IsPackFolder)
+            .Select(d => Path.GetFileName(d)!)
+            .OrderBy(n => n, StringComparer.OrdinalIgnoreCase)
+            .ToList();
+        var tracked =
+            t.Manifest.PupPack is { } p
+            && folders.Contains(p.Folder, StringComparer.OrdinalIgnoreCase)
+                ? p
+                : null;
         return new(tracked, folders);
     }
 
@@ -72,8 +108,13 @@ public static class PupPacks
     {
         // Read the script each time: the user may have edited it (usePUP) since it was installed.
         var info = File.Exists(t.TablePath) ? RomDetector.Inspect(t.TablePath) : null;
-        var pupName = info is { UsesPup: true } ? info.PupName ?? info.GameName : t.Manifest.PupName;
-        return new(string.IsNullOrWhiteSpace(pupName) ? null : pupName, t.Manifest.RomNames) { ScriptTurnsPupOff = info?.PupOff == true };
+        var pupName = info is { UsesPup: true }
+            ? info.PupName ?? info.GameName
+            : t.Manifest.PupName;
+        return new(string.IsNullOrWhiteSpace(pupName) ? null : pupName, t.Manifest.RomNames)
+        {
+            ScriptTurnsPupOff = info?.PupOff == true,
+        };
     }
 
     /// <summary>
@@ -82,7 +123,13 @@ public static class PupPacks
     /// when it has one (<see cref="PupPackOptions"/>). Returns what to record in the table's manifest (saving it
     /// is up to the caller) and what was found about the pack's layouts.
     /// </summary>
-    public static PupInstall Install(string downloaded, InstalledTable table, VpsFile file, PupNames expectedNames, Action<string>? status = null)
+    public static PupInstall Install(
+        string downloaded,
+        InstalledTable table,
+        VpsFile file,
+        PupNames expectedNames,
+        Action<string>? status = null
+    )
     {
         var staging = Addons.StagingDir("pup");
         try
@@ -91,7 +138,9 @@ public static class PupPacks
             Addons.Unpack(downloaded, staging, () => PackRoots(staging).Count > 0, "PuP pack");
             var roots = PackRoots(staging);
             if (roots.Count == 0)
-                throw new InvalidDataException("No PuP pack in the download (no screens.pup or playlists.pup). It may be an add-on for another pack.");
+                throw new InvalidDataException(
+                    "No PuP pack in the download (no screens.pup or playlists.pup). It may be an add-on for another pack."
+                );
 
             var (root, name) = Choose(roots, staging, expectedNames);
             var pupDir = Path.Combine(table.Folder, FolderName);
@@ -99,7 +148,10 @@ public static class PupPacks
             status?.Invoke($"Installing to {FolderName}\\{Path.GetFileName(dest)}…");
 
             // An update may come under another folder name; the old one would only take up space.
-            if (table.Manifest.PupPack is { Folder: { Length: > 0 } old } && !old.Equals(Path.GetFileName(dest), StringComparison.OrdinalIgnoreCase))
+            if (
+                table.Manifest.PupPack is { Folder: { Length: > 0 } old }
+                && !old.Equals(Path.GetFileName(dest), StringComparison.OrdinalIgnoreCase)
+            )
                 Addons.DeleteFolder(Path.Combine(pupDir, old));
             Addons.DeleteFolder(dest);
             Addons.MoveTree(root, dest);
@@ -109,7 +161,11 @@ public static class PupPacks
         }
         finally
         {
-            try { Directory.Delete(staging, true); } catch { }
+            try
+            {
+                Directory.Delete(staging, true);
+            }
+            catch { }
         }
     }
 
@@ -117,7 +173,8 @@ public static class PupPacks
     public static void Remove(InstalledTable table, string? folder = null)
     {
         folder ??= table.Manifest.PupPack?.Folder;
-        if (string.IsNullOrEmpty(folder)) return;
+        if (string.IsNullOrEmpty(folder))
+            return;
         var pupDir = Path.Combine(table.Folder, FolderName);
         Addons.DeleteFolder(Path.Combine(pupDir, folder));
         Addons.DeleteIfEmpty(pupDir);
@@ -128,25 +185,52 @@ public static class PupPacks
     /// (it's what PinUP opens); otherwise the pack's own folder name, which authors set to the ROM or
     /// table name. A pack at the top of the archive with no folder of its own needs one of the expected names.
     /// </summary>
-    public static (string root, string name) Choose(IReadOnlyList<string> roots, string staging, PupNames expected)
+    public static (string root, string name) Choose(
+        IReadOnlyList<string> roots,
+        string staging,
+        PupNames expected
+    )
     {
         string NameOf(string r) => Path.GetFileName(r.TrimEnd('\\', '/'));
-        bool Unnamed(string r) => string.Equals(Path.GetFullPath(r).TrimEnd('\\', '/'), Path.GetFullPath(staging).TrimEnd('\\', '/'), StringComparison.OrdinalIgnoreCase)
-            || Containers.Contains(NameOf(r).ToLowerInvariant());
+        bool Unnamed(string r) =>
+            string.Equals(
+                Path.GetFullPath(r).TrimEnd('\\', '/'),
+                Path.GetFullPath(staging).TrimEnd('\\', '/'),
+                StringComparison.OrdinalIgnoreCase
+            ) || Containers.Contains(NameOf(r).ToLowerInvariant());
         var all = expected.All;
 
-        var root = roots.FirstOrDefault(r => all.Contains(NameOf(r), StringComparer.OrdinalIgnoreCase))
-            ?? (roots.Count == 1 ? roots[0] : roots.OrderByDescending(r => Directory.EnumerateFiles(r, "*", SearchOption.AllDirectories).Count()).First());
+        var root =
+            roots.FirstOrDefault(r => all.Contains(NameOf(r), StringComparer.OrdinalIgnoreCase))
+            ?? (
+                roots.Count == 1
+                    ? roots[0]
+                    : roots
+                        .OrderByDescending(r =>
+                            Directory.EnumerateFiles(r, "*", SearchOption.AllDirectories).Count()
+                        )
+                        .First()
+            );
         if (Unnamed(root))
-            return (root, all.FirstOrDefault()
-                ?? throw new InvalidDataException("The PuP pack has no folder name and the table doesn't say which one it opens."));
+            return (
+                root,
+                all.FirstOrDefault()
+                    ?? throw new InvalidDataException(
+                        "The PuP pack has no folder name and the table doesn't say which one it opens."
+                    )
+            );
         var own = NameOf(root);
-        return (root, expected.Script is { } s && !s.Equals(own, StringComparison.OrdinalIgnoreCase) ? s : own);
+        return (
+            root,
+            expected.Script is { } s && !s.Equals(own, StringComparison.OrdinalIgnoreCase) ? s : own
+        );
     }
 
     /// <summary>Topmost folders under <paramref name="dir"/> that are PuP packs (backup copies inside a pack don't count).</summary>
     public static List<string> PackRoots(string dir) => Addons.Roots(dir, IsPackFolder);
 
     static bool IsPackFolder(string dir) =>
-        Directory.EnumerateFiles(dir).Any(f => PackFiles.Contains(Path.GetFileName(f).ToLowerInvariant()));
+        Directory
+            .EnumerateFiles(dir)
+            .Any(f => PackFiles.Contains(Path.GetFileName(f).ToLowerInvariant()));
 }

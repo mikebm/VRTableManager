@@ -6,10 +6,13 @@ public enum HeadsetState
 {
     /// <summary>The runtime has a headset ready (e.g. the Quest is in an active Link session).</summary>
     Ready,
+
     /// <summary>The runtime is installed but no headset is connected right now (XR_ERROR_FORM_FACTOR_UNAVAILABLE).</summary>
     NotConnected,
+
     /// <summary>No OpenXR runtime is set up on this PC.</summary>
     NoRuntime,
+
     /// <summary>Couldn't tell (no OpenXR loader found, the runtime timed out, or another error). Don't block the launch.</summary>
     Unknown,
 }
@@ -27,14 +30,18 @@ public static class HeadsetCheck
 {
     public static async Task<HeadsetStatus> CheckAsync(AppSettings s, TimeSpan timeout)
     {
-        if (!OperatingSystem.IsWindows()) return new(HeadsetState.Unknown, "Headset check is Windows-only.");
+        if (!OperatingSystem.IsWindows())
+            return new(HeadsetState.Unknown, "Headset check is Windows-only.");
         var loader = FindLoader(s);
-        if (loader == null) return new(HeadsetState.Unknown, "No OpenXR loader found (install VPX first).");
+        if (loader == null)
+            return new(HeadsetState.Unknown, "No OpenXR loader found (install VPX first).");
 
         // Some runtimes (SteamVR) start up on first contact, which can take a while; don't hang on it.
         var work = Task.Run(() => Query(loader));
         var done = await Task.WhenAny(work, Task.Delay(timeout));
-        return done == work ? work.Result : new(HeadsetState.Unknown, "The VR runtime didn't answer in time.");
+        return done == work
+            ? work.Result
+            : new(HeadsetState.Unknown, "The VR runtime didn't answer in time.");
     }
 
     public static string? FindLoader(AppSettings s)
@@ -42,9 +49,16 @@ public static class HeadsetCheck
         string[] names = ["openxr_loader64.dll", "openxr_loader.dll"];
         foreach (var dir in new[] { s.VpxDir, s.UevrDir })
         {
-            if (string.IsNullOrWhiteSpace(dir) || !Directory.Exists(dir)) continue;
+            if (string.IsNullOrWhiteSpace(dir) || !Directory.Exists(dir))
+                continue;
             foreach (var n in names)
-                if (Directory.EnumerateFiles(dir, n, SearchOption.AllDirectories).FirstOrDefault() is { } hit) return hit;
+                if (
+                    Directory
+                        .EnumerateFiles(dir, n, SearchOption.AllDirectories)
+                        .FirstOrDefault() is
+                    { } hit
+                )
+                    return hit;
         }
         return null;
     }
@@ -63,9 +77,12 @@ public static class HeadsetCheck
     [StructLayout(LayoutKind.Sequential)]
     struct XrApplicationInfo
     {
-        [MarshalAs(UnmanagedType.ByValArray, SizeConst = 128)] public byte[] ApplicationName;
+        [MarshalAs(UnmanagedType.ByValArray, SizeConst = 128)]
+        public byte[] ApplicationName;
         public uint ApplicationVersion;
-        [MarshalAs(UnmanagedType.ByValArray, SizeConst = 128)] public byte[] EngineName;
+
+        [MarshalAs(UnmanagedType.ByValArray, SizeConst = 128)]
+        public byte[] EngineName;
         public uint EngineVersion;
         public ulong ApiVersion;
     }
@@ -93,8 +110,10 @@ public static class HeadsetCheck
 
     [UnmanagedFunctionPointer(CallingConvention.StdCall)]
     delegate int XrCreateInstance(ref XrInstanceCreateInfo info, out IntPtr instance);
+
     [UnmanagedFunctionPointer(CallingConvention.StdCall)]
     delegate int XrGetSystem(IntPtr instance, ref XrSystemGetInfo info, out ulong systemId);
+
     [UnmanagedFunctionPointer(CallingConvention.StdCall)]
     delegate int XrDestroyInstance(IntPtr instance);
 
@@ -103,9 +122,15 @@ public static class HeadsetCheck
         try
         {
             var lib = NativeLibrary.Load(loaderPath);
-            var create = Marshal.GetDelegateForFunctionPointer<XrCreateInstance>(NativeLibrary.GetExport(lib, "xrCreateInstance"));
-            var getSystem = Marshal.GetDelegateForFunctionPointer<XrGetSystem>(NativeLibrary.GetExport(lib, "xrGetSystem"));
-            var destroy = Marshal.GetDelegateForFunctionPointer<XrDestroyInstance>(NativeLibrary.GetExport(lib, "xrDestroyInstance"));
+            var create = Marshal.GetDelegateForFunctionPointer<XrCreateInstance>(
+                NativeLibrary.GetExport(lib, "xrCreateInstance")
+            );
+            var getSystem = Marshal.GetDelegateForFunctionPointer<XrGetSystem>(
+                NativeLibrary.GetExport(lib, "xrGetSystem")
+            );
+            var destroy = Marshal.GetDelegateForFunctionPointer<XrDestroyInstance>(
+                NativeLibrary.GetExport(lib, "xrDestroyInstance")
+            );
 
             var info = new XrInstanceCreateInfo
             {
@@ -121,16 +146,27 @@ public static class HeadsetCheck
             var r = create(ref info, out var instance);
             if (r == XR_ERROR_RUNTIME_UNAVAILABLE || r == XR_ERROR_RUNTIME_FAILURE)
                 return new(HeadsetState.NoRuntime, $"No working OpenXR runtime (error {r}).");
-            if (r != XR_SUCCESS) return new(HeadsetState.Unknown, $"OpenXR couldn't start (error {r}).");
+            if (r != XR_SUCCESS)
+                return new(HeadsetState.Unknown, $"OpenXR couldn't start (error {r}).");
             try
             {
-                var sys = new XrSystemGetInfo { Type = XR_TYPE_SYSTEM_GET_INFO, FormFactor = XR_FORM_FACTOR_HEAD_MOUNTED_DISPLAY };
+                var sys = new XrSystemGetInfo
+                {
+                    Type = XR_TYPE_SYSTEM_GET_INFO,
+                    FormFactor = XR_FORM_FACTOR_HEAD_MOUNTED_DISPLAY,
+                };
                 r = getSystem(instance, ref sys, out _);
                 return r switch
                 {
                     XR_SUCCESS => new(HeadsetState.Ready, "Headset connected."),
-                    XR_ERROR_FORM_FACTOR_UNAVAILABLE => new(HeadsetState.NotConnected, "The VR runtime is running but no headset is connected."),
-                    _ => new(HeadsetState.Unknown, $"OpenXR couldn't look up the headset (error {r})."),
+                    XR_ERROR_FORM_FACTOR_UNAVAILABLE => new(
+                        HeadsetState.NotConnected,
+                        "The VR runtime is running but no headset is connected."
+                    ),
+                    _ => new(
+                        HeadsetState.Unknown,
+                        $"OpenXR couldn't look up the headset (error {r})."
+                    ),
                 };
             }
             finally

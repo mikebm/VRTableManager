@@ -27,15 +27,20 @@ public static partial class RuleSheets
     {
         try
         {
-            var fresh = File.Exists(CachePath) && DateTime.UtcNow - File.GetLastWriteTimeUtc(CachePath) < MaxAge;
+            var fresh =
+                File.Exists(CachePath)
+                && DateTime.UtcNow - File.GetLastWriteTimeUtc(CachePath) < MaxAge;
             if (!fresh)
             {
                 try
                 {
                     var html = await Http.Client.GetStringAsync(ListUrl, ct);
-                    if (Parse(html).Count > 0) await File.WriteAllTextAsync(CachePath, html, ct);
+                    if (Parse(html).Count > 0)
+                        await File.WriteAllTextAsync(CachePath, html, ct);
                 }
-                catch when (File.Exists(CachePath)) { /* offline: the old list will do */ }
+                catch when (File.Exists(CachePath))
+                { /* offline: the old list will do */
+                }
             }
             return File.Exists(CachePath) ? Parse(await File.ReadAllTextAsync(CachePath, ct)) : [];
         }
@@ -52,10 +57,18 @@ public static partial class RuleSheets
         {
             var text = WebUtility.HtmlDecode(m.Groups[2].Value).Trim();
             var open = text.LastIndexOf(" (", StringComparison.Ordinal);
-            if (open <= 0 || !text.EndsWith(')')) continue;
+            if (open <= 0 || !text.EndsWith(')'))
+                continue;
             var details = text[(open + 2)..^1].Split(',', StringSplitOptions.TrimEntries);
             int? year = int.TryParse(details[^1], out var y) ? y : null;
-            result.Add(new PrimerEntry(text[..open].Trim(), details.Length > 1 ? details[0] : null, year, BaseUrl + m.Groups[1].Value));
+            result.Add(
+                new PrimerEntry(
+                    text[..open].Trim(),
+                    details.Length > 1 ? details[0] : null,
+                    year,
+                    BaseUrl + m.Groups[1].Value
+                )
+            );
         }
         return result;
     }
@@ -68,16 +81,29 @@ public static partial class RuleSheets
     /// </summary>
     public static string? PrimerUrl(string name, int? year, IReadOnlyList<PrimerEntry> entries) =>
         Match(name, year, entries)
-        ?? (AuthorPrefixRegex().Match(name) is { Success: true } m ? Match(name[m.Length..], year, entries) : null);
+        ?? (
+            AuthorPrefixRegex().Match(name) is { Success: true } m
+                ? Match(name[m.Length..], year, entries)
+                : null
+        );
 
     static string? Match(string name, int? year, IReadOnlyList<PrimerEntry> entries)
     {
         var key = Normalize(name);
-        if (key.Length < 3) return null;
+        if (key.Length < 3)
+            return null;
         return entries
             .Where(e => year is not > 0 || e.Year is not > 0 || e.Year == year)
             .Select(e => (e, k: Normalize(e.Name)))
-            .Where(x => x.k == key || (year is > 0 && x.e.Year == year && Math.Min(x.k.Length, key.Length) >= 4 && (x.k.Contains(key) || key.Contains(x.k))))
+            .Where(x =>
+                x.k == key
+                || (
+                    year is > 0
+                    && x.e.Year == year
+                    && Math.Min(x.k.Length, key.Length) >= 4
+                    && (x.k.Contains(key) || key.Contains(x.k))
+                )
+            )
             .OrderByDescending(x => x.k == key)
             .ThenByDescending(x => x.k.Length)
             .Select(x => x.e.Url)
@@ -89,14 +115,36 @@ public static partial class RuleSheets
     private static partial Regex AuthorPrefixRegex();
 
     /// <summary>The Primer page first, then the catalog's instruction cards (other languages last).</summary>
-    public static List<RuleLink> LinksFor(string name, int? year, VpsGame? game, IReadOnlyList<PrimerEntry> entries)
+    public static List<RuleLink> LinksFor(
+        string name,
+        int? year,
+        VpsGame? game,
+        IReadOnlyList<PrimerEntry> entries
+    )
     {
         var links = new List<RuleLink>();
-        if (PrimerUrl(name, year, entries) is { } primer) links.Add(new("Rules and strategy (The Pinball Primer)", primer));
-        foreach (var f in (game?.RuleFiles ?? []).OrderBy(f => !string.IsNullOrWhiteSpace(f.Comment)).ThenByDescending(f => f.UpdatedAt ?? 0))
+        if (PrimerUrl(name, year, entries) is { } primer)
+            links.Add(new("Rules and strategy (The Pinball Primer)", primer));
+        foreach (
+            var f in (game?.RuleFiles ?? [])
+                .OrderBy(f => !string.IsNullOrWhiteSpace(f.Comment))
+                .ThenByDescending(f => f.UpdatedAt ?? 0)
+        )
             if (Addons.UsableUrl(f) is { } url)
-                links.Add(new("Instruction card" + (f.Authors is { Count: > 0 } a ? " by " + string.Join(", ", a.Take(2)) : "")
-                    + (string.IsNullOrWhiteSpace(f.Comment) ? "" : $" ({f.Comment.Trim()})"), url));
+                links.Add(
+                    new(
+                        "Instruction card"
+                            + (
+                                f.Authors is { Count: > 0 } a
+                                    ? " by " + string.Join(", ", a.Take(2))
+                                    : ""
+                            )
+                            + (
+                                string.IsNullOrWhiteSpace(f.Comment) ? "" : $" ({f.Comment.Trim()})"
+                            ),
+                        url
+                    )
+                );
         return links;
     }
 
@@ -104,8 +152,10 @@ public static partial class RuleSheets
     static string Normalize(string name)
     {
         var s = WebUtility.HtmlDecode(name).Trim().ToLowerInvariant();
-        if (s.EndsWith(", the")) s = s[..^5];
-        if (s.StartsWith("the ")) s = s[4..];
+        if (s.EndsWith(", the"))
+            s = s[..^5];
+        if (s.StartsWith("the "))
+            s = s[4..];
         return new string(s.Where(char.IsLetterOrDigit).ToArray());
     }
 

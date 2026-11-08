@@ -16,28 +16,49 @@ public static class PlaySession
 
     public static bool IsPlayCommand(string[] args) => args.Length > 1 && args[0] == PlayFlag;
 
-    public static List<string> BuildArgs(string tablePath, bool vr, string? settingsPath, string? returnExe, IEnumerable<string> returnArgs,
-        string? statusPath = null, int lobbyPid = 0)
+    public static List<string> BuildArgs(
+        string tablePath,
+        bool vr,
+        string? settingsPath,
+        string? returnExe,
+        IEnumerable<string> returnArgs,
+        string? statusPath = null,
+        int lobbyPid = 0
+    )
     {
         var a = new List<string> { PlayFlag, tablePath };
-        if (vr) a.Add("--vr");
-        if (!string.IsNullOrEmpty(settingsPath)) a.AddRange(["--settings", settingsPath]);
-        if (!string.IsNullOrEmpty(statusPath)) a.AddRange(["--status", statusPath]);
-        if (lobbyPid > 0) a.AddRange(["--lobby-pid", lobbyPid.ToString()]);
+        if (vr)
+            a.Add("--vr");
+        if (!string.IsNullOrEmpty(settingsPath))
+            a.AddRange(["--settings", settingsPath]);
+        if (!string.IsNullOrEmpty(statusPath))
+            a.AddRange(["--status", statusPath]);
+        if (lobbyPid > 0)
+            a.AddRange(["--lobby-pid", lobbyPid.ToString()]);
         if (!string.IsNullOrEmpty(returnExe))
         {
             a.AddRange(["--return", returnExe]);
-            foreach (var r in returnArgs) a.AddRange(["--return-arg", r]);
+            foreach (var r in returnArgs)
+                a.AddRange(["--return-arg", r]);
         }
         return a;
     }
 
-    public sealed record Request(string TablePath, bool Vr, string? SettingsPath, string? ReturnExe, List<string> ReturnArgs,
-        string? StatusPath = null, int LobbyPid = 0);
+    public sealed record Request(
+        string TablePath,
+        bool Vr,
+        string? SettingsPath,
+        string? ReturnExe,
+        List<string> ReturnArgs,
+        string? StatusPath = null,
+        int LobbyPid = 0
+    );
 
     public static Request Parse(string[] args)
     {
-        string? settings = null, ret = null, status = null;
+        string? settings = null,
+            ret = null,
+            status = null;
         var vr = false;
         var lobbyPid = 0;
         var retArgs = new List<string>();
@@ -45,12 +66,24 @@ public static class PlaySession
         {
             switch (args[i])
             {
-                case "--vr": vr = true; break;
-                case "--settings" when i + 1 < args.Length: settings = args[++i]; break;
-                case "--status" when i + 1 < args.Length: status = args[++i]; break;
-                case "--lobby-pid" when i + 1 < args.Length: int.TryParse(args[++i], out lobbyPid); break;
-                case "--return" when i + 1 < args.Length: ret = args[++i]; break;
-                case "--return-arg" when i + 1 < args.Length: retArgs.Add(args[++i]); break;
+                case "--vr":
+                    vr = true;
+                    break;
+                case "--settings" when i + 1 < args.Length:
+                    settings = args[++i];
+                    break;
+                case "--status" when i + 1 < args.Length:
+                    status = args[++i];
+                    break;
+                case "--lobby-pid" when i + 1 < args.Length:
+                    int.TryParse(args[++i], out lobbyPid);
+                    break;
+                case "--return" when i + 1 < args.Length:
+                    ret = args[++i];
+                    break;
+                case "--return-arg" when i + 1 < args.Length:
+                    retArgs.Add(args[++i]);
+                    break;
             }
         }
         return new Request(args[1], vr, settings, ret, retArgs, status, lobbyPid);
@@ -62,14 +95,21 @@ public static class PlaySession
         var code = 0;
         void Status(string state, string message = "")
         {
-            if (req.StatusPath != null) PlayStatus.Write(req.StatusPath, state, message);
+            if (req.StatusPath != null)
+                PlayStatus.Write(req.StatusPath, state, message);
         }
         Status(PlayStatus.Starting);
         try
         {
-            var s = req.SettingsPath != null ? AppSettings.LoadFrom(req.SettingsPath) : AppSettings.Load();
-            var table = TableInstaller.Scan(s).FirstOrDefault(t => SamePath(t.TablePath, req.TablePath))
-                ?? throw new FileNotFoundException("Table not found in the manager's folders: " + req.TablePath);
+            var s =
+                req.SettingsPath != null
+                    ? AppSettings.LoadFrom(req.SettingsPath)
+                    : AppSettings.Load();
+            var table =
+                TableInstaller.Scan(s).FirstOrDefault(t => SamePath(t.TablePath, req.TablePath))
+                ?? throw new FileNotFoundException(
+                    "Table not found in the manager's folders: " + req.TablePath
+                );
             var engine = Engines.For(table.Manifest.Engine);
             Log($"start {engine.DisplayName}: {req.TablePath} (vr={req.Vr})");
             using var proc = await engine.LaunchAsync(s, table, req.Vr, CancellationToken.None);
@@ -79,7 +119,9 @@ public static class PlaySession
             TryRecord(() => PlayStats.Mutate(st => st.RecordPlay(table.TablePath, started), stats));
             await proc.WaitForExitAsync();
             VpxIniLayers.Finish(proc); // this process ends soon: don't leave it to the background wait
-            TryRecord(() => PlayStats.Mutate(st => st.AddTime(table.TablePath, DateTime.Now - started), stats));
+            TryRecord(() =>
+                PlayStats.Mutate(st => st.AddTime(table.TablePath, DateTime.Now - started), stats)
+            );
             Log("table exited");
             Status(PlayStatus.Exited);
         }
@@ -93,13 +135,22 @@ public static class PlaySession
         {
             // A lobby that's still open is still on its loading screen (the table failed, or closed before it
             // took over the headset). It reads the status and carries on, so starting another would make two.
-            if (LobbyStillOpen(req.LobbyPid)) Log("lobby still open; not starting another");
+            if (LobbyStillOpen(req.LobbyPid))
+                Log("lobby still open; not starting another");
             else if (!string.IsNullOrEmpty(req.ReturnExe))
             {
                 var psi = new ProcessStartInfo(req.ReturnExe) { UseShellExecute = false };
-                foreach (var a in req.ReturnArgs) psi.ArgumentList.Add(a);
-                try { Process.Start(psi); Log("returned to " + req.ReturnExe); }
-                catch (Exception e) { Log("couldn't return: " + e.Message); }
+                foreach (var a in req.ReturnArgs)
+                    psi.ArgumentList.Add(a);
+                try
+                {
+                    Process.Start(psi);
+                    Log("returned to " + req.ReturnExe);
+                }
+                catch (Exception e)
+                {
+                    Log("couldn't return: " + e.Message);
+                }
             }
         }
         return code;
@@ -111,29 +162,51 @@ public static class PlaySession
     /// </summary>
     static bool LobbyStillOpen(int pid)
     {
-        if (pid <= 0) return false;
+        if (pid <= 0)
+            return false;
         try
         {
             using var p = Process.GetProcessById(pid);
             return !p.WaitForExit(3000);
         }
-        catch { return false; } // gone already (or not ours to see)
+        catch
+        {
+            return false;
+        } // gone already (or not ours to see)
     }
 
     /// <summary>Play counting must never stop a table from launching or the lobby from coming back.</summary>
     static void TryRecord(Action a)
     {
-        try { a(); } catch (Exception e) { Log("couldn't save play stats: " + e.Message); }
+        try
+        {
+            a();
+        }
+        catch (Exception e)
+        {
+            Log("couldn't save play stats: " + e.Message);
+        }
     }
 
     static bool SamePath(string a, string b) =>
-        string.Equals(Path.GetFullPath(a), Path.GetFullPath(b), OperatingSystem.IsWindows() ? StringComparison.OrdinalIgnoreCase : StringComparison.Ordinal);
+        string.Equals(
+            Path.GetFullPath(a),
+            Path.GetFullPath(b),
+            OperatingSystem.IsWindows()
+                ? StringComparison.OrdinalIgnoreCase
+                : StringComparison.Ordinal
+        );
 
     public static string LogPath => Path.Combine(AppSettings.DataDir, "play.log");
 
     internal static void Log(string line)
     {
-        try { File.AppendAllText(LogPath, $"{DateTime.Now:s} {line}{Environment.NewLine}"); }
-        catch { /* logging must never stop a launch */ }
+        try
+        {
+            File.AppendAllText(LogPath, $"{DateTime.Now:s} {line}{Environment.NewLine}");
+        }
+        catch
+        { /* logging must never stop a launch */
+        }
     }
 }

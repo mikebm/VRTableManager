@@ -10,11 +10,15 @@ public static class LobbyText
     {
         var plays = stats.PlaysOf(id);
         var last = stats.LastPlayedOf(id);
-        if (plays == 0 && last == null) return "Not played yet";
+        if (plays == 0 && last == null)
+            return "Not played yet";
         var parts = new List<string>();
-        if (plays > 0) parts.Add($"Played {plays}×");
-        if (Duration(stats.MinutesOf(id)) is { } time) parts.Add(time);
-        if (last is { } when) parts.Add("last played " + Ago(when, now));
+        if (plays > 0)
+            parts.Add($"Played {plays}×");
+        if (Duration(stats.MinutesOf(id)) is { } time)
+            parts.Add(time);
+        if (last is { } when)
+            parts.Add("last played " + Ago(when, now));
         return string.Join("  ·  ", parts);
     }
 
@@ -22,19 +26,26 @@ public static class LobbyText
     public static string? Duration(double minutes)
     {
         var m = (int)Math.Round(minutes);
-        if (m < 1) return null;
-        if (m < 60) return $"{m} min";
+        if (m < 1)
+            return null;
+        if (m < 60)
+            return $"{m} min";
         return m % 60 == 0 ? $"{m / 60} h" : $"{m / 60} h {m % 60} min";
     }
 
     public static string Ago(DateTime when, DateTime now)
     {
         var d = now - when;
-        if (d < TimeSpan.FromMinutes(2)) return "just now";
-        if (d < TimeSpan.FromHours(1)) return $"{(int)d.TotalMinutes} min ago";
-        if (when.Date == now.Date) return "today";
-        if (when.Date == now.Date.AddDays(-1)) return "yesterday";
-        if (d < TimeSpan.FromDays(14)) return $"{(int)Math.Ceiling(d.TotalDays)} days ago";
+        if (d < TimeSpan.FromMinutes(2))
+            return "just now";
+        if (d < TimeSpan.FromHours(1))
+            return $"{(int)d.TotalMinutes} min ago";
+        if (when.Date == now.Date)
+            return "today";
+        if (when.Date == now.Date.AddDays(-1))
+            return "yesterday";
+        if (d < TimeSpan.FromDays(14))
+            return $"{(int)Math.Ceiling(d.TotalDays)} days ago";
         return when.ToString("d MMM yyyy");
     }
 
@@ -47,30 +58,47 @@ public static class LobbyText
     public static IReadOnlyList<string> HighScoreLines(IReadOnlyList<HighScore> scores, int max = 5)
     {
         var top = scores.Where(s => s.Score > 0).Take(max).ToList();
-        if (top.Count == 0) return [];
+        if (top.Count == 0)
+            return [];
         var lines = new List<string> { Join(top[0].Label.ToUpperInvariant(), top[0], "  ") };
         // After a champion the rest are 1st–4th; otherwise the top entry was #1 and the rest follow on.
         var rank = top[0].Label.Contains("champ", StringComparison.OrdinalIgnoreCase) ? 1 : 2;
-        if (top.Count > 1) lines.Add(string.Join("  ·  ", top.Skip(1).Select((s, k) => Join((rank + k).ToString(), s, " "))));
+        if (top.Count > 1)
+            lines.Add(
+                string.Join(
+                    "  ·  ",
+                    top.Skip(1).Select((s, k) => Join((rank + k).ToString(), s, " "))
+                )
+            );
         return lines;
 
-        static string Join(string label, HighScore s, string gap) => string.Join(gap, new[]
-        {
-            label, s.Initials.Trim().ToUpperInvariant(), s.Score.ToString("N0", System.Globalization.CultureInfo.InvariantCulture),
-        }.Where(x => x != ""));
+        static string Join(string label, HighScore s, string gap) =>
+            string.Join(
+                gap,
+                new[]
+                {
+                    label,
+                    s.Initials.Trim().ToUpperInvariant(),
+                    s.Score.ToString("N0", System.Globalization.CultureInfo.InvariantCulture),
+                }.Where(x => x != "")
+            );
     }
 
     /// <summary>What to say when a filter has nothing in it.</summary>
-    public static string Empty(string filter, int libraryCount) => libraryCount == 0
-        ? "Install tables with VR Table Manager, then open the lobby again."
-        : filter switch
-        {
-            "Favourites" => "No favourites yet. Right grip (F on the keyboard) on a table, or ★ in VR Table Manager.",
-            "Recently played" => "Nothing played yet. Tables you launch show up here.",
-            "Most played" => "No plays counted yet. A play counts once the table actually starts.",
-            "Pinball FX" => "Pinball FX isn't installed (Steam or Epic).",
-            "Pinball M" => "Pinball M isn't installed (Steam).",
-            "Future Pinball" => "No Future Pinball tables. Set the Future Pinball folder in VR Table Manager.",
-            _ => $"Nothing in “{filter}”.",
-        } + "  Press B / Tab to change the filter.";
+    public static string Empty(string filter, int libraryCount) =>
+        libraryCount == 0
+            ? "Install tables with VR Table Manager, then open the lobby again."
+            : filter switch
+            {
+                "Favourites" =>
+                    "No favourites yet. Right grip (F on the keyboard) on a table, or ★ in VR Table Manager.",
+                "Recently played" => "Nothing played yet. Tables you launch show up here.",
+                "Most played" =>
+                    "No plays counted yet. A play counts once the table actually starts.",
+                "Pinball FX" => "Pinball FX isn't installed (Steam or Epic).",
+                "Pinball M" => "Pinball M isn't installed (Steam).",
+                "Future Pinball" =>
+                    "No Future Pinball tables. Set the Future Pinball folder in VR Table Manager.",
+                _ => $"Nothing in “{filter}”.",
+            } + "  Press B / Tab to change the filter.";
 }

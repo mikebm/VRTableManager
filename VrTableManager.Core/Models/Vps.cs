@@ -19,23 +19,30 @@ public sealed class VpsGame
     public List<VpsTableFile>? TableFiles { get; set; }
     public List<VpsFile>? RomFiles { get; set; }
     public List<VpsFile>? B2sFiles { get; set; }
+
     /// <summary>Front-end media packs (PinUP Popper / PinballX videos, art and table audio).</summary>
     public List<VpsFile>? MediaPackFiles { get; set; }
+
     /// <summary>Table audio: mostly direct .mp3 links (Dropbox), sometimes sound-replacement packs.</summary>
     public List<VpsFile>? SoundFiles { get; set; }
+
     /// <summary>PinUP Player packs: videos for the backglass/DMD/topper, almost all on VPUniverse (sign-in).</summary>
     public List<VpsFile>? PupPackFiles { get; set; }
+
     /// <summary>DMD colorizations: Serum (.cRZ) or Pin2DMD (.pal/.vni, or an encrypted .pac).</summary>
     public List<VpsAltColorFile>? AltColorFiles { get; set; }
+
     /// <summary>Replacement sound packs for PinMAME (AltSound / G-Sound / legacy PinSound layout).</summary>
     public List<VpsFile>? AltSoundFiles { get; set; }
+
     /// <summary>Instruction cards (images of the real machine's rule card), as VPUniverse pages.</summary>
     public List<VpsFile>? RuleFiles { get; set; }
 
     [JsonIgnore]
-    public string DisplayTitle => Year is > 0
-        ? $"{Name} ({Manufacturer} {Year})"
-        : string.IsNullOrWhiteSpace(Manufacturer) ? Name : $"{Name} ({Manufacturer})";
+    public string DisplayTitle =>
+        Year is > 0 ? $"{Name} ({Manufacturer} {Year})"
+        : string.IsNullOrWhiteSpace(Manufacturer) ? Name
+        : $"{Name} ({Manufacturer})";
 }
 
 public class VpsFile
@@ -60,6 +67,7 @@ public sealed class VpsAltColorFile : VpsFile
 {
     /// <summary>Free text: "Serum", "Serum 2.0", "Pin2DMD", "Pin2DMD - PAC - 64 Colors", "PB Patch", …</summary>
     public string? Type { get; set; }
+
     /// <summary>The ROM it colours ("mm_109c").</summary>
     public string? Folder { get; set; }
     public string? FileName { get; set; }

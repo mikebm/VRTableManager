@@ -9,7 +9,10 @@ namespace VrTableManager.Services;
 /// </summary>
 public sealed class PlayStatus
 {
-    public const string Starting = "starting", Running = "running", Failed = "failed", Exited = "exited";
+    public const string Starting = "starting",
+        Running = "running",
+        Failed = "failed",
+        Exited = "exited";
 
     public string State { get; set; } = Starting;
     public string Message { get; set; } = "";
@@ -19,7 +22,12 @@ public sealed class PlayStatus
 
     /// <summary>Next to the settings file the lobby uses (the default data folder when none is given).</summary>
     public static string PathBeside(string? settingsFile) =>
-        Path.Combine(string.IsNullOrEmpty(settingsFile) ? AppSettings.DataDir : Path.GetDirectoryName(Path.GetFullPath(settingsFile))!, FileName);
+        Path.Combine(
+            string.IsNullOrEmpty(settingsFile)
+                ? AppSettings.DataDir
+                : Path.GetDirectoryName(Path.GetFullPath(settingsFile))!,
+            FileName
+        );
 
     /// <summary>Written to a temporary file and moved into place, so a reader never sees half a file.</summary>
     public static void Write(string path, string state, string message = "")
@@ -28,20 +36,44 @@ public sealed class PlayStatus
         {
             Directory.CreateDirectory(Path.GetDirectoryName(path)!);
             var tmp = path + ".tmp";
-            File.WriteAllText(tmp, JsonSerializer.Serialize(new PlayStatus { State = state, Message = message, Time = DateTime.Now }));
+            File.WriteAllText(
+                tmp,
+                JsonSerializer.Serialize(
+                    new PlayStatus
+                    {
+                        State = state,
+                        Message = message,
+                        Time = DateTime.Now,
+                    }
+                )
+            );
             File.Move(tmp, path, overwrite: true);
         }
-        catch { /* the status is a courtesy to the lobby; it must never stop a table */ }
+        catch
+        { /* the status is a courtesy to the lobby; it must never stop a table */
+        }
     }
 
     public static PlayStatus? Read(string path)
     {
-        try { return File.Exists(path) ? JsonSerializer.Deserialize<PlayStatus>(File.ReadAllText(path)) : null; }
-        catch { return null; }
+        try
+        {
+            return File.Exists(path)
+                ? JsonSerializer.Deserialize<PlayStatus>(File.ReadAllText(path))
+                : null;
+        }
+        catch
+        {
+            return null;
+        }
     }
 
     public static void Clear(string path)
     {
-        try { File.Delete(path); } catch { }
+        try
+        {
+            File.Delete(path);
+        }
+        catch { }
     }
 }

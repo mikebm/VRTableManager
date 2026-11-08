@@ -10,7 +10,19 @@ public sealed record LobbyView(List<LobbyTable> List, List<LobbyGroup> Groups);
 /// <summary>Filtering, sorting, grouping for the jump rail, and stick acceleration. No Godot types, so it's unit-tested with plain dotnet.</summary>
 public static class LobbyNav
 {
-    public static readonly string[] Filters = ["All", "VPX", "Future Pinball", "Pinball FX", "Pinball M", "Recently played", "Most played", "Favourites", "Manufacturer", "Decade"];
+    public static readonly string[] Filters =
+    [
+        "All",
+        "VPX",
+        "Future Pinball",
+        "Pinball FX",
+        "Pinball M",
+        "Recently played",
+        "Most played",
+        "Favourites",
+        "Manufacturer",
+        "Decade",
+    ];
     public const string Letters = "#ABCDEFGHIJKLMNOPQRSTUVWXYZ";
 
     public static LobbyView Apply(IReadOnlyList<LobbyTable> tables, string filter, LobbyState state)
@@ -34,12 +46,16 @@ public static class LobbyNav
         }
         if (filter == "Manufacturer")
         {
-            var list = q.OrderBy(ManufacturerOf, StringComparer.OrdinalIgnoreCase).ThenBy(t => SortKey(t.Title), StringComparer.OrdinalIgnoreCase).ToList();
+            var list = q.OrderBy(ManufacturerOf, StringComparer.OrdinalIgnoreCase)
+                .ThenBy(t => SortKey(t.Title), StringComparer.OrdinalIgnoreCase)
+                .ToList();
             return new(list, GroupsBy(list, ManufacturerOf));
         }
         if (filter == "Decade")
         {
-            var list = q.OrderBy(t => t.Year > 0 ? t.Year : 9999).ThenBy(t => SortKey(t.Title), StringComparer.OrdinalIgnoreCase).ToList();
+            var list = q.OrderBy(t => t.Year > 0 ? t.Year : 9999)
+                .ThenBy(t => SortKey(t.Title), StringComparer.OrdinalIgnoreCase)
+                .ToList();
             return new(list, GroupsBy(list, DecadeOf));
         }
 
@@ -50,9 +66,13 @@ public static class LobbyNav
         for (var i = 0; i < sorted.Count; i++)
         {
             var g = Letters.IndexOf(LetterOf(sorted[i].Title));
-            if (first[g] == -1) first[g] = i;
+            if (first[g] == -1)
+                first[g] = i;
         }
-        return new(sorted, Letters.Select((c, g) => new LobbyGroup(c.ToString(), first[g])).ToList());
+        return new(
+            sorted,
+            Letters.Select((c, g) => new LobbyGroup(c.ToString(), first[g])).ToList()
+        );
     }
 
     static List<LobbyGroup> GroupsBy(List<LobbyTable> list, Func<LobbyTable, string> key)
@@ -61,7 +81,8 @@ public static class LobbyNav
         for (var i = 0; i < list.Count; i++)
         {
             var k = key(list[i]);
-            if (groups.Count == 0 || groups[^1].Label != k) groups.Add(new(k, i));
+            if (groups.Count == 0 || groups[^1].Label != k)
+                groups.Add(new(k, i));
         }
         return groups;
     }
@@ -73,7 +94,8 @@ public static class LobbyNav
     public static string SortKey(string title)
     {
         var t = title.Trim();
-        if (t.StartsWith("The ", StringComparison.OrdinalIgnoreCase) && t.Length > 4) t = t[4..];
+        if (t.StartsWith("The ", StringComparison.OrdinalIgnoreCase) && t.Length > 4)
+            t = t[4..];
         return LetterOf(t) == "#" ? "\u0001" + t : t;
     }
 
@@ -81,12 +103,14 @@ public static class LobbyNav
     public static string LetterOf(string title)
     {
         var t = title.Trim();
-        if (t.StartsWith("The ", StringComparison.OrdinalIgnoreCase) && t.Length > 4) t = t[4..];
+        if (t.StartsWith("The ", StringComparison.OrdinalIgnoreCase) && t.Length > 4)
+            t = t[4..];
         var c = t.Length > 0 ? char.ToUpperInvariant(t[0]) : '#';
         return c is >= 'A' and <= 'Z' ? c.ToString() : "#";
     }
 
-    public static string ManufacturerOf(LobbyTable t) => string.IsNullOrWhiteSpace(t.Manufacturer) ? "Unknown" : t.Manufacturer.Trim();
+    public static string ManufacturerOf(LobbyTable t) =>
+        string.IsNullOrWhiteSpace(t.Manufacturer) ? "Unknown" : t.Manufacturer.Trim();
 
     public static string DecadeOf(LobbyTable t) => t.Year > 0 ? $"{t.Year / 10 * 10}s" : "Unknown";
 
@@ -95,7 +119,8 @@ public static class LobbyNav
     {
         var found = -1;
         for (var g = 0; g < groups.Count; g++)
-            if (groups[g].Index != -1 && groups[g].Index <= i) found = g;
+            if (groups[g].Index != -1 && groups[g].Index <= i)
+                found = g;
         return found;
     }
 
@@ -106,9 +131,11 @@ public static class LobbyNav
     public static int Jump(IReadOnlyList<LobbyGroup> groups, int i, int dir)
     {
         var g = GroupAt(groups, i);
-        if (dir < 0 && g != -1 && groups[g].Index < i) return groups[g].Index;
+        if (dir < 0 && g != -1 && groups[g].Index < i)
+            return groups[g].Index;
         for (var k = g + dir; k >= 0 && k < groups.Count; k += dir)
-            if (groups[k].Index != -1) return groups[k].Index;
+            if (groups[k].Index != -1)
+                return groups[k].Index;
         return i;
     }
 
@@ -116,9 +143,11 @@ public static class LobbyNav
     public static int IndexForGroup(IReadOnlyList<LobbyGroup> groups, int g)
     {
         for (var k = g; k < groups.Count; k++)
-            if (groups[k].Index != -1) return groups[k].Index;
+            if (groups[k].Index != -1)
+                return groups[k].Index;
         for (var k = g - 1; k >= 0; k--)
-            if (groups[k].Index != -1) return groups[k].Index;
+            if (groups[k].Index != -1)
+                return groups[k].Index;
         return 0;
     }
 
@@ -129,7 +158,11 @@ public static class LobbyNav
         for (var g = 0; g < groups.Count; g++)
         {
             var label = groups[g].Label;
-            if (label == k.ToString() || (label.Length > 1 && char.ToUpperInvariant(label[0]) == k) || (label == "#" && char.IsDigit(k)))
+            if (
+                label == k.ToString()
+                || (label.Length > 1 && char.ToUpperInvariant(label[0]) == k)
+                || (label == "#" && char.IsDigit(k))
+            )
                 return g;
         }
         return -1;

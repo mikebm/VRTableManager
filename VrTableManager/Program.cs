@@ -28,12 +28,11 @@ static class Program
                 s.Save();
             }
         }
-        catch { /* not fatal: the lobby also looks next to itself */ }
+        catch
+        { /* not fatal: the lobby also looks next to itself */
+        }
     }
 
     public static AppBuilder BuildAvaloniaApp() =>
-        AppBuilder.Configure<App>()
-            .UsePlatformDetect()
-            .WithInterFont()
-            .LogToTrace();
+        AppBuilder.Configure<App>().UsePlatformDetect().WithInterFont().LogToTrace();
 }

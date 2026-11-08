@@ -11,49 +11,78 @@ namespace VrLobby;
 public partial class Cabinet : Node3D
 {
     public int Slot { get; private set; }
+
     /// <summary>Position of the table in the shown list, or -1 when this cabinet is parked.</summary>
     public int Index { get; private set; } = -1;
     public LobbyTable? Table { get; private set; }
     public string? PlayfieldUrl { get; private set; }
     public string? BackglassUrl { get; private set; }
     public bool HasPlayfieldArt => _playfieldArt != null;
+
     /// <summary>The still picture; a playing lobby video (<see cref="SetPlayfieldVideo"/>) shows over it.</summary>
     Texture2D? _playfieldArt;
-    public bool ShowsPlayfieldVideo => _playfieldMat.AlbedoTexture != null && _playfieldMat.AlbedoTexture != _playfieldArt;
+    public bool ShowsPlayfieldVideo =>
+        _playfieldMat.AlbedoTexture != null && _playfieldMat.AlbedoTexture != _playfieldArt;
 
     /// <summary>Colour at the centre of what the playfield shows (tests).</summary>
     public Color? PlayfieldTextureColour() =>
-        _playfieldMat.AlbedoTexture?.GetImage() is { } img ? img.GetPixel(img.GetWidth() / 2, img.GetHeight() / 2) : null;
+        _playfieldMat.AlbedoTexture?.GetImage() is { } img
+            ? img.GetPixel(img.GetWidth() / 2, img.GetHeight() / 2)
+            : null;
+
     public bool HasBackglassArt => _backglassMat.AlbedoTexture != null;
     public bool ShowsTitlePlate => _plate.Visible;
     public bool ShowsFavourite => _star.Visible;
     public Color BodyColour => _bodyMat.AlbedoColor;
+
     /// <summary>Colour of the backbox strip, coin lights and flipper buttons.</summary>
     public Color LampColour => _glowMat.AlbedoColor;
 
     // Both sides, like every VR cabinet material (RealCabinetLoader.MaterialFor): it also paints a borrowed cabinet's
     // art surfaces (DressBorrowed), and those include single-sided panels seen from behind. Drawn one-sided, the back
     // blade behind the playfield vanished and the floor showed through (Terminator 3 in the Medieval Madness cabinet).
-    readonly StandardMaterial3D _bodyMat = new() { Roughness = 0.45f, Metallic = 0.15f, CullMode = BaseMaterial3D.CullModeEnum.Disabled };
-    readonly StandardMaterial3D _glowMat = new() { ShadingMode = BaseMaterial3D.ShadingModeEnum.Unshaded, EmissionEnabled = true };
+    readonly StandardMaterial3D _bodyMat = new()
+    {
+        Roughness = 0.45f,
+        Metallic = 0.15f,
+        CullMode = BaseMaterial3D.CullModeEnum.Disabled,
+    };
+    readonly StandardMaterial3D _glowMat = new()
+    {
+        ShadingMode = BaseMaterial3D.ShadingModeEnum.Unshaded,
+        EmissionEnabled = true,
+    };
+
     // Playfield and backglass are unshaded: the art carries its own lighting (and a backglass is backlit),
     // so dimming is done by tinting them rather than by the room lights.
     // Anisotropic filtering keeps a playfield sharp when you look along it at a low angle.
-    readonly StandardMaterial3D _playfieldMat = new() { ShadingMode = BaseMaterial3D.ShadingModeEnum.Unshaded, TextureFilter = BaseMaterial3D.TextureFilterEnum.LinearWithMipmapsAnisotropic };
+    readonly StandardMaterial3D _playfieldMat = new()
+    {
+        ShadingMode = BaseMaterial3D.ShadingModeEnum.Unshaded,
+        TextureFilter = BaseMaterial3D.TextureFilterEnum.LinearWithMipmapsAnisotropic,
+    };
+
     // Both sides: it also goes on a VR cabinet's own backglass part, which may face either way (Harry Potter's does).
-    readonly StandardMaterial3D _backglassMat = new() { ShadingMode = BaseMaterial3D.ShadingModeEnum.Unshaded, TextureFilter = BaseMaterial3D.TextureFilterEnum.LinearWithMipmapsAnisotropic, CullMode = BaseMaterial3D.CullModeEnum.Disabled };
+    readonly StandardMaterial3D _backglassMat = new()
+    {
+        ShadingMode = BaseMaterial3D.ShadingModeEnum.Unshaded,
+        TextureFilter = BaseMaterial3D.TextureFilterEnum.LinearWithMipmapsAnisotropic,
+        CullMode = BaseMaterial3D.CullModeEnum.Disabled,
+    };
     readonly Label3D _plate = new();
     readonly Label3D _star = new();
     readonly Label3D _dmd = new();
 
-    readonly Node3D _body = new();                // everything drawn, hidden while the table's own cabinet loads
-    readonly List<Node3D> _generic = [];          // the generic cabinet's parts (hidden while a real cabinet shows)
+    readonly Node3D _body = new(); // everything drawn, hidden while the table's own cabinet loads
+    readonly List<Node3D> _generic = []; // the generic cabinet's parts (hidden while a real cabinet shows)
     readonly QuadMesh _playfieldQuad = new();
     readonly QuadMesh _backglassQuad = new();
     MeshInstance3D _backglassPanel = null!;
     MeshInstance3D _playfield = null!;
+
     /// <summary>Set while the playfield shows depth (<see cref="SetPlayfieldDepth"/>); draws in place of _playfieldMat.</summary>
     ShaderMaterial? _depthMat;
+
     /// <summary>True while the playfield is drawn with its height map (tests).</summary>
     public bool ShowsPlayfieldDepth => _depthMat != null;
     MeshInstance3D _real = null!;
@@ -72,12 +101,13 @@ public partial class Cabinet : Node3D
     /// <summary>True while this slot shows the table's own cabinet from its .vpx.</summary>
     public bool ShowsRealCabinet => _real.Visible && _real.Mesh != null;
     public RealCabinet? Real { get; private set; }
+
     /// <summary>True when this table has no VR cabinet of its own and shows the template cabinet with its own art.</summary>
     public bool Borrowed { get; private set; }
     public Vector3 PlayfieldPosition => _playfield.Position;
 
     Color _baseBody = Palette.SurfaceHi;
-    bool _selected;   // lights the backbox strip, coin lights and flipper buttons in lamp amber
+    bool _selected; // lights the backbox strip, coin lights and flipper buttons in lamp amber
     float _bright = 1f;
     const float SelectedBrightness = 1f; // the picture's own colours: past 1 it clips and blooms
 
@@ -88,12 +118,45 @@ public partial class Cabinet : Node3D
     {
         Slot = slot;
         AddChild(_body);
-        _body.AddChild(new MeshInstance3D { Mesh = CabinetKit.Shadow, MaterialOverride = CabinetKit.ShadowMaterial, CastShadow = GeometryInstance3D.ShadowCastingSetting.Off });
+        _body.AddChild(
+            new MeshInstance3D
+            {
+                Mesh = CabinetKit.Shadow,
+                MaterialOverride = CabinetKit.ShadowMaterial,
+                CastShadow = GeometryInstance3D.ShadowCastingSetting.Off,
+            }
+        );
         Generic(new MeshInstance3D { Mesh = CabinetKit.Body, MaterialOverride = _bodyMat });
-        Generic(new MeshInstance3D { Mesh = CabinetKit.Metal, MaterialOverride = CabinetKit.MetalMaterial });
-        Generic(new MeshInstance3D { Mesh = CabinetKit.Chrome, MaterialOverride = CabinetKit.ChromeMaterial });
-        Generic(new MeshInstance3D { Mesh = CabinetKit.Grille, MaterialOverride = CabinetKit.GrilleMaterial, CastShadow = GeometryInstance3D.ShadowCastingSetting.Off });
-        Generic(new MeshInstance3D { Mesh = CabinetKit.Glow, MaterialOverride = _glowMat, CastShadow = GeometryInstance3D.ShadowCastingSetting.Off });
+        Generic(
+            new MeshInstance3D
+            {
+                Mesh = CabinetKit.Metal,
+                MaterialOverride = CabinetKit.MetalMaterial,
+            }
+        );
+        Generic(
+            new MeshInstance3D
+            {
+                Mesh = CabinetKit.Chrome,
+                MaterialOverride = CabinetKit.ChromeMaterial,
+            }
+        );
+        Generic(
+            new MeshInstance3D
+            {
+                Mesh = CabinetKit.Grille,
+                MaterialOverride = CabinetKit.GrilleMaterial,
+                CastShadow = GeometryInstance3D.ShadowCastingSetting.Off,
+            }
+        );
+        Generic(
+            new MeshInstance3D
+            {
+                Mesh = CabinetKit.Glow,
+                MaterialOverride = _glowMat,
+                CastShadow = GeometryInstance3D.ShadowCastingSetting.Off,
+            }
+        );
 
         // Playfield: a portrait quad, image top towards the back. On the generic cabinet it lies on the
         // sloped floor of the well; on a table's own cabinet it moves to that cabinet's playfield.
@@ -112,14 +175,22 @@ public partial class Cabinet : Node3D
         _real = new MeshInstance3D { Visible = false };
         _body.AddChild(_real);
         // Glass lid, just under the rail tops, spanning the well.
-        Generic(new MeshInstance3D
-        {
-            Mesh = new QuadMesh { Size = new Vector2(CabinetKit.Width - 2 * CabinetKit.WallThick, CabinetKit.WellLength) },
-            MaterialOverride = CabinetKit.GlassMaterial,
-            Position = new Vector3(0, floorY + CabinetKit.GlassLift, wellZ),
-            Rotation = new Vector3(tilt, 0, 0),
-            CastShadow = GeometryInstance3D.ShadowCastingSetting.Off,
-        });
+        Generic(
+            new MeshInstance3D
+            {
+                Mesh = new QuadMesh
+                {
+                    Size = new Vector2(
+                        CabinetKit.Width - 2 * CabinetKit.WallThick,
+                        CabinetKit.WellLength
+                    ),
+                },
+                MaterialOverride = CabinetKit.GlassMaterial,
+                Position = new Vector3(0, floorY + CabinetKit.GlassLift, wellZ),
+                Rotation = new Vector3(tilt, 0, 0),
+                CastShadow = GeometryInstance3D.ShadowCastingSetting.Off,
+            }
+        );
         // Backglass panel in the backbox (also used on a table's own backbox when its cabinet has no backglass).
         _backglassPanel = new MeshInstance3D
         {
@@ -166,11 +237,20 @@ public partial class Cabinet : Node3D
 
         // One collider for the whole cabinet, so pointing anywhere at it selects it.
         var area = new Area3D();
-        area.AddChild(new CollisionShape3D
-        {
-            Shape = new BoxShape3D { Size = new Vector3(CabinetKit.Width + 0.06f, CabinetKit.Height, CabinetKit.Length) },
-            Position = new Vector3(0, CabinetKit.Height / 2, 0),
-        });
+        area.AddChild(
+            new CollisionShape3D
+            {
+                Shape = new BoxShape3D
+                {
+                    Size = new Vector3(
+                        CabinetKit.Width + 0.06f,
+                        CabinetKit.Height,
+                        CabinetKit.Length
+                    ),
+                },
+                Position = new Vector3(0, CabinetKit.Height / 2, 0),
+            }
+        );
         area.SetMeta("cabinet_slot", slot);
         AddChild(area);
 
@@ -205,16 +285,19 @@ public partial class Cabinet : Node3D
         {
             _real.Visible = false;
             _real.Mesh = null;
-            foreach (var g in _generic) g.Visible = true;
+            foreach (var g in _generic)
+                g.Visible = true;
             _plate.Visible = BackglassUrl == null && !HasBackglassArt;
             PlaceGenericPlayfield();
             PlaceGenericBackglass();
             return;
         }
         _real.Mesh = real.Mesh;
-        for (var i = 0; i < real.Mesh.GetSurfaceCount(); i++) _real.SetSurfaceOverrideMaterial(i, null); // none left from another table
+        for (var i = 0; i < real.Mesh.GetSurfaceCount(); i++)
+            _real.SetSurfaceOverrideMaterial(i, null); // none left from another table
         _real.Visible = true;
-        foreach (var g in _generic) g.Visible = false;
+        foreach (var g in _generic)
+            g.Visible = false;
         _playfieldQuad.Size = real.PlayfieldSize;
         _playfield.Rotation = new Vector3(real.PlayfieldSlope - Mathf.Pi / 2, 0, 0); // sloped like the generic one, back end up
         PlacePlayfield(real.PlayfieldCentre + new Vector3(0, 0.003f, 0));
@@ -223,9 +306,14 @@ public partial class Cabinet : Node3D
         // Backglass: the cabinet's own picture when it has one. Some VR tables set it from their script
         // (so the file has none) or draw it another way: then the game's VPS backglass fills in, on the
         // cabinet's backglass part, or as a panel on the front of its backbox.
-        if (Borrowed) DressBorrowed(real);
+        if (Borrowed)
+            DressBorrowed(real);
         // A backglass you chose yourself (UserArtwork) replaces the cabinet's own picture too.
-        var mine = BackglassUrl?.StartsWith(VrTableManager.Services.UserArtwork.LocalScheme, StringComparison.Ordinal) == true;
+        var mine =
+            BackglassUrl?.StartsWith(
+                VrTableManager.Services.UserArtwork.LocalScheme,
+                StringComparison.Ordinal
+            ) == true;
         if (real.BackglassSurface >= 0 && !Borrowed && (!real.BackglassTextured || mine))
             _real.SetSurfaceOverrideMaterial(real.BackglassSurface, _backglassMat);
         // A borrowed cabinet may print its own backglass on the backbox itself, so this table's backglass
@@ -235,7 +323,11 @@ public partial class Cabinet : Node3D
             // The glass opening: the top 60% of the backbox (the speaker panel is below), most of its width.
             // Set into the box at its glass (RealCabinet.GlassZ), with a margin inside the frame on every side.
             _bgRoom = new Vector2(box.Size.X * 0.86f, RealCabinet.GlassHeight(box));
-            _bgCentre = new Vector3(box.GetCenter().X, RealCabinet.GlassCentreY(box), real.GlassZ ?? box.End.Z - 0.02f);
+            _bgCentre = new Vector3(
+                box.GetCenter().X,
+                RealCabinet.GlassCentreY(box),
+                real.GlassZ ?? box.End.Z - 0.02f
+            );
             FitBackglass();
             _backglassPanel.Visible = true;
             _plate.Visible = BackglassUrl == null && !HasBackglassArt;
@@ -244,11 +336,13 @@ public partial class Cabinet : Node3D
     }
 
     static StandardMaterial3D? _dmdPanelMat;
-    static StandardMaterial3D DmdPanelMaterial => _dmdPanelMat ??= new StandardMaterial3D
-    {
-        ShadingMode = BaseMaterial3D.ShadingModeEnum.Unshaded, AlbedoColor = Palette.DmdPanel,
-        CullMode = BaseMaterial3D.CullModeEnum.Disabled, // stands in for a VR cabinet part: both sides (see _bodyMat)
-    };
+    static StandardMaterial3D DmdPanelMaterial =>
+        _dmdPanelMat ??= new StandardMaterial3D
+        {
+            ShadingMode = BaseMaterial3D.ShadingModeEnum.Unshaded,
+            AlbedoColor = Palette.DmdPanel,
+            CullMode = BaseMaterial3D.CullModeEnum.Disabled, // stands in for a VR cabinet part: both sides (see _bodyMat)
+        };
 
     /// <summary>
     /// The template cabinet (e.g. Medieval Madness) dressed for this table: its printed art becomes this
@@ -264,7 +358,7 @@ public partial class Cabinet : Node3D
                 SurfaceKind.Art => _bodyMat,
                 SurfaceKind.Grille => CabinetKit.GrilleMaterial,
                 SurfaceKind.Dmd => DmdPanelMaterial,
-                SurfaceKind.Backglass => DmdPanelMaterial,   // the panel below goes in front (see ShowReal)
+                SurfaceKind.Backglass => DmdPanelMaterial, // the panel below goes in front (see ShowReal)
                 _ => null,
             };
             _real.SetSurfaceOverrideMaterial(i, m);
@@ -293,7 +387,10 @@ public partial class Cabinet : Node3D
         if (_backglassMat.AlbedoTexture is { } tex && tex.GetHeight() > 0)
         {
             var aspect = (float)tex.GetWidth() / tex.GetHeight();
-            size = aspect >= _bgRoom.X / _bgRoom.Y ? new Vector2(_bgRoom.X, _bgRoom.X / aspect) : new Vector2(_bgRoom.Y * aspect, _bgRoom.Y);
+            size =
+                aspect >= _bgRoom.X / _bgRoom.Y
+                    ? new Vector2(_bgRoom.X, _bgRoom.X / aspect)
+                    : new Vector2(_bgRoom.Y * aspect, _bgRoom.Y);
         }
         _backglassQuad.Size = size;
         _backglassPanel.Position = _bgCentre;
@@ -301,14 +398,21 @@ public partial class Cabinet : Node3D
     }
 
     /// <summary>Shows a table on this cabinet. Art arrives later through SetPlayfield / SetBackglass.</summary>
-    public void Assign(int index, LobbyTable table, string? playfieldUrl, string? backglassUrl, bool favourite)
+    public void Assign(
+        int index,
+        LobbyTable table,
+        string? playfieldUrl,
+        string? backglassUrl,
+        bool favourite
+    )
     {
         Visible = true;
         var same = Table == table && Index == index;
         Index = index;
         Table = table;
         _star.Visible = favourite;
-        if (same && playfieldUrl == PlayfieldUrl && backglassUrl == BackglassUrl) return;
+        if (same && playfieldUrl == PlayfieldUrl && backglassUrl == BackglassUrl)
+            return;
 
         PlayfieldUrl = playfieldUrl;
         BackglassUrl = backglassUrl;
@@ -332,9 +436,11 @@ public partial class Cabinet : Node3D
 
     public void SetPlayfield(Texture2D tex)
     {
-        var playingVideo = _playfieldMat.AlbedoTexture != null && _playfieldMat.AlbedoTexture != _playfieldArt;
+        var playingVideo =
+            _playfieldMat.AlbedoTexture != null && _playfieldMat.AlbedoTexture != _playfieldArt;
         _playfieldArt = tex;
-        if (!playingVideo) _playfieldMat.AlbedoTexture = tex;
+        if (!playingVideo)
+            _playfieldMat.AlbedoTexture = tex;
         ApplyColours();
     }
 
@@ -403,15 +509,21 @@ public partial class Cabinet : Node3D
         var lit = Mathf.Min(b, 1f);
         // Shaded parts keep their own colour: they're darker around the ring because the spot and key lights don't reach there.
         _bodyMat.AlbedoColor = _baseBody;
-        _playfieldMat.AlbedoColor = (_playfieldMat.AlbedoTexture == null ? DarkPlayfield : Colors.White) * new Color(b, b, b);
+        _playfieldMat.AlbedoColor =
+            (_playfieldMat.AlbedoTexture == null ? DarkPlayfield : Colors.White)
+            * new Color(b, b, b);
         if (_depthMat != null)
         {
             _depthMat.SetShaderParameter("albedo_tex", _playfieldMat.AlbedoTexture);
             _depthMat.SetShaderParameter("tint", _playfieldMat.AlbedoColor);
         }
-        _backglassMat.AlbedoColor = (_backglassMat.AlbedoTexture == null ? DarkGlass : Colors.White) * new Color(b, b, b);
+        _backglassMat.AlbedoColor =
+            (_backglassMat.AlbedoTexture == null ? DarkGlass : Colors.White) * new Color(b, b, b);
         // The selected cabinet lights up in lamp amber; the others glow in their table type's insert colour.
-        var lamp = Table == null ? Palette.Blue : _selected ? Palette.Lamp : Palette.Insert(Table.Badge);
+        var lamp =
+            Table == null ? Palette.Blue
+            : _selected ? Palette.Lamp
+            : Palette.Insert(Table.Badge);
         _glowMat.AlbedoColor = lamp;
         _glowMat.Emission = lamp;
         _glowMat.EmissionEnergyMultiplier = 0.3f + 0.9f * Mathf.Min(b - 0.35f, 0.65f) / 0.65f;
@@ -423,7 +535,11 @@ public partial class Cabinet : Node3D
     {
         // Keep the hue, but dark and a little saturated, like printed side art in a dim room.
         average.ToHsv(out var h, out var s, out var v);
-        return Color.FromHsv(h, Mathf.Clamp(s * 1.1f, 0.3f, 0.85f), Mathf.Clamp(v * 0.6f, 0.16f, 0.42f));
+        return Color.FromHsv(
+            h,
+            Mathf.Clamp(s * 1.1f, 0.3f, 0.85f),
+            Mathf.Clamp(v * 0.6f, 0.16f, 0.42f)
+        );
     }
 
     /// <summary>Until the backglass arrives: charcoal with a hint of the table type's insert colour.</summary>
@@ -452,10 +568,11 @@ public static class Palette
     public static readonly Color Green = new("#63C46E");
 
     /// <summary>Insert colour for a table type: blue VPX, red Future Pinball, green Pinball FX / M.</summary>
-    public static Color Insert(string badge) => badge switch
-    {
-        "FP" => Red,
-        "FX" or "M" => Green,
-        _ => Blue,
-    };
+    public static Color Insert(string badge) =>
+        badge switch
+        {
+            "FP" => Red,
+            "FX" or "M" => Green,
+            _ => Blue,
+        };
 }

@@ -5,19 +5,33 @@ using VrTableManager.Models;
 using VrTableManager.Services;
 
 var failures = 0;
-void Check(bool ok, string what) { Console.WriteLine($"{(ok ? "PASS" : "FAIL")}  {what}"); if (!ok) failures++; }
+void Check(bool ok, string what)
+{
+    Console.WriteLine($"{(ok ? "PASS" : "FAIL")}  {what}");
+    if (!ok)
+        failures++;
+}
 
 // 1. Catalog
 var games = await VpsCatalog.LoadAsync(forceRefresh: false);
-var vrGames = games.Where(g => g.TableFiles!.Any(t => VpsCatalog.IsVpx(t) && VpsCatalog.IsVrReady(t))).ToList();
+var vrGames = games
+    .Where(g => g.TableFiles!.Any(t => VpsCatalog.IsVpx(t) && VpsCatalog.IsVrReady(t)))
+    .ToList();
 var fpGames = games.Where(g => g.TableFiles!.Any(t => t.TableFormat == "FP")).ToList();
-Console.WriteLine($"catalog: {games.Count} machines with VPX tables, {vrGames.Count} VR-ready, {fpGames.Count} with FP tables");
+Console.WriteLine(
+    $"catalog: {games.Count} machines with VPX tables, {vrGames.Count} VR-ready, {fpGames.Count} with FP tables"
+);
 Check(games.Count > 500, "catalog loads");
 Check(vrGames.Count > 50, "VR filter finds tables");
-var hosts = games.SelectMany(g => g.TableFiles!).Where(VpsCatalog.IsVpx)
-    .Select(t => t.Urls?.FirstOrDefault()?.Url).OfType<string>()
+var hosts = games
+    .SelectMany(g => g.TableFiles!)
+    .Where(VpsCatalog.IsVpx)
+    .Select(t => t.Urls?.FirstOrDefault()?.Url)
+    .OfType<string>()
     .Select(u => Uri.TryCreate(u, UriKind.Absolute, out var x) ? x.Host.Replace("www.", "") : "?")
-    .GroupBy(h => h).OrderByDescending(g => g.Count()).Take(8);
+    .GroupBy(h => h)
+    .OrderByDescending(g => g.Count())
+    .Take(8);
 Console.WriteLine("top VPX hosts: " + string.Join(", ", hosts.Select(h => $"{h.Key}={h.Count()}")));
 
 // 2. Installer with a cabinet-style pack: Tables/x.vpx, VPinMAME/roms/rom.zip, Music/a.mp3, plus a VR variant.
@@ -30,38 +44,114 @@ File.WriteAllText(Path.Combine(src, "Tables", "Test Table 1.0.vpx"), "desktop");
 File.WriteAllText(Path.Combine(src, "Tables", "Test Table VR 1.0.vpx"), "vr");
 File.WriteAllText(Path.Combine(src, "Tables", "Test Table.directb2s"), "b2s");
 File.WriteAllText(Path.Combine(src, "Music", "TestTable", "theme.mp3"), "mp3");
-using (var rom = ZipFile.Open(Path.Combine(src, "VPinMAME", "roms", "tt_l1.zip"), ZipArchiveMode.Create))
+using (
+    var rom = ZipFile.Open(
+        Path.Combine(src, "VPinMAME", "roms", "tt_l1.zip"),
+        ZipArchiveMode.Create
+    )
+)
     rom.CreateEntry("rom.bin");
 var pack = Path.Combine(root, "pack.zip");
 ZipFile.CreateFromDirectory(src, pack);
 
-var settings = new AppSettings { TablesDir = Path.Combine(root, "tables"), VpxDir = Path.Combine(root, "vpx") };
-var game = new VpsGame { Id = "g1", Name = "Test Table", Manufacturer = "Williams", Year = 1992, RomFiles = [new VpsFile { Version = "tt_l1" }] };
-var tf = new VpsTableFile { Id = "t1", TableFormat = "VPX", Version = "1.0", Features = ["VR"], Authors = ["Someone"] };
-var inst = await TableInstaller.InstallAsync(pack, game, tf, settings, s => Console.WriteLine("   " + s), CancellationToken.None);
+var settings = new AppSettings
+{
+    TablesDir = Path.Combine(root, "tables"),
+    VpxDir = Path.Combine(root, "vpx"),
+};
+var game = new VpsGame
+{
+    Id = "g1",
+    Name = "Test Table",
+    Manufacturer = "Williams",
+    Year = 1992,
+    RomFiles = [new VpsFile { Version = "tt_l1" }],
+};
+var tf = new VpsTableFile
+{
+    Id = "t1",
+    TableFormat = "VPX",
+    Version = "1.0",
+    Features = ["VR"],
+    Authors = ["Someone"],
+};
+var inst = await TableInstaller.InstallAsync(
+    pack,
+    game,
+    tf,
+    settings,
+    s => Console.WriteLine("   " + s),
+    CancellationToken.None
+);
 var folder = Path.Combine(settings.TablesDir, "Test Table (Williams 1992)");
 Check(inst.Folder == folder, "table gets its own folder named Name (Manufacturer Year)");
-Check(Path.GetFileName(inst.TablePath) == "Test Table VR 1.0.vpx", "VR build chosen as the main table");
-Check(File.Exists(Path.Combine(folder, "pinmame", "roms", "tt_l1.zip")), "ROM moved to pinmame/roms");
+Check(
+    Path.GetFileName(inst.TablePath) == "Test Table VR 1.0.vpx",
+    "VR build chosen as the main table"
+);
+Check(
+    File.Exists(Path.Combine(folder, "pinmame", "roms", "tt_l1.zip")),
+    "ROM moved to pinmame/roms"
+);
 Check(File.Exists(Path.Combine(folder, "music", "TestTable", "theme.mp3")), "music folder merged");
 Check(File.Exists(Path.Combine(folder, "Test Table.directb2s")), "backglass kept");
 Check(inst.MissingRoms.Count == 0, "no missing ROMs");
+
 // Store engines (Pinball FX) may add their own entries on this PC; only look at file tables.
 var scanned = TableInstaller.Scan(settings).Where(t => t.IsVpx).ToList();
-Check(scanned.Count == 1 && scanned[0].Manifest.GameId == "g1", "scan finds the table via its manifest");
+Check(
+    scanned.Count == 1 && scanned[0].Manifest.GameId == "g1",
+    "scan finds the table via its manifest"
+);
 TableInstaller.Remove(scanned[0]);
 Check(!Directory.Exists(folder), "remove deletes the table folder");
 
 // 2a. Another table file of an installed game gets a folder of its own; reinstalling the same one reuses its folder.
-var first = await TableInstaller.InstallAsync(pack, game, tf, settings, _ => { }, CancellationToken.None);
-var tf2 = new VpsTableFile { Id = "t2", TableFormat = "VPX", Version = "2.0", Authors = ["Other"] };
-var second = await TableInstaller.InstallAsync(pack, game, tf2, settings, _ => { }, CancellationToken.None);
-Check(second.Folder == folder + " (2)" && first.Folder == folder, "a second table file of the game installs beside the first, not over it");
+var first = await TableInstaller.InstallAsync(
+    pack,
+    game,
+    tf,
+    settings,
+    _ => { },
+    CancellationToken.None
+);
+var tf2 = new VpsTableFile
+{
+    Id = "t2",
+    TableFormat = "VPX",
+    Version = "2.0",
+    Authors = ["Other"],
+};
+var second = await TableInstaller.InstallAsync(
+    pack,
+    game,
+    tf2,
+    settings,
+    _ => { },
+    CancellationToken.None
+);
+Check(
+    second.Folder == folder + " (2)" && first.Folder == folder,
+    "a second table file of the game installs beside the first, not over it"
+);
 var both = TableInstaller.Scan(settings).Where(t => t.IsVpx).ToList();
-Check(both.Count == 2 && both.Any(t => t.Manifest.TableFileId == "t1") && both.Any(t => t.Manifest.TableFileId == "t2"), "both builds stay listed with their own manifest");
-var again = await TableInstaller.InstallAsync(pack, game, tf, settings, _ => { }, CancellationToken.None);
+Check(
+    both.Count == 2
+        && both.Any(t => t.Manifest.TableFileId == "t1")
+        && both.Any(t => t.Manifest.TableFileId == "t2"),
+    "both builds stay listed with their own manifest"
+);
+var again = await TableInstaller.InstallAsync(
+    pack,
+    game,
+    tf,
+    settings,
+    _ => { },
+    CancellationToken.None
+);
 Check(again.Folder == folder, "reinstalling the same table file goes back into its folder");
-foreach (var t in TableInstaller.Scan(settings).Where(t => t.IsVpx)) TableInstaller.Remove(t);
+foreach (var t in TableInstaller.Scan(settings).Where(t => t.IsVpx))
+    TableInstaller.Remove(t);
 
 // 2b. roms\ and VPinMAME\nvram\ beside a .vpx at the archive's root end up where PinMAME looks.
 var flat = Path.Combine(root, "flat");
@@ -69,21 +159,43 @@ Directory.CreateDirectory(Path.Combine(flat, "roms"));
 Directory.CreateDirectory(Path.Combine(flat, "VPinMAME", "nvram"));
 File.WriteAllText(Path.Combine(flat, "Test Table 1.0.vpx"), "desktop");
 File.WriteAllText(Path.Combine(flat, "VPinMAME", "nvram", "tt_l1.nv"), "nv");
-using (var rom = ZipFile.Open(Path.Combine(flat, "roms", "tt_l1.zip"), ZipArchiveMode.Create)) rom.CreateEntry("rom.bin");
+using (var rom = ZipFile.Open(Path.Combine(flat, "roms", "tt_l1.zip"), ZipArchiveMode.Create))
+    rom.CreateEntry("rom.bin");
 var flatPack = Path.Combine(root, "flat.zip");
 ZipFile.CreateFromDirectory(flat, flatPack);
-var flatInst = await TableInstaller.InstallAsync(flatPack, game, new VpsTableFile { Id = "t1", TableFormat = "VPX" }, settings, _ => { }, CancellationToken.None);
-Check(File.Exists(Path.Combine(flatInst.Folder, "pinmame", "roms", "tt_l1.zip")) && !Directory.Exists(Path.Combine(flatInst.Folder, "roms")),
-    "roms\\ beside the .vpx moves to pinmame\\roms");
-Check(File.Exists(Path.Combine(flatInst.Folder, "pinmame", "nvram", "tt_l1.nv")) && !Directory.Exists(Path.Combine(flatInst.Folder, "VPinMAME")),
-    "VPinMAME\\nvram beside the .vpx moves to pinmame\\nvram");
+var flatInst = await TableInstaller.InstallAsync(
+    flatPack,
+    game,
+    new VpsTableFile { Id = "t1", TableFormat = "VPX" },
+    settings,
+    _ => { },
+    CancellationToken.None
+);
+Check(
+    File.Exists(Path.Combine(flatInst.Folder, "pinmame", "roms", "tt_l1.zip"))
+        && !Directory.Exists(Path.Combine(flatInst.Folder, "roms")),
+    "roms\\ beside the .vpx moves to pinmame\\roms"
+);
+Check(
+    File.Exists(Path.Combine(flatInst.Folder, "pinmame", "nvram", "tt_l1.nv"))
+        && !Directory.Exists(Path.Combine(flatInst.Folder, "VPinMAME")),
+    "VPinMAME\\nvram beside the .vpx moves to pinmame\\nvram"
+);
 TableInstaller.Remove(flatInst);
 
 // 3. Path-traversal entries are ignored
 var evil = Path.Combine(root, "evil.zip");
-using (var z = ZipFile.Open(evil, ZipArchiveMode.Create)) { z.CreateEntry("../../escaped.txt"); z.CreateEntry("ok.vpx"); }
+using (var z = ZipFile.Open(evil, ZipArchiveMode.Create))
+{
+    z.CreateEntry("../../escaped.txt");
+    z.CreateEntry("ok.vpx");
+}
 TableInstaller.Extract(evil, Path.Combine(root, "x"));
-Check(!File.Exists(Path.Combine(root, "..", "escaped.txt")) && File.Exists(Path.Combine(root, "x", "ok.vpx")), "zip-slip entries skipped");
+Check(
+    !File.Exists(Path.Combine(root, "..", "escaped.txt"))
+        && File.Exists(Path.Combine(root, "x", "ok.vpx")),
+    "zip-slip entries skipped"
+);
 
 // 4. VR ini
 VpxSetup.EnsureVrIni(settings);
@@ -93,134 +205,319 @@ Check(ini.Contains("[PlayerVR]") && ini.Contains("AskToTurnOn = 0"), "VR ini ena
 // VPX 10.8.1 rejects -Minimized/-ExtMinimized with -Play ("must be used in conjunction with a
 // command that uses the Win32 editor"), so the launch line must be just [-Ini x] -Play table.
 var vrArgs = Launcher.VpxArgs(@"C:\vpx\VrTableManager-VR.ini", @"C:\t\x.vpx");
-Check(vrArgs.SequenceEqual(["-Ini", @"C:\vpx\VrTableManager-VR.ini", "-Play", @"C:\t\x.vpx"]), "VR launch args: -Ini <vr ini> -Play <table>");
-Check(Launcher.VpxArgs(null, @"C:\t\x.vpx").SequenceEqual(["-Play", @"C:\t\x.vpx"]), "desktop launch args: -Play <table>");
-Check(!vrArgs.Any(a => a.Contains("Minimized", StringComparison.OrdinalIgnoreCase)), "no editor-only -Minimized/-ExtMinimized flags");
+Check(
+    vrArgs.SequenceEqual(["-Ini", @"C:\vpx\VrTableManager-VR.ini", "-Play", @"C:\t\x.vpx"]),
+    "VR launch args: -Ini <vr ini> -Play <table>"
+);
+Check(
+    Launcher.VpxArgs(null, @"C:\t\x.vpx").SequenceEqual(["-Play", @"C:\t\x.vpx"]),
+    "desktop launch args: -Play <table>"
+);
+Check(
+    !vrArgs.Any(a => a.Contains("Minimized", StringComparison.OrdinalIgnoreCase)),
+    "no editor-only -Minimized/-ExtMinimized flags"
+);
 
 // Browser downloader against a local mock table site (login must not be interrupted; one click per step).
-Check(BrowserDownloader.IsAuthUrl("https://vpuniverse.com/login/") && BrowserDownloader.IsAuthUrl("https://www.vpforums.org/index.php?app=core&section=login")
-      && BrowserDownloader.IsAuthUrl("https://pinballnirvana.com/forums/sign-in"), "recognises login pages");
-Check(!BrowserDownloader.IsAuthUrl("https://vpuniverse.com/files/file/123-authors-edition/"), "table pages with 'author' aren't login pages");
+Check(
+    BrowserDownloader.IsAuthUrl("https://vpuniverse.com/login/")
+        && BrowserDownloader.IsAuthUrl("https://www.vpforums.org/index.php?app=core&section=login")
+        && BrowserDownloader.IsAuthUrl("https://pinballnirvana.com/forums/sign-in"),
+    "recognises login pages"
+);
+Check(
+    !BrowserDownloader.IsAuthUrl("https://vpuniverse.com/files/file/123-authors-edition/"),
+    "table pages with 'author' aren't login pages"
+);
 using (var site = new MockTableSite())
 {
     var profile = Path.Combine(root, "browser-profile");
     await using var browser = new BrowserDownloader(profile, headless: true);
     var statuses = new List<string>();
-    var got = await browser.DownloadAsync(site.FileUrl, Path.Combine(root, "dl"), ["VR"], s => { lock (statuses) statuses.Add(s); }, CancellationToken.None);
+    var got = await browser.DownloadAsync(
+        site.FileUrl,
+        Path.Combine(root, "dl"),
+        ["VR"],
+        s =>
+        {
+            lock (statuses)
+                statuses.Add(s);
+        },
+        CancellationToken.None
+    );
     var log = site.Log.ToList();
     Console.WriteLine("   mock site requests: " + string.Join(", ", log));
     var loginAt = log.IndexOf("login-page");
     var postAt = log.IndexOf("login-post");
-    Check(loginAt >= 0 && postAt > loginAt && !log.Skip(loginAt + 1).Take(postAt - loginAt - 1).Any(),
-        "waits on the login page until the user submits (no navigation mid-login)");
-    Check(site.Count("login-page") == 1 && site.Count("login-post") == 1, "login page loaded once, submitted once");
+    Check(
+        loginAt >= 0 && postAt > loginAt && !log.Skip(loginAt + 1).Take(postAt - loginAt - 1).Any(),
+        "waits on the login page until the user submits (no navigation mid-login)"
+    );
+    Check(
+        site.Count("login-page") == 1 && site.Count("login-post") == 1,
+        "login page loaded once, submitted once"
+    );
     Check(site.Count("picker") == 1, "opens the file picker once");
-    Check(site.Count("file-2") == 1 && site.Count("file-1") == 0, "requests the VR file exactly once, never the desktop one");
+    Check(
+        site.Count("file-2") == 1 && site.Count("file-1") == 0,
+        "requests the VR file exactly once, never the desktop one"
+    );
     Check(site.Count("nav-downloads") == 0, "never follows the Downloads menu");
-    Check(Path.GetFileName(got) == "Test Table VR.zip" && File.Exists(got), "saves the downloaded file");
+    Check(
+        Path.GetFileName(got) == "Test Table VR.zip" && File.Exists(got),
+        "saves the downloaded file"
+    );
     await browser.DisposeAsync(); // a profile can only be open in one browser at a time
 
     // A ROM page with every version of the machine's ROM: take them all. A new downloader on the same
     // profile must still be signed in (sign-ins persist between app runs).
     await using var browser2 = new BrowserDownloader(profile, headless: true);
-    var roms = await browser2.DownloadAllAsync(site.RomPageUrl, Path.Combine(root, "dl-roms"), _ => { }, CancellationToken.None);
+    var roms = await browser2.DownloadAllAsync(
+        site.RomPageUrl,
+        Path.Combine(root, "dl-roms"),
+        _ => { },
+        CancellationToken.None
+    );
     Check(site.Count("rom-page-signed-out") == 0, "sign-in remembered by the browser profile");
-    Check(roms.Select(Path.GetFileName).Order().SequenceEqual(["afm_11.zip", "afm_113.zip", "afm_113b.zip"])
-          && site.Count("rom-picker") == 1 && site.Count("rom-afm_113b") == 1, "downloads every file on a multi-file ROM page, once each");
+    Check(
+        roms.Select(Path.GetFileName)
+            .Order()
+            .SequenceEqual(["afm_11.zip", "afm_113.zip", "afm_113b.zip"])
+            && site.Count("rom-picker") == 1
+            && site.Count("rom-afm_113b") == 1,
+        "downloads every file on a multi-file ROM page, once each"
+    );
 
-    var afm = new InstalledTable(new TableManifest { Engine = TableManifest.Vpx, RomNames = ["afm_113b"] },
-        Path.Combine(root, "afm", "afm.vpx"), Path.Combine(root, "afm"));
+    var afm = new InstalledTable(
+        new TableManifest { Engine = TableManifest.Vpx, RomNames = ["afm_113b"] },
+        Path.Combine(root, "afm", "afm.vpx"),
+        Path.Combine(root, "afm")
+    );
     var placedAll = RomInstaller.InstallAll(roms, afm, "afm_113b");
-    Check(placedAll.Count == 3 && afm.MissingRoms.Count == 0
-          && File.Exists(Path.Combine(afm.Folder, "pinmame", "roms", "afm_113.zip")), "installs the whole ROM family (parent beside the clone)");
+    Check(
+        placedAll.Count == 3
+            && afm.MissingRoms.Count == 0
+            && File.Exists(Path.Combine(afm.Folder, "pinmame", "roms", "afm_113.zip")),
+        "installs the whole ROM family (parent beside the clone)"
+    );
 
     // Two downloads at once, each in its own tab and folder. Each file takes 4 s to start on the
     // mock site, so running them one after the other would take over 8 s.
     var before2 = site.Count("file-2");
     var sw = System.Diagnostics.Stopwatch.StartNew();
     var pair = await Task.WhenAll(
-        browser2.DownloadAsync(site.FileUrl, Path.Combine(root, "dl-a"), ["VR"], _ => { }, CancellationToken.None),
-        browser2.DownloadAsync(site.FileUrl2, Path.Combine(root, "dl-b"), ["VR"], _ => { }, CancellationToken.None));
+        browser2.DownloadAsync(
+            site.FileUrl,
+            Path.Combine(root, "dl-a"),
+            ["VR"],
+            _ => { },
+            CancellationToken.None
+        ),
+        browser2.DownloadAsync(
+            site.FileUrl2,
+            Path.Combine(root, "dl-b"),
+            ["VR"],
+            _ => { },
+            CancellationToken.None
+        )
+    );
     sw.Stop();
     Console.WriteLine($"   two parallel downloads took {sw.Elapsed.TotalSeconds:F1} s");
-    Check(pair[0] != pair[1] && File.Exists(pair[0]) && File.Exists(pair[1]) && Path.GetDirectoryName(pair[0])!.EndsWith("dl-a") && Path.GetDirectoryName(pair[1])!.EndsWith("dl-b"),
-        "parallel downloads each land in their own job's folder");
-    Check(site.Count("file-2") - before2 == 2 && sw.Elapsed < TimeSpan.FromSeconds(7.5), "two downloads run at the same time (not one after the other)");
+    Check(
+        pair[0] != pair[1]
+            && File.Exists(pair[0])
+            && File.Exists(pair[1])
+            && Path.GetDirectoryName(pair[0])!.EndsWith("dl-a")
+            && Path.GetDirectoryName(pair[1])!.EndsWith("dl-b"),
+        "parallel downloads each land in their own job's folder"
+    );
+    Check(
+        site.Count("file-2") - before2 == 2 && sw.Elapsed < TimeSpan.FromSeconds(7.5),
+        "two downloads run at the same time (not one after the other)"
+    );
 
-    Check(!BrowserDownloader.SameFilePage("https://www.vpforums.org/index.php", "https://www.vpforums.org/index.php?app=downloads&showfile=99")
-          && BrowserDownloader.SameFilePage("https://vpforums.org/index.php?s=abc123&app=downloads&showfile=99", "https://www.vpforums.org/index.php?app=downloads&showfile=99")
-          && BrowserDownloader.SameFilePage("https://vpuniverse.com/files/file/721-x/", "https://vpuniverse.com/files/file/721-x"),
-        "same-page check uses the query (VPForums is all /index.php) but ignores session ids");
+    Check(
+        !BrowserDownloader.SameFilePage(
+            "https://www.vpforums.org/index.php",
+            "https://www.vpforums.org/index.php?app=downloads&showfile=99"
+        )
+            && BrowserDownloader.SameFilePage(
+                "https://vpforums.org/index.php?s=abc123&app=downloads&showfile=99",
+                "https://www.vpforums.org/index.php?app=downloads&showfile=99"
+            )
+            && BrowserDownloader.SameFilePage(
+                "https://vpuniverse.com/files/file/721-x/",
+                "https://vpuniverse.com/files/file/721-x"
+            ),
+        "same-page check uses the query (VPForums is all /index.php) but ignores session ids"
+    );
 
     // VPForums (IP.Board 3): once signed in, its Sign Out link contains "section=login". The download
     // must carry on after sign-in instead of waiting for a sign-in that already happened.
     using var vpfLimit = new CancellationTokenSource(TimeSpan.FromSeconds(60));
     string? vpfFile = null;
-    try { vpfFile = await browser2.DownloadAsync(site.VpfFileUrl, Path.Combine(root, "dl-vpf"), [], _ => { }, vpfLimit.Token); }
+    try
+    {
+        vpfFile = await browser2.DownloadAsync(
+            site.VpfFileUrl,
+            Path.Combine(root, "dl-vpf"),
+            [],
+            _ => { },
+            vpfLimit.Token
+        );
+    }
     catch (OperationCanceledException) { }
-    Console.WriteLine("   VPForums-style requests: " + string.Join(", ", site.Log.Where(l => l.StartsWith("vpf"))));
-    Check(site.Count("vpf-login-post") == 1 && vpfFile != null && Path.GetFileName(vpfFile) == "afm_113b.zip",
-        "VPForums: the download carries on after signing in");
+    Console.WriteLine(
+        "   VPForums-style requests: " + string.Join(", ", site.Log.Where(l => l.StartsWith("vpf")))
+    );
+    Check(
+        site.Count("vpf-login-post") == 1
+            && vpfFile != null
+            && Path.GetFileName(vpfFile) == "afm_113b.zip",
+        "VPForums: the download carries on after signing in"
+    );
 }
 
 // 5. URL classification
-Check(BrowserDownloader.IsDirectFileUrl("https://github.com/a/b/releases/download/v1/t.zip"), "GitHub asset is direct");
-Check(!BrowserDownloader.IsDirectFileUrl("https://vpuniverse.com/files/file/24896-rise-against/"), "VPU page goes through browser");
+Check(
+    BrowserDownloader.IsDirectFileUrl("https://github.com/a/b/releases/download/v1/t.zip"),
+    "GitHub asset is direct"
+);
+Check(
+    !BrowserDownloader.IsDirectFileUrl("https://vpuniverse.com/files/file/24896-rise-against/"),
+    "VPU page goes through browser"
+);
 
 // 6. Latest VPX release
 var vpxReleases = await VpxSetup.FindReleasesAsync(CancellationToken.None);
 var rel = vpxReleases.Latest;
-Console.WriteLine($"latest VPX: {rel?.Tag} {rel?.AssetName} {rel?.Size / 1_048_576} MB; newest marked DO NOT USE: {vpxReleases.Withdrawn?.Tag}");
-Check((rel ?? vpxReleases.Withdrawn)?.AssetName.StartsWith("VPinballX_BGFX-") == true, "finds the BGFX Windows build (usable or marked DO NOT USE)");
+Console.WriteLine(
+    $"latest VPX: {rel?.Tag} {rel?.AssetName} {rel?.Size / 1_048_576} MB; newest marked DO NOT USE: {vpxReleases.Withdrawn?.Tag}"
+);
+Check(
+    (rel ?? vpxReleases.Withdrawn)?.AssetName.StartsWith("VPinballX_BGFX-") == true,
+    "finds the BGFX Windows build (usable or marked DO NOT USE)"
+);
 {
     static string Rel(string tag, string name) =>
         $$"""{"draft":false,"name":"{{name}}","tag_name":"{{tag}}","assets":[{"name":"VPinballX_BGFX-{{tag.TrimStart('v')}}-windows-x64-Release.zip","browser_download_url":"https://x/{{tag}}.zip","size":1}]}""";
-    var allWithdrawn = VpxSetup.ParseReleases($"[{Rel("v10.8.1-5436-a", "DO NOT USE - v10.8.1-5436-a")},{Rel("v10.8.1-3788-b", "DO NOT USE - v10.8.1-3788-b")}]");
-    Check(allWithdrawn.Latest == null && allWithdrawn.Withdrawn?.Tag == "v10.8.1-5436-a", "DO NOT USE builds are never picked to install");
+    var allWithdrawn = VpxSetup.ParseReleases(
+        $"[{Rel("v10.8.1-5436-a", "DO NOT USE - v10.8.1-5436-a")},{Rel("v10.8.1-3788-b", "DO NOT USE - v10.8.1-3788-b")}]"
+    );
+    Check(
+        allWithdrawn.Latest == null && allWithdrawn.Withdrawn?.Tag == "v10.8.1-5436-a",
+        "DO NOT USE builds are never picked to install"
+    );
     var keep = VpxSetup.DescribeUpdate(allWithdrawn, "v10.8.1-5436-a");
-    Check(!keep.HasUpdate && keep.Text.StartsWith("Keeping your installed v10.8.1-5436-a") && keep.Text.Contains("DO NOT USE"),
-        "installed build is kept and the reason is shown");
-    Check(!VpxSetup.DescribeUpdate(allWithdrawn, null).HasUpdate, "nothing to install when every build is marked DO NOT USE");
-    var mixed = VpxSetup.ParseReleases($"[{Rel("v10.8.2-100-c", "DO NOT USE - v10.8.2-100-c")},{Rel("v10.8.1-5436-a", "v10.8.1")}]");
-    Check(mixed.Latest?.Tag == "v10.8.1-5436-a" && mixed.Withdrawn?.Tag == "v10.8.2-100-c", "falls back to the newest usable build");
-    Check(VpxSetup.DescribeUpdate(mixed, "v10.8.1-3788-b").HasUpdate, "older install: offers the newest usable build");
-    Check(!VpxSetup.DescribeUpdate(mixed, "v10.8.2-100-c").HasUpdate, "never offers an older build over a newer install");
-    var allowed = VpxSetup.ParseReleases($"[{Rel("v10.8.2-100-c", "DO NOT USE - v10.8.2-100-c")},{Rel("v10.8.1-5436-a", "v10.8.1")}]", useDoNotUse: true);
-    Check(allowed.Latest?.Tag == "v10.8.2-100-c" && VpxSetup.DescribeUpdate(allowed, "v10.8.1-5436-a").HasUpdate,
-        "DO NOT USE setting: the newest BGFX build is installed and offered as an update");
+    Check(
+        !keep.HasUpdate
+            && keep.Text.StartsWith("Keeping your installed v10.8.1-5436-a")
+            && keep.Text.Contains("DO NOT USE"),
+        "installed build is kept and the reason is shown"
+    );
+    Check(
+        !VpxSetup.DescribeUpdate(allWithdrawn, null).HasUpdate,
+        "nothing to install when every build is marked DO NOT USE"
+    );
+    var mixed = VpxSetup.ParseReleases(
+        $"[{Rel("v10.8.2-100-c", "DO NOT USE - v10.8.2-100-c")},{Rel("v10.8.1-5436-a", "v10.8.1")}]"
+    );
+    Check(
+        mixed.Latest?.Tag == "v10.8.1-5436-a" && mixed.Withdrawn?.Tag == "v10.8.2-100-c",
+        "falls back to the newest usable build"
+    );
+    Check(
+        VpxSetup.DescribeUpdate(mixed, "v10.8.1-3788-b").HasUpdate,
+        "older install: offers the newest usable build"
+    );
+    Check(
+        !VpxSetup.DescribeUpdate(mixed, "v10.8.2-100-c").HasUpdate,
+        "never offers an older build over a newer install"
+    );
+    var allowed = VpxSetup.ParseReleases(
+        $"[{Rel("v10.8.2-100-c", "DO NOT USE - v10.8.2-100-c")},{Rel("v10.8.1-5436-a", "v10.8.1")}]",
+        useDoNotUse: true
+    );
+    Check(
+        allowed.Latest?.Tag == "v10.8.2-100-c"
+            && VpxSetup.DescribeUpdate(allowed, "v10.8.1-5436-a").HasUpdate,
+        "DO NOT USE setting: the newest BGFX build is installed and offered as an update"
+    );
 
     // Nightly builds (GitHub Actions artifacts of VPX's master branch).
-    var artifacts = $$"""{"artifacts":[{"id":7,"name":"VPinballX_GL-10.8.2-6625-ab-windows-x64-Release.zip","size_in_bytes":1,"expired":false},{"id":8,"name":"VPinballX_BGFX-10.8.2-6625-ab{{(OperatingSystem.IsWindows() ? "-windows-x64-Release.zip" : OperatingSystem.IsMacOS() ? (System.Runtime.InteropServices.RuntimeInformation.OSArchitecture == System.Runtime.InteropServices.Architecture.Arm64 ? "-macos-arm64-Release.dmg" : "-macos-x64-Release.dmg") : "-linux-x64-Release.tar.gz")}}","size_in_bytes":5,"expired":false}]}""";
+    var artifacts =
+        $$"""{"artifacts":[{"id":7,"name":"VPinballX_GL-10.8.2-6625-ab-windows-x64-Release.zip","size_in_bytes":1,"expired":false},{"id":8,"name":"VPinballX_BGFX-10.8.2-6625-ab{{(OperatingSystem.IsWindows() ? "-windows-x64-Release.zip" : OperatingSystem.IsMacOS() ? (System.Runtime.InteropServices.RuntimeInformation.OSArchitecture == System.Runtime.InteropServices.Architecture.Arm64 ? "-macos-arm64-Release.dmg" : "-macos-x64-Release.dmg") : "-linux-x64-Release.tar.gz")}}","size_in_bytes":5,"expired":false}]}""";
     var n = VpxSetup.ParseNightlyArtifacts(artifacts);
-    Check(n is { Nightly: true, Tag: "v10.8.2-6625-ab", Size: 5 } && n.Url == "https://nightly.link/vpinball/vpinball/actions/artifacts/8.zip",
-        "nightly: picks the BGFX artifact for this OS and its nightly.link download");
-    Check(VpxSetup.ParseNightlyArtifacts(artifacts.Replace("\"expired\":false}]", "\"expired\":true}]")) == null, "nightly: expired artifacts are skipped");
+    Check(
+        n is { Nightly: true, Tag: "v10.8.2-6625-ab", Size: 5 }
+            && n.Url == "https://nightly.link/vpinball/vpinball/actions/artifacts/8.zip",
+        "nightly: picks the BGFX artifact for this OS and its nightly.link download"
+    );
+    Check(
+        VpxSetup.ParseNightlyArtifacts(
+            artifacts.Replace("\"expired\":false}]", "\"expired\":true}]")
+        ) == null,
+        "nightly: expired artifacts are skipped"
+    );
     var withN = VpxSetup.WithNightly(allowed, n);
-    Check(withN.Latest == n && VpxSetup.DescribeUpdate(withN, "v10.8.2-100-c") is { HasUpdate: true } u && u.Text.Contains("(nightly)"),
-        "nightly setting: a newer nightly is offered over the newest release");
-    Check(VpxSetup.WithNightly(allowed, n! with { Tag = "v10.8.1-100-old" }).Latest?.Tag == "v10.8.2-100-c", "nightly setting: an older nightly never replaces a release");
-    Check(VpxSetup.WithNightly(allWithdrawn, n).Withdrawn == null, "nightly setting: no DO NOT USE note once the nightly is newer");
-    Check(!VpxSetup.DescribeUpdate(mixed, "v10.8.2-6625-ab").HasUpdate, "nightly off: an installed nightly is kept, not downgraded");
+    Check(
+        withN.Latest == n
+            && VpxSetup.DescribeUpdate(withN, "v10.8.2-100-c") is { HasUpdate: true } u
+            && u.Text.Contains("(nightly)"),
+        "nightly setting: a newer nightly is offered over the newest release"
+    );
+    Check(
+        VpxSetup.WithNightly(allowed, n! with { Tag = "v10.8.1-100-old" }).Latest?.Tag
+            == "v10.8.2-100-c",
+        "nightly setting: an older nightly never replaces a release"
+    );
+    Check(
+        VpxSetup.WithNightly(allWithdrawn, n).Withdrawn == null,
+        "nightly setting: no DO NOT USE note once the nightly is newer"
+    );
+    Check(
+        !VpxSetup.DescribeUpdate(mixed, "v10.8.2-6625-ab").HasUpdate,
+        "nightly off: an installed nightly is kept, not downgraded"
+    );
 }
 
 // 6b. Live nightly lookup
 {
     var nightly = await VpxSetup.FindNightlyAsync(CancellationToken.None);
-    Console.WriteLine($"newest VPX nightly: {nightly?.Tag} {nightly?.Url} {nightly?.Size / 1_048_576} MB");
-    Check(nightly?.AssetName.StartsWith("VPinballX_BGFX-") == true, "finds the newest nightly BGFX build");
+    Console.WriteLine(
+        $"newest VPX nightly: {nightly?.Tag} {nightly?.Url} {nightly?.Size / 1_048_576} MB"
+    );
+    Check(
+        nightly?.AssetName.StartsWith("VPinballX_BGFX-") == true,
+        "finds the newest nightly BGFX build"
+    );
 }
 
 // 6a. VR Table Manager's own updates
 {
-    Check(AppUpdater.IsNewer("1.2.0", "1.1.9") && AppUpdater.IsNewer("1.2.0", "1.2.0-beta.1") && !AppUpdater.IsNewer("1.2.0-beta.1", "1.2.0")
-          && !AppUpdater.IsNewer("1.2.0", "1.2.0") && !AppUpdater.IsNewer("1.1.0", "1.10.0"), "app update: version order (releases above their betas)");
-    var appRel = AppUpdater.ParseLatest("""
+    Check(
+        AppUpdater.IsNewer("1.2.0", "1.1.9")
+            && AppUpdater.IsNewer("1.2.0", "1.2.0-beta.1")
+            && !AppUpdater.IsNewer("1.2.0-beta.1", "1.2.0")
+            && !AppUpdater.IsNewer("1.2.0", "1.2.0")
+            && !AppUpdater.IsNewer("1.1.0", "1.10.0"),
+        "app update: version order (releases above their betas)"
+    );
+    var appRel = AppUpdater.ParseLatest(
+        """
         {"draft":false,"prerelease":false,"tag_name":"v1.3.0","html_url":"https://github.com/x/y/releases/tag/v1.3.0","body":"notes",
          "assets":[{"name":"VrTableManager-1.3.0-win-x64.zip","browser_download_url":"https://x/z.zip","size":5},
                    {"name":"VrTableManager-1.3.0-win-x64.zip.sha256","browser_download_url":"https://x/z.sha256","size":1}]}
-        """);
-    Check(appRel is { Version: "1.3.0", Url: "https://x/z.zip", Sha256Url: "https://x/z.sha256" }, "app update: reads the release zip and its checksum");
-    Check(AppUpdater.IsDevBuild, "app update: a build from the repo is recognised (never self-updates)");
+        """
+    );
+    Check(
+        appRel is { Version: "1.3.0", Url: "https://x/z.zip", Sha256Url: "https://x/z.sha256" },
+        "app update: reads the release zip and its checksum"
+    );
+    Check(
+        AppUpdater.IsDevBuild,
+        "app update: a build from the repo is recognised (never self-updates)"
+    );
 }
 
 // 6b. Copy tables from another VPX install
@@ -231,15 +528,33 @@ Check((rel ?? vpxReleases.Withdrawn)?.AssetName.StartsWith("VPinballX_BGFX-") ==
     File.WriteAllText(Path.Combine(other, "Tables", "Loose Table.vpx"), "");
     File.WriteAllText(Path.Combine(other, "Tables", "Loose Table.directb2s"), "b2s");
     File.WriteAllText(Path.Combine(other, "Tables", "Unrelated.vpx"), "");
-    var into = new AppSettings { TablesDir = Path.Combine(root, "import-into"), VpxDir = Path.Combine(root, "no-vpx") };
+    var into = new AppSettings
+    {
+        TablesDir = Path.Combine(root, "import-into"),
+        VpxDir = Path.Combine(root, "no-vpx"),
+    };
     Directory.CreateDirectory(Path.Combine(into.TablesDir, "Unrelated"));
-    Check(TableImport.FindTablesDir(other) == Path.Combine(other, "Tables"), "import: finds the Tables folder of a VPX install");
+    Check(
+        TableImport.FindTablesDir(other) == Path.Combine(other, "Tables"),
+        "import: finds the Tables folder of a VPX install"
+    );
     var imported = TableImport.Import(other, into, _ => { }, CancellationToken.None);
-    Check(imported.Copied.Count == 2 && imported.Skipped.SequenceEqual(["Unrelated"]) && imported.Failed.Count == 0,
-        $"import: copies new tables, skips ones already there ({imported.Copied.Count} copied, {imported.Skipped.Count} skipped)");
-    Check(File.Exists(Path.Combine(into.TablesDir, "Loose Table", "Loose Table.directb2s"))
-          && File.Exists(Path.Combine(into.TablesDir, "Folder Table", "vrtm.json")), "import: loose table gets its own folder with its backglass");
-    Check(TableInstaller.Scan(into).Count(t => t.Manifest.GameName is "Loose Table" or "Folder Table") == 2, "import: copied tables are listed");
+    Check(
+        imported.Copied.Count == 2
+            && imported.Skipped.SequenceEqual(["Unrelated"])
+            && imported.Failed.Count == 0,
+        $"import: copies new tables, skips ones already there ({imported.Copied.Count} copied, {imported.Skipped.Count} skipped)"
+    );
+    Check(
+        File.Exists(Path.Combine(into.TablesDir, "Loose Table", "Loose Table.directb2s"))
+            && File.Exists(Path.Combine(into.TablesDir, "Folder Table", "vrtm.json")),
+        "import: loose table gets its own folder with its backglass"
+    );
+    Check(
+        TableInstaller.Scan(into).Count(t => t.Manifest.GameName is "Loose Table" or "Folder Table")
+            == 2,
+        "import: copied tables are listed"
+    );
 }
 
 // 6c. A release's lobby (no shared library source next to it) is never rebuilt
@@ -255,109 +570,262 @@ Check((rel ?? vpxReleases.Withdrawn)?.AssetName.StartsWith("VPinballX_BGFX-") ==
 Console.WriteLine(VpxSetup.DescribeOpenXrRuntime());
 
 // 7. Pinball FX + UEVR engine
-var vdf = "\"libraryfolders\"\n{\n\t\"0\"\n\t{\n\t\t\"path\"\t\t\"C:\\\\Program Files (x86)\\\\Steam\"\n\t}\n\t\"1\"\n\t{\n\t\t\"path\"\t\t\"D:\\\\SteamLibrary\"\n\t}\n}";
+var vdf =
+    "\"libraryfolders\"\n{\n\t\"0\"\n\t{\n\t\t\"path\"\t\t\"C:\\\\Program Files (x86)\\\\Steam\"\n\t}\n\t\"1\"\n\t{\n\t\t\"path\"\t\t\"D:\\\\SteamLibrary\"\n\t}\n}";
 var libs = PfxSetup.ParseLibraryFolders(vdf);
-Check(libs.SequenceEqual([@"C:\Program Files (x86)\Steam", @"D:\SteamLibrary"]), "parses Steam libraryfolders.vdf");
-Check(PfxSetup.ParseInstallDir("\"AppState\"\n{\n\t\"appid\"\t\t\"2328760\"\n\t\"installdir\"\t\t\"Pinball FX\"\n}") == "Pinball FX", "parses appmanifest installdir");
-var epic = PfxSetup.ParseEpicManifest("""{"DisplayName":"Pinball FX","InstallLocation":"E:\\Epic\\PinballFX","CatalogNamespace":"ns","CatalogItemId":"item","AppName":"app"}""");
-Check(epic?.LaunchUri == "com.epicgames.launcher://apps/ns%3Aitem%3Aapp?action=launch&silent=true" && epic.InstallDir == @"E:\Epic\PinballFX", "parses Epic manifest");
-Check(PfxSetup.ParseEpicManifest("""{"DisplayName":"Pinball FX3","InstallLocation":"x"}""") == null, "ignores Pinball FX3 (not Unreal)");
+Check(
+    libs.SequenceEqual([@"C:\Program Files (x86)\Steam", @"D:\SteamLibrary"]),
+    "parses Steam libraryfolders.vdf"
+);
+Check(
+    PfxSetup.ParseInstallDir(
+        "\"AppState\"\n{\n\t\"appid\"\t\t\"2328760\"\n\t\"installdir\"\t\t\"Pinball FX\"\n}"
+    ) == "Pinball FX",
+    "parses appmanifest installdir"
+);
+var epic = PfxSetup.ParseEpicManifest(
+    """{"DisplayName":"Pinball FX","InstallLocation":"E:\\Epic\\PinballFX","CatalogNamespace":"ns","CatalogItemId":"item","AppName":"app"}"""
+);
+Check(
+    epic?.LaunchUri == "com.epicgames.launcher://apps/ns%3Aitem%3Aapp?action=launch&silent=true"
+        && epic.InstallDir == @"E:\Epic\PinballFX",
+    "parses Epic manifest"
+);
+Check(
+    PfxSetup.ParseEpicManifest("""{"DisplayName":"Pinball FX3","InstallLocation":"x"}""") == null,
+    "ignores Pinball FX3 (not Unreal)"
+);
 var pfx = Engines.For(TableManifest.PinballFx);
 Check(pfx is PinballFxUevrEngine && !pfx.ManagesFiles, "PFX engine registered and store-owned");
-var fake = new InstalledTable(new TableManifest { Engine = TableManifest.PinballFx, GameName = "Pinball FX" }, root, root);
-try { TableInstaller.Remove(fake); Check(false, "refuses to remove store games"); }
-catch (InvalidOperationException) { Check(Directory.Exists(root), "refuses to remove store games"); }
+var fake = new InstalledTable(
+    new TableManifest { Engine = TableManifest.PinballFx, GameName = "Pinball FX" },
+    root,
+    root
+);
+try
+{
+    TableInstaller.Remove(fake);
+    Check(false, "refuses to remove store games");
+}
+catch (InvalidOperationException)
+{
+    Check(Directory.Exists(root), "refuses to remove store games");
+}
 var detected = PfxSetup.Detect();
-Console.WriteLine($"this PC: Pinball FX {(detected == null ? "not found" : $"{detected.Store} at {detected.InstallDir}")}; UEVR {(PfxSetup.AutoDetectUevr() ?? "not found")}; profile {(PfxSetup.HasProfile ? "present" : "absent")}");
+Console.WriteLine(
+    $"this PC: Pinball FX {(detected == null ? "not found" : $"{detected.Store} at {detected.InstallDir}")}; UEVR {(PfxSetup.AutoDetectUevr() ?? "not found")}; profile {(PfxSetup.HasProfile ? "present" : "absent")}"
+);
 
 // 8. VR lobby: library, A–Z navigation, filters, saved state (shared Core code the Godot lobby uses)
 var fx = LobbyFixture.Create(Path.Combine(root, "lobby"));
 var lobbySettings = AppSettings.LoadFrom(fx.Settings);
+
 // Store games (Pinball FX / Pinball M) installed on this PC show up too; leave them out of the fixture counts.
 var lib = LobbyLibrary.Load(lobbySettings).Where(t => ZenGames.For(t.Engine) == null).ToList();
 Check(lib.Count == 103, $"lobby library: 100 VPX + hand-installed + 2 FP ({lib.Count})");
 var mmT = lib.Single(t => t.Id == fx.MedievalMadness);
 Check(mmT.Subtitle == "Visual Pinball X  ·  Williams 1997  ·  v2.1", "subtitle: " + mmT.Subtitle);
-Check(mmT.MissingRoms.SequenceEqual(["mm_109c"]) && mmT.ImgUrl == LobbyFixture.ArtUrl, "missing ROM and artwork from the manifest");
-Check(lib.Any(t => t.Title == "Attack From Mars Hand" && t.Engine == TableManifest.Vpx) && lib.Count(t => t.Badge == "FP") == 2,
-    "hand-installed table uses its folder name; FP tables badged");
-Check(LobbyNav.LetterOf("The Getaway") == "G" && LobbyNav.LetterOf("24") == "#" && LobbyNav.LetterOf("x-men") == "X",
-    "letters: 'The' skipped, digits under #, case-insensitive");
+Check(
+    mmT.MissingRoms.SequenceEqual(["mm_109c"]) && mmT.ImgUrl == LobbyFixture.ArtUrl,
+    "missing ROM and artwork from the manifest"
+);
+Check(
+    lib.Any(t => t.Title == "Attack From Mars Hand" && t.Engine == TableManifest.Vpx)
+        && lib.Count(t => t.Badge == "FP") == 2,
+    "hand-installed table uses its folder name; FP tables badged"
+);
+Check(
+    LobbyNav.LetterOf("The Getaway") == "G"
+        && LobbyNav.LetterOf("24") == "#"
+        && LobbyNav.LetterOf("x-men") == "X",
+    "letters: 'The' skipped, digits under #, case-insensitive"
+);
 
 var lobbyState = LobbyState.Load(Path.Combine(root, "lobby-state.json"));
 var all = LobbyNav.Apply(lib, "All", lobbyState);
 Check(all.Groups.Count == 27 && all.Groups[13].Label == "M", "A–Z rail has # + 26 letters");
 var mIdx = all.Groups[13].Index;
 Check(all.List[mIdx].Title == "Mars Attacks", "M group starts at Mars Attacks");
-int at = 0, hops = 0;
-while (LobbyNav.GroupAt(all.Groups, at) != 13 && hops < 30) { at = LobbyNav.Jump(all.Groups, at, 1); hops++; }
+int at = 0,
+    hops = 0;
+while (LobbyNav.GroupAt(all.Groups, at) != 13 && hops < 30)
+{
+    at = LobbyNav.Jump(all.Groups, at, 1);
+    hops++;
+}
 Check(at == mIdx && hops <= 13, $"reach M in {hops} jumps instead of {mIdx} single steps");
 Check(LobbyNav.Jump(all.Groups, mIdx + 2, -1) == mIdx, "up inside a group goes to its first table");
-Check(LobbyNav.GroupAt(all.Groups, LobbyNav.Jump(all.Groups, mIdx, -1)) == 12, "up at a group start goes to the previous letter");
-Check(LobbyNav.GroupForKey(all.Groups, 'm') == 13 && LobbyNav.GroupForKey(all.Groups, '2') == 0, "typed keys map to letters, digits to #");
-var letterRuns = all.List.Select(t => LobbyNav.Letters.IndexOf(LobbyNav.LetterOf(t.Title))).ToList();
-Check(letterRuns.Zip(letterRuns.Skip(1)).All(p => p.First <= p.Second)
-      && all.List.FindIndex(t => t.Title == "The Getaway") < all.List.FindIndex(t => t.Title == "Gorgar"),
-    "every rail letter is one contiguous run (\"The Getaway\" sorts under G, digits first)");
+Check(
+    LobbyNav.GroupAt(all.Groups, LobbyNav.Jump(all.Groups, mIdx, -1)) == 12,
+    "up at a group start goes to the previous letter"
+);
+Check(
+    LobbyNav.GroupForKey(all.Groups, 'm') == 13 && LobbyNav.GroupForKey(all.Groups, '2') == 0,
+    "typed keys map to letters, digits to #"
+);
+var letterRuns = all
+    .List.Select(t => LobbyNav.Letters.IndexOf(LobbyNav.LetterOf(t.Title)))
+    .ToList();
+Check(
+    letterRuns.Zip(letterRuns.Skip(1)).All(p => p.First <= p.Second)
+        && all.List.FindIndex(t => t.Title == "The Getaway")
+            < all.List.FindIndex(t => t.Title == "Gorgar"),
+    "every rail letter is one contiguous run (\"The Getaway\" sorts under G, digits first)"
+);
 
 // Cabinet art for the VR lobby: backglass from VPS, playfield from the table image, attract sound from the table folder
 VpsGame G(string id, string? img, params string?[] b2s) =>
-    new() { Id = id, ImgUrl = img, B2sFiles = b2s.Select(u => new VpsFile { ImgUrl = u }).ToList() };
-Check(LobbyArt.BackglassUrl(G("a", "game.webp", null, "", "b2s1.webp", "b2s2.webp")) == "b2s1.webp"
-      && LobbyArt.BackglassUrl(G("b", "game.webp")) == "game.webp" && LobbyArt.BackglassUrl(G("c", null)) == null,
-    "backglass: first backglass picture, else the game's image, else none");
-var bgIndex = LobbyArt.BackglassIndex([G("x", null, "bx.webp"), G("y", null), G("x", null, "dup.webp")]);
-Check(bgIndex.Count == 1 && bgIndex["x"] == "bx.webp", "backglass index skips games with no picture and duplicate ids");
-var store = new LobbyTable("pfx", TableManifest.PinballFx, "Pinball FX", "", "Zen", 0, "header.jpg", [],
-    new InstalledTable(new TableManifest { Engine = TableManifest.PinballFx }, root, root));
-Check(LobbyArt.PlayfieldUrl(store) == null && LobbyArt.BackglassFor(store, bgIndex) == "header.jpg"
-      && LobbyArt.PlayfieldUrl(mmT) == LobbyFixture.ArtUrl && LobbyArt.BackglassFor(mmT, bgIndex) == null,
-    "store games' landscape header goes on the backglass; VPX table image on the playfield");
+    new()
+    {
+        Id = id,
+        ImgUrl = img,
+        B2sFiles = b2s.Select(u => new VpsFile { ImgUrl = u }).ToList(),
+    };
+Check(
+    LobbyArt.BackglassUrl(G("a", "game.webp", null, "", "b2s1.webp", "b2s2.webp")) == "b2s1.webp"
+        && LobbyArt.BackglassUrl(G("b", "game.webp")) == "game.webp"
+        && LobbyArt.BackglassUrl(G("c", null)) == null,
+    "backglass: first backglass picture, else the game's image, else none"
+);
+var bgIndex = LobbyArt.BackglassIndex([
+    G("x", null, "bx.webp"),
+    G("y", null),
+    G("x", null, "dup.webp"),
+]);
+Check(
+    bgIndex.Count == 1 && bgIndex["x"] == "bx.webp",
+    "backglass index skips games with no picture and duplicate ids"
+);
+var store = new LobbyTable(
+    "pfx",
+    TableManifest.PinballFx,
+    "Pinball FX",
+    "",
+    "Zen",
+    0,
+    "header.jpg",
+    [],
+    new InstalledTable(new TableManifest { Engine = TableManifest.PinballFx }, root, root)
+);
+Check(
+    LobbyArt.PlayfieldUrl(store) == null
+        && LobbyArt.BackglassFor(store, bgIndex) == "header.jpg"
+        && LobbyArt.PlayfieldUrl(mmT) == LobbyFixture.ArtUrl
+        && LobbyArt.BackglassFor(mmT, bgIndex) == null,
+    "store games' landscape header goes on the backglass; VPX table image on the playfield"
+);
 var mmFolder = Path.GetDirectoryName(fx.MedievalMadness)!;
 Check(LobbyArt.AttractSound(mmT) == null, "no sound file: no attract sound");
 Directory.CreateDirectory(Path.Combine(mmFolder, "music"));
 File.WriteAllBytes(Path.Combine(mmFolder, "music", "track01.ogg"), [1, 2, 3]);
 File.WriteAllBytes(Path.Combine(mmFolder, "music", "Attract Loop.mp3"), [1, 2, 3]);
-Check(Path.GetFileName(LobbyArt.AttractSound(mmT)) == "Attract Loop.mp3", "attract sound prefers names like \"attract\"");
-Check(LobbyArt.AttractSound(lib.First(t => t.Badge == "FP")) == null, "no attract sound for Future Pinball (shared Tables folder)");
-Check(VpsCatalog.LoadCached(Path.Combine(root, "missing.json")) == null, "no cached catalog: no backglass index, no network");
+Check(
+    Path.GetFileName(LobbyArt.AttractSound(mmT)) == "Attract Loop.mp3",
+    "attract sound prefers names like \"attract\""
+);
+Check(
+    LobbyArt.AttractSound(lib.First(t => t.Badge == "FP")) == null,
+    "no attract sound for Future Pinball (shared Tables folder)"
+);
+Check(
+    VpsCatalog.LoadCached(Path.Combine(root, "missing.json")) == null,
+    "no cached catalog: no backglass index, no network"
+);
 
 // Full-resolution playfield straight out of a .vpx (a synthetic one, so this doesn't depend on installed tables)
-byte[] Rec(string tag, byte[] data) => [.. BitConverter.GetBytes(4 + data.Length), .. System.Text.Encoding.ASCII.GetBytes(tag), .. data];
-byte[] Str(string s) => [.. BitConverter.GetBytes(s.Length), .. System.Text.Encoding.Latin1.GetBytes(s)];
+byte[] Rec(string tag, byte[] data) =>
+    [
+        .. BitConverter.GetBytes(4 + data.Length),
+        .. System.Text.Encoding.ASCII.GetBytes(tag),
+        .. data,
+    ];
+byte[] Str(string s) =>
+    [.. BitConverter.GetBytes(s.Length), .. System.Text.Encoding.Latin1.GetBytes(s)];
 byte[] I32(int v) => BitConverter.GetBytes(v);
 byte[] ImageStream(string name, int w, int h, byte[] pic) =>
-    [.. Rec("NAME", Str(name)), .. Rec("WDTH", I32(w)), .. Rec("HGHT", I32(h)), .. Rec("JPEG", []),
-     .. Rec("NAME", Str(name)), .. Rec("SIZE", I32(pic.Length)), .. Rec("DATA", pic), .. Rec("ENDB", []), .. Rec("ENDB", [])];
+    [
+        .. Rec("NAME", Str(name)),
+        .. Rec("WDTH", I32(w)),
+        .. Rec("HGHT", I32(h)),
+        .. Rec("JPEG", []),
+        .. Rec("NAME", Str(name)),
+        .. Rec("SIZE", I32(pic.Length)),
+        .. Rec("DATA", pic),
+        .. Rec("ENDB", []),
+        .. Rec("ENDB", []),
+    ];
 byte[] fakePng = [0x89, 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10];
 var fakeVpx = Path.Combine(root, "fake table.vpx");
 using (var cfb = OpenMcdf.RootStorage.Create(fakeVpx))
 {
     var gs = cfb.CreateStorage("GameStg");
-    void Put(string name, byte[] bytes) { using var s = gs.CreateStream(name); s.Write(bytes, 0, bytes.Length); }
-    Put("GameData", [.. Rec("LEFT", I32(0)), .. Rec("IMAG", Str("ball")), .. Rec("TOPX", I32(0))]);  // names a ball texture, like some tables
+    void Put(string name, byte[] bytes)
+    {
+        using var s = gs.CreateStream(name);
+        s.Write(bytes, 0, bytes.Length);
+    }
+    Put("GameData", [.. Rec("LEFT", I32(0)), .. Rec("IMAG", Str("ball")), .. Rec("TOPX", I32(0))]); // names a ball texture, like some tables
     Put("Image0", ImageStream("ball", 128, 128, [9, 9, 9, 9, 9, 9, 9, 9, 9, 9, 9, 9, 9]));
     Put("Image1", ImageStream("Playfield_4K", 2048, 4096, fakePng));
     Put("Image2", ImageStream("LightOverlay", 3000, 6000, [7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7]));
 }
 var fakeImages = VpxImages.ListImages(fakeVpx);
-Check(VpxImages.PlayfieldImageName(fakeVpx) == "ball" && fakeImages.Count == 3 && fakeImages[1] is { Name: "Playfield_4K", Width: 2048, Height: 4096 },
-    "reads the table's playfield name and every image's name and size from a .vpx");
-Check(VpxImages.ExtractPlayfield(fakeVpx)?.SequenceEqual(fakePng) == true,
-    "named playfield isn't playfield-shaped: picks the playfield-named portrait image (not a bigger light overlay)");
+Check(
+    VpxImages.PlayfieldImageName(fakeVpx) == "ball"
+        && fakeImages.Count == 3
+        && fakeImages[1] is { Name: "Playfield_4K", Width: 2048, Height: 4096 },
+    "reads the table's playfield name and every image's name and size from a .vpx"
+);
+Check(
+    VpxImages.ExtractPlayfield(fakeVpx)?.SequenceEqual(fakePng) == true,
+    "named playfield isn't playfield-shaped: picks the playfield-named portrait image (not a bigger light overlay)"
+);
 var artCache = Path.Combine(root, "img-cache");
 var cachedPf = VpxImages.CachedPlayfield(fakeVpx, artCache);
-Check(cachedPf != null && File.ReadAllBytes(cachedPf).SequenceEqual(fakePng) && VpxImages.CachedPlayfield(fakeVpx, artCache) == cachedPf,
-    "extracted once into the image cache, then reused");
+Check(
+    cachedPf != null
+        && File.ReadAllBytes(cachedPf).SequenceEqual(fakePng)
+        && VpxImages.CachedPlayfield(fakeVpx, artCache) == cachedPf,
+    "extracted once into the image cache, then reused"
+);
 File.WriteAllText(Path.Combine(root, "not a table.vpx"), "this is not a compound file");
-Check(VpxImages.CachedPlayfield(Path.Combine(root, "not a table.vpx"), artCache) == null, "a damaged .vpx falls back quietly (no crash)");
-Check(LobbyArt.PlayfieldSource(mmT) == LobbyArt.VpxScheme + fx.MedievalMadness, "VPX tables take their playfield from the table file first");
+Check(
+    VpxImages.CachedPlayfield(Path.Combine(root, "not a table.vpx"), artCache) == null,
+    "a damaged .vpx falls back quietly (no crash)"
+);
+Check(
+    LobbyArt.PlayfieldSource(mmT) == LobbyArt.VpxScheme + fx.MedievalMadness,
+    "VPX tables take their playfield from the table file first"
+);
+
 // A table's own VR cabinet: a synthetic .vpx with two cabinet parts (raw and zlib-compressed meshes),
 // a playfield bolt and a VR-room floor that must be left out, and a 10.8-style nested material.
 byte[] F32(params float[] v) => v.SelectMany(BitConverter.GetBytes).ToArray();
-byte[] WStr(string s) => [.. BitConverter.GetBytes(s.Length), .. System.Text.Encoding.Unicode.GetBytes(s)];
-byte[] Zip(byte[] raw) { using var ms = new MemoryStream(); using (var z = new System.IO.Compression.ZLibStream(ms, System.IO.Compression.CompressionLevel.Optimal)) z.Write(raw); return ms.ToArray(); }
-byte[] Prim(string name, float[] verts8, ushort[] idx, bool compress, float[] pos, float[] size, float rotZ = 0, float traX = 0, string? mat = null)
+byte[] WStr(string s) =>
+    [.. BitConverter.GetBytes(s.Length), .. System.Text.Encoding.Unicode.GetBytes(s)];
+byte[] Zip(byte[] raw)
+{
+    using var ms = new MemoryStream();
+    using (
+        var z = new System.IO.Compression.ZLibStream(
+            ms,
+            System.IO.Compression.CompressionLevel.Optimal
+        )
+    )
+        z.Write(raw);
+    return ms.ToArray();
+}
+byte[] Prim(
+    string name,
+    float[] verts8,
+    ushort[] idx,
+    bool compress,
+    float[] pos,
+    float[] size,
+    float rotZ = 0,
+    float traX = 0,
+    string? mat = null
+)
 {
     var vb = F32(verts8);
     var ib = idx.SelectMany(BitConverter.GetBytes).ToArray();
@@ -367,120 +835,307 @@ byte[] Prim(string name, float[] verts8, ushort[] idx, bool compress, float[] po
     recs.AddRange(Rec("RTV2", F32(rotZ)));
     recs.AddRange(Rec("RTV3", F32(traX)));
     recs.AddRange(Rec("NAME", WStr(name)));
-    if (mat != null) recs.AddRange(Rec("MATR", Str(mat)));
+    if (mat != null)
+        recs.AddRange(Rec("MATR", Str(mat)));
     recs.AddRange(Rec("U3DM", I32(1)));
     recs.AddRange(Rec("M3VN", I32(verts8.Length / 8)));
-    if (compress) { var z = Zip(vb); recs.AddRange(Rec("M3CY", I32(z.Length))); recs.AddRange(Rec("M3CX", z)); }
-    else recs.AddRange(Rec("M3DX", vb));
+    if (compress)
+    {
+        var z = Zip(vb);
+        recs.AddRange(Rec("M3CY", I32(z.Length)));
+        recs.AddRange(Rec("M3CX", z));
+    }
+    else
+        recs.AddRange(Rec("M3DX", vb));
     recs.AddRange(Rec("M3FN", I32(idx.Length)));
-    if (compress) { var z = Zip(ib); recs.AddRange(Rec("M3CJ", I32(z.Length))); recs.AddRange(Rec("M3CI", z)); }
-    else recs.AddRange(Rec("M3DI", ib));
+    if (compress)
+    {
+        var z = Zip(ib);
+        recs.AddRange(Rec("M3CJ", I32(z.Length)));
+        recs.AddRange(Rec("M3CI", z));
+    }
+    else
+        recs.AddRange(Rec("M3DI", ib));
     recs.AddRange(Rec("ENDB", []));
     return [.. recs];
 }
+
 // x,y,z, nx,ny,nz, u,v
-float[] tri = [0, 0, 0, 0, 0, 1, 0, 0,   1, 0, 0, 0, 0, 1, 1, 0,   0, 1, 0, 0, 0, 1, 0, 1];
+float[] tri = [0, 0, 0, 0, 0, 1, 0, 0, 1, 0, 0, 0, 0, 1, 1, 0, 0, 1, 0, 0, 0, 1, 0, 1];
 var cabVpx = Path.Combine(root, "cabinet table.vpx");
 using (var cfb = OpenMcdf.RootStorage.Create(cabVpx))
 {
     var gs = cfb.CreateStorage("GameStg");
-    void Put(string name, byte[] bytes) { using var s = gs.CreateStream(name); s.Write(bytes, 0, bytes.Length); }
-    byte[] chrome = [.. Rec("TYPE", I32(1)), .. Rec("NAME", Str("Chrome")), .. Rec("ROUG", F32(0.9f)), .. Rec("BASE", I32(0x00C8D2DC)), .. Rec("ENDB", [])];
-    Put("GameData", [.. Rec("LEFT", F32(0)), .. Rec("TOPX", F32(0)), .. Rec("RGHT", F32(952)), .. Rec("BOTM", F32(2162)), .. Rec("MATR", chrome)]);
+    void Put(string name, byte[] bytes)
+    {
+        using var s = gs.CreateStream(name);
+        s.Write(bytes, 0, bytes.Length);
+    }
+    byte[] chrome =
+    [
+        .. Rec("TYPE", I32(1)),
+        .. Rec("NAME", Str("Chrome")),
+        .. Rec("ROUG", F32(0.9f)),
+        .. Rec("BASE", I32(0x00C8D2DC)),
+        .. Rec("ENDB", []),
+    ];
+    Put(
+        "GameData",
+        [
+            .. Rec("LEFT", F32(0)),
+            .. Rec("TOPX", F32(0)),
+            .. Rec("RGHT", F32(952)),
+            .. Rec("BOTM", F32(2162)),
+            .. Rec("MATR", chrome),
+        ]
+    );
     // Body: scaled ×2, translated 10 along x, then turned 90° about z, then placed at (100, 200, 0).
-    Put("GameItem0", Prim("PinCab_Cabinet", tri, [0, 1, 2], compress: false, pos: [100, 200, 0], size: [2, 2, 2], rotZ: 90, traX: 10, mat: "Chrome"));
-    Put("GameItem1", Prim("PinCab_Legs", tri, [0, 1, 2], compress: true, pos: [100, 200, -1000], size: [100, 100, 100]));
-    Put("GameItem2", Prim("Bolt12", tri, [0, 1, 2], compress: false, pos: [400, 900, 10], size: [5, 5, 5]));
-    Put("GameItem3", Prim("VR_Room_Floor", tri, [0, 1, 2], compress: false, pos: [100, 200, -1100], size: [300, 300, 1]));
-    Put("GameItem4", Prim("PinCab_Glass", tri, [0, 1, 2], compress: false, pos: [100, 200, 50], size: [50, 50, 1]));
-    Put("GameItem5", Prim("PinCab_Backglass", tri, [0, 1, 2], compress: false, pos: [100, -100, 300], size: [50, 50, 1]));
+    Put(
+        "GameItem0",
+        Prim(
+            "PinCab_Cabinet",
+            tri,
+            [0, 1, 2],
+            compress: false,
+            pos: [100, 200, 0],
+            size: [2, 2, 2],
+            rotZ: 90,
+            traX: 10,
+            mat: "Chrome"
+        )
+    );
+    Put(
+        "GameItem1",
+        Prim(
+            "PinCab_Legs",
+            tri,
+            [0, 1, 2],
+            compress: true,
+            pos: [100, 200, -1000],
+            size: [100, 100, 100]
+        )
+    );
+    Put(
+        "GameItem2",
+        Prim("Bolt12", tri, [0, 1, 2], compress: false, pos: [400, 900, 10], size: [5, 5, 5])
+    );
+    Put(
+        "GameItem3",
+        Prim(
+            "VR_Room_Floor",
+            tri,
+            [0, 1, 2],
+            compress: false,
+            pos: [100, 200, -1100],
+            size: [300, 300, 1]
+        )
+    );
+    Put(
+        "GameItem4",
+        Prim(
+            "PinCab_Glass",
+            tri,
+            [0, 1, 2],
+            compress: false,
+            pos: [100, 200, 50],
+            size: [50, 50, 1]
+        )
+    );
+    Put(
+        "GameItem5",
+        Prim(
+            "PinCab_Backglass",
+            tri,
+            [0, 1, 2],
+            compress: false,
+            pos: [100, -100, 300],
+            size: [50, 50, 1]
+        )
+    );
 }
 var cab = VpxCabinet.Load(cabVpx, frontZ: 0.7f);
-Check(cab != null && cab.Parts.Select(p => p.Name).OrderBy(n => n).SequenceEqual(["PinCab_Backglass", "PinCab_Cabinet", "PinCab_Legs"]),
-    "VR cabinet: cabinet parts read (raw and compressed meshes); playfield bolt, playfield glass and room floor left out, backglass kept: " + string.Join(", ", cab?.Parts.Select(p => p.Name) ?? []));
+Check(
+    cab != null
+        && cab.Parts.Select(p => p.Name)
+            .OrderBy(n => n)
+            .SequenceEqual(["PinCab_Backglass", "PinCab_Cabinet", "PinCab_Legs"]),
+    "VR cabinet: cabinet parts read (raw and compressed meshes); playfield bolt, playfield glass and room floor left out, backglass kept: "
+        + string.Join(", ", cab?.Parts.Select(p => p.Name) ?? [])
+);
 if (cab != null)
 {
     var body = cab.Parts.Single(p => p.Name == "PinCab_Cabinet");
-    System.Numerics.Vector3 V(int i) => new(body.Positions[i * 3], body.Positions[i * 3 + 1], body.Positions[i * 3 + 2]);
+    System.Numerics.Vector3 V(int i) =>
+        new(body.Positions[i * 3], body.Positions[i * 3 + 1], body.Positions[i * 3 + 2]);
     var s = VpxCabinet.VpuToMetres;
     // VPX: (1,0,0)·2 + (10,0,0) → rotate 90° → (0,12) vs (0,10): +2 along VPX y = towards the player = lobby +z.
     var e1 = V(1) - V(0);
     var e2 = V(2) - V(0);
-    Check(Math.Abs(e1.X) < 1e-5 && Math.Abs(e1.Y) < 1e-5 && Math.Abs(e1.Z - 2 * s) < 1e-5 && Math.Abs(e2.X + 2 * s) < 1e-5 && Math.Abs(e2.Z) < 1e-5,
-        $"VPX transform order (scale → translate → rotate → position) and axis mapping: e1={e1}, e2={e2}");
+    Check(
+        Math.Abs(e1.X) < 1e-5
+            && Math.Abs(e1.Y) < 1e-5
+            && Math.Abs(e1.Z - 2 * s) < 1e-5
+            && Math.Abs(e2.X + 2 * s) < 1e-5
+            && Math.Abs(e2.Z) < 1e-5,
+        $"VPX transform order (scale → translate → rotate → position) and axis mapping: e1={e1}, e2={e2}"
+    );
     Check(body.Indices.SequenceEqual([0, 1, 2]), "triangle order kept as VPX has it");
     Check(Math.Abs(body.Normals[1] - 1) < 1e-5, "normals follow the axes (VPX up → lobby up)");
-    Check(body.Material is { Name: "Chrome", IsMetal: true } m && Math.Abs(m.Roughness - 0.9f) < 1e-6 && m.Rgb.R > 0.85f && m.Rgb.B < 0.8f,
-        "10.8-style nested material read (metal, roughness, colour 0x00BBGGRR)");
-    Check(Math.Abs(cab.Min.Y) < 1e-5 && Math.Abs(cab.Max.Z - 0.7f) < 1e-5 && Math.Abs(cab.Min.X + cab.Max.X) < 1e-5,
-        "cabinet anchored: floor at 0, front edge at 0.7 m, centred across");
+    Check(
+        body.Material is { Name: "Chrome", IsMetal: true } m
+            && Math.Abs(m.Roughness - 0.9f) < 1e-6
+            && m.Rgb.R > 0.85f
+            && m.Rgb.B < 0.8f,
+        "10.8-style nested material read (metal, roughness, colour 0x00BBGGRR)"
+    );
+    Check(
+        Math.Abs(cab.Min.Y) < 1e-5
+            && Math.Abs(cab.Max.Z - 0.7f) < 1e-5
+            && Math.Abs(cab.Min.X + cab.Max.X) < 1e-5,
+        "cabinet anchored: floor at 0, front edge at 0.7 m, centred across"
+    );
 }
 File.WriteAllText(Path.Combine(root, "desktop only.vpx"), "not a compound file");
+
 // Leveling: back legs touch at z = -0.7, front legs 15 cm up at z = 0.6 → tipped by atan(0.15 / 1.3).
 {
     float[] legs = [0, 0, -0.7f, 0, 0.15f, 0.6f, 0, 1.0f, 0];
     var tilt = VpxCabinet.LevelingTilt([legs]);
-    Check(MathF.Abs(tilt - MathF.Atan2(0.15f, 1.3f)) < 1e-4f, "leveling tilt from the lowest front and back points");
-    Check(VpxCabinet.LevelingTilt([[0, 0, -0.7f, 0, 0, 0.6f]]) == 0 && VpxCabinet.LevelingTilt([[0, 0, -0.7f, 0, 0.6f, 0.6f]]) == 0,
-        "no tilt for a level cabinet, nor an implausible one (no front legs)");
+    Check(
+        MathF.Abs(tilt - MathF.Atan2(0.15f, 1.3f)) < 1e-4f,
+        "leveling tilt from the lowest front and back points"
+    );
+    Check(
+        VpxCabinet.LevelingTilt([
+            [0, 0, -0.7f, 0, 0, 0.6f],
+        ]) == 0
+            && VpxCabinet.LevelingTilt([
+                [0, 0, -0.7f, 0, 0.6f, 0.6f],
+            ]) == 0,
+        "no tilt for a level cabinet, nor an implausible one (no front legs)"
+    );
 }
-Check(VpxCabinet.Load(Path.Combine(root, "desktop only.vpx")) == null && VpxCabinet.Load(fakeVpx) == null,
-    "no VR cabinet (or a damaged file): null, so the lobby keeps its generic cabinet");
-var realCab = Directory.Exists(@"C:\Users\mikem\VPinball\Tables") ? Directory.GetFiles(@"C:\Users\mikem\VPinball\Tables", "*.vpx", SearchOption.AllDirectories).FirstOrDefault(f => f.Contains("Medieval Madness")) : null;
+Check(
+    VpxCabinet.Load(Path.Combine(root, "desktop only.vpx")) == null
+        && VpxCabinet.Load(fakeVpx) == null,
+    "no VR cabinet (or a damaged file): null, so the lobby keeps its generic cabinet"
+);
+var realCab = Directory.Exists(@"C:\Users\mikem\VPinball\Tables")
+    ? Directory
+        .GetFiles(@"C:\Users\mikem\VPinball\Tables", "*.vpx", SearchOption.AllDirectories)
+        .FirstOrDefault(f => f.Contains("Medieval Madness"))
+    : null;
 if (realCab != null)
 {
     var sw = System.Diagnostics.Stopwatch.StartNew();
     var model = VpxCabinet.Load(realCab);
     var size = model == null ? default : model.Max - model.Min;
-    Console.WriteLine($"this PC's Medieval Madness cabinet: {model?.Parts.Count} parts, {size.X:F2}x{size.Y:F2}x{size.Z:F2} m, {sw.ElapsedMilliseconds} ms");
-    Check(model != null && size.X is > 0.6f and < 0.9f && size.Y is > 1.7f and < 2.2f && model.Parts.Any(p => p.Name == "PinCab_Backglass"),
-        "a real VR table's cabinet comes out real-size (≈0.7 m wide, ≈1.9 m tall) with its backglass");
+    Console.WriteLine(
+        $"this PC's Medieval Madness cabinet: {model?.Parts.Count} parts, {size.X:F2}x{size.Y:F2}x{size.Z:F2} m, {sw.ElapsedMilliseconds} ms"
+    );
+    Check(
+        model != null
+            && size.X is > 0.6f and < 0.9f
+            && size.Y is > 1.7f and < 2.2f
+            && model.Parts.Any(p => p.Name == "PinCab_Backglass"),
+        "a real VR table's cabinet comes out real-size (≈0.7 m wide, ≈1.9 m tall) with its backglass"
+    );
     // Stands on all four legs: the lowest point in the front fifth and in the back fifth both on the floor.
     if (model != null)
     {
-        float LowIn(float from, float to) => model.Parts.SelectMany(p => Enumerable.Range(0, p.Positions.Length / 3)
-            .Where(i => p.Positions[i * 3 + 2] >= from && p.Positions[i * 3 + 2] <= to).Select(i => p.Positions[i * 3 + 1])).DefaultIfEmpty(9f).Min();
+        float LowIn(float from, float to) =>
+            model
+                .Parts.SelectMany(p =>
+                    Enumerable
+                        .Range(0, p.Positions.Length / 3)
+                        .Where(i => p.Positions[i * 3 + 2] >= from && p.Positions[i * 3 + 2] <= to)
+                        .Select(i => p.Positions[i * 3 + 1])
+                )
+                .DefaultIfEmpty(9f)
+                .Min();
         var fifth = (model.Max.Z - model.Min.Z) / 5;
-        float front = LowIn(model.Max.Z - fifth, model.Max.Z), back = LowIn(model.Min.Z, model.Min.Z + fifth);
-        Console.WriteLine($"   tipped {model.Tilt * 180 / MathF.PI:0.0}°: front low {front:0.000} m, back low {back:0.000} m, playfield slope {model.PlayfieldSlope * 180 / MathF.PI:0.0}°");
-        Check(model.Tilt > 0 && front < 0.01f && back < 0.01f && model.PlayfieldSlope > 0.03f,
-            "a real VR cabinet is tipped to stand on its front and back legs, playfield sloping down to the player");
+        float front = LowIn(model.Max.Z - fifth, model.Max.Z),
+            back = LowIn(model.Min.Z, model.Min.Z + fifth);
+        Console.WriteLine(
+            $"   tipped {model.Tilt * 180 / MathF.PI:0.0}°: front low {front:0.000} m, back low {back:0.000} m, playfield slope {model.PlayfieldSlope * 180 / MathF.PI:0.0}°"
+        );
+        Check(
+            model.Tilt > 0 && front < 0.01f && back < 0.01f && model.PlayfieldSlope > 0.03f,
+            "a real VR cabinet is tipped to stand on its front and back legs, playfield sloping down to the player"
+        );
     }
     // Godot's front face is clockwise as seen from in front, so (c−a)×(b−a) points out of it. On a real cabinet
     // nearly every triangle's front should face where its own normals point, or the lobby lights it inside out.
-    int agree = 0, total = 0;
+    int agree = 0,
+        total = 0;
     foreach (var part in model?.Parts ?? [])
         for (var k = 0; k + 2 < part.Indices.Length; k += 3)
         {
-            System.Numerics.Vector3 P(int i) => new(part.Positions[i * 3], part.Positions[i * 3 + 1], part.Positions[i * 3 + 2]);
-            System.Numerics.Vector3 N(int i) => new(part.Normals[i * 3], part.Normals[i * 3 + 1], part.Normals[i * 3 + 2]);
-            int a = part.Indices[k], b = part.Indices[k + 1], c = part.Indices[k + 2];
+            System.Numerics.Vector3 P(int i) =>
+                new(part.Positions[i * 3], part.Positions[i * 3 + 1], part.Positions[i * 3 + 2]);
+            System.Numerics.Vector3 N(int i) =>
+                new(part.Normals[i * 3], part.Normals[i * 3 + 1], part.Normals[i * 3 + 2]);
+            int a = part.Indices[k],
+                b = part.Indices[k + 1],
+                c = part.Indices[k + 2];
             var face = System.Numerics.Vector3.Cross(P(c) - P(a), P(b) - P(a));
-            if (face.LengthSquared() < 1e-14f) continue;
+            if (face.LengthSquared() < 1e-14f)
+                continue;
             total++;
-            if (System.Numerics.Vector3.Dot(face, N(a) + N(b) + N(c)) > 0) agree++;
+            if (System.Numerics.Vector3.Dot(face, N(a) + N(b) + N(c)) > 0)
+                agree++;
         }
     Console.WriteLine($"   front faces along their normals: {agree} of {total} triangles");
-    Check(total > 0 && agree > total * 0.9, $"a real cabinet's front faces point where its normals do ({agree * 100 / Math.Max(total, 1)}%)");
+    Check(
+        total > 0 && agree > total * 0.9,
+        $"a real cabinet's front faces point where its normals do ({agree * 100 / Math.Max(total, 1)}%)"
+    );
 }
-var realAfm = Directory.Exists(@"C:\Users\mikem\VPinball\Tables") ? Directory.GetFiles(@"C:\Users\mikem\VPinball\Tables", "*.vpx", SearchOption.AllDirectories).FirstOrDefault(f => f.Contains("Attack from Mars")) : null;
+var realAfm = Directory.Exists(@"C:\Users\mikem\VPinball\Tables")
+    ? Directory
+        .GetFiles(@"C:\Users\mikem\VPinball\Tables", "*.vpx", SearchOption.AllDirectories)
+        .FirstOrDefault(f => f.Contains("Attack from Mars"))
+    : null;
 if (realAfm != null)
 {
     var pf = VpxImages.ExtractPlayfield(realAfm);
-    var pick = VpxImages.PickPlayfield(VpxImages.ListImages(realAfm), VpxImages.PlayfieldImageName(realAfm));
-    Console.WriteLine($"this PC's Attack from Mars: playfield '{pick?.Name}' {pick?.Width}x{pick?.Height}, {pf?.Length / 1024} KB");
-    Check(pf != null && pick!.Height >= 2048 && pf[0] == 0x89, "a real table gives its full-resolution playfield (≥ 2048 px tall)");
+    var pick = VpxImages.PickPlayfield(
+        VpxImages.ListImages(realAfm),
+        VpxImages.PlayfieldImageName(realAfm)
+    );
+    Console.WriteLine(
+        $"this PC's Attack from Mars: playfield '{pick?.Name}' {pick?.Width}x{pick?.Height}, {pf?.Length / 1024} KB"
+    );
+    Check(
+        pf != null && pick!.Height >= 2048 && pf[0] == 0x89,
+        "a real table gives its full-resolution playfield (≥ 2048 px tall)"
+    );
 }
 if (VpsCatalog.LoadCached() is { } cachedGames)
 {
     var realIndex = LobbyArt.BackglassIndex(cachedGames);
-    Console.WriteLine($"cached VPS catalog: {cachedGames.Count} games, {realIndex.Count} with a backglass picture");
-    Check(realIndex.Count > 1000, "this PC's cached VPS catalog gives backglass pictures for most games");
+    Console.WriteLine(
+        $"cached VPS catalog: {cachedGames.Count} games, {realIndex.Count} with a backglass picture"
+    );
+    Check(
+        realIndex.Count > 1000,
+        "this PC's cached VPS catalog gives backglass pictures for most games"
+    );
 }
 var maker = LobbyNav.Apply(lib, "Manufacturer", lobbyState);
-Check(maker.Groups.Select(g => g.Label).SequenceEqual(["Bally", "Data East", "Gottlieb", "Stern", "Unknown", "Williams"]), "manufacturer groups");
+Check(
+    maker
+        .Groups.Select(g => g.Label)
+        .SequenceEqual(["Bally", "Data East", "Gottlieb", "Stern", "Unknown", "Williams"]),
+    "manufacturer groups"
+);
 var decade = LobbyNav.Apply(lib, "Decade", lobbyState);
-Check(decade.Groups.Select(g => g.Label).SequenceEqual(["1970s", "1980s", "1990s", "2000s", "2010s", "2020s", "Unknown"]), "decade groups, no year last");
+Check(
+    decade
+        .Groups.Select(g => g.Label)
+        .SequenceEqual(["1970s", "1980s", "1990s", "2000s", "2010s", "2020s", "Unknown"]),
+    "decade groups, no year last"
+);
 Check(LobbyNav.Apply(lib, "Future Pinball", lobbyState).List.Count == 2, "Future Pinball filter");
 lobbyState.ToggleFavourite(all.List[5].Id);
 lobbyState.ToggleFavourite(all.List[50].Id);
@@ -488,67 +1143,146 @@ Check(LobbyNav.Apply(lib, "Favourites", lobbyState).List.Count == 2, "favourites
 lobbyState.MarkPlayed(all.List[3].Id);
 lobbyState.MarkPlayed(all.List[9].Id);
 lobbyState.MarkPlayed(all.List[3].Id);
-Check(LobbyNav.Apply(lib, "Recently played", lobbyState).List.Select(t => t.Id).SequenceEqual([all.List[3].Id, all.List[9].Id]),
-    "recently played: newest first, no duplicates");
+Check(
+    LobbyNav
+        .Apply(lib, "Recently played", lobbyState)
+        .List.Select(t => t.Id)
+        .SequenceEqual([all.List[3].Id, all.List[9].Id]),
+    "recently played: newest first, no duplicates"
+);
 lobbyState.Filter = "Decade";
 lobbyState.View = "wall";
 lobbyState.Save();
 var reloaded = LobbyState.Load(Path.Combine(root, "lobby-state.json"));
-Check(reloaded.Favourites.Count == 2 && reloaded.Recent.Count == 2 && reloaded.Filter == "Decade" && reloaded.View == "wall", "lobby state survives a restart");
-Check(LobbyNav.RepeatInterval(0) == 0.3 && LobbyNav.RepeatInterval(3) == 0.05, "stick repeat speeds up from 0.3 s to 0.05 s");
+Check(
+    reloaded.Favourites.Count == 2
+        && reloaded.Recent.Count == 2
+        && reloaded.Filter == "Decade"
+        && reloaded.View == "wall",
+    "lobby state survives a restart"
+);
+Check(
+    LobbyNav.RepeatInterval(0) == 0.3 && LobbyNav.RepeatInterval(3) == 0.05,
+    "stick repeat speeds up from 0.3 s to 0.05 s"
+);
 
 // Lobby wording for play stats and empty filters
 var t0 = new DateTime(2026, 10, 18, 20, 0, 0);
-Check(LobbyText.Duration(0.4) == null && LobbyText.Duration(45) == "45 min" && LobbyText.Duration(200) == "3 h 20 min" && LobbyText.Duration(120) == "2 h",
-    "time played formatting");
-Check(LobbyText.Ago(t0.AddSeconds(-30), t0) == "just now" && LobbyText.Ago(t0.AddMinutes(-30), t0) == "30 min ago"
-      && LobbyText.Ago(t0.AddHours(-5), t0) == "today" && LobbyText.Ago(t0.AddHours(-22), t0) == "yesterday"
-      && LobbyText.Ago(t0.AddDays(-4), t0) == "4 days ago", "last-played formatting");
+Check(
+    LobbyText.Duration(0.4) == null
+        && LobbyText.Duration(45) == "45 min"
+        && LobbyText.Duration(200) == "3 h 20 min"
+        && LobbyText.Duration(120) == "2 h",
+    "time played formatting"
+);
+Check(
+    LobbyText.Ago(t0.AddSeconds(-30), t0) == "just now"
+        && LobbyText.Ago(t0.AddMinutes(-30), t0) == "30 min ago"
+        && LobbyText.Ago(t0.AddHours(-5), t0) == "today"
+        && LobbyText.Ago(t0.AddHours(-22), t0) == "yesterday"
+        && LobbyText.Ago(t0.AddDays(-4), t0) == "4 days ago",
+    "last-played formatting"
+);
 var textStats = new PlayStats();
 textStats.RecordPlay(@"C:\T\a.vpx", t0.AddMinutes(-30), TimeSpan.FromMinutes(45));
-Check(LobbyText.Stats(textStats, @"C:\T\a.vpx", t0) == "Played 1×  ·  45 min  ·  last played 30 min ago" && LobbyText.Stats(textStats, @"C:\T\b.vpx", t0) == "Not played yet",
-    "stats line");
-Check(LobbyText.Empty("Most played", 5).StartsWith("No plays counted") && LobbyText.Empty("Pinball M", 5).Contains("isn't installed")
-      && LobbyText.Empty("All", 0).StartsWith("Install tables"), "empty-filter messages");
+Check(
+    LobbyText.Stats(textStats, @"C:\T\a.vpx", t0)
+        == "Played 1×  ·  45 min  ·  last played 30 min ago"
+        && LobbyText.Stats(textStats, @"C:\T\b.vpx", t0) == "Not played yet",
+    "stats line"
+);
+Check(
+    LobbyText.Empty("Most played", 5).StartsWith("No plays counted")
+        && LobbyText.Empty("Pinball M", 5).Contains("isn't installed")
+        && LobbyText.Empty("All", 0).StartsWith("Install tables"),
+    "empty-filter messages"
+);
 
 // Height adjustment (grip + stick in the lobby)
 var h = 0.0;
-for (var i = 0; i < 90; i++) h = LobbyHeight.Step(h, 1.0, 1 / 90.0);   // full stick up for 1 s
+for (var i = 0; i < 90; i++)
+    h = LobbyHeight.Step(h, 1.0, 1 / 90.0); // full stick up for 1 s
 Check(Math.Abs(h - 0.3) < 1e-9, $"full stick moves 30 cm per second ({h:F3} m)");
 Check(LobbyHeight.Step(h, 0.1, 1.0) == h, "stick inside the dead zone doesn't drift");
-for (var i = 0; i < 900; i++) h = LobbyHeight.Step(h, -1.0, 1 / 90.0);  // 10 s down
+for (var i = 0; i < 900; i++)
+    h = LobbyHeight.Step(h, -1.0, 1 / 90.0); // 10 s down
 Check(h == -LobbyHeight.Max, "clamped at −60 cm");
-Check(LobbyHeight.Clamp(double.NaN) == 0 && LobbyHeight.Clamp(5) == 0.6, "bad saved values are clamped");
-Check(LobbyHeight.Format(0.12) == "Height +12 cm" && LobbyHeight.Format(-0.051) == "Height −5 cm" && LobbyHeight.Format(0.001) == "Height: default",
-    "readout text");
+Check(
+    LobbyHeight.Clamp(double.NaN) == 0 && LobbyHeight.Clamp(5) == 0.6,
+    "bad saved values are clamped"
+);
+Check(
+    LobbyHeight.Format(0.12) == "Height +12 cm"
+        && LobbyHeight.Format(-0.051) == "Height −5 cm"
+        && LobbyHeight.Format(0.001) == "Height: default",
+    "readout text"
+);
 reloaded.HeightOffset = 0.12;
 reloaded.Save();
-Check(LobbyState.Load(Path.Combine(root, "lobby-state.json")).HeightOffset == 0.12, "height survives a restart");
+Check(
+    LobbyState.Load(Path.Combine(root, "lobby-state.json")).HeightOffset == 0.12,
+    "height survives a restart"
+);
 File.WriteAllText(Path.Combine(root, "bad-height.json"), """{"HeightOffset": 9}""");
-Check(LobbyState.Load(Path.Combine(root, "bad-height.json")).HeightOffset == LobbyHeight.Max, "out-of-range saved height is clamped on load");
+Check(
+    LobbyState.Load(Path.Combine(root, "bad-height.json")).HeightOffset == LobbyHeight.Max,
+    "out-of-range saved height is clamped on load"
+);
 
 // 9. Headless play mode the lobby uses: launch through the engine, wait for exit, start the lobby again.
 //    A harmless system exe stands in for VPX and for the lobby.
-var playArgs = PlaySession.BuildArgs(fx.MedievalMadness, vr: true, fx.Settings, @"C:\Lobby Dir\lobby.exe", ["--", "--select=C:\\T (1)\\x.vpx"]);
+var playArgs = PlaySession.BuildArgs(
+    fx.MedievalMadness,
+    vr: true,
+    fx.Settings,
+    @"C:\Lobby Dir\lobby.exe",
+    ["--", "--select=C:\\T (1)\\x.vpx"]
+);
 var parsed = PlaySession.Parse([.. playArgs]);
-Check(parsed.TablePath == fx.MedievalMadness && parsed.Vr && parsed.SettingsPath == fx.Settings
-      && parsed.ReturnExe == @"C:\Lobby Dir\lobby.exe" && parsed.ReturnArgs.SequenceEqual(["--", "--select=C:\\T (1)\\x.vpx"]), "play args round-trip");
+Check(
+    parsed.TablePath == fx.MedievalMadness
+        && parsed.Vr
+        && parsed.SettingsPath == fx.Settings
+        && parsed.ReturnExe == @"C:\Lobby Dir\lobby.exe"
+        && parsed.ReturnArgs.SequenceEqual(["--", "--select=C:\\T (1)\\x.vpx"]),
+    "play args round-trip"
+);
 var stand = Path.Combine(Environment.SystemDirectory, "where.exe");
 File.Copy(stand, Path.Combine(fx.VpxDir, "VPinballX_BGFX64.exe"), overwrite: true);
+
 // Find the repo from the test's own folder, or from the current folder when built elsewhere (-o).
 string? FindRepo(string? start)
 {
-    while (start != null && !Directory.Exists(Path.Combine(start, "VrTableManager.Core"))) start = Path.GetDirectoryName(start);
+    while (start != null && !Directory.Exists(Path.Combine(start, "VrTableManager.Core")))
+        start = Path.GetDirectoryName(start);
     return start;
 }
 var repo = FindRepo(AppContext.BaseDirectory) ?? FindRepo(Directory.GetCurrentDirectory());
+
 // VRTM_MANAGER_EXE: a manager built elsewhere (-o), e.g. while the usual build output is locked by a running copy.
-var managerExe = Environment.GetEnvironmentVariable("VRTM_MANAGER_EXE") is { Length: > 0 } builtElsewhere
+var managerExe = Environment.GetEnvironmentVariable("VRTM_MANAGER_EXE")
+    is { Length: > 0 } builtElsewhere
     ? builtElsewhere
     : Path.Combine(repo!, "VrTableManager", "bin", "Debug", "net10.0", "VrTableManager.exe");
-var logBefore = File.Exists(PlaySession.LogPath) ? File.ReadAllLines(PlaySession.LogPath).Length : 0;
-var psi = new System.Diagnostics.ProcessStartInfo(managerExe) { UseShellExecute = false, RedirectStandardOutput = true, RedirectStandardError = true };
-foreach (var a in PlaySession.BuildArgs(fx.MedievalMadness, vr: true, fx.Settings, stand, ["/Q", "where.exe"])) psi.ArgumentList.Add(a);
+var logBefore = File.Exists(PlaySession.LogPath)
+    ? File.ReadAllLines(PlaySession.LogPath).Length
+    : 0;
+var psi = new System.Diagnostics.ProcessStartInfo(managerExe)
+{
+    UseShellExecute = false,
+    RedirectStandardOutput = true,
+    RedirectStandardError = true,
+};
+foreach (
+    var a in PlaySession.BuildArgs(
+        fx.MedievalMadness,
+        vr: true,
+        fx.Settings,
+        stand,
+        ["/Q", "where.exe"]
+    )
+)
+    psi.ArgumentList.Add(a);
 using (var play = System.Diagnostics.Process.Start(psi)!)
 {
     await play.WaitForExitAsync();
@@ -556,70 +1290,194 @@ using (var play = System.Diagnostics.Process.Start(psi)!)
 }
 var newLog = File.ReadAllLines(PlaySession.LogPath).Skip(logBefore).ToList();
 newLog.ForEach(l => Console.WriteLine("   log: " + l));
-Check(newLog.Any(l => l.Contains("start Visual Pinball X") && l.Contains("vr=True")) && newLog.Any(l => l.Contains("table exited"))
-      && newLog.Any(l => l.Contains("returned to")), "launches through the VPX engine, waits for exit, then starts the lobby again");
-Check(File.ReadAllText(VpxSetup.VrIniPath(lobbySettings)).Contains("AskToTurnOn = 0"), "VR ini written for the lobby launch");
+Check(
+    newLog.Any(l => l.Contains("start Visual Pinball X") && l.Contains("vr=True"))
+        && newLog.Any(l => l.Contains("table exited"))
+        && newLog.Any(l => l.Contains("returned to")),
+    "launches through the VPX engine, waits for exit, then starts the lobby again"
+);
+Check(
+    File.ReadAllText(VpxSetup.VrIniPath(lobbySettings)).Contains("AskToTurnOn = 0"),
+    "VR ini written for the lobby launch"
+);
 
 // 9b. The lobby's loading screen: the launch reports through a status file, and a lobby that's still open
 //     (still on its loading screen when the table exits) isn't started a second time. This test process
 //     stands in for the open lobby.
 {
     var statusFile = PlayStatus.PathBeside(fx.Settings);
-    var withStatus = PlaySession.Parse([.. PlaySession.BuildArgs(fx.MedievalMadness, vr: true, fx.Settings, stand, [], statusFile, 4242)]);
-    Check(withStatus.StatusPath == statusFile && withStatus.LobbyPid == 4242 && withStatus.ReturnExe == stand, "status and lobby pid args round-trip");
-    Check(PlaySession.Parse([.. PlaySession.BuildArgs(fx.MedievalMadness, vr: true, null, null, [])]) is { StatusPath: null, LobbyPid: 0 },
-        "no status or lobby pid unless asked for");
+    var withStatus = PlaySession.Parse([
+        .. PlaySession.BuildArgs(
+            fx.MedievalMadness,
+            vr: true,
+            fx.Settings,
+            stand,
+            [],
+            statusFile,
+            4242
+        ),
+    ]);
+    Check(
+        withStatus.StatusPath == statusFile
+            && withStatus.LobbyPid == 4242
+            && withStatus.ReturnExe == stand,
+        "status and lobby pid args round-trip"
+    );
+    Check(
+        PlaySession.Parse([.. PlaySession.BuildArgs(fx.MedievalMadness, vr: true, null, null, [])])
+            is { StatusPath: null, LobbyPid: 0 },
+        "no status or lobby pid unless asked for"
+    );
     PlayStatus.Write(statusFile, PlayStatus.Failed, "boom");
-    Check(PlayStatus.Read(statusFile) is { State: PlayStatus.Failed, Message: "boom" }, "status file round-trip");
+    Check(
+        PlayStatus.Read(statusFile) is { State: PlayStatus.Failed, Message: "boom" },
+        "status file round-trip"
+    );
     PlayStatus.Clear(statusFile);
     Check(PlayStatus.Read(statusFile) == null, "status file cleared before a launch");
 
     var mark = File.ReadAllLines(PlaySession.LogPath).Length;
-    var waitPsi = new System.Diagnostics.ProcessStartInfo(managerExe) { UseShellExecute = false, RedirectStandardOutput = true, RedirectStandardError = true };
-    foreach (var a in PlaySession.BuildArgs(fx.MedievalMadness, vr: true, fx.Settings, stand, ["/Q", "where.exe"], statusFile, Environment.ProcessId))
+    var waitPsi = new System.Diagnostics.ProcessStartInfo(managerExe)
+    {
+        UseShellExecute = false,
+        RedirectStandardOutput = true,
+        RedirectStandardError = true,
+    };
+    foreach (
+        var a in PlaySession.BuildArgs(
+            fx.MedievalMadness,
+            vr: true,
+            fx.Settings,
+            stand,
+            ["/Q", "where.exe"],
+            statusFile,
+            Environment.ProcessId
+        )
+    )
         waitPsi.ArgumentList.Add(a);
-    using (var play = System.Diagnostics.Process.Start(waitPsi)!) await play.WaitForExitAsync();
+    using (var play = System.Diagnostics.Process.Start(waitPsi)!)
+        await play.WaitForExitAsync();
     var waitLog = File.ReadAllLines(PlaySession.LogPath).Skip(mark).ToList();
     Check(PlayStatus.Read(statusFile)?.State == PlayStatus.Exited, "status says the table exited");
-    Check(waitLog.Any(l => l.Contains("lobby still open")) && !waitLog.Any(l => l.Contains("returned to")), "an open lobby isn't started again");
+    Check(
+        waitLog.Any(l => l.Contains("lobby still open"))
+            && !waitLog.Any(l => l.Contains("returned to")),
+        "an open lobby isn't started again"
+    );
 
     mark = File.ReadAllLines(PlaySession.LogPath).Length;
-    var badPsi = new System.Diagnostics.ProcessStartInfo(managerExe) { UseShellExecute = false, RedirectStandardOutput = true, RedirectStandardError = true };
-    foreach (var a in PlaySession.BuildArgs(Path.Combine(root, "no such table.vpx"), vr: true, fx.Settings, null, [], statusFile, Environment.ProcessId))
+    var badPsi = new System.Diagnostics.ProcessStartInfo(managerExe)
+    {
+        UseShellExecute = false,
+        RedirectStandardOutput = true,
+        RedirectStandardError = true,
+    };
+    foreach (
+        var a in PlaySession.BuildArgs(
+            Path.Combine(root, "no such table.vpx"),
+            vr: true,
+            fx.Settings,
+            null,
+            [],
+            statusFile,
+            Environment.ProcessId
+        )
+    )
         badPsi.ArgumentList.Add(a);
-    using (var play = System.Diagnostics.Process.Start(badPsi)!) await play.WaitForExitAsync();
-    Check(PlayStatus.Read(statusFile) is { State: PlayStatus.Failed } bad && bad.Message.Contains("Table not found"), "status says why a launch failed");
+    using (var play = System.Diagnostics.Process.Start(badPsi)!)
+        await play.WaitForExitAsync();
+    Check(
+        PlayStatus.Read(statusFile) is { State: PlayStatus.Failed } bad
+            && bad.Message.Contains("Table not found"),
+        "status says why a launch failed"
+    );
 }
 
 // Updates: detect a newer table version, update in place, keep NVRAM, drop the old .vpx.
 {
-    var us = new AppSettings { TablesDir = Path.Combine(root, "upd-tables"), VpxDir = Path.Combine(root, "vpx") };
-    var ug = new VpsGame { Id = "g2", Name = "Upd Table", Manufacturer = "Bally", Year = 1980 };
-    var v10 = new VpsTableFile { Id = "t2", TableFormat = "VPX", Version = "1.0", Urls = [new VpsUrl { Url = "https://example.com/t2" }] };
+    var us = new AppSettings
+    {
+        TablesDir = Path.Combine(root, "upd-tables"),
+        VpxDir = Path.Combine(root, "vpx"),
+    };
+    var ug = new VpsGame
+    {
+        Id = "g2",
+        Name = "Upd Table",
+        Manufacturer = "Bally",
+        Year = 1980,
+    };
+    var v10 = new VpsTableFile
+    {
+        Id = "t2",
+        TableFormat = "VPX",
+        Version = "1.0",
+        Urls = [new VpsUrl { Url = "https://example.com/t2" }],
+    };
     var p10 = Path.Combine(root, "upd10.zip");
-    using (var z = ZipFile.Open(p10, ZipArchiveMode.Create)) z.CreateEntry("Upd Table v1.0.vpx");
+    using (var z = ZipFile.Open(p10, ZipArchiveMode.Create))
+        z.CreateEntry("Upd Table v1.0.vpx");
     var old = await TableInstaller.InstallAsync(p10, ug, v10, us, _ => { }, CancellationToken.None);
     var nvram = Path.Combine(old.Folder, "pinmame", "nvram", "upd.nv");
     Directory.CreateDirectory(Path.GetDirectoryName(nvram)!);
     File.WriteAllText(nvram, "high scores");
 
-    ug.TableFiles = [new VpsTableFile { Id = "t2", TableFormat = "VPX", Version = "v1.0", Urls = v10.Urls }];
-    Check(TableUpdates.Find(TableInstaller.Scan(us), [ug]).Count == 0, "same version (v-prefix ignored) is not an update");
+    ug.TableFiles =
+    [
+        new VpsTableFile
+        {
+            Id = "t2",
+            TableFormat = "VPX",
+            Version = "v1.0",
+            Urls = v10.Urls,
+        },
+    ];
+    Check(
+        TableUpdates.Find(TableInstaller.Scan(us), [ug]).Count == 0,
+        "same version (v-prefix ignored) is not an update"
+    );
 
-    var v11 = new VpsTableFile { Id = "t2", TableFormat = "VPX", Version = "1.1", Urls = v10.Urls };
+    var v11 = new VpsTableFile
+    {
+        Id = "t2",
+        TableFormat = "VPX",
+        Version = "1.1",
+        Urls = v10.Urls,
+    };
     ug.TableFiles = [v11];
     var found = TableUpdates.Find(TableInstaller.Scan(us).Where(t => t.IsVpx), [ug]);
-    Check(found.Count == 1 && found[0].Label == "v1.0 → v1.1", "newer VPS version is flagged as an update");
+    Check(
+        found.Count == 1 && found[0].Label == "v1.0 → v1.1",
+        "newer VPS version is flagged as an update"
+    );
 
     var p11 = Path.Combine(root, "upd11.zip");
-    using (var z = ZipFile.Open(p11, ZipArchiveMode.Create)) z.CreateEntry("Upd Table v1.1.vpx");
-    var upd = await TableInstaller.InstallAsync(p11, ug, v11, us, _ => { }, CancellationToken.None, found[0].Table);
-    Check(File.Exists(upd.TablePath) && !File.Exists(old.TablePath), "update replaces the old .vpx");
+    using (var z = ZipFile.Open(p11, ZipArchiveMode.Create))
+        z.CreateEntry("Upd Table v1.1.vpx");
+    var upd = await TableInstaller.InstallAsync(
+        p11,
+        ug,
+        v11,
+        us,
+        _ => { },
+        CancellationToken.None,
+        found[0].Table
+    );
+    Check(
+        File.Exists(upd.TablePath) && !File.Exists(old.TablePath),
+        "update replaces the old .vpx"
+    );
     Check(File.Exists(nvram), "update keeps NVRAM (high scores)");
-    Check(TableUpdates.Find(TableInstaller.Scan(us).Where(t => t.IsVpx), [ug]).Count == 0, "no update left after updating");
+    Check(
+        TableUpdates.Find(TableInstaller.Scan(us).Where(t => t.IsVpx), [ug]).Count == 0,
+        "no update left after updating"
+    );
 }
 
-Check(BamCheck.ParseLatest("<p>BAM version: v.1.5-412</p>") == "1.5-412", "reads BAM version from ravarcade.pl format");
+Check(
+    BamCheck.ParseLatest("<p>BAM version: v.1.5-412</p>") == "1.5-412",
+    "reads BAM version from ravarcade.pl format"
+);
 var bamLive = await BamCheck.LatestAsync(CancellationToken.None);
 Console.WriteLine($"latest BAM (ravarcade.pl): {bamLive}");
 Check(bamLive != null, "reads the live BAM version");
@@ -638,25 +1496,51 @@ Check(uevrRel?.Url.EndsWith("/UEVR.zip") == true, "finds the latest UEVR release
         f.Write(System.Text.Encoding.ASCII.GetBytes(script));
         f.Write(new byte[1000]);
     }
-    Check(RomDetector.FromVpx(vpxPath) == "mm_109c", "reads cGameName from the table script (across a chunk boundary)");
+    Check(
+        RomDetector.FromVpx(vpxPath) == "mm_109c",
+        "reads cGameName from the table script (across a chunk boundary)"
+    );
     Check(RomDetector.FromScript("x = 1") == null, "no cGameName → no ROM");
-    Check(RomDetector.FromScript("dim x\r\n'Const cGameName = \"mm_10\" 'official\r\n'Const cGameName=\"mm_109b\"\r\nConst cGameName=\"mm_109c\" 'profanity\r\n") == "mm_109c"
-          && RomDetector.FromScript("'Const cGameName = \"mtl_180hc\"\t' LE\r\n\tConst cGameName = \"mtl_180h\"\t' LE\r") == "mtl_180h",
-        "commented-out cGameName lines are skipped (Medieval Madness, Metallica)");
-    Check(RomDetector.AliasTargetsIn("Const cGameName = \"afm_113b_me\"\r\nEnsureVPMAlias cGameName, \"afm_113b\"\r\n' alias \"not_this\"\r\n").SequenceEqual(["afm_113b"]),
-        "alias target read from the script (Mass Effect), not from comments");
+    Check(
+        RomDetector.FromScript(
+            "dim x\r\n'Const cGameName = \"mm_10\" 'official\r\n'Const cGameName=\"mm_109b\"\r\nConst cGameName=\"mm_109c\" 'profanity\r\n"
+        ) == "mm_109c"
+            && RomDetector.FromScript(
+                "'Const cGameName = \"mtl_180hc\"\t' LE\r\n\tConst cGameName = \"mtl_180h\"\t' LE\r"
+            ) == "mtl_180h",
+        "commented-out cGameName lines are skipped (Medieval Madness, Metallica)"
+    );
+    Check(
+        RomDetector
+            .AliasTargetsIn(
+                "Const cGameName = \"afm_113b_me\"\r\nEnsureVPMAlias cGameName, \"afm_113b\"\r\n' alias \"not_this\"\r\n"
+            )
+            .SequenceEqual(["afm_113b"]),
+        "alias target read from the script (Mass Effect), not from comments"
+    );
 
     // Alias file, Serum folder and parent sets
     var rq = Path.Combine(root, "romreq", "Mass Effect (Original 2026)");
     Directory.CreateDirectory(Path.Combine(rq, "altcolor", "afm_113b_me"));
     File.WriteAllText(Path.Combine(rq, "altcolor", "afm_113b_me", "afm_113b_me.cROMc"), "x");
     AltPacks.FixLayout(rq);
-    Check(File.Exists(Path.Combine(rq, "serum", "afm_113b_me", "afm_113b_me.cROMc")) && !Directory.Exists(Path.Combine(rq, "altcolor")),
-        "Serum colorization moved from altcolor\\ to serum\\ (where VPX 10.8.1 looks)");
+    Check(
+        File.Exists(Path.Combine(rq, "serum", "afm_113b_me", "afm_113b_me.cROMc"))
+            && !Directory.Exists(Path.Combine(rq, "altcolor")),
+        "Serum colorization moved from altcolor\\ to serum\\ (where VPX 10.8.1 looks)"
+    );
     RomRequirements.WriteAlias(Path.Combine(rq, "pinmame"), "afm_113b_me", "afm_113b");
     RomRequirements.WriteAlias(Path.Combine(rq, "pinmame"), "afm_113b_me", "afm_113b");
-    Check(File.ReadAllLines(Path.Combine(rq, "pinmame", "alias.txt")).SequenceEqual(["afm_113b_me,afm_113b"]), "alias.txt gets the line once");
-    var rqTable = new InstalledTable(new TableManifest { RomNames = ["afm_113b"], RomParents = ["afm_113"] }, Path.Combine(rq, "x.vpx"), rq);
+    Check(
+        File.ReadAllLines(Path.Combine(rq, "pinmame", "alias.txt"))
+            .SequenceEqual(["afm_113b_me,afm_113b"]),
+        "alias.txt gets the line once"
+    );
+    var rqTable = new InstalledTable(
+        new TableManifest { RomNames = ["afm_113b"], RomParents = ["afm_113"] },
+        Path.Combine(rq, "x.vpx"),
+        rq
+    );
     Directory.CreateDirectory(Path.Combine(rq, "pinmame", "roms"));
     Check(rqTable.MissingRoms.SequenceEqual(["afm_113b"]), "missing ROM first");
     File.WriteAllText(Path.Combine(rq, "pinmame", "roms", "afm_113b.zip"), "x");
@@ -665,99 +1549,225 @@ Check(uevrRel?.Url.EndsWith("/UEVR.zip") == true, "finds the latest UEVR release
     Check(rqTable.MissingRoms.Count == 0, "complete once both are there");
 
     // Stern's game code site: results from the page's JSON, matched to PinMAME's description.
-    var sternPage = """<script>var x={"posts":[{"title":"Avatar LE 1.20 Game Code","download_type":"link","download_file":"","download_link":"https:\/\/f002.backblazeb2.com\/file\/gamecode\/AV_PRE_english.zip"},{"title":"Avatar Pro 2.00 Game Code Read Me","download_type":"file","download_file":"https:\/\/wp.sternpinball.com\/r.txt","download_link":""},{"title":"Avatar Pro 2.00 Game Code","download_type":"link","download_file":"","download_link":"https:\/\/f002.backblazeb2.com\/file\/gamecode\/AVenglish02.zip"},{"title":"Avatar Pro 1.10 Game Code","download_type":"link","download_file":"","download_link":"https:\/\/f002.backblazeb2.com\/file\/gamecode\/AVenglish.zip"}]}</script>""";
+    var sternPage =
+        """<script>var x={"posts":[{"title":"Avatar LE 1.20 Game Code","download_type":"link","download_file":"","download_link":"https:\/\/f002.backblazeb2.com\/file\/gamecode\/AV_PRE_english.zip"},{"title":"Avatar Pro 2.00 Game Code Read Me","download_type":"file","download_file":"https:\/\/wp.sternpinball.com\/r.txt","download_link":""},{"title":"Avatar Pro 2.00 Game Code","download_type":"link","download_file":"","download_link":"https:\/\/f002.backblazeb2.com\/file\/gamecode\/AVenglish02.zip"},{"title":"Avatar Pro 1.10 Game Code","download_type":"link","download_file":"","download_link":"https:\/\/f002.backblazeb2.com\/file\/gamecode\/AVenglish.zip"}]}</script>""";
     var sternCodes = SternGameCode.ParseResults(sternPage);
-    Check(sternCodes.Count == 3 && !sternCodes.Any(c => c.Title.Contains("Read Me")), "Stern: reads the game code list, skips read-me files");
-    Check(SternGameCode.Rank(sternCodes, "Avatar (V2.0)").Select(c => c.Url).SequenceEqual(["https://f002.backblazeb2.com/file/gamecode/AVenglish02.zip"]),
-        "Stern: Avatar (V2.0) → the Pro 2.00 file");
-    Check(SternGameCode.Rank(sternCodes, "Avatar Limited Edition (V1.2)").First().Title == "Avatar LE 1.20 Game Code", "Stern: LE ROM (…h) → the LE file");
-    Check(SternGameCode.Rank(sternCodes, "Avatar (V3.1)").Count == 0, "Stern: no file of that version → nothing tried");
-    Check(SternGameCode.Rank([new SternCode("The Lord of the Rings 10.0 Game Code", "https://x/lotr.zip")], "Lord of the Rings, The (10.00)").Count == 1,
-        "Stern: 10.0 matches PinMAME's 10.00");
+    Check(
+        sternCodes.Count == 3 && !sternCodes.Any(c => c.Title.Contains("Read Me")),
+        "Stern: reads the game code list, skips read-me files"
+    );
+    Check(
+        SternGameCode
+            .Rank(sternCodes, "Avatar (V2.0)")
+            .Select(c => c.Url)
+            .SequenceEqual(["https://f002.backblazeb2.com/file/gamecode/AVenglish02.zip"]),
+        "Stern: Avatar (V2.0) → the Pro 2.00 file"
+    );
+    Check(
+        SternGameCode.Rank(sternCodes, "Avatar Limited Edition (V1.2)").First().Title
+            == "Avatar LE 1.20 Game Code",
+        "Stern: LE ROM (…h) → the LE file"
+    );
+    Check(
+        SternGameCode.Rank(sternCodes, "Avatar (V3.1)").Count == 0,
+        "Stern: no file of that version → nothing tried"
+    );
+    Check(
+        SternGameCode
+            .Rank(
+                [new SternCode("The Lord of the Rings 10.0 Game Code", "https://x/lotr.zip")],
+                "Lord of the Rings, The (10.00)"
+            )
+            .Count == 1,
+        "Stern: 10.0 matches PinMAME's 10.00"
+    );
 
     // VPX's own PinMAME, when installed on this PC: clone/parent facts straight from it.
     var realSettings = AppSettings.Load();
     if (File.Exists(RomAudio.PinmameDll(realSettings)))
     {
         var fam = PinmameInfo.Family(realSettings, Path.Combine(rq, "pinmame"), "afm_113b");
-        Check(fam.Select(g => g.Name).SequenceEqual(["afm_113b", "afm_113"]), "PinMAME: afm_113b is a clone of afm_113");
-        Check(PinmameInfo.Get(realSettings, Path.Combine(rq, "pinmame"), "afm_113b_me") is { Name: "afm_113b" }, "PinMAME follows the table's alias.txt");
-        Check(PinmameInfo.Get(realSettings, Path.Combine(root, "nowhere"), "not_a_rom_xyz") == null, "unknown names aren't games");
+        Check(
+            fam.Select(g => g.Name).SequenceEqual(["afm_113b", "afm_113"]),
+            "PinMAME: afm_113b is a clone of afm_113"
+        );
+        Check(
+            PinmameInfo.Get(realSettings, Path.Combine(rq, "pinmame"), "afm_113b_me")
+                is { Name: "afm_113b" },
+            "PinMAME follows the table's alias.txt"
+        );
+        Check(
+            PinmameInfo.Get(realSettings, Path.Combine(root, "nowhere"), "not_a_rom_xyz") == null,
+            "unknown names aren't games"
+        );
     }
-    else Console.WriteLine("SKIP  PinMAME checks (VPX isn't installed here)");
+    else
+        Console.WriteLine("SKIP  PinMAME checks (VPX isn't installed here)");
 
-    var rt = new InstalledTable(new TableManifest { Engine = TableManifest.Vpx, RomNames = ["mm_109", "mm_109c"] },
-        Path.Combine(root, "romtable", "t.vpx"), Path.Combine(root, "romtable"));
+    var rt = new InstalledTable(
+        new TableManifest { Engine = TableManifest.Vpx, RomNames = ["mm_109", "mm_109c"] },
+        Path.Combine(root, "romtable", "t.vpx"),
+        Path.Combine(root, "romtable")
+    );
     Directory.CreateDirectory(rt.Folder);
     Check(rt.MissingRoms.Count == 2, "no ROM yet: any of VPS's candidates will do");
 
     // The download is the ROM itself, under a different name.
     var plain = Path.Combine(root, "Medieval Madness 1.09c.zip");
-    using (var z = ZipFile.Open(plain, ZipArchiveMode.Create)) z.CreateEntry("mm_109c.u6");
+    using (var z = ZipFile.Open(plain, ZipArchiveMode.Create))
+        z.CreateEntry("mm_109c.u6");
     var placed = RomInstaller.Install(plain, rt, "mm_109c");
-    Check(placed.Count == 1 && Path.GetFileName(placed[0]) == "mm_109c.zip" && rt.MissingRoms.Count == 0,
-        "ROM download saved as pinmame/roms/<rom>.zip; table no longer needs one");
+    Check(
+        placed.Count == 1
+            && Path.GetFileName(placed[0]) == "mm_109c.zip"
+            && rt.MissingRoms.Count == 0,
+        "ROM download saved as pinmame/roms/<rom>.zip; table no longer needs one"
+    );
 
     // A pack with several ROM zips inside: only the one asked for is installed.
-    var rt2 = rt with { Folder = Path.Combine(root, "romtable2") };
+    var rt2 = rt with
+    {
+        Folder = Path.Combine(root, "romtable2"),
+    };
     var pack2 = Path.Combine(root, "rom-pack.zip");
     using (var z = ZipFile.Open(pack2, ZipArchiveMode.Create))
     {
         foreach (var n in new[] { "mm_109.zip", "mm_109c.zip" })
-            using (var e = z.CreateEntry(n).Open()) e.Write([1, 2, 3]);
+            using (var e = z.CreateEntry(n).Open())
+                e.Write([1, 2, 3]);
     }
     var placed2 = RomInstaller.Install(pack2, rt2, "mm_109c");
-    Check(placed2.Select(Path.GetFileName).SequenceEqual(["mm_109c.zip"]), "ROM pack: installs only the requested ROM");
+    Check(
+        placed2.Select(Path.GetFileName).SequenceEqual(["mm_109c.zip"]),
+        "ROM pack: installs only the requested ROM"
+    );
 
     // Table install narrows VPS's ROM list to the one the script names.
-    var rs = new AppSettings { TablesDir = Path.Combine(root, "rom-tables"), VpxDir = Path.Combine(root, "vpx") };
-    var rg = new VpsGame { Id = "g3", Name = "Rom Table", Manufacturer = "Williams", Year = 1997,
-        RomFiles = [new VpsFile { Version = "mm_109" }, new VpsFile { Version = "mm_109c" }, new VpsFile { Version = "mm_10" }] };
+    var rs = new AppSettings
+    {
+        TablesDir = Path.Combine(root, "rom-tables"),
+        VpxDir = Path.Combine(root, "vpx"),
+    };
+    var rg = new VpsGame
+    {
+        Id = "g3",
+        Name = "Rom Table",
+        Manufacturer = "Williams",
+        Year = 1997,
+        RomFiles =
+        [
+            new VpsFile { Version = "mm_109" },
+            new VpsFile { Version = "mm_109c" },
+            new VpsFile { Version = "mm_10" },
+        ],
+    };
     var rpack = Path.Combine(root, "romtable-pack.zip");
     using (var z = ZipFile.Open(rpack, ZipArchiveMode.Create))
-    using (var e = new StreamWriter(z.CreateEntry("Rom Table.vpx").Open())) e.Write("...binary...Const cGameName = \"mm_109c\"...LoadVPM \"01560000\", \"WPC.VBS\", 3.26...");
-    var rinst = await TableInstaller.InstallAsync(rpack, rg, new VpsTableFile { Id = "t3", TableFormat = "VPX" }, rs, _ => { }, CancellationToken.None);
-    Check(rinst.Manifest.RomNames.SequenceEqual(["mm_109c"]), "install records the exact ROM from the script");
+    using (var e = new StreamWriter(z.CreateEntry("Rom Table.vpx").Open()))
+        e.Write(
+            "...binary...Const cGameName = \"mm_109c\"...LoadVPM \"01560000\", \"WPC.VBS\", 3.26..."
+        );
+    var rinst = await TableInstaller.InstallAsync(
+        rpack,
+        rg,
+        new VpsTableFile { Id = "t3", TableFormat = "VPX" },
+        rs,
+        _ => { },
+        CancellationToken.None
+    );
+    Check(
+        rinst.Manifest.RomNames.SequenceEqual(["mm_109c"]),
+        "install records the exact ROM from the script"
+    );
 }
 
 // ---- Headset check (against this PC's real OpenXR runtime) ----
 {
     var real = AppSettings.Load();
     var hsNow = await HeadsetCheck.CheckAsync(real, TimeSpan.FromSeconds(20));
-    Console.WriteLine($"   this PC: loader {HeadsetCheck.FindLoader(real) ?? "none"}; headset check → {hsNow.State} ({hsNow.Detail})");
-    Check(HeadsetCheck.FindLoader(real) == null || hsNow.State != HeadsetState.Unknown, "headset check gets a real answer from the VR runtime");
-    var none = await HeadsetCheck.CheckAsync(new AppSettings { VpxDir = Path.Combine(root, "nothing"), UevrDir = "" }, TimeSpan.FromSeconds(5));
+    Console.WriteLine(
+        $"   this PC: loader {HeadsetCheck.FindLoader(real) ?? "none"}; headset check → {hsNow.State} ({hsNow.Detail})"
+    );
+    Check(
+        HeadsetCheck.FindLoader(real) == null || hsNow.State != HeadsetState.Unknown,
+        "headset check gets a real answer from the VR runtime"
+    );
+    var none = await HeadsetCheck.CheckAsync(
+        new AppSettings { VpxDir = Path.Combine(root, "nothing"), UevrDir = "" },
+        TimeSpan.FromSeconds(5)
+    );
     Check(none.State == HeadsetState.Unknown, "no OpenXR loader → don't block the launch");
 }
 
 // ---- Pinball M ----
-Check(Engines.For(TableManifest.PinballM) is PinballMUevrEngine pm && !pm.ManagesFiles && pm.Game.SteamAppId == "2337640",
-    "Pinball M engine registered (Steam 2337640, store-owned)");
-Check(PfxSetup.ParseEpicManifest("""{"DisplayName":"Pinball FX Midnight","InstallLocation":"E:\\M","CatalogNamespace":"a","CatalogItemId":"b","AppName":"c"}""", ZenGames.PinballM) != null
-      && PfxSetup.ParseEpicManifest("""{"DisplayName":"Pinball FX Midnight","InstallLocation":"E:\\M"}""") == null,
-    "Epic 'Pinball FX Midnight' is Pinball M, not Pinball FX");
+Check(
+    Engines.For(TableManifest.PinballM) is PinballMUevrEngine pm
+        && !pm.ManagesFiles
+        && pm.Game.SteamAppId == "2337640",
+    "Pinball M engine registered (Steam 2337640, store-owned)"
+);
+Check(
+    PfxSetup.ParseEpicManifest(
+        """{"DisplayName":"Pinball FX Midnight","InstallLocation":"E:\\M","CatalogNamespace":"a","CatalogItemId":"b","AppName":"c"}""",
+        ZenGames.PinballM
+    ) != null
+        && PfxSetup.ParseEpicManifest(
+            """{"DisplayName":"Pinball FX Midnight","InstallLocation":"E:\\M"}"""
+        ) == null,
+    "Epic 'Pinball FX Midnight' is Pinball M, not Pinball FX"
+);
 {
     var zenDir = Path.Combine(root, "zen", "Pinball M");
     Directory.CreateDirectory(Path.Combine(zenDir, "PinballM", "Binaries", "Win64"));
-    File.WriteAllText(Path.Combine(zenDir, "PinballM", "Binaries", "Win64", "PinballM-Win64-Shipping.exe"), "");
-    Check(PfxSetup.FindShippingExe(zenDir) == "PinballM-Win64-Shipping", "reads the game's process name from Binaries\\Win64");
+    File.WriteAllText(
+        Path.Combine(zenDir, "PinballM", "Binaries", "Win64", "PinballM-Win64-Shipping.exe"),
+        ""
+    );
+    Check(
+        PfxSetup.FindShippingExe(zenDir) == "PinballM-Win64-Shipping",
+        "reads the game's process name from Binaries\\Win64"
+    );
 }
 var pmDetected = PfxSetup.Detect(ZenGames.PinballM);
-Console.WriteLine($"   this PC: Pinball M {(pmDetected == null ? "not installed" : $"found ({pmDetected.Store}) at {pmDetected.InstallDir}, process {PfxSetup.ResolveProcessName(ZenGames.PinballM)}")}");
+Console.WriteLine(
+    $"   this PC: Pinball M {(pmDetected == null ? "not installed" : $"found ({pmDetected.Store}) at {pmDetected.InstallDir}, process {PfxSetup.ResolveProcessName(ZenGames.PinballM)}")}"
+);
 
 // ---- Favourites and play stats (shared by the manager and the lobby) ----
 {
     var sp = Path.Combine(root, "stats", "play-stats.json");
-    var tA = Path.Combine(root, "A.vpx"); var tB = Path.Combine(root, "B.vpx"); var tC = Path.Combine(root, "C.vpx");
-    PlayStats.Mutate(s => { s.RecordPlay(tA, DateTime.Now.AddHours(-3)); s.RecordPlay(tA, DateTime.Now.AddHours(-2)); s.RecordPlay(tB, DateTime.Now.AddHours(-1)); s.SetFavourite(tC, true); }, sp);
+    var tA = Path.Combine(root, "A.vpx");
+    var tB = Path.Combine(root, "B.vpx");
+    var tC = Path.Combine(root, "C.vpx");
+    PlayStats.Mutate(
+        s =>
+        {
+            s.RecordPlay(tA, DateTime.Now.AddHours(-3));
+            s.RecordPlay(tA, DateTime.Now.AddHours(-2));
+            s.RecordPlay(tB, DateTime.Now.AddHours(-1));
+            s.SetFavourite(tC, true);
+        },
+        sp
+    );
     var st = PlayStats.Load(sp);
-    Check(st.MostPlayed().SequenceEqual([tA, tB]) && st.Recent().SequenceEqual([tB, tA]) && st.Favourites().SequenceEqual([tC]),
-        "most played / recently played / favourites");
+    Check(
+        st.MostPlayed().SequenceEqual([tA, tB])
+            && st.Recent().SequenceEqual([tB, tA])
+            && st.Favourites().SequenceEqual([tC]),
+        "most played / recently played / favourites"
+    );
     Check(st.IsFavourite(tC.ToUpperInvariant()), "table paths compare case-insensitively");
 
     // Several processes counting at once (manager + lobby launcher) mustn't lose plays.
-    await Task.WhenAll(Enumerable.Range(0, 20).Select(_ => Task.Run(() => PlayStats.Mutate(s => s.RecordPlay(tB, DateTime.Now), sp))));
-    Check(PlayStats.Load(sp).PlaysOf(tB) == 21, "concurrent play counting loses nothing (21 plays)");
+    await Task.WhenAll(
+        Enumerable
+            .Range(0, 20)
+            .Select(_ => Task.Run(() => PlayStats.Mutate(s => s.RecordPlay(tB, DateTime.Now), sp)))
+    );
+    Check(
+        PlayStats.Load(sp).PlaysOf(tB) == 21,
+        "concurrent play counting loses nothing (21 plays)"
+    );
     PlayStats.Mutate(s => s.AddTime(tB, TimeSpan.FromMinutes(90)), sp);
     Check(Math.Abs(PlayStats.Load(sp).MinutesOf(tB) - 90) < 0.01, "time played adds up");
 
@@ -765,13 +1775,27 @@ Console.WriteLine($"   this PC: Pinball M {(pmDetected == null ? "not installed"
     var legacyDir = Path.Combine(root, "legacy");
     Directory.CreateDirectory(legacyDir);
     var legacy = Path.Combine(legacyDir, "lobby-state.json");
-    File.WriteAllText(legacy, $$"""{"Favourites":[{{JsonEsc(tA)}}],"Recent":[{{JsonEsc(tB)}},{{JsonEsc(tA)}}],"Filter":"Favourites","View":"wall","HeightOffset":0.05}""");
+    File.WriteAllText(
+        legacy,
+        $$"""{"Favourites":[{{JsonEsc(tA)}}],"Recent":[{{JsonEsc(tB)}},{{JsonEsc(tA)}}],"Filter":"Favourites","View":"wall","HeightOffset":0.05}"""
+    );
     var migrated = LobbyState.Load(legacy);
-    Check(migrated.IsFavourite(tA) && migrated.Recent.SequenceEqual([tB, tA]) && migrated.View == "wall",
-        "old lobby favourites and recents carried over");
-    Check(!File.ReadAllText(legacy).Contains("\"Favourites\":") && !File.ReadAllText(legacy).Contains("\"Recent\":") && PlayStats.Load(Path.Combine(legacyDir, "play-stats.json")).IsFavourite(tA),
-        "lobby-state.json no longer keeps its own favourites");
-    Check(LobbyNav.Filters.Contains("Most played") && LobbyNav.Filters.Contains("Pinball M"), "lobby has Most played and Pinball M filters");
+    Check(
+        migrated.IsFavourite(tA)
+            && migrated.Recent.SequenceEqual([tB, tA])
+            && migrated.View == "wall",
+        "old lobby favourites and recents carried over"
+    );
+    Check(
+        !File.ReadAllText(legacy).Contains("\"Favourites\":")
+            && !File.ReadAllText(legacy).Contains("\"Recent\":")
+            && PlayStats.Load(Path.Combine(legacyDir, "play-stats.json")).IsFavourite(tA),
+        "lobby-state.json no longer keeps its own favourites"
+    );
+    Check(
+        LobbyNav.Filters.Contains("Most played") && LobbyNav.Filters.Contains("Pinball M"),
+        "lobby has Most played and Pinball M filters"
+    );
 }
 
 // ---- Pinball settings for UEVR (run on a copy of this PC's real Pinball M profile when there is one) ----
@@ -780,59 +1804,154 @@ Console.WriteLine($"   this PC: Pinball M {(pmDetected == null ? "not installed"
     Directory.CreateDirectory(dir);
     var cfg = Path.Combine(dir, "config.txt");
     var bak = Path.Combine(dir, "config.vrtm-original.txt");
-    var real = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData), "UnrealVRMod", "PinballM-Win64-Shipping", "config.txt");
-    if (File.Exists(real)) File.Copy(real, cfg);
-    else File.WriteAllLines(cfg, ["Frontend_RequestedRuntime=openvr_api.dll", "VR_DecoupledPitch=false", "VR_ControllersAllowed=true", "UI_Distance=2.000000", "VR_SnapTurn=false"]);
-    Console.WriteLine($"   UEVR profile test using {(File.Exists(real) ? "a copy of this PC's Pinball M profile" : "a sample profile")}");
+    var real = Path.Combine(
+        Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData),
+        "UnrealVRMod",
+        "PinballM-Win64-Shipping",
+        "config.txt"
+    );
+    if (File.Exists(real))
+        File.Copy(real, cfg);
+    else
+        File.WriteAllLines(
+            cfg,
+            [
+                "Frontend_RequestedRuntime=openvr_api.dll",
+                "VR_DecoupledPitch=false",
+                "VR_ControllersAllowed=true",
+                "UI_Distance=2.000000",
+                "VR_SnapTurn=false",
+            ]
+        );
+    Console.WriteLine(
+        $"   UEVR profile test using {(File.Exists(real) ? "a copy of this PC's Pinball M profile" : "a sample profile")}"
+    );
 
-    var before = File.ReadAllLines(cfg).Where(l => l.Contains('=')).ToDictionary(l => l[..l.IndexOf('=')], l => l[(l.IndexOf('=') + 1)..]);
+    var before = File.ReadAllLines(cfg)
+        .Where(l => l.Contains('='))
+        .ToDictionary(l => l[..l.IndexOf('=')], l => l[(l.IndexOf('=') + 1)..]);
     var r1 = UevrPinballProfile.ApplyTo(cfg, bak);
-    var after = File.ReadAllLines(cfg).Where(l => l.Contains('=')).ToDictionary(l => l[..l.IndexOf('=')], l => l[(l.IndexOf('=') + 1)..]);
+    var after = File.ReadAllLines(cfg)
+        .Where(l => l.Contains('='))
+        .ToDictionary(l => l[..l.IndexOf('=')], l => l[(l.IndexOf('=') + 1)..]);
     var ours = UevrPinballProfile.Settings.Select(s => s.Key).ToHashSet();
-    Check(r1.BackedUp && File.ReadAllLines(bak).Where(l => l.Contains('=')).Count() == before.Count, "first apply backs up the original profile");
-    Check(UevrPinballProfile.Settings.All(s => after[s.Key] == s.Value), "all pinball settings written");
-    Check(before.Where(kv => !ours.Contains(kv.Key)).All(kv => after.TryGetValue(kv.Key, out var v) && v == kv.Value)
-          && after.Count == before.Keys.Union(ours).Count(), "every other UEVR setting left exactly as it was");
+    Check(
+        r1.BackedUp && File.ReadAllLines(bak).Where(l => l.Contains('=')).Count() == before.Count,
+        "first apply backs up the original profile"
+    );
+    Check(
+        UevrPinballProfile.Settings.All(s => after[s.Key] == s.Value),
+        "all pinball settings written"
+    );
+    Check(
+        before
+            .Where(kv => !ours.Contains(kv.Key))
+            .All(kv => after.TryGetValue(kv.Key, out var v) && v == kv.Value)
+            && after.Count == before.Keys.Union(ours).Count(),
+        "every other UEVR setting left exactly as it was"
+    );
     var r2 = UevrPinballProfile.ApplyTo(cfg, bak);
-    Check(!r2.BackedUp && r2.Changed.Count == 0, "second apply changes nothing and keeps the first backup");
-    Check(UevrPinballProfile.RuntimeFrom(cfg) == (before.GetValueOrDefault("Frontend_RequestedRuntime", "").Contains("openxr") ? "OpenXR" : "OpenVR"),
-        "reads which runtime UEVR's injector last used");
-    Console.WriteLine($"   pinball settings changed {r1.Changed.Count} of {ours.Count} keys: {string.Join(", ", r1.Changed)}");
+    Check(
+        !r2.BackedUp && r2.Changed.Count == 0,
+        "second apply changes nothing and keeps the first backup"
+    );
+    Check(
+        UevrPinballProfile.RuntimeFrom(cfg)
+            == (
+                before.GetValueOrDefault("Frontend_RequestedRuntime", "").Contains("openxr")
+                    ? "OpenXR"
+                    : "OpenVR"
+            ),
+        "reads which runtime UEVR's injector last used"
+    );
+    Console.WriteLine(
+        $"   pinball settings changed {r1.Changed.Count} of {ours.Count} keys: {string.Join(", ", r1.Changed)}"
+    );
 }
 Console.WriteLine($"   gamepad connected: {Gamepad.IsConnected()?.ToString() ?? "unknown"}");
 
 // ---- ROM sources and tables that don't use PinMAME ----
 {
-    Check(!RomSources.IsUsable("https://sternpinball.com/?post_type=game_code&s=metallica", "MTL180LE.BIN")
-          && !RomSources.IsUsable("https://wp.sternpinball.com/?post_type=game_code&s=x-men+LE+1.51", "xmn_151h")
-          && RomSources.IsUsable("https://vpuniverse.com/files/file/5266-metallica-limited-edition-v17/", "mtl_170h"),
-        "Stern's firmware links aren't offered as ROM downloads");
-    Check(RomSources.VpuSearchUrl("mtl_180hc") == "https://vpuniverse.com/search/?q=mtl_180hc&type=downloads_file", "VPUniverse search link for a missing ROM");
+    Check(
+        !RomSources.IsUsable(
+            "https://sternpinball.com/?post_type=game_code&s=metallica",
+            "MTL180LE.BIN"
+        )
+            && !RomSources.IsUsable(
+                "https://wp.sternpinball.com/?post_type=game_code&s=x-men+LE+1.51",
+                "xmn_151h"
+            )
+            && RomSources.IsUsable(
+                "https://vpuniverse.com/files/file/5266-metallica-limited-edition-v17/",
+                "mtl_170h"
+            ),
+        "Stern's firmware links aren't offered as ROM downloads"
+    );
+    Check(
+        RomSources.VpuSearchUrl("mtl_180hc")
+            == "https://vpuniverse.com/search/?q=mtl_180hc&type=downloads_file",
+        "VPUniverse search link for a missing ROM"
+    );
 
     var odir = Path.Combine(root, "orig");
     Directory.CreateDirectory(odir);
     var origVpx = Path.Combine(odir, "orig.vpx");
-    File.WriteAllText(origVpx, "...Const cGameName = \"JAWS_50Th_Anniversary\" ' for high scores ...");
+    File.WriteAllText(
+        origVpx,
+        "...Const cGameName = \"JAWS_50Th_Anniversary\" ' for high scores ..."
+    );
     var pmVpx = Path.Combine(odir, "pm.vpx");
-    File.WriteAllText(pmVpx, "...Const cGameName = \"mtl_180hc\"...LoadVPM \"03060000\", \"sam.VBS\", 3.10...");
-    Check(RomDetector.Inspect(origVpx) is { NoRomNeeded: true } && RomDetector.Inspect(pmVpx) is { GameName: "mtl_180hc", UsesPinMame: true, NoRomNeeded: false },
-        "tells PinMAME tables from originals that only set cGameName");
+    File.WriteAllText(
+        pmVpx,
+        "...Const cGameName = \"mtl_180hc\"...LoadVPM \"03060000\", \"sam.VBS\", 3.10..."
+    );
+    Check(
+        RomDetector.Inspect(origVpx) is { NoRomNeeded: true }
+            && RomDetector.Inspect(pmVpx)
+                is { GameName: "mtl_180hc", UsesPinMame: true, NoRomNeeded: false },
+        "tells PinMAME tables from originals that only set cGameName"
+    );
 
-    var os = new AppSettings { TablesDir = Path.Combine(root, "orig-tables"), VpxDir = Path.Combine(root, "vpx") };
+    var os = new AppSettings
+    {
+        TablesDir = Path.Combine(root, "orig-tables"),
+        VpxDir = Path.Combine(root, "vpx"),
+    };
     var opack = Path.Combine(root, "orig-pack.zip");
     using (var z = ZipFile.Open(opack, ZipArchiveMode.Create))
-    using (var e = new StreamWriter(z.CreateEntry("Jaws.vpx").Open())) e.Write("...Const cGameName = \"JAWS_50Th_Anniversary\"...");
-    var oinst = await TableInstaller.InstallAsync(opack, new VpsGame { Id = "gJ", Name = "Jaws", Manufacturer = "Original", Year = 2025 },
-        new VpsTableFile { Id = "tJ", TableFormat = "VPX" }, os, _ => { }, CancellationToken.None);
-    Check(oinst.Manifest.RomNames.Count == 0 && oinst.MissingRoms.Count == 0, "an original table installs without a ROM requirement");
+    using (var e = new StreamWriter(z.CreateEntry("Jaws.vpx").Open()))
+        e.Write("...Const cGameName = \"JAWS_50Th_Anniversary\"...");
+    var oinst = await TableInstaller.InstallAsync(
+        opack,
+        new VpsGame
+        {
+            Id = "gJ",
+            Name = "Jaws",
+            Manufacturer = "Original",
+            Year = 2025,
+        },
+        new VpsTableFile { Id = "tJ", TableFormat = "VPX" },
+        os,
+        _ => { },
+        CancellationToken.None
+    );
+    Check(
+        oinst.Manifest.RomNames.Count == 0 && oinst.MissingRoms.Count == 0,
+        "an original table installs without a ROM requirement"
+    );
 
     // Read-only look at this PC's real tables, if they're here.
     var mine = AppSettings.Load();
-    foreach (var name in new[] { "Jaws (Original 2025)", "Metallica (Premium Monsters) (Stern 2013)" })
+    foreach (
+        var name in new[] { "Jaws (Original 2025)", "Metallica (Premium Monsters) (Stern 2013)" }
+    )
     {
         var tblDir = Path.Combine(mine.TablesDir, name);
-        var vpx = Directory.Exists(tblDir) ? Directory.EnumerateFiles(tblDir, "*.vpx").FirstOrDefault() : null;
-        if (vpx != null) Console.WriteLine($"   this PC: {name}: {RomDetector.Inspect(vpx)}");
+        var vpx = Directory.Exists(tblDir)
+            ? Directory.EnumerateFiles(tblDir, "*.vpx").FirstOrDefault()
+            : null;
+        if (vpx != null)
+            Console.WriteLine($"   this PC: {name}: {RomDetector.Inspect(vpx)}");
     }
 }
 
@@ -840,146 +1959,289 @@ Console.WriteLine($"   gamepad connected: {Gamepad.IsConnected()?.ToString() ?? 
 {
     var qPath = Path.Combine(root, "queue", "download-queue.json");
     var q = new PendingDownloads(qPath);
-    q.Add(new PendingDownload { Id = "a", Title = "Table A", GameId = "g1", TableFileId = "t1" });
-    q.Add(new PendingDownload { Id = "b", Kind = PendingDownload.RomKind, Title = "ROM for B", TablePath = @"C:\T\b.vpx" });
+    q.Add(
+        new PendingDownload
+        {
+            Id = "a",
+            Title = "Table A",
+            GameId = "g1",
+            TableFileId = "t1",
+        }
+    );
+    q.Add(
+        new PendingDownload
+        {
+            Id = "b",
+            Kind = PendingDownload.RomKind,
+            Title = "ROM for B",
+            TablePath = @"C:\T\b.vpx",
+        }
+    );
     q.Remove("a");
     var reopened = new PendingDownloads(qPath);
-    Check(reopened.Items.Count == 1 && reopened.Items[0].Id == "b" && reopened.Items[0].Kind == PendingDownload.RomKind,
-        "unfinished downloads are still in the queue after a restart");
+    Check(
+        reopened.Items.Count == 1
+            && reopened.Items[0].Id == "b"
+            && reopened.Items[0].Kind == PendingDownload.RomKind,
+        "unfinished downloads are still in the queue after a restart"
+    );
     reopened.Clear();
     Check(new PendingDownloads(qPath).Items.Count == 0, "queue clears once resumed or discarded");
     File.WriteAllText(qPath, "{ not json");
-    Check(new PendingDownloads(qPath).Items.Count == 0, "a damaged queue file starts empty instead of crashing");
+    Check(
+        new PendingDownloads(qPath).Items.Count == 0,
+        "a damaged queue file starts empty instead of crashing"
+    );
 
     var dl = Path.Combine(root, "downloads-left");
     Directory.CreateDirectory(Path.Combine(dl, "job1"));
     File.WriteAllText(Path.Combine(dl, "job1", "half.zip"), "partial");
     File.WriteAllText(Path.Combine(dl, "loose.tmp"), "x");
-    Check(PendingDownloads.CleanDownloadsFolder(dl) == 2 && !Directory.EnumerateFileSystemEntries(dl).Any(),
-        "leftover partial downloads are cleared at startup");
+    Check(
+        PendingDownloads.CleanDownloadsFolder(dl) == 2
+            && !Directory.EnumerateFileSystemEntries(dl).Any(),
+        "leftover partial downloads are cleared at startup"
+    );
 
     // Half-installed tables: the marker stays until an install completes.
-    var hs = new AppSettings { TablesDir = Path.Combine(root, "half-tables"), VpxDir = Path.Combine(root, "vpx") };
+    var hs = new AppSettings
+    {
+        TablesDir = Path.Combine(root, "half-tables"),
+        VpxDir = Path.Combine(root, "vpx"),
+    };
     var cutEarly = Path.Combine(hs.TablesDir, "Cut Early (Bally 1980)");
     Directory.CreateDirectory(cutEarly);
-    File.WriteAllText(Path.Combine(cutEarly, TableInstaller.InstallingMarker),
-        System.Text.Json.JsonSerializer.Serialize(new InstallMarker("gE", "tE", "Cut Early", DateTime.Now)));
+    File.WriteAllText(
+        Path.Combine(cutEarly, TableInstaller.InstallingMarker),
+        System.Text.Json.JsonSerializer.Serialize(
+            new InstallMarker("gE", "tE", "Cut Early", DateTime.Now)
+        )
+    );
     var cutLate = Path.Combine(hs.TablesDir, "Cut Late (Bally 1981)");
     Directory.CreateDirectory(cutLate);
     File.WriteAllText(Path.Combine(cutLate, "Cut Late.vpx"), "half copied");
-    File.WriteAllText(Path.Combine(cutLate, TableInstaller.InstallingMarker),
-        System.Text.Json.JsonSerializer.Serialize(new InstallMarker("gL", "tL", "Cut Late", DateTime.Now)));
+    File.WriteAllText(
+        Path.Combine(cutLate, TableInstaller.InstallingMarker),
+        System.Text.Json.JsonSerializer.Serialize(
+            new InstallMarker("gL", "tL", "Cut Late", DateTime.Now)
+        )
+    );
     var halfScan = TableInstaller.Scan(hs).Where(t => t.IsVpx).ToList();
     var early = halfScan.FirstOrDefault(t => t.Folder == cutEarly);
     var late = halfScan.FirstOrDefault(t => t.Folder == cutLate);
-    Check(early is { IsIncomplete: true } && early.IncompleteInstall?.TableFileId == "tE" && late is { IsIncomplete: true },
-        "half-installed tables are listed as incomplete, with what to reinstall");
-    Check(!LobbyLibrary.Load(hs).Any(t => t.Id.Contains("Cut ")), "the VR lobby leaves half-installed tables out");
+    Check(
+        early is { IsIncomplete: true }
+            && early.IncompleteInstall?.TableFileId == "tE"
+            && late is { IsIncomplete: true },
+        "half-installed tables are listed as incomplete, with what to reinstall"
+    );
+    Check(
+        !LobbyLibrary.Load(hs).Any(t => t.Id.Contains("Cut ")),
+        "the VR lobby leaves half-installed tables out"
+    );
     TableInstaller.Remove(early!);
     Check(!Directory.Exists(cutEarly), "a table cut off before its file arrived can be removed");
 
-    var hg = new VpsGame { Id = "gL", Name = "Cut Late", Manufacturer = "Bally", Year = 1981 };
+    var hg = new VpsGame
+    {
+        Id = "gL",
+        Name = "Cut Late",
+        Manufacturer = "Bally",
+        Year = 1981,
+    };
     var hpack = Path.Combine(root, "cut-late.zip");
-    using (var z = ZipFile.Open(hpack, ZipArchiveMode.Create)) z.CreateEntry("Cut Late.vpx");
-    var redone = await TableInstaller.InstallAsync(hpack, hg, new VpsTableFile { Id = "tL", TableFormat = "VPX" }, hs, _ => { }, CancellationToken.None);
-    Check(!redone.IsIncomplete && !File.Exists(Path.Combine(cutLate, TableInstaller.InstallingMarker)), "reinstalling completes it and clears the marker");
+    using (var z = ZipFile.Open(hpack, ZipArchiveMode.Create))
+        z.CreateEntry("Cut Late.vpx");
+    var redone = await TableInstaller.InstallAsync(
+        hpack,
+        hg,
+        new VpsTableFile { Id = "tL", TableFormat = "VPX" },
+        hs,
+        _ => { },
+        CancellationToken.None
+    );
+    Check(
+        !redone.IsIncomplete
+            && !File.Exists(Path.Combine(cutLate, TableInstaller.InstallingMarker)),
+        "reinstalling completes it and clears the marker"
+    );
 }
 
-foreach (var (ok, name) in HighScoreChecks.Run()) Check(ok, name);
-foreach (var (ok, name) in RomAudioChecks.Run()) Check(ok, name);
-foreach (var (ok, name) in MediaPackAudioChecks.Run(root)) Check(ok, name);
-foreach (var (ok, name) in PupPackChecks.Run(root)) Check(ok, name);
-foreach (var (ok, name) in AltPackChecks.Run(root)) Check(ok, name);
-foreach (var (ok, name) in VpxInputChecks.Run(root)) Check(ok, name);
-foreach (var (ok, name) in VrViewChecks.Run(root)) Check(ok, name);
-foreach (var (ok, name) in LobbyVideoChecks.Run(root)) Check(ok, name);
-foreach (var (ok, name) in VrDmdFixChecks.Run(root)) Check(ok, name);
-foreach (var (ok, name) in VrRoomSwitchChecks.Run(root)) Check(ok, name);
-foreach (var (ok, name) in VpxTextureCacheChecks.Run(root)) Check(ok, name);
-foreach (var (ok, name) in VpxIniLayersChecks.Run(root)) Check(ok, name);
-foreach (var (ok, name) in UserArtworkChecks.Run(root)) Check(ok, name);
-foreach (var (ok, name) in TableFileMatchChecks.Run()) Check(ok, name);
-foreach (var (ok, name) in await VpxInstallChecks.RunAsync(root)) Check(ok, name);
-foreach (var (ok, name) in RuleSheetChecks.Run(root)) Check(ok, name);
-foreach (var (ok, name) in await AssistedDownloadChecks.RunAsync(root)) Check(ok, name);
+foreach (var (ok, name) in HighScoreChecks.Run())
+    Check(ok, name);
+foreach (var (ok, name) in RomAudioChecks.Run())
+    Check(ok, name);
+foreach (var (ok, name) in MediaPackAudioChecks.Run(root))
+    Check(ok, name);
+foreach (var (ok, name) in PupPackChecks.Run(root))
+    Check(ok, name);
+foreach (var (ok, name) in AltPackChecks.Run(root))
+    Check(ok, name);
+foreach (var (ok, name) in VpxInputChecks.Run(root))
+    Check(ok, name);
+foreach (var (ok, name) in VrViewChecks.Run(root))
+    Check(ok, name);
+foreach (var (ok, name) in LobbyVideoChecks.Run(root))
+    Check(ok, name);
+foreach (var (ok, name) in VrDmdFixChecks.Run(root))
+    Check(ok, name);
+foreach (var (ok, name) in VrRoomSwitchChecks.Run(root))
+    Check(ok, name);
+foreach (var (ok, name) in VpxTextureCacheChecks.Run(root))
+    Check(ok, name);
+foreach (var (ok, name) in VpxIniLayersChecks.Run(root))
+    Check(ok, name);
+foreach (var (ok, name) in UserArtworkChecks.Run(root))
+    Check(ok, name);
+foreach (var (ok, name) in TableFileMatchChecks.Run())
+    Check(ok, name);
+foreach (var (ok, name) in await VpxInstallChecks.RunAsync(root))
+    Check(ok, name);
+foreach (var (ok, name) in RuleSheetChecks.Run(root))
+    Check(ok, name);
+foreach (var (ok, name) in await AssistedDownloadChecks.RunAsync(root))
+    Check(ok, name);
 
 // ---- VR graphics, logs, storage, backup ----
 {
-    var gs = new AppSettings { TablesDir = Path.Combine(root, "gfx-tables"), VpxDir = Path.Combine(root, "gfx-vpx") };
+    var gs = new AppSettings
+    {
+        TablesDir = Path.Combine(root, "gfx-tables"),
+        VpxDir = Path.Combine(root, "gfx-vpx"),
+    };
     var vrIni = VpxSetup.VrIniPath(gs);
     Check(VpxGraphics.Read(vrIni) == new VpxGraphics(), "no VR ini yet: VPX's defaults");
     VpxSetup.EnsureVrIni(gs);
     VpxGraphics.Performance.Write(vrIni);
     var back = VpxGraphics.Read(vrIni);
-    Check(back == VpxGraphics.Performance && back.PresetName == "Performance", "graphics preset round-trips through the VR ini");
+    Check(
+        back == VpxGraphics.Performance && back.PresetName == "Performance",
+        "graphics preset round-trips through the VR ini"
+    );
     var text = File.ReadAllText(vrIni);
-    Check(text.Contains("AAFactor = 1.0") && text.Contains("FXAA = 1") && text.Contains("ForceBloomOff = 1") && text.Contains("AskToTurnOn = 0"),
-        "writes VPX's own [Player] keys and keeps [PlayerVR]");
+    Check(
+        text.Contains("AAFactor = 1.0")
+            && text.Contains("FXAA = 1")
+            && text.Contains("ForceBloomOff = 1")
+            && text.Contains("AskToTurnOn = 0"),
+        "writes VPX's own [Player] keys and keeps [PlayerVR]"
+    );
     (VpxGraphics.Balanced with { FpsOverlay = 2 }).Write(vrIni);
-    Check(VpxGraphics.Read(vrIni).PresetName == "Balanced", "the FPS overlay doesn't break preset matching");
-    Check(VpxGraphics.Read(vrIni) with { Msaa = 3 } is { PresetName: null }, "changed settings show as custom");
+    Check(
+        VpxGraphics.Read(vrIni).PresetName == "Balanced",
+        "the FPS overlay doesn't break preset matching"
+    );
+    Check(
+        VpxGraphics.Read(vrIni) with { Msaa = 3 } is { PresetName: null },
+        "changed settings show as custom"
+    );
 
     var gTable = Path.Combine(root, "gfx-tables", "Heavy (Stern 2020)", "Heavy.vpx");
     Directory.CreateDirectory(Path.GetDirectoryName(gTable)!);
     File.WriteAllText(gTable, "x");
     VpxGraphics.WriteTableScale(gTable, 0.8);
-    Check(VpxGraphics.ReadTableScale(gTable) == 0.8 && File.ReadAllText(Path.ChangeExtension(gTable, ".ini")).Contains("AAFactor = 0.8"),
-        "per-table render scale goes in the table's own .ini");
+    Check(
+        VpxGraphics.ReadTableScale(gTable) == 0.8
+            && File.ReadAllText(Path.ChangeExtension(gTable, ".ini")).Contains("AAFactor = 0.8"),
+        "per-table render scale goes in the table's own .ini"
+    );
     VpxGraphics.WriteTableScale(gTable, null);
     Check(VpxGraphics.ReadTableScale(gTable) == null, "clearing it falls back to the global scale");
-    Check(OpenXrRuntimes.NameFor(@"C:\Program Files\Oculus\Support\oculus-runtime\oculus_openxr_64.json") == "Meta Quest Link"
-          && OpenXrRuntimes.NameFor(@"C:\Steam\steamapps\common\SteamVR\steamxr_win64.json") == "SteamVR", "names OpenXR runtimes");
+    Check(
+        OpenXrRuntimes.NameFor(
+            @"C:\Program Files\Oculus\Support\oculus-runtime\oculus_openxr_64.json"
+        ) == "Meta Quest Link"
+            && OpenXrRuntimes.NameFor(@"C:\Steam\steamapps\common\SteamVR\steamxr_win64.json")
+                == "SteamVR",
+        "names OpenXR runtimes"
+    );
     Check(OpenXrRuntimes.List().Count(r => r.IsActive) <= 1, "at most one active OpenXR runtime");
 
     var log = Path.Combine(root, "vpinball.log");
-    File.WriteAllLines(log,
-    [
-        "2026-10-18 11:00:00.000 INFO  [Main] [VPApp::InitInstance@332] Starting VPX - old run",
-        "2026-10-18 11:00:05.000 ERROR [Main] [Old::Thing@1] old error",
-        "2026-10-18 11:00:09.000 INFO  [Main] [WinMain@227] Closing VPX...",
-        "2026-10-18 12:00:00.000 INFO  [Main] [VPApp::InitInstance@332] Starting VPX - v10.8.1",
-        @"2026-10-18 12:00:00.100 INFO  [Main] [PinTable::LoadGameFromFilename@1419] LoadGameFromFilename C:\T\AFM\afm.vpx",
-        "2026-10-18 12:00:01.000 ERROR [1] [Texture::GetRawBitmap@1130] Corrupted file: image 'a' width (2048) does not match the width (1024) of the image datablock.",
-        "2026-10-18 12:00:01.000 ERROR [2] [Texture::GetRawBitmap@1130] Corrupted file: image 'b' width (100) does not match the width (50) of the image datablock.",
-        "2026-10-18 12:00:02.000 WARN  [RenderThread] [VRDevice::Init@1] xrGetSystem failed: XR_ERROR_FORM_FACTOR_UNAVAILABLE",
-    ]);
+    File.WriteAllLines(
+        log,
+        [
+            "2026-10-18 11:00:00.000 INFO  [Main] [VPApp::InitInstance@332] Starting VPX - old run",
+            "2026-10-18 11:00:05.000 ERROR [Main] [Old::Thing@1] old error",
+            "2026-10-18 11:00:09.000 INFO  [Main] [WinMain@227] Closing VPX...",
+            "2026-10-18 12:00:00.000 INFO  [Main] [VPApp::InitInstance@332] Starting VPX - v10.8.1",
+            @"2026-10-18 12:00:00.100 INFO  [Main] [PinTable::LoadGameFromFilename@1419] LoadGameFromFilename C:\T\AFM\afm.vpx",
+            "2026-10-18 12:00:01.000 ERROR [1] [Texture::GetRawBitmap@1130] Corrupted file: image 'a' width (2048) does not match the width (1024) of the image datablock.",
+            "2026-10-18 12:00:01.000 ERROR [2] [Texture::GetRawBitmap@1130] Corrupted file: image 'b' width (100) does not match the width (50) of the image datablock.",
+            "2026-10-18 12:00:02.000 WARN  [RenderThread] [VRDevice::Init@1] xrGetSystem failed: XR_ERROR_FORM_FACTOR_UNAVAILABLE",
+        ]
+    );
     var session = VpxLog.LastSession(log);
-    Check(session is { ClosedCleanly: false, Table: @"C:\T\AFM\afm.vpx" } && session.Started == new DateTime(2026, 10, 18, 12, 0, 0),
-        "log: last run only, its table, and that it didn't close normally");
-    Check(session!.Problems.Count == 2 && !session.Problems.Any(p => p.Contains("old error")), "log: repeated errors collapse; earlier runs ignored");
-    Check(session.Hints.Any(h => h.Contains("headset wasn't connected")), "log: explains a missing headset");
+    Check(
+        session is { ClosedCleanly: false, Table: @"C:\T\AFM\afm.vpx" }
+            && session.Started == new DateTime(2026, 10, 18, 12, 0, 0),
+        "log: last run only, its table, and that it didn't close normally"
+    );
+    Check(
+        session!.Problems.Count == 2 && !session.Problems.Any(p => p.Contains("old error")),
+        "log: repeated errors collapse; earlier runs ignored"
+    );
+    Check(
+        session.Hints.Any(h => h.Contains("headset wasn't connected")),
+        "log: explains a missing headset"
+    );
 
     // Big Trouble in Little China, played with no headset and left after a few seconds (lines from a real log).
     var btilc = Path.Combine(root, "btilc", "BTILC.vpx");
     Directory.CreateDirectory(Path.GetDirectoryName(btilc)!);
-    File.WriteAllLines(log,
-    [
-        "2026-11-04 17:31:09.000 INFO  [Main] [VPApp::InitInstance@332] Starting VPX - v10.8.1",
-        $"2026-11-04 17:31:09.100 INFO  [Main] [PinTable::LoadGameFromFilename@1419] LoadGameFromFilename {btilc}",
-        "2026-11-04 17:31:10.621 ERROR [Main] [VRDevice::SetupHMD@451] ERROR: OPENXR: -35 (XR_ERROR_FORM_FACTOR_UNAVAILABLE) Failed to get SystemID.",
-        "2026-11-04 17:31:11.635 ERROR [Main] [VRDevice::~VRDevice@321] ERROR: OPENXR: -12 (XR_ERROR_HANDLE_INVALID) Failed to destroy Space.",
-        "2026-11-04 17:31:12.956 ERROR [Main] [PinMAME:PinMAMEPluginLoad::<lambda_3>::operator ()@475] PinMAME path is not defined.",
-        "2026-11-04 17:31:13.010 ERROR [Main] [PUP:PUP::PUPManager::LoadPlaylists@313] Duplicate playlist: playlist=folder=PuPOverlays, description=",
-        "2026-11-04 17:31:13.011 ERROR [Main] [PUP:PUP::PUPPlaylist::CreateFromCSV@88] Playlist folder not found: Tilt",
-        @"2026-11-04 17:31:13.016 ERROR [Main] [PUP:PUP::PUPLabel::SetCaption@233] Image not found, hiding label: screen=5, label=BGlass, path=PuPOverlays\\Card0.png",
-        "2026-11-04 17:31:17.957 INFO  [Main] [WinMain@227] Closing VPX...",
-    ]);
+    File.WriteAllLines(
+        log,
+        [
+            "2026-11-04 17:31:09.000 INFO  [Main] [VPApp::InitInstance@332] Starting VPX - v10.8.1",
+            $"2026-11-04 17:31:09.100 INFO  [Main] [PinTable::LoadGameFromFilename@1419] LoadGameFromFilename {btilc}",
+            "2026-11-04 17:31:10.621 ERROR [Main] [VRDevice::SetupHMD@451] ERROR: OPENXR: -35 (XR_ERROR_FORM_FACTOR_UNAVAILABLE) Failed to get SystemID.",
+            "2026-11-04 17:31:11.635 ERROR [Main] [VRDevice::~VRDevice@321] ERROR: OPENXR: -12 (XR_ERROR_HANDLE_INVALID) Failed to destroy Space.",
+            "2026-11-04 17:31:12.956 ERROR [Main] [PinMAME:PinMAMEPluginLoad::<lambda_3>::operator ()@475] PinMAME path is not defined.",
+            "2026-11-04 17:31:13.010 ERROR [Main] [PUP:PUP::PUPManager::LoadPlaylists@313] Duplicate playlist: playlist=folder=PuPOverlays, description=",
+            "2026-11-04 17:31:13.011 ERROR [Main] [PUP:PUP::PUPPlaylist::CreateFromCSV@88] Playlist folder not found: Tilt",
+            @"2026-11-04 17:31:13.016 ERROR [Main] [PUP:PUP::PUPLabel::SetCaption@233] Image not found, hiding label: screen=5, label=BGlass, path=PuPOverlays\\Card0.png",
+            "2026-11-04 17:31:17.957 INFO  [Main] [WinMain@227] Closing VPX...",
+        ]
+    );
     var quickExit = VpxLog.LastSession(log)!;
-    Check(quickExit.ClosedCleanly && quickExit.Problems.Count == 0 && quickExit.Harmless.Count == 6
-          && quickExit.Hints.Count == 1 && quickExit.Hints[0].Contains("headset wasn't connected"),
-        $"log: a PuP pack's missing files, OpenXR clean-up with no headset and an original's missing pinmame folder are harmless; only the headset hint is left ({string.Join(" | ", quickExit.Problems)})");
+    Check(
+        quickExit.ClosedCleanly
+            && quickExit.Problems.Count == 0
+            && quickExit.Harmless.Count == 6
+            && quickExit.Hints.Count == 1
+            && quickExit.Hints[0].Contains("headset wasn't connected"),
+        $"log: a PuP pack's missing files, OpenXR clean-up with no headset and an original's missing pinmame folder are harmless; only the headset hint is left ({string.Join(" | ", quickExit.Problems)})"
+    );
     Directory.CreateDirectory(Path.Combine(Path.GetDirectoryName(btilc)!, "pinmame"));
-    Check(VpxLog.LastSession(log)!.Problems.Any(p => p.StartsWith("PinMAME path is not defined")),
-        "log: the PinMAME path error still counts for a table that has a pinmame folder");
+    Check(
+        VpxLog.LastSession(log)!.Problems.Any(p => p.StartsWith("PinMAME path is not defined")),
+        "log: the PinMAME path error still counts for a table that has a pinmame folder"
+    );
 
     var cacheDir = Path.Combine(Path.GetDirectoryName(gTable)!, "cache", "Heavy");
     Directory.CreateDirectory(cacheDir);
     File.WriteAllBytes(Path.Combine(cacheDir, "tex.bin"), new byte[5000]);
     var cacheEntry = AppFolders.Survey(gs).Single(e => e.Name == "VPX texture caches");
-    Check(cacheEntry.Paths.Contains(Path.Combine(Path.GetDirectoryName(gTable)!, "cache")) && cacheEntry.Bytes >= 5000, "storage finds per-table texture caches");
-    var freed = AppFolders.Clear(cacheEntry with { Paths = [Path.Combine(Path.GetDirectoryName(gTable)!, "cache")] });
-    Check(freed >= 5000 && !File.Exists(Path.Combine(cacheDir, "tex.bin")) && File.Exists(gTable), "clearing a cache keeps the table");
-    Check(DiskUsage.Format(1536L * 1024 * 1024) == "1.5 GB" && DiskUsage.Format(5 * 1048576) == "5 MB", "sizes read nicely");
+    Check(
+        cacheEntry.Paths.Contains(Path.Combine(Path.GetDirectoryName(gTable)!, "cache"))
+            && cacheEntry.Bytes >= 5000,
+        "storage finds per-table texture caches"
+    );
+    var freed = AppFolders.Clear(
+        cacheEntry with
+        {
+            Paths = [Path.Combine(Path.GetDirectoryName(gTable)!, "cache")],
+        }
+    );
+    Check(
+        freed >= 5000 && !File.Exists(Path.Combine(cacheDir, "tex.bin")) && File.Exists(gTable),
+        "clearing a cache keeps the table"
+    );
+    Check(
+        DiskUsage.Format(1536L * 1024 * 1024) == "1.5 GB"
+            && DiskUsage.Format(5 * 1048576) == "5 MB",
+        "sizes read nicely"
+    );
 
     // Backup: table settings and high scores in, nothing else from the table folder.
     var nv = Path.Combine(Path.GetDirectoryName(gTable)!, "pinmame", "nvram", "heavy.nv");
@@ -991,8 +2253,13 @@ foreach (var (ok, name) in await AssistedDownloadChecks.RunAsync(root)) Check(ok
     using (var z = ZipFile.OpenRead(zipPath))
     {
         var names = z.Entries.Select(e => e.FullName).ToList();
-        Check(names.Contains("tables/Heavy (Stern 2020)/pinmame/nvram/heavy.nv") && names.Contains("tables/Heavy (Stern 2020)/Heavy.ini")
-              && names.Contains("vpx/VrTableManager-VR.ini") && !names.Any(n => n.EndsWith(".vpx")), $"backup has scores and settings, not tables ({made.Files} files)");
+        Check(
+            names.Contains("tables/Heavy (Stern 2020)/pinmame/nvram/heavy.nv")
+                && names.Contains("tables/Heavy (Stern 2020)/Heavy.ini")
+                && names.Contains("vpx/VrTableManager-VR.ini")
+                && !names.Any(n => n.EndsWith(".vpx")),
+            $"backup has scores and settings, not tables ({made.Files} files)"
+        );
     }
     File.Delete(nv);
     // Restore only the table part into this test's folder (the app/ part would write to the real data folder).
@@ -1010,9 +2277,15 @@ foreach (var (ok, name) in await AssistedDownloadChecks.RunAsync(root)) Check(ok
         dst.CreateEntry("tables/../../escaped.ini");
     }
     var restored = Backup.Restore(tablesOnly, gs);
-    Check(File.ReadAllBytes(nv).SequenceEqual(new byte[] { 1, 2, 3 }), "restore puts high scores back");
-    Check(restored.Skipped.Contains("Not Installed (Bally 1990)") && !File.Exists(Path.Combine(root, "..", "escaped.ini")),
-        "restore skips tables that aren't installed and paths outside the folder");
+    Check(
+        File.ReadAllBytes(nv).SequenceEqual(new byte[] { 1, 2, 3 }),
+        "restore puts high scores back"
+    );
+    Check(
+        restored.Skipped.Contains("Not Installed (Bally 1990)")
+            && !File.Exists(Path.Combine(root, "..", "escaped.ini")),
+        "restore skips tables that aren't installed and paths outside the folder"
+    );
 }
 
 static string JsonEsc(string s) => System.Text.Json.JsonSerializer.Serialize(s);

@@ -9,7 +9,9 @@ namespace VrTableManager.ViewModels;
 public sealed partial class MainViewModel
 {
     IReadOnlyList<MediaPackAudio.Source> AttractAudioSourcesFor(InstalledTable t) =>
-        t.IsVpx && t.Manifest.GameId != "" && _allGames.FirstOrDefault(g => g.Id == t.Manifest.GameId) is { } game
+        t.IsVpx
+        && t.Manifest.GameId != ""
+        && _allGames.FirstOrDefault(g => g.Id == t.Manifest.GameId) is { } game
             ? MediaPackAudio.SourcesFor(game)
             : [];
 
@@ -17,14 +19,27 @@ public sealed partial class MainViewModel
     async Task GetAttractAudio(InstalledItem item)
     {
         var table = item.Table;
-        if (!TryBeginBusy(table.TablePath)) return;
-        try { await GetAttractAudioCoreAsync(table, item.AttractAudioSources); }
-        finally { EndBusy(table.TablePath); }
+        if (!TryBeginBusy(table.TablePath))
+            return;
+        try
+        {
+            await GetAttractAudioCoreAsync(table, item.AttractAudioSources);
+        }
+        finally
+        {
+            EndBusy(table.TablePath);
+        }
     }
 
-    async Task GetAttractAudioCoreAsync(InstalledTable table, IReadOnlyList<MediaPackAudio.Source> sources)
+    async Task GetAttractAudioCoreAsync(
+        InstalledTable table,
+        IReadOnlyList<MediaPackAudio.Source> sources
+    )
     {
-        var job = new JobItem($"Attract audio for {table.Manifest.GameName}") { FileNames = [table.Manifest.GameName] };
+        var job = new JobItem($"Attract audio for {table.Manifest.GameName}")
+        {
+            FileNames = [table.Manifest.GameName],
+        };
         Jobs.Insert(0, job);
         var problems = new List<string>();
         try
@@ -37,25 +52,41 @@ public sealed partial class MainViewModel
                 {
                     var file = await DownloadAttractSourceAsync(job, src);
                     job.Report("Taking the audio out…");
-                    var saved = await Task.Run(() => MediaPackAudio.Save(file, table.Folder, table.Manifest.GameName, CompressedAudio.Converter));
+                    var saved = await Task.Run(() =>
+                        MediaPackAudio.Save(
+                            file,
+                            table.Folder,
+                            table.Manifest.GameName,
+                            CompressedAudio.Converter
+                        )
+                    );
                     CleanJobDownloads(job); // the pack's videos aren't kept
                     if (saved != null)
                     {
-                        job.Finish($"✓ Saved music\\{Path.GetFileName(saved)} ({DiskUsage.Format(new FileInfo(saved).Length)}) from the {src.Label}. The VR lobby plays it when you pick this table.");
+                        job.Finish(
+                            $"✓ Saved music\\{Path.GetFileName(saved)} ({DiskUsage.Format(new FileInfo(saved).Length)}) from the {src.Label}. The VR lobby plays it when you pick this table."
+                        );
                         SetHasAttractAudio(table.TablePath, true);
                         return;
                     }
                     problems.Add($"the {src.Label} has no usable audio");
                 }
-                catch (OperationCanceledException) { throw; }
+                catch (OperationCanceledException)
+                {
+                    throw;
+                }
                 catch (Exception e)
                 {
                     CleanJobDownloads(job);
                     problems.Add($"the {src.Label} failed ({e.Message})");
                 }
             }
-            job.Finish(sources.Count == 0 ? "The catalog has no sound file or media pack for this table."
-                : "No attract audio found: " + string.Join("; ", problems) + ".", error: true);
+            job.Finish(
+                sources.Count == 0
+                    ? "The catalog has no sound file or media pack for this table."
+                    : "No attract audio found: " + string.Join("; ", problems) + ".",
+                error: true
+            );
         }
         catch (OperationCanceledException)
         {
@@ -72,28 +103,55 @@ public sealed partial class MainViewModel
     {
         var downloads = JobDownloadDir(job);
         // In your browser: no download slot (see FetchAsync).
-        if (!src.IsDirect && !SitePolicy.AllowsAutomation(src.Url)) return await _assisted.DownloadAsync(src.Url, downloads, job);
-        return await WithDownloadSlotAsync(job, async () =>
-        {
-            if (!src.IsDirect) return await _browser.DownloadAsync(src.Url, downloads, [], job.Report, job.Cts.Token);
-            var dest = Path.Combine(downloads, TableInstaller.SafeName(Uri.UnescapeDataString(Path.GetFileName(new Uri(src.Url).AbsolutePath))));
-            await Http.DownloadFileAsync(src.Url, dest, job.ProgressReporter, job.Cts.Token);
-            return dest;
-        });
+        if (!src.IsDirect && !SitePolicy.AllowsAutomation(src.Url))
+            return await _assisted.DownloadAsync(src.Url, downloads, job);
+        return await WithDownloadSlotAsync(
+            job,
+            async () =>
+            {
+                if (!src.IsDirect)
+                    return await _browser.DownloadAsync(
+                        src.Url,
+                        downloads,
+                        [],
+                        job.Report,
+                        job.Cts.Token
+                    );
+                var dest = Path.Combine(
+                    downloads,
+                    TableInstaller.SafeName(
+                        Uri.UnescapeDataString(Path.GetFileName(new Uri(src.Url).AbsolutePath))
+                    )
+                );
+                await Http.DownloadFileAsync(src.Url, dest, job.ProgressReporter, job.Cts.Token);
+                return dest;
+            }
+        );
     }
 
     [RelayCommand]
     void RemoveAttractAudio(InstalledItem item)
     {
-        try { MediaPackAudio.Remove(item.Table.Folder); }
-        catch (Exception e) { PlayStatus = "Couldn't remove the attract audio: " + e.Message; return; }
+        try
+        {
+            MediaPackAudio.Remove(item.Table.Folder);
+        }
+        catch (Exception e)
+        {
+            PlayStatus = "Couldn't remove the attract audio: " + e.Message;
+            return;
+        }
         SetHasAttractAudio(item.Table.TablePath, false);
         PlayStatus = $"Removed {item.Title}'s attract audio.";
     }
 
     void SetHasAttractAudio(string tablePath, bool on)
     {
-        foreach (var i in _allInstalled.Where(i => string.Equals(i.Table.TablePath, tablePath, StringComparison.OrdinalIgnoreCase)))
+        foreach (
+            var i in _allInstalled.Where(i =>
+                string.Equals(i.Table.TablePath, tablePath, StringComparison.OrdinalIgnoreCase)
+            )
+        )
             i.HasAttractAudio = on;
     }
 }

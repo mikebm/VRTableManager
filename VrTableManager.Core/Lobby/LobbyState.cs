@@ -14,30 +14,44 @@ public sealed class LobbyState
     public const int MaxRecent = 30;
 
     public string Filter { get; set; } = "All";
+
     /// <summary>"ring" or "wall".</summary>
     public string View { get; set; } = "ring";
+
     /// <summary>Height adjustment in metres (see <see cref="LobbyHeight"/>); re-applied every time the lobby starts.</summary>
     public double HeightOffset { get; set; }
 
     // Older lobby-state files kept favourites and recents here; they're moved into PlayStats on load.
     [JsonPropertyName("Favourites"), JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     public List<string>? LegacyFavourites { get; set; }
+
     [JsonPropertyName("Recent"), JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     public List<string>? LegacyRecent { get; set; }
 
-    [JsonIgnore] public string Path { get; private set; } = DefaultPath;
-    [JsonIgnore] public string StatsPath => PlayStats.PathBeside(Path);
+    [JsonIgnore]
+    public string Path { get; private set; } = DefaultPath;
+
+    [JsonIgnore]
+    public string StatsPath => PlayStats.PathBeside(Path);
+
     /// <summary>Latest shared stats (refreshed on load and after every change here).</summary>
-    [JsonIgnore] public PlayStats Stats { get; private set; } = new();
+    [JsonIgnore]
+    public PlayStats Stats { get; private set; } = new();
 
     /// <summary>Favourite table ids.</summary>
-    [JsonIgnore] public List<string> Favourites => Stats.Favourites();
-    /// <summary>Table ids, most recent first.</summary>
-    [JsonIgnore] public List<string> Recent => Stats.Recent(MaxRecent);
-    /// <summary>Table ids, most plays first.</summary>
-    [JsonIgnore] public List<string> MostPlayed => Stats.MostPlayed(MaxRecent);
+    [JsonIgnore]
+    public List<string> Favourites => Stats.Favourites();
 
-    public static string DefaultPath => System.IO.Path.Combine(AppSettings.DataDir, "lobby-state.json");
+    /// <summary>Table ids, most recent first.</summary>
+    [JsonIgnore]
+    public List<string> Recent => Stats.Recent(MaxRecent);
+
+    /// <summary>Table ids, most plays first.</summary>
+    [JsonIgnore]
+    public List<string> MostPlayed => Stats.MostPlayed(MaxRecent);
+
+    public static string DefaultPath =>
+        System.IO.Path.Combine(AppSettings.DataDir, "lobby-state.json");
 
     static readonly JsonSerializerOptions Json = new() { WriteIndented = true };
 
@@ -47,11 +61,16 @@ public sealed class LobbyState
         var s = new LobbyState();
         try
         {
-            if (File.Exists(path)) s = JsonSerializer.Deserialize<LobbyState>(File.ReadAllText(path)) ?? s;
+            if (File.Exists(path))
+                s = JsonSerializer.Deserialize<LobbyState>(File.ReadAllText(path)) ?? s;
         }
-        catch { /* corrupt: start fresh */ }
-        if (!LobbyNav.Filters.Contains(s.Filter)) s.Filter = "All";
-        if (s.View is not ("ring" or "wall")) s.View = "ring";
+        catch
+        { /* corrupt: start fresh */
+        }
+        if (!LobbyNav.Filters.Contains(s.Filter))
+            s.Filter = "All";
+        if (s.View is not ("ring" or "wall"))
+            s.View = "ring";
         s.HeightOffset = LobbyHeight.Clamp(s.HeightOffset);
         s.Path = path;
 
@@ -59,13 +78,18 @@ public sealed class LobbyState
         {
             var favs = s.LegacyFavourites ?? [];
             var recent = s.LegacyRecent ?? [];
-            s.Stats = PlayStats.Mutate(st =>
-            {
-                foreach (var f in favs) st.SetFavourite(f, true);
-                // Keep the old order: newest first, a minute apart, for tables not seen yet.
-                for (var i = 0; i < recent.Count; i++)
-                    if (st.LastPlayedOf(recent[i]) == null) st.Touch(recent[i], DateTime.Now.AddMinutes(-i - 1));
-            }, s.StatsPath);
+            s.Stats = PlayStats.Mutate(
+                st =>
+                {
+                    foreach (var f in favs)
+                        st.SetFavourite(f, true);
+                    // Keep the old order: newest first, a minute apart, for tables not seen yet.
+                    for (var i = 0; i < recent.Count; i++)
+                        if (st.LastPlayedOf(recent[i]) == null)
+                            st.Touch(recent[i], DateTime.Now.AddMinutes(-i - 1));
+                },
+                s.StatsPath
+            );
             s.LegacyFavourites = null;
             s.LegacyRecent = null;
             s.Save();
@@ -79,8 +103,13 @@ public sealed class LobbyState
 
     public void Save()
     {
-        try { File.WriteAllText(Path, JsonSerializer.Serialize(this, Json)); }
-        catch { /* not worth interrupting VR over */ }
+        try
+        {
+            File.WriteAllText(Path, JsonSerializer.Serialize(this, Json));
+        }
+        catch
+        { /* not worth interrupting VR over */
+        }
     }
 
     DateTime _statsStamp;
@@ -92,9 +121,16 @@ public sealed class LobbyState
     public bool RefreshStats()
     {
         DateTime stamp;
-        try { stamp = File.Exists(StatsPath) ? File.GetLastWriteTimeUtc(StatsPath) : default; }
-        catch { return false; }
-        if (stamp == _statsStamp) return false;
+        try
+        {
+            stamp = File.Exists(StatsPath) ? File.GetLastWriteTimeUtc(StatsPath) : default;
+        }
+        catch
+        {
+            return false;
+        }
+        if (stamp == _statsStamp)
+            return false;
         _statsStamp = stamp;
         Stats = PlayStats.Load(StatsPath);
         return true;
@@ -106,8 +142,14 @@ public sealed class LobbyState
     public bool ToggleFavourite(string id)
     {
         var on = !Stats.IsFavourite(id);
-        try { Stats = PlayStats.Mutate(st => st.SetFavourite(id, on), StatsPath); }
-        catch { Stats.SetFavourite(id, on); /* keep it for this session at least */ }
+        try
+        {
+            Stats = PlayStats.Mutate(st => st.SetFavourite(id, on), StatsPath);
+        }
+        catch
+        {
+            Stats.SetFavourite(id, on); /* keep it for this session at least */
+        }
         return IsFavourite(id);
     }
 
@@ -118,7 +160,13 @@ public sealed class LobbyState
     public void MarkPlayed(string id)
     {
         var now = DateTime.Now;
-        try { Stats = PlayStats.Mutate(st => st.Touch(id, now), StatsPath); }
-        catch { Stats.Touch(id, now); }
+        try
+        {
+            Stats = PlayStats.Mutate(st => st.Touch(id, now), StatsPath);
+        }
+        catch
+        {
+            Stats.Touch(id, now);
+        }
     }
 }

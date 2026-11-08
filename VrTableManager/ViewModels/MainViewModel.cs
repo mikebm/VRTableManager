@@ -11,14 +11,26 @@ namespace VrTableManager.ViewModels;
 public interface IUiHost
 {
     Task<string?> PickFolderAsync(string title);
+
     /// <param name="preferredName">A file name to filter to first (e.g. "afm_113b.zip"); <paramref name="pattern"/> stays as the other choice.</param>
     /// <param name="startFolder">Folder the picker opens in, when it exists.</param>
-    Task<string?> PickFileAsync(string title, string pattern, string? preferredName = null, string? startFolder = null);
+    Task<string?> PickFileAsync(
+        string title,
+        string pattern,
+        string? preferredName = null,
+        string? startFolder = null
+    );
     Task<bool> ConfirmAsync(string title, string message);
+
     /// <summary>Shows a message with several buttons; returns the index pressed, or -1 if the window was closed.</summary>
     /// <param name="details">Optional monospaced text (e.g. log lines) shown in a scrolling box under the message.</param>
     Task<int> ChoiceAsync(string title, string message, string[] buttons, string? details = null);
-    Task<string?> PickSaveFileAsync(string title, string suggestedName, string pattern, string? startFolder = null);
+    Task<string?> PickSaveFileAsync(
+        string title,
+        string suggestedName,
+        string pattern,
+        string? startFolder = null
+    );
     void HideForPlay();
     void ShowAfterPlay();
     void OpenExternal(string pathOrUrl);
@@ -28,8 +40,10 @@ public sealed partial class MainViewModel : ObservableObject, IAsyncDisposable
 {
     readonly IUiHost _ui;
     readonly BrowserDownloader _browser = new();
+
     /// <summary>Table sites: you download in your own browser, the app takes it from there (see SitePolicy).</summary>
     readonly AssistedDownloader _assisted;
+
     /// <summary>Saved queue: downloads not finished when the app closed are offered again at the next launch.</summary>
     readonly PendingDownloads _pending = new();
     bool _offeredResume;
@@ -66,12 +80,15 @@ public sealed partial class MainViewModel : ObservableObject, IAsyncDisposable
         DeleteDownloadsAfterInstall = Settings.DeleteDownloadsAfterInstall;
         Jobs.CollectionChanged += (_, e) =>
         {
-            foreach (JobItem j in e.NewItems ?? Array.Empty<JobItem>()) j.Succeeded += OnJobSucceeded;
+            foreach (JobItem j in e.NewItems ?? Array.Empty<JobItem>())
+                j.Succeeded += OnJobSucceeded;
         };
         // Partial files from downloads cut off when the app last closed. (Their queue entries are
         // kept and offered again once the catalog has loaded.)
         PendingDownloads.CleanDownloadsFolder();
-        RefreshRate = RefreshRates.FirstOrDefault(r => r.StartsWith(Settings.VrRefreshRate.ToString())) ?? RefreshRates[0];
+        RefreshRate =
+            RefreshRates.FirstOrDefault(r => r.StartsWith(Settings.VrRefreshRate.ToString()))
+            ?? RefreshRates[0];
         AswMode = AswModes.Contains(Settings.MetaAswMode) ? Settings.MetaAswMode : AswModes[0];
         WarnSteamVrRuntime = Settings.WarnSteamVrRuntime;
         CardSize = Settings.CardSize;
@@ -95,16 +112,30 @@ public sealed partial class MainViewModel : ObservableObject, IAsyncDisposable
     public ObservableCollection<TableVersionItem> Versions { get; } = [];
     public string[] EngineFilters { get; } = ["VPX", "Future Pinball", "All"];
 
-    [ObservableProperty] public partial string SearchText { get; set; } = "";
-    [ObservableProperty] public partial bool VrOnly { get; set; } = true;
-    [ObservableProperty] public partial string EngineFilter { get; set; } = "VPX";
-    [ObservableProperty] public partial GameItem? SelectedGame { get; set; }
-    [ObservableProperty] public partial bool IsLoading { get; set; }
-    [ObservableProperty] public partial string CatalogStatus { get; set; } = "";
+    [ObservableProperty]
+    public partial string SearchText { get; set; } = "";
+
+    [ObservableProperty]
+    public partial bool VrOnly { get; set; } = true;
+
+    [ObservableProperty]
+    public partial string EngineFilter { get; set; } = "VPX";
+
+    [ObservableProperty]
+    public partial GameItem? SelectedGame { get; set; }
+
+    [ObservableProperty]
+    public partial bool IsLoading { get; set; }
+
+    [ObservableProperty]
+    public partial string CatalogStatus { get; set; } = "";
 
     partial void OnSearchTextChanged(string value) => ApplyFilter();
+
     partial void OnVrOnlyChanged(bool value) => ApplyFilter();
+
     partial void OnEngineFilterChanged(string value) => ApplyFilter();
+
     partial void OnSelectedGameChanged(GameItem? value) => ShowVersions(value);
 
     [RelayCommand]
@@ -121,7 +152,11 @@ public sealed partial class MainViewModel : ObservableObject, IAsyncDisposable
             _ = CheckUpdatesAsync(); // VPX / UEVR / BAM, in the background
             _ = LoadRuleSheetsAsync();
             _ = RefreshHighScoreMapsAsync();
-            if (!_offeredResume) { _offeredResume = true; _ = StartupPromptsAsync(); }
+            if (!_offeredResume)
+            {
+                _offeredResume = true;
+                _ = StartupPromptsAsync();
+            }
         }
         catch (Exception e)
         {
@@ -136,12 +171,13 @@ public sealed partial class MainViewModel : ObservableObject, IAsyncDisposable
     [RelayCommand]
     Task RefreshCatalog() => LoadCatalogAsync(true);
 
-    bool MatchesEngine(VpsTableFile t) => EngineFilter switch
-    {
-        "VPX" => VpsCatalog.IsVpx(t),
-        "Future Pinball" => GameItem.IsFp(t),
-        _ => VpsCatalog.IsVpx(t) || GameItem.IsFp(t),
-    };
+    bool MatchesEngine(VpsTableFile t) =>
+        EngineFilter switch
+        {
+            "VPX" => VpsCatalog.IsVpx(t),
+            "Future Pinball" => GameItem.IsFp(t),
+            _ => VpsCatalog.IsVpx(t) || GameItem.IsFp(t),
+        };
 
     bool IsVisible(VpsTableFile t) =>
         MatchesEngine(t)
@@ -154,10 +190,17 @@ public sealed partial class MainViewModel : ObservableObject, IAsyncDisposable
     List<VpsGame> _filtered = [];
     HashSet<string> _installedIds = [];
 
-    [ObservableProperty] public partial bool HasMore { get; set; }
-    [ObservableProperty] public partial string CountLabel { get; set; } = "";
-    [ObservableProperty] public partial int MatchCount { get; set; }
-    [ObservableProperty] public partial int TotalCount { get; set; }
+    [ObservableProperty]
+    public partial bool HasMore { get; set; }
+
+    [ObservableProperty]
+    public partial string CountLabel { get; set; } = "";
+
+    [ObservableProperty]
+    public partial int MatchCount { get; set; }
+
+    [ObservableProperty]
+    public partial int TotalCount { get; set; }
 
     void ApplyFilter()
     {
@@ -165,17 +208,34 @@ public sealed partial class MainViewModel : ObservableObject, IAsyncDisposable
         var q = SearchText.Trim();
         var matches = _allGames
             .Where(g => g.TableFiles!.Any(IsVisible))
-            .Where(g => q == "" || g.Name.Contains(q, StringComparison.OrdinalIgnoreCase)
-                        || (g.Manufacturer?.Contains(q, StringComparison.OrdinalIgnoreCase) ?? false)
-                        || (g.TableFiles?.Any(t => t.Authors?.Any(a => a.Contains(q, StringComparison.OrdinalIgnoreCase)) == true) ?? false))
+            .Where(g =>
+                q == ""
+                || g.Name.Contains(q, StringComparison.OrdinalIgnoreCase)
+                || (g.Manufacturer?.Contains(q, StringComparison.OrdinalIgnoreCase) ?? false)
+                || (
+                    g.TableFiles?.Any(t =>
+                        t.Authors?.Any(a => a.Contains(q, StringComparison.OrdinalIgnoreCase))
+                        == true
+                    )
+                    ?? false
+                )
+            )
             .Where(MatchesCatalogFilters);
-        _filtered = (CatalogSort switch
-        {
-            "Recently updated" => matches.OrderByDescending(g => g.TableFiles!.Where(IsVisible).Max(t => t.UpdatedAt ?? 0)),
-            "Newest machines" => matches.OrderByDescending(g => g.Year ?? 0).ThenBy(g => g.Name),
-            "Oldest machines" => matches.OrderBy(g => g.Year is > 0 ? g.Year : int.MaxValue).ThenBy(g => g.Name),
-            _ => matches,
-        }).ToList();
+        _filtered = (
+            CatalogSort switch
+            {
+                "Recently updated" => matches.OrderByDescending(g =>
+                    g.TableFiles!.Where(IsVisible).Max(t => t.UpdatedAt ?? 0)
+                ),
+                "Newest machines" => matches
+                    .OrderByDescending(g => g.Year ?? 0)
+                    .ThenBy(g => g.Name),
+                "Oldest machines" => matches
+                    .OrderBy(g => g.Year is > 0 ? g.Year : int.MaxValue)
+                    .ThenBy(g => g.Name),
+                _ => matches,
+            }
+        ).ToList();
         UpdateManufacturers();
 
         var selectedId = SelectedGame?.Game.Id;
@@ -189,37 +249,72 @@ public sealed partial class MainViewModel : ObservableObject, IAsyncDisposable
 
     // ---- Catalog filters: maker, era, type, order ----
 
-    const string AnyMaker = "Any maker", AnyEra = "Any era", AnyType = "Any type";
+    const string AnyMaker = "Any maker",
+        AnyEra = "Any era",
+        AnyType = "Any type";
     public ObservableCollection<string> Manufacturers { get; } = [AnyMaker];
-    public string[] Eras { get; } = [AnyEra, "1930s–50s", "1960s", "1970s", "1980s", "1990s", "2000s", "2010s", "2020s"];
-    public string[] MachineTypes { get; } = [AnyType, "Solid state", "Electro-mechanical", "Pure mechanical", "Originals"];
-    public string[] CatalogSorts { get; } = ["A–Z", "Recently updated", "Newest machines", "Oldest machines"];
-    [ObservableProperty] public partial string ManufacturerFilter { get; set; } = AnyMaker;
-    [ObservableProperty] public partial string EraFilter { get; set; } = AnyEra;
-    [ObservableProperty] public partial string TypeFilter { get; set; } = AnyType;
-    [ObservableProperty] public partial string CatalogSort { get; set; } = "A–Z";
-    [ObservableProperty] public partial bool HasCatalogFilters { get; set; }
-    partial void OnManufacturerFilterChanged(string value) { if (value != null) ApplyFilter(); }
+    public string[] Eras { get; } =
+    [AnyEra, "1930s–50s", "1960s", "1970s", "1980s", "1990s", "2000s", "2010s", "2020s"];
+    public string[] MachineTypes { get; } =
+    [AnyType, "Solid state", "Electro-mechanical", "Pure mechanical", "Originals"];
+    public string[] CatalogSorts { get; } =
+    ["A–Z", "Recently updated", "Newest machines", "Oldest machines"];
+
+    [ObservableProperty]
+    public partial string ManufacturerFilter { get; set; } = AnyMaker;
+
+    [ObservableProperty]
+    public partial string EraFilter { get; set; } = AnyEra;
+
+    [ObservableProperty]
+    public partial string TypeFilter { get; set; } = AnyType;
+
+    [ObservableProperty]
+    public partial string CatalogSort { get; set; } = "A–Z";
+
+    [ObservableProperty]
+    public partial bool HasCatalogFilters { get; set; }
+
+    partial void OnManufacturerFilterChanged(string value)
+    {
+        if (value != null)
+            ApplyFilter();
+    }
+
     partial void OnEraFilterChanged(string value) => ApplyFilter();
+
     partial void OnTypeFilterChanged(string value) => ApplyFilter();
+
     partial void OnCatalogSortChanged(string value) => ApplyFilter();
 
     bool MatchesCatalogFilters(VpsGame g)
     {
-        if (ManufacturerFilter is { } m && m != AnyMaker && !string.Equals(g.Manufacturer, m, StringComparison.OrdinalIgnoreCase)) return false;
+        if (
+            ManufacturerFilter is { } m
+            && m != AnyMaker
+            && !string.Equals(g.Manufacturer, m, StringComparison.OrdinalIgnoreCase)
+        )
+            return false;
         if (EraFilter != AnyEra)
         {
-            if (g.Year is not > 0) return false;
+            if (g.Year is not > 0)
+                return false;
             var decade = g.Year.Value / 10 * 10;
-            var ok = EraFilter == "1930s–50s" ? decade <= 1950 : EraFilter.StartsWith(decade.ToString());
-            if (!ok) return false;
+            var ok =
+                EraFilter == "1930s–50s" ? decade <= 1950 : EraFilter.StartsWith(decade.ToString());
+            if (!ok)
+                return false;
         }
         return TypeFilter switch
         {
             "Solid state" => g.Type == "SS",
             "Electro-mechanical" => g.Type == "EM",
             "Pure mechanical" => g.Type == "PM",
-            "Originals" => string.Equals(g.Manufacturer, "Original", StringComparison.OrdinalIgnoreCase),
+            "Originals" => string.Equals(
+                g.Manufacturer,
+                "Original",
+                StringComparison.OrdinalIgnoreCase
+            ),
             _ => true,
         };
     }
@@ -227,11 +322,18 @@ public sealed partial class MainViewModel : ObservableObject, IAsyncDisposable
     /// <summary>Makers with at least 3 machines, most first (built once the catalog has loaded).</summary>
     void UpdateManufacturers()
     {
-        HasCatalogFilters = ManufacturerFilter != AnyMaker || EraFilter != AnyEra || TypeFilter != AnyType;
-        if (Manufacturers.Count > 1 || _allGames.Count == 0) return;
-        foreach (var m in _allGames.Where(g => !string.IsNullOrWhiteSpace(g.Manufacturer))
-                     .GroupBy(g => g.Manufacturer!.Trim(), StringComparer.OrdinalIgnoreCase)
-                     .Where(g => g.Count() >= 3).OrderByDescending(g => g.Count()).Select(g => g.Key))
+        HasCatalogFilters =
+            ManufacturerFilter != AnyMaker || EraFilter != AnyEra || TypeFilter != AnyType;
+        if (Manufacturers.Count > 1 || _allGames.Count == 0)
+            return;
+        foreach (
+            var m in _allGames
+                .Where(g => !string.IsNullOrWhiteSpace(g.Manufacturer))
+                .GroupBy(g => g.Manufacturer!.Trim(), StringComparer.OrdinalIgnoreCase)
+                .Where(g => g.Count() >= 3)
+                .OrderByDescending(g => g.Count())
+                .Select(g => g.Key)
+        )
             Manufacturers.Add(m);
     }
 
@@ -260,14 +362,19 @@ public sealed partial class MainViewModel : ObservableObject, IAsyncDisposable
     void ShowVersions(GameItem? item)
     {
         Versions.Clear();
-        if (item == null) return;
-        var files = item.Game.TableFiles!
-            .Where(IsVisible)
-            .OrderByDescending(t => t.UpdatedAt ?? 0);
+        if (item == null)
+            return;
+        var files = item.Game.TableFiles!.Where(IsVisible).OrderByDescending(t => t.UpdatedAt ?? 0);
         foreach (var f in files)
         {
             var file = f;
-            Versions.Add(new TableVersionItem(item.Game, file, new AsyncRelayCommand(() => InstallAsync(item.Game, file))));
+            Versions.Add(
+                new TableVersionItem(
+                    item.Game,
+                    file,
+                    new AsyncRelayCommand(() => InstallAsync(item.Game, file))
+                )
+            );
         }
     }
 
@@ -278,19 +385,27 @@ public sealed partial class MainViewModel : ObservableObject, IAsyncDisposable
     async Task<bool> InstallCoreAsync(VpsGame game, VpsTableFile tf, InstalledTable? replacing)
     {
         var url = tf.Urls?.FirstOrDefault(u => !u.Broken)?.Url;
-        if (url == null) return false;
+        if (url == null)
+            return false;
 
         var verb = replacing == null ? "" : "Update: ";
         var job = new JobItem($"{verb}{game.Name} — {string.Join(", ", tf.Authors ?? [])}")
         {
-            FileNames = [game.Name], FileTypes = [".vpx", ".zip", ".7z", ".rar"],
+            FileNames = [game.Name],
+            FileTypes = [".vpx", ".zip", ".7z", ".rar"],
         };
         Jobs.Insert(0, job);
-        _pending.Add(new PendingDownload
-        {
-            Id = job.Id, Kind = PendingDownload.TableKind, Title = job.Title,
-            GameId = game.Id, TableFileId = tf.Id, TablePath = replacing?.TablePath,
-        });
+        _pending.Add(
+            new PendingDownload
+            {
+                Id = job.Id,
+                Kind = PendingDownload.TableKind,
+                Title = job.Title,
+                GameId = game.Id,
+                TableFileId = tf.Id,
+                TablePath = replacing?.TablePath,
+            }
+        );
         string? file = null;
         try
         {
@@ -299,19 +414,35 @@ public sealed partial class MainViewModel : ObservableObject, IAsyncDisposable
             file = await FetchAsync(url, job, hint);
 
             job.Report("Installing files…");
-            var installed = await TableInstaller.InstallAsync(file, game, tf, Settings, job.Report, job.Cts.Token, replacing);
+            var installed = await TableInstaller.InstallAsync(
+                file,
+                game,
+                tf,
+                Settings,
+                job.Report,
+                job.Cts.Token,
+                replacing
+            );
             var done = replacing == null ? "Installed" : $"Updated to v{tf.Version}";
             var getRom = installed.MissingRoms.Count > 0 && FindRomSource(installed) != null;
             // "incl. PuP" tables mostly offer the pack as a second file on their page, which the table download doesn't bring.
-            var pupNote = VpsCatalog.HasFeature(tf, PupPacks.BundledFeature) && !PupPacks.StateOf(installed).IsInstalled
-                ? " Its PuP pack is a separate file on the table's page: get it from PUP on its card." : "";
+            var pupNote =
+                VpsCatalog.HasFeature(tf, PupPacks.BundledFeature)
+                && !PupPacks.StateOf(installed).IsInstalled
+                    ? " Its PuP pack is a separate file on the table's page: get it from PUP on its card."
+                    : "";
             // This job is done; the ROM (if any) gets its own entry in the downloads list.
-            job.Finish((installed.MissingRoms.Count == 0 ? $"✓ {done}. Ready to play."
-                : getRom ? $"✓ {done}. Getting its ROM next (see below)."
-                : $"✓ {done}. The catalog has no ROM download for it; use Add ROM in My Tables.") + pupNote);
+            job.Finish(
+                (
+                    installed.MissingRoms.Count == 0 ? $"✓ {done}. Ready to play."
+                    : getRom ? $"✓ {done}. Getting its ROM next (see below)."
+                    : $"✓ {done}. The catalog has no ROM download for it; use Add ROM in My Tables."
+                ) + pupNote
+            );
             RefreshInstalled();
             ApplyFilter();
-            if (getRom) _ = GetRomAsync(installed);
+            if (getRom)
+                _ = GetRomAsync(installed);
             return true;
         }
         catch (OperationCanceledException)
@@ -329,17 +460,26 @@ public sealed partial class MainViewModel : ObservableObject, IAsyncDisposable
             CleanJobDownloads(job);
             // Finished, failed or cancelled: nothing to resume. (Not when it was cut off by the app
             // closing: that entry stays so the download is offered again next time.)
-            if (!_closing) _pending.Remove(job.Id);
+            if (!_closing)
+                _pending.Remove(job.Id);
         }
     }
 
-    public string DownloadsFolderText => $"Files are picked up from {_assisted.DownloadsDir}. Saved somewhere else? Use I SAVED IT on the download.";
+    public string DownloadsFolderText =>
+        $"Files are picked up from {_assisted.DownloadsDir}. Saved somewhere else? Use I SAVED IT on the download.";
 
     /// <summary>A job waiting on you in the browser: you saved the file somewhere other than the Downloads folder.</summary>
     [RelayCommand]
     async Task PickDownloadedFileAsync(JobItem job)
     {
-        if (await _ui.PickFileAsync("The file you downloaded", "*.*", startFolder: _assisted.DownloadsDir) is { } file)
+        if (
+            await _ui.PickFileAsync(
+                "The file you downloaded",
+                "*.*",
+                startFolder: _assisted.DownloadsDir
+            ) is
+            { } file
+        )
             job.HandOff(file);
     }
 
@@ -354,14 +494,27 @@ public sealed partial class MainViewModel : ObservableObject, IAsyncDisposable
         var downloads = JobDownloadDir(job);
         if (!BrowserDownloader.IsDirectFileUrl(url) && !SitePolicy.AllowsAutomation(url))
             return _assisted.DownloadAsync(url, downloads, job, what);
-        return WithDownloadSlotAsync(job, async () =>
-        {
-            if (!BrowserDownloader.IsDirectFileUrl(url)) return await _browser.DownloadAsync(url, downloads, hint, job.Report, job.Cts.Token);
-            var file = Path.Combine(downloads, TableInstaller.SafeName(Path.GetFileName(new Uri(url).LocalPath)));
-            job.Report("Downloading…");
-            await Http.DownloadFileAsync(url, file, job.ProgressReporter, job.Cts.Token);
-            return file;
-        });
+        return WithDownloadSlotAsync(
+            job,
+            async () =>
+            {
+                if (!BrowserDownloader.IsDirectFileUrl(url))
+                    return await _browser.DownloadAsync(
+                        url,
+                        downloads,
+                        hint,
+                        job.Report,
+                        job.Cts.Token
+                    );
+                var file = Path.Combine(
+                    downloads,
+                    TableInstaller.SafeName(Path.GetFileName(new Uri(url).LocalPath))
+                );
+                job.Report("Downloading…");
+                await Http.DownloadFileAsync(url, file, job.ProgressReporter, job.Cts.Token);
+                return file;
+            }
+        );
     }
 
     // ---- Download queue ----------------------------------------------------------
@@ -369,7 +522,9 @@ public sealed partial class MainViewModel : ObservableObject, IAsyncDisposable
     // queue. Unpacking and installing don't take a slot, so the next download starts meanwhile.
 
     public int[] ParallelDownloadChoices { get; } = [1, 2, 3, 4];
-    [ObservableProperty] public partial int MaxParallelDownloads { get; set; }
+
+    [ObservableProperty]
+    public partial int MaxParallelDownloads { get; set; }
     SemaphoreSlim _downloadSlots = new(2);
 
     partial void OnMaxParallelDownloadsChanged(int value)
@@ -384,10 +539,17 @@ public sealed partial class MainViewModel : ObservableObject, IAsyncDisposable
     async Task<T> WithDownloadSlotAsync<T>(JobItem job, Func<Task<T>> download)
     {
         var slots = _downloadSlots;
-        if (slots.CurrentCount == 0) job.Report("Queued: waiting for a free download slot…");
+        if (slots.CurrentCount == 0)
+            job.Report("Queued: waiting for a free download slot…");
         await slots.WaitAsync(job.Cts.Token);
-        try { return await download(); }
-        finally { slots.Release(); }
+        try
+        {
+            return await download();
+        }
+        finally
+        {
+            slots.Release();
+        }
     }
 
     /// <summary>Each job downloads into its own folder, so parallel downloads with the same file name can't collide.</summary>
@@ -400,21 +562,36 @@ public sealed partial class MainViewModel : ObservableObject, IAsyncDisposable
     /// </summary>
     void OnJobSucceeded(JobItem job)
     {
-        if (!Settings.DeleteDownloadsAfterInstall) return;
+        if (!Settings.DeleteDownloadsAfterInstall)
+            return;
         foreach (var f in job.TakeSourceFiles())
-            try { File.Delete(f); } catch { /* open elsewhere or already gone: leave it */ }
+            try
+            {
+                File.Delete(f);
+            }
+            catch
+            { /* open elsewhere or already gone: leave it */
+            }
     }
 
     /// <summary>Takes a finished or failed job off the downloads list.</summary>
     [RelayCommand]
     void DismissJob(JobItem job)
     {
-        if (job.IsDone || job.IsError) Jobs.Remove(job);
+        if (job.IsDone || job.IsError)
+            Jobs.Remove(job);
     }
 
     static void CleanJobDownloads(JobItem job)
     {
-        try { Directory.Delete(Path.Combine(AppSettings.DataDir, "downloads", job.Id), recursive: true); } catch { }
+        try
+        {
+            Directory.Delete(
+                Path.Combine(AppSettings.DataDir, "downloads", job.Id),
+                recursive: true
+            );
+        }
+        catch { }
     }
 
     // ---- ROMs ------------------------------------------------------------------
@@ -424,15 +601,23 @@ public sealed partial class MainViewModel : ObservableObject, IAsyncDisposable
     {
         // Missing ROM first; otherwise the one the table already uses (to fetch its whole ROM family).
         var missing = t.MissingRoms.Count > 0 ? t.MissingRoms : t.Manifest.RomNames;
-        if (missing.Count == 0) return null;
+        if (missing.Count == 0)
+            return null;
         var game = _allGames.FirstOrDefault(g => g.Id == t.Manifest.GameId);
-        bool Matches(VpsFile r, string name) => string.Equals(r.Version, name, StringComparison.OrdinalIgnoreCase) && UsableRomUrl(r) != null;
+        bool Matches(VpsFile r, string name) =>
+            string.Equals(r.Version, name, StringComparison.OrdinalIgnoreCase)
+            && UsableRomUrl(r) != null;
         foreach (var name in missing)
         {
             // This table's own catalog entry first; a parent set or a borrowed ROM (an original running
             // Attack from Mars's ROM) is often only listed under the machine it came from.
-            if (game?.RomFiles?.FirstOrDefault(r => Matches(r, name)) is { } own) return own;
-            if (_allGames.SelectMany(g => g.RomFiles ?? []).FirstOrDefault(r => Matches(r, name)) is { } other) return other;
+            if (game?.RomFiles?.FirstOrDefault(r => Matches(r, name)) is { } own)
+                return own;
+            if (
+                _allGames.SelectMany(g => g.RomFiles ?? []).FirstOrDefault(r => Matches(r, name)) is
+                { } other
+            )
+                return other;
         }
         return null;
     }
@@ -440,23 +625,37 @@ public sealed partial class MainViewModel : ObservableObject, IAsyncDisposable
     /// <summary>Stern-made machine, or the catalog points at Stern's game code for it.</summary>
     bool IsSternTable(InstalledTable t)
     {
-        if (!t.IsVpx) return false;
+        if (!t.IsVpx)
+            return false;
         var game = _allGames.FirstOrDefault(g => g.Id == t.Manifest.GameId);
-        return string.Equals(t.Manifest.Manufacturer ?? game?.Manufacturer, "Stern", StringComparison.OrdinalIgnoreCase)
-               || (game?.RomFiles ?? []).Any(r => r.Urls?.Any(u => !u.Broken && SternGameCode.IsSternUrl(u.Url)) == true);
+        return string.Equals(
+                t.Manifest.Manufacturer ?? game?.Manufacturer,
+                "Stern",
+                StringComparison.OrdinalIgnoreCase
+            )
+            || (game?.RomFiles ?? []).Any(r =>
+                r.Urls?.Any(u => !u.Broken && SternGameCode.IsSternUrl(u.Url)) == true
+            );
     }
 
     /// <summary>The catalog's links to Stern's game code search, or a search by the machine's name.</summary>
     List<string> SternSearchUrls(InstalledTable t)
     {
         var game = _allGames.FirstOrDefault(g => g.Id == t.Manifest.GameId);
-        var urls = (game?.RomFiles ?? []).SelectMany(r => r.Urls ?? [])
-            .Where(u => !u.Broken && SternGameCode.IsSternUrl(u.Url)).Select(u => u.Url).Distinct().ToList();
+        var urls = (game?.RomFiles ?? [])
+            .SelectMany(r => r.Urls ?? [])
+            .Where(u => !u.Broken && SternGameCode.IsSternUrl(u.Url))
+            .Select(u => u.Url)
+            .Distinct()
+            .ToList();
         if (urls.Count == 0)
         {
             // PinMAME's name for the machine searches better than the catalog's ("Avatar" vs "James Cameron's Avatar").
             var rom = t.Manifest.RomNames.FirstOrDefault();
-            var name = rom != null ? PinmameInfo.Get(Settings, Path.Combine(t.Folder, "pinmame"), rom)?.Description : null;
+            var name =
+                rom != null
+                    ? PinmameInfo.Get(Settings, Path.Combine(t.Folder, "pinmame"), rom)?.Description
+                    : null;
             name = name?.Split(" (")[0].Replace(", The", "") ?? t.Manifest.GameName;
             urls.Add(SternGameCode.SearchUrl(name));
         }
@@ -475,32 +674,70 @@ public sealed partial class MainViewModel : ObservableObject, IAsyncDisposable
     {
         // A parent listed as missing may be out of date: it was noted before the table's own ROM was there, or the
         // ROM was copied in by hand since. Asking PinMAME again takes milliseconds.
-        if (t.IsVpx && t.Manifest.RomParents.Count > 0 && t.MissingRoms.Count > 0 && t.Manifest.RomParents.Contains(t.MissingRoms[0], StringComparer.OrdinalIgnoreCase))
+        if (
+            t.IsVpx
+            && t.Manifest.RomParents.Count > 0
+            && t.MissingRoms.Count > 0
+            && t.Manifest.RomParents.Contains(t.MissingRoms[0], StringComparer.OrdinalIgnoreCase)
+        )
         {
             var before = string.Join(",", t.Manifest.RomParents);
             await Task.Run(() => RomRequirements.RefreshParents(t, Settings));
             if (before != string.Join(",", t.Manifest.RomParents))
             {
-                try { TableInstaller.SaveManifest(t); } catch { /* still corrected for this session */ }
+                try
+                {
+                    TableInstaller.SaveManifest(t);
+                }
+                catch
+                { /* still corrected for this session */
+                }
                 RefreshInstalled();
                 return;
             }
         }
-        if (!t.IsVpx || t.Manifest.RomCheck >= RomRequirements.Version || !File.Exists(t.TablePath) || !_romRechecked.Add(t.TablePath)) return;
+        if (
+            !t.IsVpx
+            || t.Manifest.RomCheck >= RomRequirements.Version
+            || !File.Exists(t.TablePath)
+            || !_romRechecked.Add(t.TablePath)
+        )
+            return;
         // A loose .vpx straight in the tables folder has no folder (or manifest) of its own to update.
-        if (string.Equals(Path.GetFullPath(t.Folder).TrimEnd('\\', '/'), Path.GetFullPath(Settings.TablesDir).TrimEnd('\\', '/'), StringComparison.OrdinalIgnoreCase)) return;
+        if (
+            string.Equals(
+                Path.GetFullPath(t.Folder).TrimEnd('\\', '/'),
+                Path.GetFullPath(Settings.TablesDir).TrimEnd('\\', '/'),
+                StringComparison.OrdinalIgnoreCase
+            )
+        )
+            return;
         await _romCheckOne.WaitAsync();
         bool changed;
-        try { changed = await Task.Run(() => RomRequirements.Update(t, Settings)); }
-        finally { _romCheckOne.Release(); }
-        try { TableInstaller.SaveManifest(t); } catch { /* still corrected for this session */ }
-        if (changed) RefreshInstalled();
+        try
+        {
+            changed = await Task.Run(() => RomRequirements.Update(t, Settings));
+        }
+        finally
+        {
+            _romCheckOne.Release();
+        }
+        try
+        {
+            TableInstaller.SaveManifest(t);
+        }
+        catch
+        { /* still corrected for this session */
+        }
+        if (changed)
+            RefreshInstalled();
     }
 
     [RelayCommand]
     void SearchRom(InstalledItem item)
     {
-        if (item.Table.MissingRoms.FirstOrDefault() is { } rom) _ui.OpenExternal(RomSources.VpuSearchUrl(rom));
+        if (item.Table.MissingRoms.FirstOrDefault() is { } rom)
+            _ui.OpenExternal(RomSources.VpuSearchUrl(rom));
     }
 
     /// <summary>First link that's a real ROM download (not Stern's firmware site, not a .bin).</summary>
@@ -514,18 +751,33 @@ public sealed partial class MainViewModel : ObservableObject, IAsyncDisposable
 
     async Task GetRomAsync(InstalledTable table)
     {
-        if (!TryBeginBusy(table.TablePath)) return; // already fetching this table's ROM
-        try { await GetRomCoreAsync(table); }
-        finally { EndBusy(table.TablePath); }
+        if (!TryBeginBusy(table.TablePath))
+            return; // already fetching this table's ROM
+        try
+        {
+            await GetRomCoreAsync(table);
+        }
+        finally
+        {
+            EndBusy(table.TablePath);
+        }
     }
 
     /// <param name="replacing">The installed table this replaces (updates), so its old file is removed.</param>
     async Task<bool> InstallAsync(VpsGame game, VpsTableFile tf, InstalledTable? replacing = null)
     {
-        if (replacing == null) return await InstallCoreAsync(game, tf, null);
-        if (!TryBeginBusy(replacing.TablePath)) return false; // already updating this table
-        try { return await InstallCoreAsync(game, tf, replacing); }
-        finally { EndBusy(replacing.TablePath); }
+        if (replacing == null)
+            return await InstallCoreAsync(game, tf, null);
+        if (!TryBeginBusy(replacing.TablePath))
+            return false; // already updating this table
+        try
+        {
+            return await InstallCoreAsync(game, tf, replacing);
+        }
+        finally
+        {
+            EndBusy(replacing.TablePath);
+        }
     }
 
     /// <summary>Tables with a ROM fetch, update or reinstall running (by table path).</summary>
@@ -533,7 +785,8 @@ public sealed partial class MainViewModel : ObservableObject, IAsyncDisposable
 
     bool TryBeginBusy(string tablePath)
     {
-        if (!_busyTables.Add(tablePath)) return false;
+        if (!_busyTables.Add(tablePath))
+            return false;
         SetBusy(tablePath, true);
         return true;
     }
@@ -546,7 +799,11 @@ public sealed partial class MainViewModel : ObservableObject, IAsyncDisposable
 
     void SetBusy(string tablePath, bool on)
     {
-        foreach (var i in _allInstalled.Where(i => string.Equals(i.Table.TablePath, tablePath, StringComparison.OrdinalIgnoreCase)))
+        foreach (
+            var i in _allInstalled.Where(i =>
+                string.Equals(i.Table.TablePath, tablePath, StringComparison.OrdinalIgnoreCase)
+            )
+        )
             i.IsBusy = on;
     }
 
@@ -556,22 +813,34 @@ public sealed partial class MainViewModel : ObservableObject, IAsyncDisposable
         if (table.Manifest.RomNames.Count > 1 && RomDetector.FromVpx(table.TablePath) is { } exact)
         {
             table.Manifest.RomNames = [exact];
-            try { TableInstaller.SaveManifest(table); } catch { /* still usable this session */ }
+            try
+            {
+                TableInstaller.SaveManifest(table);
+            }
+            catch
+            { /* still usable this session */
+            }
         }
 
         // The table's ROM set and its parents: the only ROM zips that belong to it.
         var family = await Task.Run(() => RomFamily(table));
         var job = new JobItem($"ROM for {table.Manifest.GameName}")
         {
-            FileNames = [.. table.MissingRoms, .. family, table.Manifest.GameName], FileTypes = [".zip", ".7z", ".rar"],
+            FileNames = [.. table.MissingRoms, .. family, table.Manifest.GameName],
+            FileTypes = [".zip", ".7z", ".rar"],
             NamesMustMatch = true,
         };
         Jobs.Insert(0, job);
-        _pending.Add(new PendingDownload
-        {
-            Id = job.Id, Kind = PendingDownload.RomKind, Title = job.Title,
-            GameId = table.Manifest.GameId, TablePath = table.TablePath,
-        });
+        _pending.Add(
+            new PendingDownload
+            {
+                Id = job.Id,
+                Kind = PendingDownload.RomKind,
+                Title = job.Title,
+                GameId = table.Manifest.GameId,
+                TablePath = table.TablePath,
+            }
+        );
         string? file = null;
         try
         {
@@ -583,21 +852,43 @@ public sealed partial class MainViewModel : ObservableObject, IAsyncDisposable
                 string? aliasNote = null;
                 foreach (var rom in table.MissingRoms.ToList())
                 {
-                    if (await WithDownloadSlotAsync(job, () => SternGameCode.InstallAsync(table, rom, urls, Settings, job.Report, job.ProgressReporter, job.Cts.Token)) is { } zip)
+                    if (
+                        await WithDownloadSlotAsync(
+                            job,
+                            () =>
+                                SternGameCode.InstallAsync(
+                                    table,
+                                    rom,
+                                    urls,
+                                    Settings,
+                                    job.Report,
+                                    job.ProgressReporter,
+                                    job.Cts.Token
+                                )
+                        ) is
+                        { } zip
+                    )
                         fromStern.Add(zip);
                     else if (await SternOtherVersionAsync(table, rom, urls, job) is { } other)
                     {
                         fromStern.Add(other.zip);
-                        aliasNote = $" Stern only has {other.version}; the table asks for {rom}, so PinMAME is set to run {other.version} in its place.";
+                        aliasNote =
+                            $" Stern only has {other.version}; the table asks for {rom}, so PinMAME is set to run {other.version} in its place.";
                     }
                 }
                 if (fromStern.Count > 0)
                 {
                     await Task.Run(() => RomRequirements.RefreshParents(table, Settings));
-                    try { TableInstaller.SaveManifest(table); } catch { }
+                    try
+                    {
+                        TableInstaller.SaveManifest(table);
+                    }
+                    catch { }
                     if (table.MissingRoms.Count == 0)
                     {
-                        job.Finish($"✓ Installed {string.Join(", ", fromStern.Select(Path.GetFileName))} from Stern's site.{aliasNote} Ready to play.");
+                        job.Finish(
+                            $"✓ Installed {string.Join(", ", fromStern.Select(Path.GetFileName))} from Stern's site.{aliasNote} Ready to play."
+                        );
                         RefreshInstalled();
                         return;
                     }
@@ -605,33 +896,62 @@ public sealed partial class MainViewModel : ObservableObject, IAsyncDisposable
                 job.Report("Stern's site doesn't have it; trying the catalog's other sources…");
             }
 
-            var src = FindRomSource(table)
-                ?? throw new InvalidOperationException($"The catalog has no download for {string.Join(" / ", table.MissingRoms)}.zip. Use Add ROM with a file you have.");
+            var src =
+                FindRomSource(table)
+                ?? throw new InvalidOperationException(
+                    $"The catalog has no download for {string.Join(" / ", table.MissingRoms)}.zip. Use Add ROM with a file you have."
+                );
             var url = UsableRomUrl(src)!;
             // ROM pages often hold every version of the machine's ROM; clones need their parent,
             // so take them all (they're small).
-            List<string> files = BrowserDownloader.IsDirectFileUrl(url)
-                ? [file = await FetchAsync(url, job, [src.Version!])]
+            List<string> files =
+                BrowserDownloader.IsDirectFileUrl(url)
+                    ? [file = await FetchAsync(url, job, [src.Version!])]
                 : SitePolicy.AllowsAutomation(url)
-                    ? await WithDownloadSlotAsync(job, () => _browser.DownloadAllAsync(url, JobDownloadDir(job), job.Report, job.Cts.Token))
-                    : await _assisted.DownloadAllAsync(url, JobDownloadDir(job), job, got => RomSetComplete(table, got, src.Version!));
+                    ? await WithDownloadSlotAsync(
+                        job,
+                        () =>
+                            _browser.DownloadAllAsync(
+                                url,
+                                JobDownloadDir(job),
+                                job.Report,
+                                job.Cts.Token
+                            )
+                    )
+                : await _assisted.DownloadAllAsync(
+                    url,
+                    JobDownloadDir(job),
+                    job,
+                    got => RomSetComplete(table, got, src.Version!)
+                );
             files = await Task.Run(() => DropOtherMachinesRoms(files, table, family, job));
             job.Report("Installing ROM…");
             var placed = await Task.Run(() => RomInstaller.InstallAll(files, table, src.Version!));
             // With the files in place PinMAME can tell whether the set is complete (parents included).
             job.Report("Checking the ROM set…");
             await Task.Run(() => RomRequirements.RefreshParents(table, Settings));
-            try { TableInstaller.SaveManifest(table); } catch { }
+            try
+            {
+                TableInstaller.SaveManifest(table);
+            }
+            catch { }
             var stillMissing = table.MissingRoms.Count > 0;
-            var needsParent = stillMissing && table.MissingRoms.All(r => table.Manifest.RomParents.Contains(r, StringComparer.OrdinalIgnoreCase));
-            job.Finish(stillMissing
-                ? needsParent
-                    ? $"Installed {string.Join(", ", placed.Select(Path.GetFileName))}. It's a version of {string.Join(" / ", table.MissingRoms)} and also needs "
-                      + $"{string.Join(" / ", table.MissingRoms.Select(r => r + ".zip"))} beside it: use Get ROM again, or Add ROM if you have it."
-                    : $"Installed {placed.Count} ROM file(s), but none is {string.Join(" / ", table.MissingRoms)}.zip. Use Add ROM if you have it."
-                : placed.Count == 1 ? $"✓ Installed {Path.GetFileName(placed[0])}. Ready to play."
-                : $"✓ Installed {placed.Count} ROM files ({string.Join(", ", placed.Select(Path.GetFileNameWithoutExtension))}). Ready to play.",
-                error: stillMissing);
+            var needsParent =
+                stillMissing
+                && table.MissingRoms.All(r =>
+                    table.Manifest.RomParents.Contains(r, StringComparer.OrdinalIgnoreCase)
+                );
+            job.Finish(
+                stillMissing
+                    ? needsParent
+                        ? $"Installed {string.Join(", ", placed.Select(Path.GetFileName))}. It's a version of {string.Join(" / ", table.MissingRoms)} and also needs "
+                            + $"{string.Join(" / ", table.MissingRoms.Select(r => r + ".zip"))} beside it: use Get ROM again, or Add ROM if you have it."
+                        : $"Installed {placed.Count} ROM file(s), but none is {string.Join(" / ", table.MissingRoms)}.zip. Use Add ROM if you have it."
+                    : placed.Count == 1
+                        ? $"✓ Installed {Path.GetFileName(placed[0])}. Ready to play."
+                        : $"✓ Installed {placed.Count} ROM files ({string.Join(", ", placed.Select(Path.GetFileNameWithoutExtension))}). Ready to play.",
+                error: stillMissing
+            );
             RefreshInstalled();
         }
         catch (OperationCanceledException)
@@ -647,7 +967,8 @@ public sealed partial class MainViewModel : ObservableObject, IAsyncDisposable
             CleanJobDownloads(job);
             // Finished, failed or cancelled: nothing to resume. (Not when it was cut off by the app
             // closing: that entry stays so the download is offered again next time.)
-            if (!_closing) _pending.Remove(job.Id);
+            if (!_closing)
+                _pending.Remove(job.Id);
         }
     }
 
@@ -657,14 +978,40 @@ public sealed partial class MainViewModel : ObservableObject, IAsyncDisposable
     /// set it's a clone of, per PinMAME) and alias the table's name to it in pinmame\alias.txt, which PinMAME
     /// honours even for a real set name. Only for the table's own ROM, not a parent it lacks.
     /// </summary>
-    async Task<(string zip, string version)?> SternOtherVersionAsync(InstalledTable table, string rom, List<string> urls, JobItem job)
+    async Task<(string zip, string version)?> SternOtherVersionAsync(
+        InstalledTable table,
+        string rom,
+        List<string> urls,
+        JobItem job
+    )
     {
-        if (!table.Manifest.RomNames.Contains(rom, StringComparer.OrdinalIgnoreCase) || FindRomSource(table) != null) return null;
+        if (
+            !table.Manifest.RomNames.Contains(rom, StringComparer.OrdinalIgnoreCase)
+            || FindRomSource(table) != null
+        )
+            return null;
         var pinmameDir = Path.Combine(table.Folder, "pinmame");
-        var others = await Task.Run(() => PinmameInfo.Family(Settings, pinmameDir, rom).Skip(1).Select(g => g.Name).ToList());
+        var others = await Task.Run(() =>
+            PinmameInfo.Family(Settings, pinmameDir, rom).Skip(1).Select(g => g.Name).ToList()
+        );
         foreach (var version in others)
         {
-            if (await WithDownloadSlotAsync(job, () => SternGameCode.InstallAsync(table, version, urls, Settings, job.Report, job.ProgressReporter, job.Cts.Token)) is not { } zip)
+            if (
+                await WithDownloadSlotAsync(
+                    job,
+                    () =>
+                        SternGameCode.InstallAsync(
+                            table,
+                            version,
+                            urls,
+                            Settings,
+                            job.Report,
+                            job.ProgressReporter,
+                            job.Cts.Token
+                        )
+                )
+                is not { } zip
+            )
                 continue;
             RomRequirements.WriteAlias(pinmameDir, rom, version);
             table.Manifest.RomAlias = rom;
@@ -684,32 +1031,53 @@ public sealed partial class MainViewModel : ObservableObject, IAsyncDisposable
     bool RomSetComplete(InstalledTable t, IReadOnlyList<string> downloads, string fallbackName)
     {
         var rom = t.Manifest.RomNames.FirstOrDefault() ?? fallbackName;
-        var tmp = Path.Combine(Path.GetTempPath(), "vrtm-romcheck-" + Guid.NewGuid().ToString("N")[..8]);
+        var tmp = Path.Combine(
+            Path.GetTempPath(),
+            "vrtm-romcheck-" + Guid.NewGuid().ToString("N")[..8]
+        );
         try
         {
             var roms = Path.Combine(tmp, "pinmame", "roms");
             Directory.CreateDirectory(roms);
             var own = Path.Combine(t.Folder, "pinmame", "roms");
             if (Directory.Exists(own))
-                foreach (var z in Directory.EnumerateFiles(own, "*.zip")) File.Copy(z, Path.Combine(roms, Path.GetFileName(z)), true);
-            RomInstaller.InstallAll(downloads, new InstalledTable(t.Manifest, t.TablePath, tmp), rom);
-            if (!File.Exists(Path.Combine(roms, rom + ".zip"))) return false;
-            return PinmameInfo.Get(Settings, Path.Combine(tmp, "pinmame"), rom) is not { } g || g.Found;
+                foreach (var z in Directory.EnumerateFiles(own, "*.zip"))
+                    File.Copy(z, Path.Combine(roms, Path.GetFileName(z)), true);
+            RomInstaller.InstallAll(
+                downloads,
+                new InstalledTable(t.Manifest, t.TablePath, tmp),
+                rom
+            );
+            if (!File.Exists(Path.Combine(roms, rom + ".zip")))
+                return false;
+            return PinmameInfo.Get(Settings, Path.Combine(tmp, "pinmame"), rom) is not { } g
+                || g.Found;
         }
-        catch { return false; } // not a ROM yet (a half-read archive, a stray file): keep waiting
+        catch
+        {
+            return false;
+        } // not a ROM yet (a half-read archive, a stray file): keep waiting
         finally
         {
-            try { Directory.Delete(tmp, true); } catch { }
+            try
+            {
+                Directory.Delete(tmp, true);
+            }
+            catch { }
         }
     }
 
     /// <summary>The table's ROM names and, when VPX's PinMAME can say, the parent sets they're built on.</summary>
     HashSet<string> RomFamily(InstalledTable t)
     {
-        var names = new HashSet<string>([.. t.Manifest.RomNames, .. t.Manifest.RomParents, .. t.MissingRoms], StringComparer.OrdinalIgnoreCase);
+        var names = new HashSet<string>(
+            [.. t.Manifest.RomNames, .. t.Manifest.RomParents, .. t.MissingRoms],
+            StringComparer.OrdinalIgnoreCase
+        );
         var pinmameDir = Path.Combine(t.Folder, "pinmame");
         foreach (var rom in t.Manifest.RomNames.ToList())
-            foreach (var g in PinmameInfo.Family(Settings, pinmameDir, rom)) names.Add(g.Name);
+        foreach (var g in PinmameInfo.Family(Settings, pinmameDir, rom))
+            names.Add(g.Name);
         return names;
     }
 
@@ -719,7 +1087,12 @@ public sealed partial class MainViewModel : ObservableObject, IAsyncDisposable
     /// its ROM and fail when the table starts. Versions of the same machine (clones and parents) stay.
     /// Throws when nothing that's left belongs to the table.
     /// </summary>
-    List<string> DropOtherMachinesRoms(List<string> files, InstalledTable t, HashSet<string> family, JobItem job)
+    List<string> DropOtherMachinesRoms(
+        List<string> files,
+        InstalledTable t,
+        HashSet<string> family,
+        JobItem job
+    )
     {
         var pinmameDir = Path.Combine(t.Folder, "pinmame");
         var keep = new List<string>();
@@ -727,17 +1100,32 @@ public sealed partial class MainViewModel : ObservableObject, IAsyncDisposable
         foreach (var f in files)
         {
             var stem = Path.GetFileNameWithoutExtension(f);
-            if (!f.EndsWith(".zip", StringComparison.OrdinalIgnoreCase) || family.Contains(stem)) { keep.Add(f); continue; }
+            if (!f.EndsWith(".zip", StringComparison.OrdinalIgnoreCase) || family.Contains(stem))
+            {
+                keep.Add(f);
+                continue;
+            }
             var g = PinmameInfo.Get(Settings, pinmameDir, stem);
             // Not a set PinMAME knows (a site's own file name): it may well be the ROM, renamed when installed.
-            if (g == null || family.Contains(g.Name) || (g.CloneOf != null && family.Contains(g.CloneOf))) keep.Add(f);
-            else other.Add((f, g));
+            if (
+                g == null
+                || family.Contains(g.Name)
+                || (g.CloneOf != null && family.Contains(g.CloneOf))
+            )
+                keep.Add(f);
+            else
+                other.Add((f, g));
         }
-        if (other.Count == 0) return keep;
-        var which = string.Join(", ", other.Select(o => $"{Path.GetFileName(o.file)} ({o.game.Description})"));
+        if (other.Count == 0)
+            return keep;
+        var which = string.Join(
+            ", ",
+            other.Select(o => $"{Path.GetFileName(o.file)} ({o.game.Description})")
+        );
         if (keep.Count == 0)
             throw new InvalidOperationException(
-                $"Got {which}: that's another machine's ROM, not {string.Join(" / ", t.MissingRoms.DefaultIfEmpty(t.Manifest.RomNames.FirstOrDefault() ?? "this table's"))}.zip. Nothing was installed.");
+                $"Got {which}: that's another machine's ROM, not {string.Join(" / ", t.MissingRoms.DefaultIfEmpty(t.Manifest.RomNames.FirstOrDefault() ?? "this table's"))}.zip. Nothing was installed."
+            );
         job.Report($"Skipping {which}: another machine's ROM.");
         return keep;
     }
@@ -745,14 +1133,24 @@ public sealed partial class MainViewModel : ObservableObject, IAsyncDisposable
     [RelayCommand]
     void ClearFinishedJobs()
     {
-        foreach (var j in Jobs.Where(j => j.IsDone || j.IsError).ToList()) Jobs.Remove(j);
+        foreach (var j in Jobs.Where(j => j.IsDone || j.IsError).ToList())
+            Jobs.Remove(j);
     }
 
     [RelayCommand]
     async Task OpenSiteAsync(string url)
     {
-        try { if (SitePolicy.AllowsAutomation(url)) await _browser.OpenForSignInAsync(url); else _ui.OpenExternal(url); }
-        catch (Exception e) { CatalogStatus = "Couldn't open the browser: " + e.Message; }
+        try
+        {
+            if (SitePolicy.AllowsAutomation(url))
+                await _browser.OpenForSignInAsync(url);
+            else
+                _ui.OpenExternal(url);
+        }
+        catch (Exception e)
+        {
+            CatalogStatus = "Couldn't open the browser: " + e.Message;
+        }
     }
 
     [RelayCommand]
@@ -761,12 +1159,22 @@ public sealed partial class MainViewModel : ObservableObject, IAsyncDisposable
     // ---- My tables -------------------------------------------------------------
 
     public ObservableCollection<InstalledItem> Installed { get; } = [];
-    [ObservableProperty] public partial string PlayStatus { get; set; } = "";
 
-    public string[] InstalledFilters { get; } = ["All", "Favourites", "Most played", "Recently played"];
-    [ObservableProperty] public partial string InstalledFilter { get; set; } = "All";
-    [ObservableProperty] public partial string InstalledEmptyText { get; set; } = "";
-    [ObservableProperty] public partial int InstalledTotal { get; set; }
+    [ObservableProperty]
+    public partial string PlayStatus { get; set; } = "";
+
+    public string[] InstalledFilters { get; } =
+    ["All", "Favourites", "Most played", "Recently played"];
+
+    [ObservableProperty]
+    public partial string InstalledFilter { get; set; } = "All";
+
+    [ObservableProperty]
+    public partial string InstalledEmptyText { get; set; } = "";
+
+    [ObservableProperty]
+    public partial int InstalledTotal { get; set; }
+
     partial void OnInstalledFilterChanged(string value) => ShowInstalled();
 
     List<InstalledItem> _allInstalled = [];
@@ -777,7 +1185,10 @@ public sealed partial class MainViewModel : ObservableObject, IAsyncDisposable
     {
         // Re-read stats every time: the VR lobby and its launcher write them too.
         _stats = PlayStats.Load();
-        _allInstalled = TableInstaller.Scan(Settings).Select(t => new InstalledItem(t, this)).ToList();
+        _allInstalled = TableInstaller
+            .Scan(Settings)
+            .Select(t => new InstalledItem(t, this))
+            .ToList();
         foreach (var item in _allInstalled)
         {
             item.ApplyStats(_stats);
@@ -788,9 +1199,13 @@ public sealed partial class MainViewModel : ObservableObject, IAsyncDisposable
             {
                 item.TableScale = VpxGraphics.ReadTableScale(item.Table.TablePath);
                 item.HasAttractAudio = MediaPackAudio.Existing(item.Table.Folder) != null;
-                item.HasLobbyVideo = item.CanHaveLobbyVideo && LobbyVideo.Existing(item.Table.Folder) != null;
+                item.HasLobbyVideo =
+                    item.CanHaveLobbyVideo && LobbyVideo.Existing(item.Table.Folder) != null;
                 item.HasDmdFix = VrDmdFix.HasBackup(item.Table.TablePath);
-                item.DmdFixDeclined = Settings.DmdFixDeclined.Contains(item.Table.TablePath, StringComparer.OrdinalIgnoreCase);
+                item.DmdFixDeclined = Settings.DmdFixDeclined.Contains(
+                    item.Table.TablePath,
+                    StringComparer.OrdinalIgnoreCase
+                );
                 RefreshAddonState(item);
                 item.AttractAudioSources = AttractAudioSourcesFor(item.Table);
             }
@@ -799,54 +1214,83 @@ public sealed partial class MainViewModel : ObservableObject, IAsyncDisposable
         _ = RefreshSizesAsync();
     }
 
-    public string[] InstalledEngines { get; } = ["All engines", "VPX", "Future Pinball", "Pinball FX", "Pinball M"];
+    public string[] InstalledEngines { get; } =
+    ["All engines", "VPX", "Future Pinball", "Pinball FX", "Pinball M"];
     public string[] InstalledSorts { get; } = ["A–Z", "Recently installed", "Largest first"];
-    [ObservableProperty] public partial string InstalledSearch { get; set; } = "";
-    [ObservableProperty] public partial string InstalledEngine { get; set; } = "All engines";
-    [ObservableProperty] public partial string InstalledSort { get; set; } = "A–Z";
+
+    [ObservableProperty]
+    public partial string InstalledSearch { get; set; } = "";
+
+    [ObservableProperty]
+    public partial string InstalledEngine { get; set; } = "All engines";
+
+    [ObservableProperty]
+    public partial string InstalledSort { get; set; } = "A–Z";
+
     partial void OnInstalledSearchChanged(string value) => ShowInstalled();
+
     partial void OnInstalledEngineChanged(string value) => ShowInstalled();
+
     partial void OnInstalledSortChanged(string value) => ShowInstalled();
 
-    bool MatchesInstalledEngine(InstalledItem i) => InstalledEngine switch
-    {
-        "VPX" => i.Table.Manifest.Engine == TableManifest.Vpx,
-        "Future Pinball" => i.Table.Manifest.Engine == TableManifest.FuturePinball,
-        "Pinball FX" => i.Table.Manifest.Engine == TableManifest.PinballFx,
-        "Pinball M" => i.Table.Manifest.Engine == TableManifest.PinballM,
-        _ => true,
-    };
+    bool MatchesInstalledEngine(InstalledItem i) =>
+        InstalledEngine switch
+        {
+            "VPX" => i.Table.Manifest.Engine == TableManifest.Vpx,
+            "Future Pinball" => i.Table.Manifest.Engine == TableManifest.FuturePinball,
+            "Pinball FX" => i.Table.Manifest.Engine == TableManifest.PinballFx,
+            "Pinball M" => i.Table.Manifest.Engine == TableManifest.PinballM,
+            _ => true,
+        };
 
     /// <summary>Fills the My Tables grid from the scan, using the chosen filter and order.</summary>
     void ShowInstalled()
     {
         var q0 = InstalledSearch.Trim();
-        var pool = _allInstalled.Where(MatchesInstalledEngine)
-            .Where(i => q0 == "" || i.Title.Contains(q0, StringComparison.OrdinalIgnoreCase)
-                        || (i.Table.Manifest.Manufacturer?.Contains(q0, StringComparison.OrdinalIgnoreCase) ?? false)
-                        || i.Table.Manifest.Authors.Any(a => a.Contains(q0, StringComparison.OrdinalIgnoreCase)));
+        var pool = _allInstalled
+            .Where(MatchesInstalledEngine)
+            .Where(i =>
+                q0 == ""
+                || i.Title.Contains(q0, StringComparison.OrdinalIgnoreCase)
+                || (
+                    i.Table.Manifest.Manufacturer?.Contains(q0, StringComparison.OrdinalIgnoreCase)
+                    ?? false
+                )
+                || i.Table.Manifest.Authors.Any(a =>
+                    a.Contains(q0, StringComparison.OrdinalIgnoreCase)
+                )
+            );
         IEnumerable<InstalledItem> q = InstalledFilter switch
         {
             "Favourites" => pool.Where(i => i.IsFavourite),
-            "Most played" => pool.Where(i => i.Plays > 0).OrderByDescending(i => i.Plays).ThenByDescending(i => i.LastPlayed),
-            "Recently played" => pool.Where(i => i.LastPlayed != null).OrderByDescending(i => i.LastPlayed),
+            "Most played" => pool.Where(i => i.Plays > 0)
+                .OrderByDescending(i => i.Plays)
+                .ThenByDescending(i => i.LastPlayed),
+            "Recently played" => pool.Where(i => i.LastPlayed != null)
+                .OrderByDescending(i => i.LastPlayed),
             _ => InstalledSort switch
             {
                 "Recently installed" => pool.OrderByDescending(i => i.Table.Manifest.InstalledAt),
                 "Largest first" => pool.OrderByDescending(i => i.SizeBytes),
                 // Favourites first, then A–Z.
-                _ => pool.OrderByDescending(i => i.IsFavourite).ThenBy(i => i.Title, StringComparer.OrdinalIgnoreCase),
+                _ => pool.OrderByDescending(i => i.IsFavourite)
+                    .ThenBy(i => i.Title, StringComparer.OrdinalIgnoreCase),
             },
         };
         Installed.Clear();
-        foreach (var i in q) Installed.Add(i);
+        foreach (var i in q)
+            Installed.Add(i);
         InstalledTotal = _allInstalled.Count;
-        InstalledEmptyText = Installed.Count > 0 || _allInstalled.Count == 0 ? ""
-            : q0 != "" || InstalledEngine != InstalledEngines[0] ? "No installed tables match the search."
+        InstalledEmptyText =
+            Installed.Count > 0 || _allInstalled.Count == 0 ? ""
+            : q0 != "" || InstalledEngine != InstalledEngines[0]
+                ? "No installed tables match the search."
             : InstalledFilter switch
             {
-                "Favourites" => "No favourites yet. Tap the ☆ on a table (or press the right grip on it in the VR lobby).",
-                _ => "Nothing played yet. Your plays from here and from the VR lobby show up in this list.",
+                "Favourites" =>
+                    "No favourites yet. Tap the ☆ on a table (or press the right grip on it in the VR lobby).",
+                _ =>
+                    "Nothing played yet. Your plays from here and from the VR lobby show up in this list.",
             };
         ApplyTableUpdates();
     }
@@ -855,10 +1299,18 @@ public sealed partial class MainViewModel : ObservableObject, IAsyncDisposable
     void ToggleFavourite(InstalledItem item)
     {
         var on = !item.IsFavourite;
-        try { _stats = PlayStats.Mutate(st => st.SetFavourite(item.Table.TablePath, on)); }
-        catch (Exception e) { PlayStatus = "Couldn't save the favourite: " + e.Message; return; }
+        try
+        {
+            _stats = PlayStats.Mutate(st => st.SetFavourite(item.Table.TablePath, on));
+        }
+        catch (Exception e)
+        {
+            PlayStatus = "Couldn't save the favourite: " + e.Message;
+            return;
+        }
         item.ApplyStats(_stats);
-        if (InstalledFilter != "Most played" && InstalledFilter != "Recently played") ShowInstalled();
+        if (InstalledFilter != "Most played" && InstalledFilter != "Recently played")
+            ShowInstalled();
     }
 
     [RelayCommand]
@@ -872,10 +1324,28 @@ public sealed partial class MainViewModel : ObservableObject, IAsyncDisposable
         var engine = Engines.For(item.Table.Manifest.Engine);
         try
         {
-            if (vr && !await PreflightAsync(item, engine)) { PlayStatus = ""; return; }
-            if (vr && ZenGames.For(engine.Id) is { } zen && Settings.ShowZenReminder && !await ZenReminderAsync(zen)) { PlayStatus = ""; return; }
+            if (vr && !await PreflightAsync(item, engine))
+            {
+                PlayStatus = "";
+                return;
+            }
+            if (
+                vr
+                && ZenGames.For(engine.Id) is { } zen
+                && Settings.ShowZenReminder
+                && !await ZenReminderAsync(zen)
+            )
+            {
+                PlayStatus = "";
+                return;
+            }
             PlayStatus = $"Starting {item.Title}…";
-            using var proc = await engine.LaunchAsync(Settings, item.Table, vr, CancellationToken.None);
+            using var proc = await engine.LaunchAsync(
+                Settings,
+                item.Table,
+                vr,
+                CancellationToken.None
+            );
             PlayStatus = $"Playing {item.Title}…";
             var started = DateTime.Now;
             var path = item.Table.TablePath;
@@ -884,7 +1354,11 @@ public sealed partial class MainViewModel : ObservableObject, IAsyncDisposable
             if (!ReturnAfterPlay)
             {
                 // Still add the time played, in the background.
-                _ = proc.WaitForExitAsync().ContinueWith(_ => TrySaveStats(st => st.AddTime(path, DateTime.Now - started)), TaskScheduler.Default);
+                _ = proc.WaitForExitAsync()
+                    .ContinueWith(
+                        _ => TrySaveStats(st => st.AddTime(path, DateTime.Now - started)),
+                        TaskScheduler.Default
+                    );
                 return;
             }
             // Pick-and-return loop: get out of the way, come back when the table closes.
@@ -894,7 +1368,8 @@ public sealed partial class MainViewModel : ObservableObject, IAsyncDisposable
             item.ApplyStats(_stats);
             PlayStatus = $"Finished {item.Title}. Pick your next table.";
             _ui.ShowAfterPlay();
-            if (item.Table.IsVpx) LoadVrView(); // VPX saves the table position when it closes
+            if (item.Table.IsVpx)
+                LoadVrView(); // VPX saves the table position when it closes
             await ExplainVpxExitAsync(item, started);
         }
         catch (System.ComponentModel.Win32Exception e) when (e.NativeErrorCode == 1223)
@@ -911,8 +1386,14 @@ public sealed partial class MainViewModel : ObservableObject, IAsyncDisposable
         }
     }
 
-    static string MetaLinkApp => Path.Combine(
-        Environment.GetFolderPath(Environment.SpecialFolder.ProgramFiles), "Oculus", "Support", "oculus-client", "OculusClient.exe");
+    static string MetaLinkApp =>
+        Path.Combine(
+            Environment.GetFolderPath(Environment.SpecialFolder.ProgramFiles),
+            "Oculus",
+            "Support",
+            "oculus-client",
+            "OculusClient.exe"
+        );
 
     /// <summary>
     /// Before a VR launch: is a headset actually connected? Without one, VPX quietly opens on the
@@ -925,29 +1406,37 @@ public sealed partial class MainViewModel : ObservableObject, IAsyncDisposable
         {
             PlayStatus = "Checking your headset…";
             var hs = await HeadsetCheck.CheckAsync(Settings, TimeSpan.FromSeconds(15));
-            if (hs.State is HeadsetState.Ready or HeadsetState.Unknown) return true;
+            if (hs.State is HeadsetState.Ready or HeadsetState.Unknown)
+                return true;
 
             var hasLinkApp = File.Exists(MetaLinkApp);
-            var message = hs.State == HeadsetState.NotConnected
-                ? "Your Quest isn't connected to the PC, so the table would open on your monitor instead.\n\n" +
-                  "1. Open Meta Quest Link on this PC.\n" +
-                  "2. Connect the Quest with a USB-C cable, or use Air Link (same Wi-Fi).\n" +
-                  "3. In the headset: Quick Settings → Link → choose your PC → Launch.\n\n" +
-                  "When you're in the grey Link home, press Try again."
-                : "There's no VR runtime on this PC. Install the Meta Quest Link app, connect your Quest, " +
-                  "and set Meta Quest Link as the active OpenXR runtime (Link app → Settings → General).";
+            var message =
+                hs.State == HeadsetState.NotConnected
+                    ? "Your Quest isn't connected to the PC, so the table would open on your monitor instead.\n\n"
+                        + "1. Open Meta Quest Link on this PC.\n"
+                        + "2. Connect the Quest with a USB-C cable, or use Air Link (same Wi-Fi).\n"
+                        + "3. In the headset: Quick Settings → Link → choose your PC → Launch.\n\n"
+                        + "When you're in the grey Link home, press Try again."
+                    : "There's no VR runtime on this PC. Install the Meta Quest Link app, connect your Quest, "
+                        + "and set Meta Quest Link as the active OpenXR runtime (Link app → Settings → General).";
             List<string> buttons = ["TRY AGAIN"];
-            if (hasLinkApp) buttons.Add("OPEN META QUEST LINK");
+            if (hasLinkApp)
+                buttons.Add("OPEN META QUEST LINK");
             buttons.AddRange(["PLAY ANYWAY", "CANCEL"]);
 
             var pick = await _ui.ChoiceAsync("Headset not connected", message, [.. buttons]);
             var label = pick >= 0 ? buttons[pick] : "CANCEL";
             switch (label)
             {
-                case "TRY AGAIN": continue;
-                case "OPEN META QUEST LINK": _ui.OpenExternal(MetaLinkApp); continue;
-                case "PLAY ANYWAY": return true;
-                default: return false;
+                case "TRY AGAIN":
+                    continue;
+                case "OPEN META QUEST LINK":
+                    _ui.OpenExternal(MetaLinkApp);
+                    continue;
+                case "PLAY ANYWAY":
+                    return true;
+                default:
+                    return false;
             }
         }
     }
@@ -965,7 +1454,8 @@ public sealed partial class MainViewModel : ObservableObject, IAsyncDisposable
             pad switch
             {
                 true => "✓ Gamepad connected. Play and use the menus with it.",
-                false => "⚠ No gamepad found. Connect an Xbox-style controller: the Quest controllers are switched off for this game (they confuse it and can crash it).",
+                false =>
+                    "⚠ No gamepad found. Connect an Xbox-style controller: the Quest controllers are switched off for this game (they confuse it and can crash it).",
                 _ => "• Use a gamepad to play and for the menus.",
             },
             "• Put the Quest controllers down so nothing gets pressed by accident.",
@@ -978,14 +1468,20 @@ public sealed partial class MainViewModel : ObservableObject, IAsyncDisposable
                 : "• Pinball settings are switched off on the Setup tab, so UEVR uses its own.",
         };
         string[] buttons = ["PLAY", "PLAY, DON'T SHOW AGAIN", "CANCEL"];
-        var pick = await _ui.ChoiceAsync($"Before {g.Title} starts in VR", string.Join("\n\n", lines), buttons);
-        if (pick == 1) ShowZenReminder = false;
+        var pick = await _ui.ChoiceAsync(
+            $"Before {g.Title} starts in VR",
+            string.Join("\n\n", lines),
+            buttons
+        );
+        if (pick == 1)
+            ShowZenReminder = false;
         return pick is 0 or 1;
     }
 
     // ---- VR lobby ------------------------------------------------------------------
 
-    [ObservableProperty] public partial bool IsLobbyRunning { get; set; }
+    [ObservableProperty]
+    public partial bool IsLobbyRunning { get; set; }
 
     /// <summary>
     /// One click: get Godot (first time), rebuild the lobby if its code changed, start it, and get
@@ -995,14 +1491,19 @@ public sealed partial class MainViewModel : ObservableObject, IAsyncDisposable
     [RelayCommand]
     async Task LaunchLobbyAsync()
     {
-        if (IsLobbyRunning) return;
+        if (IsLobbyRunning)
+            return;
         var lobbyDir = LobbyRunner.FindLobbyDir();
         if (lobbyDir == null)
         {
             PlayStatus = "Couldn't find the VrLobby project next to this app.";
             return;
         }
-        if (!await EnsureHeadsetAsync()) { PlayStatus = ""; return; }
+        if (!await EnsureHeadsetAsync())
+        {
+            PlayStatus = "";
+            return;
+        }
 
         IsLobbyRunning = true;
         // Listed under Downloads only while it's being prepared (first-time Godot download, a rebuild) or if it
@@ -1012,19 +1513,29 @@ public sealed partial class MainViewModel : ObservableObject, IAsyncDisposable
         var hidden = false;
         try
         {
-            var godot = await LobbyRunner.EnsureGodotAsync(job.ProgressReporter, job.Report, job.Cts.Token);
-            if (LobbyRunner.NeedsBuild(lobbyDir)) await LobbyRunner.BuildAsync(lobbyDir, job.Report, job.Cts.Token);
+            var godot = await LobbyRunner.EnsureGodotAsync(
+                job.ProgressReporter,
+                job.Report,
+                job.Cts.Token
+            );
+            if (LobbyRunner.NeedsBuild(lobbyDir))
+                await LobbyRunner.BuildAsync(lobbyDir, job.Report, job.Cts.Token);
             await LobbyRunner.ImportIfNeededAsync(godot, lobbyDir, job.Report, job.Cts.Token);
 
             using var lobby = LobbyRunner.Start(godot, lobbyDir);
             Jobs.Remove(job);
-            PlayStatus = "VR lobby running. Put your headset on; this window comes back when you quit the lobby.";
+            PlayStatus =
+                "VR lobby running. Put your headset on; this window comes back when you quit the lobby.";
             _ui.HideForPlay();
             hidden = true;
             await WaitForLobbySessionAsync(lobby, Path.GetFileNameWithoutExtension(godot));
             PlayStatus = "Back from the VR lobby.";
         }
-        catch (OperationCanceledException) { Jobs.Remove(job); PlayStatus = "VR lobby cancelled."; }
+        catch (OperationCanceledException)
+        {
+            Jobs.Remove(job);
+            PlayStatus = "VR lobby cancelled.";
+        }
         catch (Exception e)
         {
             job.Finish("Couldn't start the lobby: " + e.Message, error: true);
@@ -1033,39 +1544,58 @@ public sealed partial class MainViewModel : ObservableObject, IAsyncDisposable
         finally
         {
             IsLobbyRunning = false;
-            if (hidden) _ui.ShowAfterPlay();
+            if (hidden)
+                _ui.ShowAfterPlay();
             RefreshInstalled(); // favourites and plays may have changed in the lobby
         }
     }
 
     /// <summary>Waits for the lobby to exit, then keeps waiting while a table it launched (and the lobby it restarts) runs.</summary>
-    static async Task WaitForLobbySessionAsync(System.Diagnostics.Process lobby, string godotProcessName)
+    static async Task WaitForLobbySessionAsync(
+        System.Diagnostics.Process lobby,
+        string godotProcessName
+    )
     {
         var lobbyStarted = lobby.StartTime;
         await lobby.WaitForExitAsync();
         var self = Environment.ProcessId;
         bool StartedSinceLobby(System.Diagnostics.Process p)
         {
-            try { return p.Id != self && p.StartTime >= lobbyStarted; } catch { return false; }
+            try
+            {
+                return p.Id != self && p.StartTime >= lobbyStarted;
+            }
+            catch
+            {
+                return false;
+            }
         }
         bool Busy() =>
             System.Diagnostics.Process.GetProcessesByName(godotProcessName).Length > 0
             // "VrTableManager.exe --play …" is how the lobby launches a table (another manager window
             // you opened yourself started earlier, so it doesn't count).
-            || System.Diagnostics.Process.GetProcessesByName("VrTableManager").Any(StartedSinceLobby);
+            || System
+                .Diagnostics.Process.GetProcessesByName("VrTableManager")
+                .Any(StartedSinceLobby);
         // Allow a few seconds for the hand-over between the lobby quitting and the table (or lobby) starting.
         var idleSince = DateTime.UtcNow;
         while (DateTime.UtcNow - idleSince < TimeSpan.FromSeconds(4))
         {
             await Task.Delay(500);
-            if (Busy()) idleSince = DateTime.UtcNow;
+            if (Busy())
+                idleSince = DateTime.UtcNow;
         }
     }
 
     void TrySaveStats(Action<PlayStats> change)
     {
-        try { _stats = PlayStats.Mutate(change); }
-        catch { /* play counting must never get in the way of playing */ }
+        try
+        {
+            _stats = PlayStats.Mutate(change);
+        }
+        catch
+        { /* play counting must never get in the way of playing */
+        }
     }
 
     [RelayCommand]
@@ -1075,10 +1605,21 @@ public sealed partial class MainViewModel : ObservableObject, IAsyncDisposable
     async Task AddRomAsync(InstalledItem item)
     {
         // Filter to the file it needs, starting where browsers save downloads.
-        var wanted = item.Table.MissingRoms.FirstOrDefault() ?? item.Table.Manifest.RomNames.FirstOrDefault();
-        var downloads = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.UserProfile), "Downloads");
-        var file = await _ui.PickFileAsync($"Choose the ROM zip for {item.Title}", "*.zip", wanted != null ? wanted + ".zip" : null, downloads);
-        if (file == null) return;
+        var wanted =
+            item.Table.MissingRoms.FirstOrDefault()
+            ?? item.Table.Manifest.RomNames.FirstOrDefault();
+        var downloads = Path.Combine(
+            Environment.GetFolderPath(Environment.SpecialFolder.UserProfile),
+            "Downloads"
+        );
+        var file = await _ui.PickFileAsync(
+            $"Choose the ROM zip for {item.Title}",
+            "*.zip",
+            wanted != null ? wanted + ".zip" : null,
+            downloads
+        );
+        if (file == null)
+            return;
         TableInstaller.AddRom(item.Table, file);
         RefreshInstalled();
     }
@@ -1086,8 +1627,11 @@ public sealed partial class MainViewModel : ObservableObject, IAsyncDisposable
     [RelayCommand]
     async Task RemoveAsync(InstalledItem item)
     {
-        var what = item.Table.IsVpx ? $"the folder\n{item.Table.Folder}" : $"\n{item.Table.TablePath}";
-        if (!await _ui.ConfirmAsync("Remove table", $"Delete {item.Title}?\n\nThis removes {what}")) return;
+        var what = item.Table.IsVpx
+            ? $"the folder\n{item.Table.Folder}"
+            : $"\n{item.Table.TablePath}";
+        if (!await _ui.ConfirmAsync("Remove table", $"Delete {item.Title}?\n\nThis removes {what}"))
+            return;
         try
         {
             TableInstaller.Remove(item.Table);
@@ -1102,25 +1646,59 @@ public sealed partial class MainViewModel : ObservableObject, IAsyncDisposable
 
     // ---- Setup -----------------------------------------------------------------
 
-    public string[] RefreshRates { get; } = ["0 (headset default)", "72 Hz", "80 Hz", "90 Hz", "120 Hz"];
+    public string[] RefreshRates { get; } =
+    ["0 (headset default)", "72 Hz", "80 Hz", "90 Hz", "120 Hz"];
 
-    [ObservableProperty] public partial string VpxDir { get; set; }
-    [ObservableProperty] public partial string TablesDir { get; set; }
-    [ObservableProperty] public partial string FpDir { get; set; }
-    [ObservableProperty] public partial bool HideAdult { get; set; }
-    [ObservableProperty] public partial bool DeleteDownloadsAfterInstall { get; set; }
-    [ObservableProperty] public partial bool ReturnAfterPlay { get; set; }
-    [ObservableProperty] public partial bool VpxUseDoNotUseBuilds { get; set; }
-    [ObservableProperty] public partial bool VpxUseNightlyBuilds { get; set; }
-    [ObservableProperty] public partial bool FpRunAsAdmin { get; set; }
-    [ObservableProperty] public partial string RefreshRate { get; set; }
-    [ObservableProperty] public partial string VpxStatus { get; set; } = "";
-    [ObservableProperty] public partial string FpStatus { get; set; } = "";
-    [ObservableProperty] public partial string UevrDir { get; set; }
-    [ObservableProperty] public partial string PfxStatus { get; set; } = "";
-    [ObservableProperty] public partial string LatestVpx { get; set; } = "";
-    [ObservableProperty] public partial bool IsInstallingVpx { get; set; }
-    [ObservableProperty] public partial double VpxProgress { get; set; }
+    [ObservableProperty]
+    public partial string VpxDir { get; set; }
+
+    [ObservableProperty]
+    public partial string TablesDir { get; set; }
+
+    [ObservableProperty]
+    public partial string FpDir { get; set; }
+
+    [ObservableProperty]
+    public partial bool HideAdult { get; set; }
+
+    [ObservableProperty]
+    public partial bool DeleteDownloadsAfterInstall { get; set; }
+
+    [ObservableProperty]
+    public partial bool ReturnAfterPlay { get; set; }
+
+    [ObservableProperty]
+    public partial bool VpxUseDoNotUseBuilds { get; set; }
+
+    [ObservableProperty]
+    public partial bool VpxUseNightlyBuilds { get; set; }
+
+    [ObservableProperty]
+    public partial bool FpRunAsAdmin { get; set; }
+
+    [ObservableProperty]
+    public partial string RefreshRate { get; set; }
+
+    [ObservableProperty]
+    public partial string VpxStatus { get; set; } = "";
+
+    [ObservableProperty]
+    public partial string FpStatus { get; set; } = "";
+
+    [ObservableProperty]
+    public partial string UevrDir { get; set; }
+
+    [ObservableProperty]
+    public partial string PfxStatus { get; set; } = "";
+
+    [ObservableProperty]
+    public partial string LatestVpx { get; set; } = "";
+
+    [ObservableProperty]
+    public partial bool IsInstallingVpx { get; set; }
+
+    [ObservableProperty]
+    public partial double VpxProgress { get; set; }
 
     protected override void OnPropertyChanged(PropertyChangedEventArgs e)
     {
@@ -1128,35 +1706,95 @@ public sealed partial class MainViewModel : ObservableObject, IAsyncDisposable
         // Persist setup fields as they change.
         switch (e.PropertyName)
         {
-            case nameof(VpxDir): Settings.VpxDir = VpxDir; break;
-            case nameof(TablesDir): Settings.TablesDir = TablesDir; break;
-            case nameof(FpDir): Settings.FpDir = FpDir; break;
-            case nameof(UevrDir): Settings.UevrDir = UevrDir; break;
-            case nameof(HideAdult): Settings.HideAdult = HideAdult; ApplyFilter(); break;
-            case nameof(DeleteDownloadsAfterInstall): Settings.DeleteDownloadsAfterInstall = DeleteDownloadsAfterInstall; break;
-            case nameof(ReturnAfterPlay): Settings.ReturnAfterPlay = ReturnAfterPlay; break;
-            case nameof(VpxUseDoNotUseBuilds): Settings.VpxUseDoNotUseBuilds = VpxUseDoNotUseBuilds; break;
-            case nameof(VpxUseNightlyBuilds): Settings.VpxUseNightlyBuilds = VpxUseNightlyBuilds; break;
-            case nameof(FpRunAsAdmin): Settings.FpRunAsAdmin = FpRunAsAdmin; break;
-            case nameof(ApplyPinballUevrProfile): Settings.ApplyPinballUevrProfile = ApplyPinballUevrProfile; RefreshSetupStatus(); break;
-            case nameof(ShowZenReminder): Settings.ShowZenReminder = ShowZenReminder; break;
-            case nameof(RefreshRate): Settings.VrRefreshRate = int.TryParse(RefreshRate?.Split(' ')[0], out var r) ? r : 0; break;
-            case nameof(AswMode): Settings.MetaAswMode = AswMode; break;
-            case nameof(WarnSteamVrRuntime): Settings.WarnSteamVrRuntime = WarnSteamVrRuntime; break;
-            case nameof(ExplainFailedLaunches): Settings.ExplainFailedLaunches = ExplainFailedLaunches; break;
-            case nameof(UseBuiltInPinmame): Settings.UseBuiltInPinmame = UseBuiltInPinmame; break;
-            case nameof(UsePupPlugin): Settings.UsePupPlugin = UsePupPlugin; break;
-            case nameof(UseDisplayPlugins): Settings.UseDisplayPlugins = UseDisplayPlugins; break;
-            case nameof(VrAutoBackglass): Settings.VrAutoBackglass = VrAutoBackglass; break;
-            case nameof(AutoVrRoom): Settings.AutoVrRoom = AutoVrRoom; break;
-            case nameof(LobbyRecordsRomAudio): Settings.LobbyRecordsRomAudio = LobbyRecordsRomAudio; break;
-            case nameof(LobbyWaitsForTable): Settings.LobbyWaitsForTable = LobbyWaitsForTable; break;
-            case nameof(LobbyStaysOpen): Settings.LobbyStaysOpen = LobbyStaysOpen; break;
-            default: return;
+            case nameof(VpxDir):
+                Settings.VpxDir = VpxDir;
+                break;
+            case nameof(TablesDir):
+                Settings.TablesDir = TablesDir;
+                break;
+            case nameof(FpDir):
+                Settings.FpDir = FpDir;
+                break;
+            case nameof(UevrDir):
+                Settings.UevrDir = UevrDir;
+                break;
+            case nameof(HideAdult):
+                Settings.HideAdult = HideAdult;
+                ApplyFilter();
+                break;
+            case nameof(DeleteDownloadsAfterInstall):
+                Settings.DeleteDownloadsAfterInstall = DeleteDownloadsAfterInstall;
+                break;
+            case nameof(ReturnAfterPlay):
+                Settings.ReturnAfterPlay = ReturnAfterPlay;
+                break;
+            case nameof(VpxUseDoNotUseBuilds):
+                Settings.VpxUseDoNotUseBuilds = VpxUseDoNotUseBuilds;
+                break;
+            case nameof(VpxUseNightlyBuilds):
+                Settings.VpxUseNightlyBuilds = VpxUseNightlyBuilds;
+                break;
+            case nameof(FpRunAsAdmin):
+                Settings.FpRunAsAdmin = FpRunAsAdmin;
+                break;
+            case nameof(ApplyPinballUevrProfile):
+                Settings.ApplyPinballUevrProfile = ApplyPinballUevrProfile;
+                RefreshSetupStatus();
+                break;
+            case nameof(ShowZenReminder):
+                Settings.ShowZenReminder = ShowZenReminder;
+                break;
+            case nameof(RefreshRate):
+                Settings.VrRefreshRate = int.TryParse(RefreshRate?.Split(' ')[0], out var r)
+                    ? r
+                    : 0;
+                break;
+            case nameof(AswMode):
+                Settings.MetaAswMode = AswMode;
+                break;
+            case nameof(WarnSteamVrRuntime):
+                Settings.WarnSteamVrRuntime = WarnSteamVrRuntime;
+                break;
+            case nameof(ExplainFailedLaunches):
+                Settings.ExplainFailedLaunches = ExplainFailedLaunches;
+                break;
+            case nameof(UseBuiltInPinmame):
+                Settings.UseBuiltInPinmame = UseBuiltInPinmame;
+                break;
+            case nameof(UsePupPlugin):
+                Settings.UsePupPlugin = UsePupPlugin;
+                break;
+            case nameof(UseDisplayPlugins):
+                Settings.UseDisplayPlugins = UseDisplayPlugins;
+                break;
+            case nameof(VrAutoBackglass):
+                Settings.VrAutoBackglass = VrAutoBackglass;
+                break;
+            case nameof(AutoVrRoom):
+                Settings.AutoVrRoom = AutoVrRoom;
+                break;
+            case nameof(LobbyRecordsRomAudio):
+                Settings.LobbyRecordsRomAudio = LobbyRecordsRomAudio;
+                break;
+            case nameof(LobbyWaitsForTable):
+                Settings.LobbyWaitsForTable = LobbyWaitsForTable;
+                break;
+            case nameof(LobbyStaysOpen):
+                Settings.LobbyStaysOpen = LobbyStaysOpen;
+                break;
+            default:
+                return;
         }
         Settings.Save();
-        if (e.PropertyName == nameof(VpxDir)) LoadGraphics();
-        if (e.PropertyName is nameof(VpxDir) or nameof(TablesDir) or nameof(FpDir) or nameof(UevrDir))
+        if (e.PropertyName == nameof(VpxDir))
+            LoadGraphics();
+        if (
+            e.PropertyName
+            is nameof(VpxDir)
+                or nameof(TablesDir)
+                or nameof(FpDir)
+                or nameof(UevrDir)
+        )
         {
             RefreshSetupStatus();
             RefreshInstalled();
@@ -1176,29 +1814,48 @@ public sealed partial class MainViewModel : ObservableObject, IAsyncDisposable
         RefreshVrStatus();
     }
 
-    [ObservableProperty] public partial bool PfxHasUevrBackup { get; set; }
-    [ObservableProperty] public partial bool PmHasUevrBackup { get; set; }
+    [ObservableProperty]
+    public partial bool PfxHasUevrBackup { get; set; }
 
-    [ObservableProperty] public partial string PfxProfileStatus { get; set; } = "";
-    [ObservableProperty] public partial string PmProfileStatus { get; set; } = "";
-    [ObservableProperty] public partial bool ApplyPinballUevrProfile { get; set; }
-    [ObservableProperty] public partial bool ShowZenReminder { get; set; }
+    [ObservableProperty]
+    public partial bool PmHasUevrBackup { get; set; }
+
+    [ObservableProperty]
+    public partial string PfxProfileStatus { get; set; } = "";
+
+    [ObservableProperty]
+    public partial string PmProfileStatus { get; set; } = "";
+
+    [ObservableProperty]
+    public partial bool ApplyPinballUevrProfile { get; set; }
+
+    [ObservableProperty]
+    public partial bool ShowZenReminder { get; set; }
 
     /// <summary>The pinball UEVR settings, with why each one is set (shown on Setup).</summary>
-    public string PinballProfileSummary { get; } = string.Join("\n",
-        UevrPinballProfile.Settings.Select(s => $"• {s.Key} = {s.Value}: {s.Why}"));
+    public string PinballProfileSummary { get; } =
+        string.Join(
+            "\n",
+            UevrPinballProfile.Settings.Select(s => $"• {s.Key} = {s.Value}: {s.Why}")
+        );
 
     string DescribeUevrProfile(ZenGame g)
     {
         var parts = new List<string>
         {
             UevrPinballProfile.IsApplied(g) ? "Pinball settings are in its UEVR profile."
-                : Settings.ApplyPinballUevrProfile ? "Pinball settings will be applied at the next VR launch."
-                : "Pinball settings are off; UEVR uses its own.",
+            : Settings.ApplyPinballUevrProfile
+                ? "Pinball settings will be applied at the next VR launch."
+            : "Pinball settings are off; UEVR uses its own.",
         };
         if (UevrPinballProfile.LastRuntime(g) is { } rt)
-            parts.Add(rt == "OpenVR" ? "Last run used OpenVR: pick OpenXR in the UEVR window next time." : "Last run used OpenXR.");
-        if (UevrPinballProfile.HasBackup(g)) parts.Add("Your original profile is backed up.");
+            parts.Add(
+                rt == "OpenVR"
+                    ? "Last run used OpenVR: pick OpenXR in the UEVR window next time."
+                    : "Last run used OpenXR."
+            );
+        if (UevrPinballProfile.HasBackup(g))
+            parts.Add("Your original profile is backed up.");
         return string.Join(" ", parts);
     }
 
@@ -1210,38 +1867,62 @@ public sealed partial class MainViewModel : ObservableObject, IAsyncDisposable
         try
         {
             var r = UevrPinballProfile.Apply(g);
-            msg = r.Changed.Count == 0 ? "✓ Already on pinball defaults."
-                : $"✓ Reset {r.Changed.Count} UEVR setting(s) to pinball defaults{(r.BackedUp ? " (original backed up)" : "")}.";
+            msg =
+                r.Changed.Count == 0
+                    ? "✓ Already on pinball defaults."
+                    : $"✓ Reset {r.Changed.Count} UEVR setting(s) to pinball defaults{(r.BackedUp ? " (original backed up)" : "")}.";
         }
-        catch (Exception e) { msg = "Couldn't update the UEVR profile: " + e.Message; }
+        catch (Exception e)
+        {
+            msg = "Couldn't update the UEVR profile: " + e.Message;
+        }
         RefreshSetupStatus();
-        if (g == ZenGames.PinballM) PmProfileStatus = msg + " " + PmProfileStatus;
-        else PfxProfileStatus = msg + " " + PfxProfileStatus;
+        if (g == ZenGames.PinballM)
+            PmProfileStatus = msg + " " + PmProfileStatus;
+        else
+            PfxProfileStatus = msg + " " + PfxProfileStatus;
     }
 
     [RelayCommand]
     async Task RestoreUevrOriginalAsync(string? engineId)
     {
         var g = ZenGames.For(engineId ?? TableManifest.PinballFx) ?? ZenGames.PinballFx;
-        if (!UevrPinballProfile.HasBackup(g)) return;
-        if (!await _ui.ConfirmAsync("Restore UEVR profile",
-                $"Put back {g.Title}'s UEVR profile as it was before this app changed it?\n\n" +
-                (Settings.ApplyPinballUevrProfile ? "Pinball settings will also be switched off, so they aren't re-applied at the next launch." : "")))
+        if (!UevrPinballProfile.HasBackup(g))
+            return;
+        if (
+            !await _ui.ConfirmAsync(
+                "Restore UEVR profile",
+                $"Put back {g.Title}'s UEVR profile as it was before this app changed it?\n\n"
+                    + (
+                        Settings.ApplyPinballUevrProfile
+                            ? "Pinball settings will also be switched off, so they aren't re-applied at the next launch."
+                            : ""
+                    )
+            )
+        )
             return;
         UevrPinballProfile.RestoreOriginal(g);
         ApplyPinballUevrProfile = false;
         RefreshSetupStatus();
     }
 
-    [ObservableProperty] public partial string PmStatus { get; set; } = "";
+    [ObservableProperty]
+    public partial string PmStatus { get; set; } = "";
 
     [RelayCommand]
     public async Task CheckVpxUpdateAsync()
     {
         try
         {
-            var releases = await VpxSetup.FindReleasesAsync(CancellationToken.None, Settings.VpxUseDoNotUseBuilds, Settings.VpxUseNightlyBuilds);
-            var (text, hasUpdate) = VpxSetup.DescribeUpdate(releases, VpxSetup.InstalledVersion(Settings));
+            var releases = await VpxSetup.FindReleasesAsync(
+                CancellationToken.None,
+                Settings.VpxUseDoNotUseBuilds,
+                Settings.VpxUseNightlyBuilds
+            );
+            var (text, hasUpdate) = VpxSetup.DescribeUpdate(
+                releases,
+                VpxSetup.InstalledVersion(Settings)
+            );
             LatestVpx = hasUpdate ? $"{text} ({releases.Latest!.Size / 1_048_576} MB)" : text;
         }
         catch (Exception e)
@@ -1251,8 +1932,10 @@ public sealed partial class MainViewModel : ObservableObject, IAsyncDisposable
     }
 
     CancellationTokenSource? _vpxInstallCts;
+
     /// <summary>The bar can't show progress (checking GitHub, extracting): it just shows activity.</summary>
-    [ObservableProperty] public partial bool VpxProgressUnknown { get; set; }
+    [ObservableProperty]
+    public partial bool VpxProgressUnknown { get; set; }
 
     [RelayCommand]
     void CancelVpxInstall() => _vpxInstallCts?.Cancel();
@@ -1267,7 +1950,11 @@ public sealed partial class MainViewModel : ObservableObject, IAsyncDisposable
         try
         {
             LatestVpx = "Checking GitHub for the newest VPX build…";
-            var releases = await VpxSetup.FindReleasesAsync(cts.Token, Settings.VpxUseDoNotUseBuilds, Settings.VpxUseNightlyBuilds);
+            var releases = await VpxSetup.FindReleasesAsync(
+                cts.Token,
+                Settings.VpxUseDoNotUseBuilds,
+                Settings.VpxUseNightlyBuilds
+            );
             var installed = VpxSetup.InstalledVersion(Settings);
             var (text, hasUpdate) = VpxSetup.DescribeUpdate(releases, installed);
             // Only install what's offered: no "DO NOT USE" build unless allowed, never an older one over a newer install.
@@ -1276,12 +1963,24 @@ public sealed partial class MainViewModel : ObservableObject, IAsyncDisposable
                 LatestVpx = text;
                 return;
             }
-            var progress = new Progress<double>(p => { VpxProgressUnknown = false; VpxProgress = p * 100; });
-            await VpxSetup.InstallAsync(Settings, rel, progress, s => Avalonia.Threading.Dispatcher.UIThread.Post(() =>
+            var progress = new Progress<double>(p =>
             {
-                LatestVpx = s;
-                if (s.StartsWith("Extracting")) VpxProgressUnknown = true;
-            }), cts.Token);
+                VpxProgressUnknown = false;
+                VpxProgress = p * 100;
+            });
+            await VpxSetup.InstallAsync(
+                Settings,
+                rel,
+                progress,
+                s =>
+                    Avalonia.Threading.Dispatcher.UIThread.Post(() =>
+                    {
+                        LatestVpx = s;
+                        if (s.StartsWith("Extracting"))
+                            VpxProgressUnknown = true;
+                    }),
+                cts.Token
+            );
             LatestVpx = $"Installed {rel.Tag}.";
         }
         catch (OperationCanceledException) when (cts.IsCancellationRequested)
@@ -1290,13 +1989,22 @@ public sealed partial class MainViewModel : ObservableObject, IAsyncDisposable
         }
         catch (Exception e)
         {
-            LatestVpx = "Install failed: " + e.Message + e switch
-            {
-                UnauthorizedAccessException => $" Windows didn't allow writing to {Settings.VpxDir}. Pick a folder you own (Browse), or allow VR Table Manager in Windows Security → Ransomware protection → Controlled folder access.",
-                IOException when e.HResult is unchecked((int)0x80070020) or unchecked((int)0x80070021) => " A VPX file is in use: close VPX (and the VR lobby) and try again.",
-                HttpRequestException or TimeoutException => " If it keeps failing, download the Windows BGFX zip yourself from github.com/vpinball/vpinball/releases, unzip it into a folder and choose that folder above.",
-                _ => "",
-            };
+            LatestVpx =
+                "Install failed: "
+                + e.Message
+                + e switch
+                {
+                    UnauthorizedAccessException =>
+                        $" Windows didn't allow writing to {Settings.VpxDir}. Pick a folder you own (Browse), or allow VR Table Manager in Windows Security → Ransomware protection → Controlled folder access.",
+                    IOException
+                        when e.HResult
+                            is unchecked((int)0x80070020)
+                                or unchecked((int)0x80070021) =>
+                        " A VPX file is in use: close VPX (and the VR lobby) and try again.",
+                    HttpRequestException or TimeoutException =>
+                        " If it keeps failing, download the Windows BGFX zip yourself from github.com/vpinball/vpinball/releases, unzip it into a folder and choose that folder above.",
+                    _ => "",
+                };
         }
         finally
         {
@@ -1309,49 +2017,79 @@ public sealed partial class MainViewModel : ObservableObject, IAsyncDisposable
     }
 
     [RelayCommand]
-    async Task BrowseVpxDirAsync() { if (await _ui.PickFolderAsync("VPX install folder") is { } d) VpxDir = d; }
+    async Task BrowseVpxDirAsync()
+    {
+        if (await _ui.PickFolderAsync("VPX install folder") is { } d)
+            VpxDir = d;
+    }
 
     [RelayCommand]
-    async Task BrowseTablesDirAsync() { if (await _ui.PickFolderAsync("Tables folder") is { } d) TablesDir = d; }
+    async Task BrowseTablesDirAsync()
+    {
+        if (await _ui.PickFolderAsync("Tables folder") is { } d)
+            TablesDir = d;
+    }
 
-    [ObservableProperty] public partial string ImportStatus { get; set; } = "";
+    [ObservableProperty]
+    public partial string ImportStatus { get; set; } = "";
 
     /// <summary>Copies the tables of another VPX install (its folder or its Tables folder) into the tables folder.</summary>
     [RelayCommand]
     async Task ImportTablesAsync()
     {
-        if (await _ui.PickFolderAsync("Another VPX install, or its Tables folder") is not { } src) return;
+        if (await _ui.PickFolderAsync("Another VPX install, or its Tables folder") is not { } src)
+            return;
         if (TableImport.FindTablesDir(src) == null)
         {
             ImportStatus = "No .vpx tables in that folder or its Tables folder.";
             return;
         }
-        var job = new JobItem("Copy tables from " + Path.GetFileName(src.TrimEnd(Path.DirectorySeparatorChar)));
+        var job = new JobItem(
+            "Copy tables from " + Path.GetFileName(src.TrimEnd(Path.DirectorySeparatorChar))
+        );
         Jobs.Insert(0, job);
         ImportStatus = "Copying tables…";
         try
         {
-            var r = await Task.Run(() => TableImport.Import(src, Settings, job.Report, job.Cts.Token));
-            var text = $"✓ Copied {r.Copied.Count} table{(r.Copied.Count == 1 ? "" : "s")}."
+            var r = await Task.Run(() =>
+                TableImport.Import(src, Settings, job.Report, job.Cts.Token)
+            );
+            var text =
+                $"✓ Copied {r.Copied.Count} table{(r.Copied.Count == 1 ? "" : "s")}."
                 + (r.Skipped.Count > 0 ? $" {r.Skipped.Count} already here, left as they are." : "")
                 + (r.Failed.Count > 0 ? $" Couldn't copy: {string.Join("; ", r.Failed)}" : "");
             job.Finish(text, error: r.Copied.Count == 0 && r.Failed.Count > 0);
             ImportStatus = text;
         }
-        catch (OperationCanceledException) { job.Finish("Cancelled", error: true); ImportStatus = "Cancelled."; }
+        catch (OperationCanceledException)
+        {
+            job.Finish("Cancelled", error: true);
+            ImportStatus = "Cancelled.";
+        }
         catch (Exception e)
         {
             job.Finish("Couldn't copy tables: " + e.Message, error: true);
             ImportStatus = "Couldn't copy tables: " + e.Message;
         }
-        finally { RefreshInstalled(); }
+        finally
+        {
+            RefreshInstalled();
+        }
     }
 
     [RelayCommand]
-    async Task BrowseFpDirAsync() { if (await _ui.PickFolderAsync("Future Pinball folder") is { } d) FpDir = d; }
+    async Task BrowseFpDirAsync()
+    {
+        if (await _ui.PickFolderAsync("Future Pinball folder") is { } d)
+            FpDir = d;
+    }
 
     [RelayCommand]
-    async Task BrowseUevrDirAsync() { if (await _ui.PickFolderAsync("UEVR folder (contains UEVRInjector.exe)") is { } d) UevrDir = d; }
+    async Task BrowseUevrDirAsync()
+    {
+        if (await _ui.PickFolderAsync("UEVR folder (contains UEVRInjector.exe)") is { } d)
+            UevrDir = d;
+    }
 
     /// <param name="engineId">Which Zen game the profile is for: "PFX" (Pinball FX) or "PM" (Pinball M).</param>
     [RelayCommand]
@@ -1359,12 +2097,19 @@ public sealed partial class MainViewModel : ObservableObject, IAsyncDisposable
     {
         var game = ZenGames.For(engineId ?? TableManifest.PinballFx) ?? ZenGames.PinballFx;
         var zip = await _ui.PickFileAsync($"Choose a UEVR profile zip for {game.Title}", "*.zip");
-        if (zip == null) return;
-        try { PfxSetup.ImportProfile(zip, game); }
+        if (zip == null)
+            return;
+        try
+        {
+            PfxSetup.ImportProfile(zip, game);
+        }
         catch (Exception e)
         {
             var msg = "Couldn't import the profile: " + e.Message;
-            if (game == ZenGames.PinballM) PmStatus = msg; else PfxStatus = msg;
+            if (game == ZenGames.PinballM)
+                PmStatus = msg;
+            else
+                PfxStatus = msg;
             return;
         }
         RefreshSetupStatus();
@@ -1373,7 +2118,9 @@ public sealed partial class MainViewModel : ObservableObject, IAsyncDisposable
     [RelayCommand]
     void OpenUevrProfileFolder(string? engineId)
     {
-        var dir = PfxSetup.ProfileDirFor(ZenGames.For(engineId ?? TableManifest.PinballFx) ?? ZenGames.PinballFx);
+        var dir = PfxSetup.ProfileDirFor(
+            ZenGames.For(engineId ?? TableManifest.PinballFx) ?? ZenGames.PinballFx
+        );
         Directory.CreateDirectory(dir);
         _ui.OpenExternal(dir);
     }
@@ -1381,34 +2128,61 @@ public sealed partial class MainViewModel : ObservableObject, IAsyncDisposable
     [RelayCommand]
     void RecheckSetup()
     {
-        if (string.IsNullOrWhiteSpace(FpDir) && FpSetup.AutoDetect() is { } fp) FpDir = fp;
-        if (string.IsNullOrWhiteSpace(UevrDir) && PfxSetup.AutoDetectUevr() is { } uevr) UevrDir = uevr;
+        if (string.IsNullOrWhiteSpace(FpDir) && FpSetup.AutoDetect() is { } fp)
+            FpDir = fp;
+        if (string.IsNullOrWhiteSpace(UevrDir) && PfxSetup.AutoDetectUevr() is { } uevr)
+            UevrDir = uevr;
         RefreshInstalled();
         RefreshSetupStatus();
     }
 
     // ---- Updates ---------------------------------------------------------------
 
-    [ObservableProperty] public partial int TableUpdateCount { get; set; }
-    [ObservableProperty] public partial string TableUpdateText { get; set; } = "Checking after the catalog loads…";
-    [ObservableProperty] public partial string VpxUpdateText { get; set; } = "Not checked yet.";
-    [ObservableProperty] public partial bool HasVpxUpdate { get; set; }
-    [ObservableProperty] public partial string UevrUpdateText { get; set; } = "Not checked yet.";
-    [ObservableProperty] public partial bool HasUevrUpdate { get; set; }
-    [ObservableProperty] public partial string UevrButtonText { get; set; } = "INSTALL UEVR";
-    [ObservableProperty] public partial string BamUpdateText { get; set; } = "Not checked yet.";
-    [ObservableProperty] public partial bool IsCheckingUpdates { get; set; }
-    [ObservableProperty] public partial bool IsUpdating { get; set; }
-    [ObservableProperty] public partial int UpdateCount { get; set; }
-    [ObservableProperty] public partial string LastChecked { get; set; } = "";
+    [ObservableProperty]
+    public partial int TableUpdateCount { get; set; }
+
+    [ObservableProperty]
+    public partial string TableUpdateText { get; set; } = "Checking after the catalog loads…";
+
+    [ObservableProperty]
+    public partial string VpxUpdateText { get; set; } = "Not checked yet.";
+
+    [ObservableProperty]
+    public partial bool HasVpxUpdate { get; set; }
+
+    [ObservableProperty]
+    public partial string UevrUpdateText { get; set; } = "Not checked yet.";
+
+    [ObservableProperty]
+    public partial bool HasUevrUpdate { get; set; }
+
+    [ObservableProperty]
+    public partial string UevrButtonText { get; set; } = "INSTALL UEVR";
+
+    [ObservableProperty]
+    public partial string BamUpdateText { get; set; } = "Not checked yet.";
+
+    [ObservableProperty]
+    public partial bool IsCheckingUpdates { get; set; }
+
+    [ObservableProperty]
+    public partial bool IsUpdating { get; set; }
+
+    [ObservableProperty]
+    public partial int UpdateCount { get; set; }
+
+    [ObservableProperty]
+    public partial string LastChecked { get; set; } = "";
 
     ToolRelease? _uevrLatest;
 
     /// <summary>Table updates come from the already-loaded catalog, so this is free to call often.</summary>
     void ApplyTableUpdates()
     {
-        if (_allGames.Count == 0) return;
-        var updates = TableUpdates.Find(_allInstalled.Select(i => i.Table), _allGames)
+        if (_allGames.Count == 0)
+            return;
+        var updates = TableUpdates
+            .Find(_allInstalled.Select(i => i.Table), _allGames)
             .ToDictionary(u => u.Table.TablePath, StringComparer.OrdinalIgnoreCase);
         foreach (var item in _allInstalled)
         {
@@ -1423,13 +2197,20 @@ public sealed partial class MainViewModel : ObservableObject, IAsyncDisposable
         TableUpdateText = updates.Count switch
         {
             0 when tracked == 0 => "No tables installed from the catalog yet.",
-            0 => tracked == 1 ? "Your table is up to date." : $"All {tracked} tables are up to date.",
+            0 => tracked == 1
+                ? "Your table is up to date."
+                : $"All {tracked} tables are up to date.",
             1 => "1 table has a newer version.",
             _ => $"{updates.Count} tables have newer versions.",
         };
         ApplyAddons();
         ApplyRules();
-        UpdateCount = TableUpdateCount + AddonUpdateCount + (HasVpxUpdate ? 1 : 0) + (HasUevrUpdate ? 1 : 0) + (HasAppUpdate ? 1 : 0);
+        UpdateCount =
+            TableUpdateCount
+            + AddonUpdateCount
+            + (HasVpxUpdate ? 1 : 0)
+            + (HasUevrUpdate ? 1 : 0)
+            + (HasAppUpdate ? 1 : 0);
     }
 
     // ---- Rules: The Pinball Primer's page for the machine and the catalog's instruction cards (My Tables → RULES) ----
@@ -1445,12 +2226,18 @@ public sealed partial class MainViewModel : ObservableObject, IAsyncDisposable
     void ApplyRules()
     {
         // Store games (Pinball FX, Pinball M) are whole collections, not one machine.
-        foreach (var item in _allInstalled.Where(i => i.Table.Manifest.Engine is TableManifest.Vpx or TableManifest.FuturePinball))
+        foreach (
+            var item in _allInstalled.Where(i =>
+                i.Table.Manifest.Engine is TableManifest.Vpx or TableManifest.FuturePinball
+            )
+        )
         {
             var m = item.Table.Manifest;
             var game = m.GameId == "" ? null : _allGames.FirstOrDefault(g => g.Id == m.GameId);
-            item.Rules = RuleSheets.LinksFor(game?.Name ?? m.GameName, game?.Year ?? m.Year, game, _primer)
-                .Select(l => new RuleChoice(item, l.Label, l.Url)).ToList();
+            item.Rules = RuleSheets
+                .LinksFor(game?.Name ?? m.GameName, game?.Year ?? m.Year, game, _primer)
+                .Select(l => new RuleChoice(item, l.Label, l.Url))
+                .ToList();
         }
     }
 
@@ -1462,7 +2249,13 @@ public sealed partial class MainViewModel : ObservableObject, IAsyncDisposable
         try
         {
             var ct = CancellationToken.None;
-            var vpxTask = Try<VpxReleases>(async () => await VpxSetup.FindReleasesAsync(ct, Settings.VpxUseDoNotUseBuilds, Settings.VpxUseNightlyBuilds));
+            var vpxTask = Try<VpxReleases>(async () =>
+                await VpxSetup.FindReleasesAsync(
+                    ct,
+                    Settings.VpxUseDoNotUseBuilds,
+                    Settings.VpxUseNightlyBuilds
+                )
+            );
             var uevrTask = Try(() => UevrSetup.FindLatestAsync(ct));
             var bamTask = Try(() => BamCheck.LatestAsync(ct));
             var appTask = CheckAppUpdateAsync();
@@ -1470,7 +2263,10 @@ public sealed partial class MainViewModel : ObservableObject, IAsyncDisposable
 
             // VPX
             var (vpx, vpxErr) = vpxTask.Result;
-            var (vpxText, vpxUpdate) = vpx == null ? ("", false) : VpxSetup.DescribeUpdate(vpx, VpxSetup.InstalledVersion(Settings));
+            var (vpxText, vpxUpdate) =
+                vpx == null
+                    ? ("", false)
+                    : VpxSetup.DescribeUpdate(vpx, VpxSetup.InstalledVersion(Settings));
             HasVpxUpdate = vpxUpdate;
             VpxUpdateText = vpxErr != null ? "Couldn't check GitHub: " + vpxErr : vpxText;
 
@@ -1480,19 +2276,24 @@ public sealed partial class MainViewModel : ObservableObject, IAsyncDisposable
             var uevrHave = UevrSetup.InstalledVersion(Settings);
             HasUevrUpdate = uevr != null && uevrHave != null && uevrHave != uevr.Tag;
             UevrButtonText = uevrHave == null ? "INSTALL UEVR" : "UPDATE UEVR";
-            UevrUpdateText = uevrErr != null ? "Couldn't check GitHub: " + uevrErr
+            UevrUpdateText =
+                uevrErr != null ? "Couldn't check GitHub: " + uevrErr
                 : uevr == null ? "No UEVR release found."
-                : uevrHave == null ? $"Not installed. Latest is {uevr.Tag} (only needed for Pinball FX)."
-                : uevrHave == "unknown" ? $"Installed (version unknown). Latest is {uevr.Tag}; updating makes it trackable."
+                : uevrHave == null
+                    ? $"Not installed. Latest is {uevr.Tag} (only needed for Pinball FX)."
+                : uevrHave == "unknown"
+                    ? $"Installed (version unknown). Latest is {uevr.Tag}; updating makes it trackable."
                 : HasUevrUpdate ? $"{uevrHave} → {uevr.Tag}"
                 : $"Up to date ({uevrHave}).";
 
             // BAM: report only.
             var (bam, bamErr) = bamTask.Result;
             var bamHave = BamCheck.InstalledVersion(Settings);
-            BamUpdateText = bamErr != null ? "Couldn't reach ravarcade.pl: " + bamErr
+            BamUpdateText =
+                bamErr != null ? "Couldn't reach ravarcade.pl: " + bamErr
                 : bam == null ? "Couldn't read the latest version from ravarcade.pl."
-                : bamHave == null ? $"Latest is v{bam}. BAM isn't installed (only needed for Future Pinball)."
+                : bamHave == null
+                    ? $"Latest is v{bam}. BAM isn't installed (only needed for Future Pinball)."
                 : $"Latest is v{bam}; yours: {bamHave}. Install from the BAM page if yours is older.";
 
             ApplyTableUpdates();
@@ -1504,16 +2305,24 @@ public sealed partial class MainViewModel : ObservableObject, IAsyncDisposable
         }
     }
 
-    static async Task<(T? value, string? error)> Try<T>(Func<Task<T?>> f) where T : class
+    static async Task<(T? value, string? error)> Try<T>(Func<Task<T?>> f)
+        where T : class
     {
-        try { return (await f(), null); }
-        catch (Exception e) { return (null, e.Message); }
+        try
+        {
+            return (await f(), null);
+        }
+        catch (Exception e)
+        {
+            return (null, e.Message);
+        }
     }
 
     [RelayCommand(AllowConcurrentExecutions = true)]
     async Task UpdateTableAsync(InstalledItem item)
     {
-        if (item.Update is not { } u) return;
+        if (item.Update is not { } u)
+            return;
         await InstallAsync(u.Game, u.File, u.Table);
     }
 
@@ -1532,12 +2341,16 @@ public sealed partial class MainViewModel : ObservableObject, IAsyncDisposable
         Jobs.Insert(0, job);
         try
         {
-            var rel = _uevrLatest ?? await UevrSetup.FindLatestAsync(CancellationToken.None)
+            var rel =
+                _uevrLatest
+                ?? await UevrSetup.FindLatestAsync(CancellationToken.None)
                 ?? throw new InvalidOperationException("No UEVR release found.");
             job.Report($"Downloading UEVR {rel.Tag}…");
             await UevrSetup.InstallAsync(Settings, rel, job.ProgressReporter, job.Cts.Token);
             UevrDir = Settings.UevrDir;
-            job.Finish($"✓ UEVR {rel.Tag} installed. Your Pinball FX / Pinball M profiles are untouched.");
+            job.Finish(
+                $"✓ UEVR {rel.Tag} installed. Your Pinball FX / Pinball M profiles are untouched."
+            );
         }
         catch (Exception e)
         {
@@ -1556,8 +2369,10 @@ public sealed partial class MainViewModel : ObservableObject, IAsyncDisposable
         IsUpdating = true;
         try
         {
-            if (HasVpxUpdate) await InstallVpxAsync();
-            if (HasUevrUpdate) await InstallUevrAsync();
+            if (HasVpxUpdate)
+                await InstallVpxAsync();
+            if (HasUevrUpdate)
+                await InstallUevrAsync();
             await UpdateAllTablesAsync();
             await UpdateAllAddonsAsync();
             await CheckUpdatesAsync();
@@ -1579,32 +2394,54 @@ public sealed partial class MainViewModel : ObservableObject, IAsyncDisposable
     /// <summary>One dialog at a time: a new app version first (updating closes the app), then unfinished downloads.</summary>
     async Task StartupPromptsAsync()
     {
-        try { await StartupAppUpdateAsync(); } catch { /* never block the resume offer */ }
-        if (!IsUpdatingApp) await OfferResumeAsync();
+        try
+        {
+            await StartupAppUpdateAsync();
+        }
+        catch
+        { /* never block the resume offer */
+        }
+        if (!IsUpdatingApp)
+            await OfferResumeAsync();
     }
 
     async Task OfferResumeAsync()
     {
         var items = _pending.Items;
-        if (items.Count == 0) return;
-        var list = string.Join("\n", items.Take(8).Select(i => "• " + i.Title)) + (items.Count > 8 ? $"\n• …and {items.Count - 8} more" : "");
+        if (items.Count == 0)
+            return;
+        var list =
+            string.Join("\n", items.Take(8).Select(i => "• " + i.Title))
+            + (items.Count > 8 ? $"\n• …and {items.Count - 8} more" : "");
         var pick = await _ui.ChoiceAsync(
             items.Count == 1 ? "Resume 1 download?" : $"Resume {items.Count} downloads?",
             $"These hadn't finished when VR Table Manager last closed:\n\n{list}\n\nThey'll start again from the beginning.",
-            ["RESUME", "DISCARD"]);
+            ["RESUME", "DISCARD"]
+        );
         _pending.Clear(); // resumed jobs add themselves back
-        if (pick != 0) return;
+        if (pick != 0)
+            return;
 
         var installed = TableInstaller.Scan(Settings);
-        InstalledTable? Find(string? path) => path == null ? null
-            : installed.FirstOrDefault(t => string.Equals(Path.GetFullPath(t.TablePath), Path.GetFullPath(path), StringComparison.OrdinalIgnoreCase));
+        InstalledTable? Find(string? path) =>
+            path == null
+                ? null
+                : installed.FirstOrDefault(t =>
+                    string.Equals(
+                        Path.GetFullPath(t.TablePath),
+                        Path.GetFullPath(path),
+                        StringComparison.OrdinalIgnoreCase
+                    )
+                );
         var skipped = new List<string>();
         foreach (var item in items)
         {
             if (item.Kind == PendingDownload.RomKind)
             {
-                if (Find(item.TablePath) is { } t) _ = GetRomAsync(t);
-                else skipped.Add(item.Title);
+                if (Find(item.TablePath) is { } t)
+                    _ = GetRomAsync(t);
+                else
+                    skipped.Add(item.Title);
                 continue;
             }
             if (PendingDownload.AddonKindOf(item.Kind) != null)
@@ -1614,12 +2451,17 @@ public sealed partial class MainViewModel : ObservableObject, IAsyncDisposable
             }
             var game = _allGames.FirstOrDefault(g => g.Id == item.GameId);
             var tf = game?.TableFiles?.FirstOrDefault(f => f.Id == item.TableFileId);
-            if (game == null || tf == null) { skipped.Add(item.Title); continue; }
+            if (game == null || tf == null)
+            {
+                skipped.Add(item.Title);
+                continue;
+            }
             var replacing = Find(item.TablePath);
             _ = InstallAsync(game, tf, replacing is { IsIncomplete: false } ? replacing : null);
         }
         if (skipped.Count > 0)
-            CatalogStatus = $"Couldn't resume {string.Join(", ", skipped)}: no longer in the catalog or installed.";
+            CatalogStatus =
+                $"Couldn't resume {string.Join(", ", skipped)}: no longer in the catalog or installed.";
     }
 
     /// <summary>Reinstalls a table whose install was cut off (INCOMPLETE on My Tables).</summary>
@@ -1633,16 +2475,28 @@ public sealed partial class MainViewModel : ObservableObject, IAsyncDisposable
         var tf = game?.TableFiles?.FirstOrDefault(f => f.Id == fileId);
         if (game == null || tf == null)
         {
-            PlayStatus = $"Couldn't find {item.Title} in the catalog to reinstall it. Remove it and install it again from Get Tables.";
+            PlayStatus =
+                $"Couldn't find {item.Title} in the catalog to reinstall it. Remove it and install it again from Get Tables.";
             return;
         }
         // An interrupted update still has the old table file; replace it like a normal update.
         var replacing = File.Exists(item.Table.TablePath) ? item.Table : null;
-        if (replacing != null) { await InstallAsync(game, tf, replacing); return; }
+        if (replacing != null)
+        {
+            await InstallAsync(game, tf, replacing);
+            return;
+        }
         // Cut off before the table file arrived: nothing to replace, but still mark this card busy.
-        if (!TryBeginBusy(item.Table.TablePath)) return;
-        try { await InstallAsync(game, tf); }
-        finally { EndBusy(item.Table.TablePath); }
+        if (!TryBeginBusy(item.Table.TablePath))
+            return;
+        try
+        {
+            await InstallAsync(game, tf);
+        }
+        finally
+        {
+            EndBusy(item.Table.TablePath);
+        }
     }
 
     /// <summary>

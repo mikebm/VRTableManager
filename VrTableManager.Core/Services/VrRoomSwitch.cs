@@ -31,14 +31,20 @@ public static partial class VrRoomSwitch
     sealed record Note(int Own, bool Created, string? ScriptHash);
 
     public static string ScriptPath(string vpx) => Path.ChangeExtension(vpx, ".vbs");
+
     public static string NotePath(string vpx) => vpx + ".vrroom";
 
     /// <summary>The table's VR room switch, or null when it has none this can safely set (see the class notes).</summary>
     public static Switch? Find(string script)
     {
-        if (script.Contains("RenderingMode", StringComparison.OrdinalIgnoreCase)) return null;
-        var found = SwitchLine().Matches(script).Where(m => SaysZeroIsOff().IsMatch(m.Groups["comment"].Value)).ToList();
-        if (found.Count != 1) return null; // none, or more than one: not sure which is the real one
+        if (script.Contains("RenderingMode", StringComparison.OrdinalIgnoreCase))
+            return null;
+        var found = SwitchLine()
+            .Matches(script)
+            .Where(m => SaysZeroIsOff().IsMatch(m.Groups["comment"].Value))
+            .ToList();
+        if (found.Count != 1)
+            return null; // none, or more than one: not sure which is the real one
         var v = found[0].Groups["value"];
         return new Switch(v.Index, v.Length, found[0].Groups["name"].Value, int.Parse(v.Value));
     }
@@ -53,8 +59,14 @@ public static partial class VrRoomSwitch
     /// </summary>
     public static string? Prepare(string vpx, bool vr, bool enabled)
     {
-        try { return PrepareCore(vpx, vr, enabled); }
-        catch (Exception e) { return "VR room switch skipped: " + e.Message; }
+        try
+        {
+            return PrepareCore(vpx, vr, enabled);
+        }
+        catch (Exception e)
+        {
+            return "VR room switch skipped: " + e.Message;
+        }
     }
 
     static string? PrepareCore(string vpx, bool vr, bool enabled)
@@ -73,24 +85,32 @@ public static partial class VrRoomSwitch
             note = null;
         }
         // A script of the user's own in the table's user\ or scripts\ folder: one beside the table would hide it.
-        if (note == null && !File.Exists(sidecar) && OtherScriptOverride(vpx)) return null;
+        if (note == null && !File.Exists(sidecar) && OtherScriptOverride(vpx))
+            return null;
 
         var hasSidecar = File.Exists(sidecar);
         var current = hasSidecar ? Encoding.Latin1.GetString(File.ReadAllBytes(sidecar)) : builtIn;
         if (Find(current) is not { } sw)
         {
-            if (note != null) File.Delete(notePath);
+            if (note != null)
+                File.Delete(notePath);
             return null;
         }
 
         var own = note?.Own ?? sw.Value;
-        var want = !enabled ? own : vr ? (own == 0 ? 1 : own) : 0;
+        var want =
+            !enabled ? own
+            : vr ? (own == 0 ? 1 : own)
+            : 0;
         if (want == own)
         {
-            if (note == null) return null;
+            if (note == null)
+                return null;
             var restored = WithValue(current, sw, own);
-            if (note.Created && restored == builtIn) File.Delete(sidecar);
-            else if (restored != current) File.WriteAllBytes(sidecar, Encoding.Latin1.GetBytes(restored));
+            if (note.Created && restored == builtIn)
+                File.Delete(sidecar);
+            else if (restored != current)
+                File.WriteAllBytes(sidecar, Encoding.Latin1.GetBytes(restored));
             File.Delete(notePath);
             return $"{sw.Name} back to the table's own {own}";
         }
@@ -104,26 +124,41 @@ public static partial class VrRoomSwitch
 
     static Note? ReadNote(string path)
     {
-        try { return File.Exists(path) ? JsonSerializer.Deserialize<Note>(File.ReadAllText(path)) : null; }
-        catch { return null; }
+        try
+        {
+            return File.Exists(path)
+                ? JsonSerializer.Deserialize<Note>(File.ReadAllText(path))
+                : null;
+        }
+        catch
+        {
+            return null;
+        }
     }
 
     static bool OtherScriptOverride(string vpx)
     {
         var dir = Path.GetDirectoryName(vpx)!;
         var name = Path.GetFileName(ScriptPath(vpx));
-        return File.Exists(Path.Combine(dir, "user", name)) || File.Exists(Path.Combine(dir, "scripts", name));
+        return File.Exists(Path.Combine(dir, "user", name))
+            || File.Exists(Path.Combine(dir, "scripts", name));
     }
 
-    static string Hash(string script) => Convert.ToHexString(SHA256.HashData(Encoding.Latin1.GetBytes(script)));
+    static string Hash(string script) =>
+        Convert.ToHexString(SHA256.HashData(Encoding.Latin1.GetBytes(script)));
 
     // At the start of a line (inside an If block it's the table choosing for itself), optional Const, the
     // name, a number, and the rest of the line (its comment).
-    [GeneratedRegex(@"^(?:Const[ \t]+)?(?<name>VR_?Room)[ \t]*=[ \t]*(?<value>\d+)[ \t]*(?:'(?<comment>[^\r\n]*))?\r?$",
-        RegexOptions.IgnoreCase | RegexOptions.Multiline)]
+    [GeneratedRegex(
+        @"^(?:Const[ \t]+)?(?<name>VR_?Room)[ \t]*=[ \t]*(?<value>\d+)[ \t]*(?:'(?<comment>[^\r\n]*))?\r?$",
+        RegexOptions.IgnoreCase | RegexOptions.Multiline
+    )]
     private static partial Regex SwitchLine();
 
     // "0 = Desktop/FS", "0=VR Room off", "0 - VR Room off", "0 = desktop or cab mode", "1 = VR Room; 0 = desktop".
-    [GeneratedRegex(@"\b0\s*(?:[=:-]|is)?\s*(?:VR\s*Room\s*)?(?:off|desktop|cab|fs\b|none|disabled|no\b)", RegexOptions.IgnoreCase)]
+    [GeneratedRegex(
+        @"\b0\s*(?:[=:-]|is)?\s*(?:VR\s*Room\s*)?(?:off|desktop|cab|fs\b|none|disabled|no\b)",
+        RegexOptions.IgnoreCase
+    )]
     private static partial Regex SaysZeroIsOff();
 }

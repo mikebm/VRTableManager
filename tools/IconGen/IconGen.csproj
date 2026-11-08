@@ -1,5 +1,4 @@
 <Project Sdk="Microsoft.NET.Sdk">
-
   <!-- Draws the app icon (Assets/app.ico and Assets/app-icon.png). Run it with: dotnet run, project tools/IconGen -->
   <PropertyGroup>
     <OutputType>Exe</OutputType>
@@ -11,5 +10,4 @@
   <ItemGroup>
     <PackageReference Include="SkiaSharp" Version="3.119.4" />
   </ItemGroup>
-
 </Project>

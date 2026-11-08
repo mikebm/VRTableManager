@@ -23,26 +23,38 @@ if (conceptsSheet != null)
 
 int[] icoSizes = [16, 20, 24, 32, 40, 48, 64, 128, 256];
 var pngs = icoSizes.ToDictionary(s => s, Render);
-if (preview != null) WritePreview(preview, pngs);
+if (preview != null)
+    WritePreview(preview, pngs);
 WriteIco(Path.Combine(outDir, "app.ico"), pngs);
 File.WriteAllBytes(Path.Combine(outDir, "app-icon.png"), Render(512));
 File.WriteAllBytes(Path.Combine(outDir, "dmd-dots.png"), DmdDot(6));
-Console.WriteLine($"Wrote app.ico ({string.Join(", ", icoSizes)} px), app-icon.png (512 px) and dmd-dots.png to {outDir}");
+Console.WriteLine(
+    $"Wrote app.ico ({string.Join(", ", icoSizes)} px), app-icon.png (512 px) and dmd-dots.png to {outDir}"
+);
 
 static string FindAssets()
 {
     var dir = AppContext.BaseDirectory;
-    while (dir != null && !Directory.Exists(Path.Combine(dir, "VrTableManager", "Assets"))) dir = Path.GetDirectoryName(dir);
-    return dir != null ? Path.Combine(dir, "VrTableManager", "Assets") : Directory.GetCurrentDirectory();
+    while (dir != null && !Directory.Exists(Path.Combine(dir, "VrTableManager", "Assets")))
+        dir = Path.GetDirectoryName(dir);
+    return dir != null
+        ? Path.Combine(dir, "VrTableManager", "Assets")
+        : Directory.GetCurrentDirectory();
 }
 
 // One unlit DMD dot, centred in a cell. Tiled, it shows the display's grid through the glass.
 static byte[] DmdDot(int cell)
 {
-    using var surface = SKSurface.Create(new SKImageInfo(cell, cell, SKColorType.Rgba8888, SKAlphaType.Premul));
+    using var surface = SKSurface.Create(
+        new SKImageInfo(cell, cell, SKColorType.Rgba8888, SKAlphaType.Premul)
+    );
     var c = surface.Canvas;
     c.Clear(SKColors.Transparent);
-    using var dot = new SKPaint { IsAntialias = true, Color = SKColor.Parse("#FF7A1F").WithAlpha(34) };
+    using var dot = new SKPaint
+    {
+        IsAntialias = true,
+        Color = SKColor.Parse("#FF7A1F").WithAlpha(34),
+    };
     c.DrawCircle(cell / 2f, cell / 2f, cell * 0.3f, dot);
     using var img = surface.Snapshot();
     using var data = img.Encode(SKEncodedImageFormat.Png, 100);
@@ -78,28 +90,31 @@ static void WriteIco(string path, Dictionary<int, byte[]> pngs)
 {
     using var fs = File.Create(path);
     using var w = new BinaryWriter(fs);
-    w.Write((ushort)0);            // reserved
-    w.Write((ushort)1);            // type: icon
+    w.Write((ushort)0); // reserved
+    w.Write((ushort)1); // type: icon
     w.Write((ushort)pngs.Count);
     var offset = 6 + 16 * pngs.Count;
     foreach (var (size, png) in pngs)
     {
         w.Write((byte)(size >= 256 ? 0 : size));
         w.Write((byte)(size >= 256 ? 0 : size));
-        w.Write((byte)0);          // palette
-        w.Write((byte)0);          // reserved
-        w.Write((ushort)1);        // planes
-        w.Write((ushort)32);       // bits per pixel
+        w.Write((byte)0); // palette
+        w.Write((byte)0); // reserved
+        w.Write((ushort)1); // planes
+        w.Write((ushort)32); // bits per pixel
         w.Write(png.Length);
         w.Write(offset);
         offset += png.Length;
     }
-    foreach (var png in pngs.Values) w.Write(png);
+    foreach (var png in pngs.Values)
+        w.Write(png);
 }
 
 static byte[] RenderConcept(int size, int concept)
 {
-    using var surface = SKSurface.Create(new SKImageInfo(size, size, SKColorType.Rgba8888, SKAlphaType.Premul));
+    using var surface = SKSurface.Create(
+        new SKImageInfo(size, size, SKColorType.Rgba8888, SKAlphaType.Premul)
+    );
     var c = surface.Canvas;
     c.Clear(SKColors.Transparent);
     c.Scale(size / 512f);
@@ -112,7 +127,8 @@ static byte[] RenderConcept(int size, int concept)
 static void WriteConceptSheet(string path)
 {
     int[] sizes = [256, 64, 32, 16];
-    const int pad = 28, label = 44;
+    const int pad = 28,
+        label = 44;
     var rowW = sizes.Sum() + pad * (sizes.Length + 1);
     var rowH = 256 + label + pad;
     var n = Concepts.Names.Length;

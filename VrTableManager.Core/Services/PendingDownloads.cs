@@ -12,18 +12,23 @@ public sealed class PendingDownload
     public static string KindFor(AddonKind kind) => kind.ToString();
 
     /// <summary>The add-on a Kind stands for, or null for a table or ROM download.</summary>
-    public static AddonKind? AddonKindOf(string kind) => Enum.TryParse<AddonKind>(kind, out var k) ? k : null;
+    public static AddonKind? AddonKindOf(string kind) =>
+        Enum.TryParse<AddonKind>(kind, out var k) ? k : null;
 
     /// <summary>Matches the download job's id while the app is running.</summary>
     public string Id { get; set; } = "";
+
     /// <summary>"Table" (install or update a table), "Rom" (fetch a table's ROMs) or an add-on (<see cref="KindFor"/>).</summary>
     public string Kind { get; set; } = TableKind;
     public string Title { get; set; } = "";
+
     /// <summary>Catalog ids of the table to install (Kind = Table).</summary>
     public string GameId { get; set; } = "";
     public string TableFileId { get; set; } = "";
+
     /// <summary>Catalog id of the add-on to install (PuP pack, colorization or AltSound).</summary>
     public string? AddonFileId { get; set; }
+
     /// <summary>The installed table being updated (Kind = Table) or getting ROMs/an add-on.</summary>
     public string? TablePath { get; set; }
     public DateTime AddedAt { get; set; } = DateTime.Now;
@@ -46,7 +51,14 @@ public sealed class PendingDownloads
         _items = Load(_path);
     }
 
-    public IReadOnlyList<PendingDownload> Items { get { lock (_lock) return _items.ToList(); } }
+    public IReadOnlyList<PendingDownload> Items
+    {
+        get
+        {
+            lock (_lock)
+                return _items.ToList();
+        }
+    }
 
     public void Add(PendingDownload d)
     {
@@ -62,7 +74,8 @@ public sealed class PendingDownloads
     {
         lock (_lock)
         {
-            if (_items.RemoveAll(x => x.Id == id) > 0) Save();
+            if (_items.RemoveAll(x => x.Id == id) > 0)
+                Save();
         }
     }
 
@@ -79,9 +92,13 @@ public sealed class PendingDownloads
     {
         try
         {
-            if (File.Exists(path)) return JsonSerializer.Deserialize<List<PendingDownload>>(File.ReadAllText(path)) ?? [];
+            if (File.Exists(path))
+                return JsonSerializer.Deserialize<List<PendingDownload>>(File.ReadAllText(path))
+                    ?? [];
         }
-        catch { /* corrupt: start empty */ }
+        catch
+        { /* corrupt: start empty */
+        }
         return [];
     }
 
@@ -96,7 +113,9 @@ public sealed class PendingDownloads
             File.WriteAllText(tmp, JsonSerializer.Serialize(_items, Json));
             File.Move(tmp, _path, overwrite: true);
         }
-        catch { /* losing the saved queue isn't worth interrupting a download over */ }
+        catch
+        { /* losing the saved queue isn't worth interrupting a download over */
+        }
     }
 
     /// <summary>
@@ -106,17 +125,22 @@ public sealed class PendingDownloads
     public static int CleanDownloadsFolder(string? downloadsDir = null)
     {
         downloadsDir ??= Path.Combine(AppSettings.DataDir, "downloads");
-        if (!Directory.Exists(downloadsDir)) return 0;
+        if (!Directory.Exists(downloadsDir))
+            return 0;
         var removed = 0;
         foreach (var entry in Directory.EnumerateFileSystemEntries(downloadsDir))
         {
             try
             {
-                if (Directory.Exists(entry)) Directory.Delete(entry, recursive: true);
-                else File.Delete(entry);
+                if (Directory.Exists(entry))
+                    Directory.Delete(entry, recursive: true);
+                else
+                    File.Delete(entry);
                 removed++;
             }
-            catch { /* in use: leave it for next time */ }
+            catch
+            { /* in use: leave it for next time */
+            }
         }
         return removed;
     }
