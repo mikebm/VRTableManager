@@ -327,6 +327,47 @@ public static class PupPackChecks
             "a pack's VR layout is copied over its default (not its programs); the .bat that only opens the editor isn't a layout"
         );
 
+        // Futurama: the pack folder has its videos but no .pup files of its own; they're only in its layouts. The
+        // pack is that folder (not each layout as a pack of its own), with the VR layout copied in.
+        const string fopts = "puppack/futurama/PuP-Pack_Options/";
+        var futurama = PupPacks.Install(
+            Zip(
+                root,
+                "futurama.zip",
+                ("Wheel/wheel.png", "w"),
+                ("puppack/futurama/Backglass/bg.png", "bg"),
+                ("puppack/futurama/BallLock/clip.mp4", "v"),
+                (
+                    "puppack/futurama/Option 1 - Backglass DMD Separate.bat",
+                    "xcopy /y \"PuP-Pack_Options\\Option 1 - Backglass DMD Separate\\*.pup\""
+                ),
+                (
+                    "puppack/futurama/Option 3 - Single Screen - Desktop - VR.bat",
+                    "xcopy /y \"PuP-Pack_Options\\Option 3 - Single Screen - Desktop - VR\\*.*\""
+                ),
+                (fopts + "Option 1 - Backglass DMD Separate/screens.pup", "sep"),
+                (fopts + "Option 1 - Backglass DMD Separate/playlists.pup", "p"),
+                (fopts + "Option 1 - Backglass DMD Separate/triggers.pup", "t"),
+                (fopts + "Option 3 - Single Screen - Desktop - VR/screens.pup", "vr"),
+                (fopts + "Option 3 - Single Screen - Desktop - VR/playlists.pup", "p"),
+                (fopts + "Option 3 - Single Screen - Desktop - VR/triggers.pup", "t"),
+                (fopts + "Option 3 - Single Screen - Desktop - VR/PuPInit.bat", "bat")
+            ),
+            table,
+            game.PupPackFiles[1],
+            new PupNames("futurama", [])
+        );
+        var futuramaDir = Path.Combine(folder, "pupvideos", "futurama");
+        yield return (
+            futurama.Layout.Applied == "Option 3 - Single Screen - Desktop - VR"
+                && File.Exists(Path.Combine(futuramaDir, "BallLock", "clip.mp4"))
+                && File.Exists(Path.Combine(futuramaDir, "Backglass", "bg.png"))
+                && File.ReadAllText(Path.Combine(futuramaDir, "screens.pup")) == "vr"
+                && File.Exists(Path.Combine(futuramaDir, "playlists.pup"))
+                && !File.Exists(Path.Combine(futuramaDir, "PuPInit.bat")),
+            "a pack whose .pup files are only in its layouts installs whole (videos too), set to its VR layout"
+        );
+
         // No VR layout (the .bat names a folder that differs from its own name): the default stays and the user is told how to switch.
         var noVr = PupPackOptions.SetUpForVr(
             Dir(

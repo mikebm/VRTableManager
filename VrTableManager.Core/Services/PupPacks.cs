@@ -246,7 +246,21 @@ public static class PupPacks
     /// <summary>Topmost folders under <paramref name="dir"/> that are PuP packs (backup copies inside a pack don't count).</summary>
     public static List<string> PackRoots(string dir) => Addons.Roots(dir, IsPackFolder);
 
+    /// <summary>
+    /// A folder with the pack files at its top, or one whose only .pup files are in its layouts
+    /// (<c>PuP-Pack_Options\&lt;layout&gt;\screens.pup</c>, as Futurama ships): that folder holds the videos, and
+    /// the layouts are copied into it on install, so it's the pack rather than each layout.
+    /// </summary>
     static bool IsPackFolder(string dir) =>
+        HasPackFiles(dir)
+        || Directory
+            .EnumerateDirectories(dir)
+            .Any(d =>
+                PupPackOptions.IsOptionsFolder(Path.GetFileName(d))
+                && Directory.EnumerateDirectories(d).Any(HasPackFiles)
+            );
+
+    static bool HasPackFiles(string dir) =>
         Directory
             .EnumerateFiles(dir)
             .Any(f => PackFiles.Contains(Path.GetFileName(f).ToLowerInvariant()));

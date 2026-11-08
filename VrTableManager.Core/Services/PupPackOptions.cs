@@ -269,6 +269,9 @@ public static partial class PupPackOptions
         new FileInfo(a).Length == new FileInfo(b).Length
         && File.ReadAllBytes(a).AsSpan().SequenceEqual(File.ReadAllBytes(b));
 
+    /// <summary>A pack's folder of layouts: "PuP-Pack_Options", "PuPPack Options", "Options".</summary>
+    public static bool IsOptionsFolder(string name) => OptionsFolderRegex().IsMatch(name);
+
     /// <summary>"PuP-Pack_Options", "PuPPack Options", "Options".</summary>
     [GeneratedRegex(@"^(?:pup[-_ ]?pack[-_ ]?)?options?$", RegexOptions.IgnoreCase)]
     private static partial Regex OptionsFolderRegex();
