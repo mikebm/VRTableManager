@@ -628,18 +628,25 @@ public static class Launcher
         {
             PlaySession.Log($"{Path.GetFileName(tablePath)}: {textures}");
         }
-        // PuP packs installed before VR layouts were chosen (or copied from another install) get theirs now, once.
-        if (vr && s.UsePupPlugin)
+        // PuP packs on the layout for this launch: the VR one (packs installed before VR layouts were chosen, or
+        // copied from another install, get theirs now, once), or the pack's desktop one for desktop play.
+        if (s.UsePupPlugin)
         {
-            foreach (
-                var pack in PupPackOptions.SetUpOnce(
-                    Path.Combine(Path.GetDirectoryName(tablePath)!, PupPacks.FolderName)
-                )
-            )
+            var pupDir = Path.Combine(Path.GetDirectoryName(tablePath)!, PupPacks.FolderName);
+            foreach (var pack in PupPackOptions.SwitchFor(pupDir, vr))
             {
                 PlaySession.Log(
-                    $"{Path.GetFileName(tablePath)}: PuP pack switched to its VR layout ({pack})"
+                    $"{Path.GetFileName(tablePath)}: PuP pack switched to its {(vr ? "VR" : "desktop")} layout ({pack})"
                 );
+            }
+            if (vr)
+            {
+                foreach (var pack in PupPackOptions.SetUpOnce(pupDir))
+                {
+                    PlaySession.Log(
+                        $"{Path.GetFileName(tablePath)}: PuP pack switched to its VR layout ({pack})"
+                    );
+                }
             }
         }
 

@@ -103,7 +103,59 @@ public static class PupPacks
             && folders.Contains(p.Folder, StringComparer.OrdinalIgnoreCase)
                 ? p
                 : null;
+        // A pack this app installed with none of its videos (before packs shipped like Futurama's were
+        // recognised, only one layout's files went in): not installed, so the table offers it again.
+        if (tracked != null && LacksMedia(Path.Combine(root, tracked.Folder)))
+        {
+            folders.RemoveAll(f => f.Equals(tracked.Folder, StringComparison.OrdinalIgnoreCase));
+            tracked = null;
+        }
         return new(tracked, folders);
+    }
+
+    /// <summary>
+    /// The pack's playlists.pup names folders and not one of them is there. A working pack is those folders;
+    /// anything unreadable or unusual counts as fine.
+    /// </summary>
+    public static bool LacksMedia(string pack)
+    {
+        try
+        {
+            var file = Path.Combine(pack, "playlists.pup");
+            if (!File.Exists(file))
+            {
+                return false;
+            }
+
+            var lines = File.ReadLines(file).Take(500).ToList();
+            if (lines.Count < 2)
+            {
+                return false;
+            }
+
+            var column = Array.FindIndex(
+                lines[0].Split(','),
+                h => h.Trim().Equals("Folder", StringComparison.OrdinalIgnoreCase)
+            );
+            if (column < 0)
+            {
+                return false;
+            }
+
+            var named = lines
+                .Skip(1)
+                .Select(l => l.Split(','))
+                .Where(c => c.Length > column)
+                .Select(c => c[column].Trim().Trim('"'))
+                .Where(n => n.Length > 0)
+                .Distinct(StringComparer.OrdinalIgnoreCase)
+                .ToList();
+            return named.Count > 0 && !named.Any(n => Directory.Exists(Path.Combine(pack, n)));
+        }
+        catch (Exception)
+        {
+            return false;
+        }
     }
 
     /// <summary>

@@ -349,7 +349,10 @@ public static class PupPackChecks
                 (fopts + "Option 1 - Backglass DMD Separate/playlists.pup", "p"),
                 (fopts + "Option 1 - Backglass DMD Separate/triggers.pup", "t"),
                 (fopts + "Option 3 - Single Screen - Desktop - VR/screens.pup", "vr"),
-                (fopts + "Option 3 - Single Screen - Desktop - VR/playlists.pup", "p"),
+                (
+                    fopts + "Option 3 - Single Screen - Desktop - VR/playlists.pup",
+                    FuturamaPlaylists
+                ),
                 (fopts + "Option 3 - Single Screen - Desktop - VR/triggers.pup", "t"),
                 (fopts + "Option 3 - Single Screen - Desktop - VR/PuPInit.bat", "bat")
             ),
@@ -366,6 +369,128 @@ public static class PupPackChecks
                 && File.Exists(Path.Combine(futuramaDir, "playlists.pup"))
                 && !File.Exists(Path.Combine(futuramaDir, "PuPInit.bat")),
             "a pack whose .pup files are only in its layouts installs whole (videos too), set to its VR layout"
+        );
+
+        // Installed before that was fixed: only the layout's files, none of the videos the playlists name. The
+        // pack this app installed then counts as missing (so it's offered again); one copied in by hand is left be.
+        var keptRecord = table.Manifest.PupPack;
+        table.Manifest.PupPack = futurama.Record;
+        var healthy = PupPacks.StateOf(table);
+        Directory.Delete(Path.Combine(futuramaDir, "BallLock"), true);
+        yield return (
+            healthy.IsInstalled
+                && healthy.Tracked != null
+                && PupPacks.StateOf(table) is { IsInstalled: true, Tracked: not null },
+            "a pack with some of its playlist folders counts as installed"
+        );
+        Directory.Delete(Path.Combine(futuramaDir, "Backglass"), true);
+        var stripped = PupPacks.StateOf(table);
+        table.Manifest.PupPack = null;
+        var untracked = PupPacks.StateOf(table);
+        table.Manifest.PupPack = keptRecord;
+        yield return (
+            !stripped.Folders.Contains("futurama")
+                && stripped.Tracked == null
+                && untracked.Folders.Contains("futurama")
+                && !PupPacks.LacksMedia(
+                    Dir(root, "no-folder-column", ("playlists.pup", "a,b\r\n1,2"))
+                )
+                && !PupPacks.LacksMedia(Dir(root, "no-playlists", ("screens.pup", "s"))),
+            "a pack this app installed with none of its playlist folders counts as missing; other packs and unusual files don't"
+        );
+
+        // Batman 66: no layout named VR and the default is the desktop one, which draws the FullDMD onto the
+        // backglass. The one layout with a FullDMD of its own is what the VR cabinet's DMD can show.
+        const string desktopScreens =
+            "ScreenNum,ScreenDes,PlayList,PlayFile,Loopit,Active,Priority,CustomPos\r\n2,Backglass,PuPFrames,bg.png,0,ForceBack,,\r\n5,FullDMD,,,0,ForceBack,,\"2,0,0,100,100\"\r\n";
+        const string ownScreens =
+            "ScreenNum,ScreenDes,PlayList,PlayFile,Loopit,Active,Priority,CustomPos\r\n2,Backglass,PuPFrames,frame.png,0,ForceBack,,\r\n5,FullDMD,,,0,ForceBack,,\r\n";
+        const string twoScreens =
+            "ScreenNum,ScreenDes,PlayList,PlayFile,Loopit,Active,Priority,CustomPos\r\n5,FullDMD,,,0,ForceBack,,\"2,20.2,39.7,57,56.2\"\r\n";
+        (string, string)[] batman(string current) =>
+            [
+                ("screens.pup", current),
+                ("playlists.pup", "p"),
+                (
+                    "Option 1 - 3 Screen - FullDMD.bat",
+                    "xcopy /y \"PuP-Pack_Options\\Option 1 - 3 Screen - FullDMD\\*.pup\""
+                ),
+                (
+                    "Option 2 - 2 Screen - 16x9.bat",
+                    "xcopy /y \"PuP-Pack_Options\\Option 2 - 2 Screen - 16x9\\*.pup\""
+                ),
+                (
+                    "Option 3 - Desktop.bat",
+                    "xcopy /y \"PuP-Pack_Options\\Option 3 - Desktop\\*.*\""
+                ),
+                ("PuP-Pack_Options/Option 1 - 3 Screen - FullDMD/screens.pup", ownScreens),
+                ("PuP-Pack_Options/Option 2 - 2 Screen - 16x9/screens.pup", twoScreens),
+                ("PuP-Pack_Options/Option 3 - Desktop/screens.pup", desktopScreens),
+                ("PuP-Pack_Options/Option 3 - Desktop/PuPDesktopPunch.exe", "exe"),
+            ];
+        var b66 = Dir(root, "b66", batman(desktopScreens));
+        var b66Layout = PupPackOptions.SetUpForVr(b66);
+        var b66Kept = Dir(root, "b66-kept", batman(ownScreens.Replace("frame", "mine")));
+        yield return (
+            b66Layout.Applied == "Option 1 - 3 Screen - FullDMD"
+                && File.ReadAllText(Path.Combine(b66, "screens.pup")) == ownScreens
+                && File.ReadAllText(Path.Combine(b66, PupPackOptions.DefaultBackup, "screens.pup"))
+                    == desktopScreens
+                && PupPackOptions.SetUpForVr(b66Kept).Applied == null
+                && File.ReadAllText(Path.Combine(b66Kept, "screens.pup")).Contains("mine")
+                && PupPackOptions.FullDmd(Dir(root, "two", ("screens.pup", twoScreens))) == false
+                && PupPackOptions.FullDmd(
+                    Dir(root, "off", ("screens.pup", "5,FullDMD,,,0,off,,\r\n"))
+                ) == false,
+            "no VR layout: the one whose FullDMD is its own display is used (not when the current layout already has one)"
+        );
+
+        // Set up by an older version that applied nothing (empty marker): checked once more and switched; a pack
+        // this version already checked is left alone.
+        var olderPup = Path.Combine(root, "older-pup");
+        var olderB66 = Path.Combine(olderPup, "b66");
+        Dir(olderPup, "b66", batman(desktopScreens));
+        File.WriteAllText(Path.Combine(olderB66, PupPackOptions.Marker), "");
+        var checkedB66 = Path.Combine(olderPup, "checked");
+        Dir(olderPup, "checked", batman(desktopScreens));
+        File.WriteAllText(Path.Combine(checkedB66, PupPackOptions.Marker), "(none)");
+        var rechecked = PupPackOptions.SetUpOnce(olderPup);
+        yield return (
+            rechecked.SequenceEqual(["b66: Option 1 - 3 Screen - FullDMD"])
+                && File.ReadAllText(Path.Combine(checkedB66, "screens.pup")) == desktopScreens
+                && PupPackOptions.SetUpOnce(olderPup).Count == 0,
+            "packs an older version set up with no layout get the FullDMD layout once; ones already checked don't"
+        );
+
+        // Desktop play: the pack goes on its desktop layout, and back on the VR one for the next VR launch (without
+        // the files the desktop layout added). A pack whose layout this app didn't choose isn't touched.
+        var switchPup = Path.Combine(root, "switch-pup");
+        var switchB66 = Dir(switchPup, "b66", batman(desktopScreens));
+        File.WriteAllText(
+            Path.Combine(switchB66, "PuP-Pack_Options", "Option 3 - Desktop", "PinUpPlayer.ini"),
+            "ini"
+        );
+        PupPackOptions.SetUpForVr(switchB66);
+        var handPicked = Dir(switchPup, "hand", batman(desktopScreens));
+        File.WriteAllText(Path.Combine(handPicked, PupPackOptions.Marker), "(none)");
+        var toDesktop = PupPackOptions.SwitchFor(switchPup, vr: false);
+        var onDesktop =
+            File.ReadAllText(Path.Combine(switchB66, "screens.pup")) == desktopScreens
+            && File.Exists(Path.Combine(switchB66, "PinUpPlayer.ini"))
+            && !File.Exists(Path.Combine(switchB66, "PuPDesktopPunch.exe"));
+        var againDesktop = PupPackOptions.SwitchFor(switchPup, vr: false);
+        var toVr = PupPackOptions.SwitchFor(switchPup, vr: true);
+        yield return (
+            toDesktop.SequenceEqual(["b66: Option 3 - Desktop"])
+                && onDesktop
+                && againDesktop.Count == 0
+                && toVr.SequenceEqual(["b66: Option 1 - 3 Screen - FullDMD"])
+                && File.ReadAllText(Path.Combine(switchB66, "screens.pup")) == ownScreens
+                && !File.Exists(Path.Combine(switchB66, "PinUpPlayer.ini"))
+                && !File.Exists(Path.Combine(switchB66, PupPackOptions.DesktopMarker))
+                && File.ReadAllText(Path.Combine(handPicked, "screens.pup")) == desktopScreens
+                && PupPackOptions.SwitchFor(switchPup, vr: true).Count == 0,
+            "desktop play switches a pack to its desktop layout and VR play back (extra files removed); hand-picked layouts stay"
         );
 
         // No VR layout (the .bat names a folder that differs from its own name): the default stays and the user is told how to switch.
@@ -478,6 +603,9 @@ public static class PupPackChecks
             $"VR backglass: one table's pick goes in that launch's play file only; VPX's global value is untouched ({inPlay}/{saved}/{global})"
         );
     }
+
+    const string FuturamaPlaylists =
+        "ScreenNum,Folder,Des,AlphaSort,RestSeconds,Volume,Priority\r\n0,BallLock,,0,-1,100,0\r\n2,Backglass,,0,-1,100,0\r\n";
 
     static string Dir(string root, string name, params (string path, string text)[] entries)
     {
