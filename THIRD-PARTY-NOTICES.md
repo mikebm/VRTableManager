@@ -12,12 +12,20 @@ third-party work, each under its own license.
 | Microsoft.Playwright (with its bundled Node.js driver) | MIT | https://github.com/microsoft/playwright-dotnet |
 | NAudio.Wasapi | MIT | https://github.com/naudio/NAudio |
 | OpenMcdf | MPL-2.0 | https://github.com/ironfede/openmcdf |
+| SevenZipExtractor | MIT | https://github.com/adoconnection/SevenZipExtractor |
+| 7-Zip `7z.dll` 24.07 (bundled by SevenZipExtractor, in `x64\` and `x86\`) | GNU LGPL 2.1+, with the unRAR license restriction for its RAR code | https://www.7-zip.org/ |
 | SharpCompress | MIT | https://github.com/adamhathcock/sharpcompress |
 | SkiaSharp | MIT | https://github.com/mono/SkiaSharp |
 | .NET runtime (the release is self-contained) | MIT | https://github.com/dotnet/runtime |
 
 OpenMcdf is used unmodified. Its source code is available at the link above, under the
 [Mozilla Public License 2.0](https://www.mozilla.org/MPL/2.0/).
+
+7-Zip's `7z.dll` is copyright Igor Pavlov and is used unmodified, as a separate library the app loads at run time; you
+may replace it with another build of the same version. Its source code and license are at https://www.7-zip.org/: most
+of it is under the [GNU LGPL 2.1](https://www.gnu.org/licenses/old-licenses/lgpl-2.1.html) or later, and its RAR
+decompression code is under the unRAR license restriction, which allows using it to unpack RAR archives but not to
+re-create the RAR compression algorithm.
 
 ## Fonts
 

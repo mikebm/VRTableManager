@@ -11,6 +11,7 @@
 
   <ItemGroup>
     <PackageReference Include="OpenMcdf" Version="3.3.0" />
+    <PackageReference Include="SevenZipExtractor" Version="1.0.19" />
     <PackageReference Include="SharpCompress" Version="0.50.5" />
   </ItemGroup>
 

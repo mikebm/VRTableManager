@@ -433,7 +433,7 @@ public static class TableInstaller
     {
         Directory.CreateDirectory(destDir);
         var root = Path.GetFullPath(destDir) + Path.DirectorySeparatorChar;
-        if (Path.GetExtension(archivePath).ToLowerInvariant() is ".7z" or ".rar" && TryNative7Zip(archivePath, root)) return;
+        if (Path.GetExtension(archivePath).ToLowerInvariant() is ".7z" or ".rar" && TryNative7Zip(archivePath, destDir, root)) return;
         using var archive = ArchiveFactory.OpenArchive(archivePath);
         // 7z (and solid RAR) packs many files into one compressed stream. Opening entries one by one
         // makes each restart that stream from the top, so a big table pack takes hours; read it once, in order.
@@ -458,49 +458,29 @@ public static class TableInstaller
         }
     }
 
-    /// <summary>An installed 7-Zip's command-line tool, or null.</summary>
-    static readonly Lazy<string?> SevenZipExe = new(() =>
-        new[] { Environment.SpecialFolder.ProgramFiles, Environment.SpecialFolder.ProgramFilesX86 }
-            .Select(f => Environment.GetFolderPath(f))
-            .Where(d => d.Length > 0)
-            .Select(d => Path.Combine(d, "7-Zip", "7z.exe"))
-            .FirstOrDefault(File.Exists));
-
     /// <summary>
-    /// Unpacks with an installed 7-Zip, which is several times faster than SharpCompress's managed
-    /// LZMA decoder (a 330 MB table pack: ~1 s against ~10 s). False when 7-Zip isn't installed or
-    /// it fails, so the caller falls back. 7-Zip itself drops "..\" and drive-rooted entry paths.
+    /// Unpacks with the bundled 7-Zip library (SevenZipExtractor's 7z.dll), several times faster than
+    /// SharpCompress's managed LZMA decoder (a 330 MB table pack: ~1 s against ~10 s) and one pass over
+    /// solid archives. False if it can't open or finish the archive, so the caller falls back.
     /// </summary>
-    static bool TryNative7Zip(string archivePath, string root)
+    static bool TryNative7Zip(string archivePath, string destDir, string root)
     {
-        if (SevenZipExe.Value is not { } exe) return false;
         try
         {
-            var psi = new System.Diagnostics.ProcessStartInfo(exe)
-            {
-                UseShellExecute = false, CreateNoWindow = true,
-                // Closed stdin: a password-protected pack fails instead of waiting at a prompt.
-                RedirectStandardInput = true, RedirectStandardOutput = true, RedirectStandardError = true,
-            };
-            foreach (var a in new[] { "x", "-y", "-aoa", "-bso0", "-bsp0", "-o" + root.TrimEnd(Path.DirectorySeparatorChar), "--", archivePath })
-                psi.ArgumentList.Add(a);
-            using var p = System.Diagnostics.Process.Start(psi);
-            if (p == null) return false;
-            p.StandardInput.Close();
-            var stderr = p.StandardError.ReadToEndAsync();
-            p.StandardOutput.ReadToEnd();
-            p.WaitForExit();
-            _ = stderr.Result;
-            return p.ExitCode == 0; // 1 is a warning (some file skipped), 2+ an error: let SharpCompress redo it
+            using var archive = new SevenZipExtractor.ArchiveFile(archivePath);
+            archive.Extract(e => Target(e.IsFolder, e.FileName, destDir, root));
+            return true;
         }
         catch { return false; }
     }
 
+    static string? Target(IEntry entry, string destDir, string root) => Target(entry.IsDirectory, entry.Key, destDir, root);
+
     /// <summary>Where an entry lands under <paramref name="destDir"/>, its folder created; null for folders and path-traversal entries.</summary>
-    static string? Target(IEntry entry, string destDir, string root)
+    static string? Target(bool isFolder, string? key, string destDir, string root)
     {
-        if (entry.IsDirectory || string.IsNullOrEmpty(entry.Key)) return null;
-        var dest = Path.GetFullPath(Path.Combine(destDir, entry.Key));
+        if (isFolder || string.IsNullOrEmpty(key)) return null;
+        var dest = Path.GetFullPath(Path.Combine(destDir, key));
         if (!dest.StartsWith(root, StringComparison.OrdinalIgnoreCase)) return null;
         Directory.CreateDirectory(Path.GetDirectoryName(dest)!);
         return dest;
