@@ -1,0 +1,10 @@
+root = true
+
+[*.cs]
+end_of_line = lf
+
+# Every if/else/for/foreach/while/using/lock body gets braces, even one-liners.
+# CSharpier doesn't add braces, so this rule (IDE0011) enforces it; fix with:
+#   dotnet format style "VR Table Manager.slnx" --diagnostics IDE0011
+csharp_prefer_braces = true:error
+dotnet_diagnostic.IDE0011.severity = error

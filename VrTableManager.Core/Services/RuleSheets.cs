@@ -36,7 +36,9 @@ public static partial class RuleSheets
                 {
                     var html = await Http.Client.GetStringAsync(ListUrl, ct);
                     if (Parse(html).Count > 0)
+                    {
                         await File.WriteAllTextAsync(CachePath, html, ct);
+                    }
                 }
                 catch when (File.Exists(CachePath))
                 { /* offline: the old list will do */
@@ -58,7 +60,10 @@ public static partial class RuleSheets
             var text = WebUtility.HtmlDecode(m.Groups[2].Value).Trim();
             var open = text.LastIndexOf(" (", StringComparison.Ordinal);
             if (open <= 0 || !text.EndsWith(')'))
+            {
                 continue;
+            }
+
             var details = text[(open + 2)..^1].Split(',', StringSplitOptions.TrimEntries);
             int? year = int.TryParse(details[^1], out var y) ? y : null;
             result.Add(
@@ -91,7 +96,10 @@ public static partial class RuleSheets
     {
         var key = Normalize(name);
         if (key.Length < 3)
+        {
             return null;
+        }
+
         return entries
             .Where(e => year is not > 0 || e.Year is not > 0 || e.Year == year)
             .Select(e => (e, k: Normalize(e.Name)))
@@ -124,13 +132,18 @@ public static partial class RuleSheets
     {
         var links = new List<RuleLink>();
         if (PrimerUrl(name, year, entries) is { } primer)
+        {
             links.Add(new("Rules and strategy (The Pinball Primer)", primer));
+        }
+
         foreach (
             var f in (game?.RuleFiles ?? [])
                 .OrderBy(f => !string.IsNullOrWhiteSpace(f.Comment))
                 .ThenByDescending(f => f.UpdatedAt ?? 0)
         )
+        {
             if (Addons.UsableUrl(f) is { } url)
+            {
                 links.Add(
                     new(
                         "Instruction card"
@@ -145,6 +158,9 @@ public static partial class RuleSheets
                         url
                     )
                 );
+            }
+        }
+
         return links;
     }
 
@@ -153,9 +169,15 @@ public static partial class RuleSheets
     {
         var s = WebUtility.HtmlDecode(name).Trim().ToLowerInvariant();
         if (s.EndsWith(", the"))
+        {
             s = s[..^5];
+        }
+
         if (s.StartsWith("the "))
+        {
             s = s[4..];
+        }
+
         return new string(s.Where(char.IsLetterOrDigit).ToArray());
     }
 

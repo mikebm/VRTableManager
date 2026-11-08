@@ -44,16 +44,25 @@ public static class MediaPackAudio
     {
         var result = new List<Source>();
         foreach (var f in game.SoundFiles ?? [])
-        foreach (var u in f.Urls ?? [])
-            if (!u.Broken && DirectAudioUrl(u.Url) is { } direct && NamedAfter(direct, game))
-                result.Add(new Source(direct, true, "sound file"));
+        {
+            foreach (var u in f.Urls ?? [])
+            {
+                if (!u.Broken && DirectAudioUrl(u.Url) is { } direct && NamedAfter(direct, game))
+                {
+                    result.Add(new Source(direct, true, "sound file"));
+                }
+            }
+        }
+
         foreach (var f in game.MediaPackFiles ?? [])
+        {
             if (
                 f.Urls?.FirstOrDefault(u =>
                     !u.Broken && Uri.IsWellFormedUriString(u.Url, UriKind.Absolute)
                 ) is
                 { } u
             )
+            {
                 result.Add(
                     new Source(
                         u.Url,
@@ -62,6 +71,9 @@ public static class MediaPackAudio
                             + (f.Authors is { Count: > 0 } a ? " by " + string.Join(", ", a) : "")
                     )
                 );
+            }
+        }
+
         return result;
     }
 
@@ -72,9 +84,15 @@ public static class MediaPackAudio
             !Uri.TryCreate(url, UriKind.Absolute, out var u)
             || !AudioExts.Contains(Path.GetExtension(u.AbsolutePath).ToLowerInvariant())
         )
+        {
             return null;
+        }
+
         if (u.Host.EndsWith("dropbox.com", StringComparison.OrdinalIgnoreCase))
+        {
             return u.GetLeftPart(UriPartial.Path) + "?dl=1";
+        }
+
         return u.ToString();
     }
 
@@ -90,7 +108,10 @@ public static class MediaPackAudio
         var title = Normalize(file.Split('(')[0]);
         var name = Normalize(game.Name);
         if (title.Length < 3 || name.Length < 3 || !(title.Contains(name) || name.Contains(title)))
+        {
             return false;
+        }
+
         var year = System.Text.RegularExpressions.Regex.Match(
             file,
             @"\(.*?\b((?:19|20)\d\d)\b.*?\)"
@@ -115,7 +136,9 @@ public static class MediaPackAudio
         {
             var p = Path.Combine(tableFolder, "music", FileName + e);
             if (File.Exists(p))
+            {
                 File.Delete(p);
+            }
         }
     }
 
@@ -131,7 +154,10 @@ public static class MediaPackAudio
             || size >= MaxBytes
             || !AudioExts.Contains(Path.GetExtension(entryPath).ToLowerInvariant())
         )
+        {
             return null;
+        }
+
         var parts = entryPath
             .Replace('\\', '/')
             .Split('/', StringSplitOptions.RemoveEmptyEntries)
@@ -141,19 +167,35 @@ public static class MediaPackAudio
         var file = Normalize(Path.GetFileNameWithoutExtension(parts[^1]));
         var score = 0;
         if (folders.Any(f => f.Contains("launch") || f.Contains("exit") || f.Contains("callout")))
+        {
             score -= 40;
+        }
         else if (folders.Any(f => f is "audio" or "tableaudio" or "tablesound" or "tablesounds"))
+        {
             score += 50;
+        }
         else if (
             folders.Any(f => f.Contains("audio") || f.Contains("music") || f.Contains("sound"))
         )
+        {
             score += 10;
+        }
+
         if (file.Contains("launch") || file.Contains("callout"))
+        {
             score -= 20;
+        }
+
         if (new[] { "attract", "theme", "intro", "music" }.Any(file.Contains))
+        {
             score += 20;
+        }
+
         if (Normalize(gameName) is { Length: > 0 } name && file.Contains(name))
+        {
             score += 15;
+        }
+
         return score;
     }
 
@@ -181,28 +223,46 @@ public static class MediaPackAudio
     {
         var ext = Path.GetExtension(entryPath).ToLowerInvariant();
         if (!convertible.Contains(ext))
+        {
             return null;
+        }
+
         var text = Normalize(entryPath);
         if (text.Contains("tutorial") || text.Contains("instruction"))
+        {
             return null; // narration, never music
+        }
+
         var score = AudioOnlyExts.Contains(ext)
             ? 100 + (Score(Path.ChangeExtension(entryPath, ".mp3"), 1, gameName) ?? 0)
             : 0;
         if (text.Contains("attract"))
+        {
             score += 30;
+        }
+
         if (text.Contains("tablevideo") || text.Contains("playfield"))
+        {
             score += 10;
+        }
+
         if (
             new[] { "promo", "launch", "loading", "exit", "topper", "dmd", "menu" }.Any(
                 text.Contains
             )
         )
+        {
             score -= 20;
+        }
+
         if (
             Normalize(gameName) is { Length: > 0 } name
             && Normalize(Path.GetFileNameWithoutExtension(entryPath)).Contains(name)
         )
+        {
             score += 5;
+        }
+
         return score;
     }
 
@@ -239,12 +299,17 @@ public static class MediaPackAudio
         if (AudioExts.Contains(ext))
         {
             if (Score(downloaded, new FileInfo(downloaded).Length, gameName) == null)
+            {
                 return null;
+            }
+
             using var src = File.OpenRead(downloaded);
             return Write(src, ext, tableFolder);
         }
         if (ArchiveExts.Contains(ext))
+        {
             return FromArchive(downloaded, tableFolder, gameName, converter, nested: true);
+        }
         // A single video (e.g. an .mp4 attract recording): only its sound track, if it can be converted.
         return converter != null && converter.Exts.Contains(ext)
             ? Converted(downloaded, tableFolder, converter)
@@ -255,11 +320,17 @@ public static class MediaPackAudio
     {
         var workDir = Path.GetDirectoryName(Path.GetFullPath(file))!;
         if (converter.Convert(file, workDir) is not { } output)
+        {
             return null;
+        }
+
         try
         {
             if (new FileInfo(output).Length is <= 0 or >= MaxBytes)
+            {
                 return null;
+            }
+
             using var src = File.OpenRead(output);
             return Write(src, Path.GetExtension(output).ToLowerInvariant(), tableFolder);
         }
@@ -302,9 +373,14 @@ public static class MediaPackAudio
                     {
                         using (var src = files.First(e => e.Key == key).OpenEntryStream())
                         using (var dst = File.Create(tmp))
+                        {
                             src.CopyTo(dst);
+                        }
+
                         if (Converted(tmp, tableFolder, converter) is { } saved)
+                        {
                             return saved;
+                        }
                     }
                     finally
                     {
@@ -317,7 +393,9 @@ public static class MediaPackAudio
                 }
             }
             if (!nested)
+            {
                 return null;
+            }
             // Some packs wrap each front end's media in its own archive.
             foreach (
                 var inner in files.Where(e =>
@@ -330,12 +408,17 @@ public static class MediaPackAudio
                 {
                     using (var src = inner.OpenEntryStream())
                     using (var dst = File.Create(tmp))
+                    {
                         src.CopyTo(dst);
+                    }
+
                     if (
                         FromArchive(tmp, tableFolder, gameName, converter, nested: false) is
                         { } saved
                     )
+                    {
                         return saved;
+                    }
                 }
                 finally
                 {
@@ -363,7 +446,10 @@ public static class MediaPackAudio
         var dest = Path.Combine(music, FileName + ext);
         var tmp = dest + ".tmp";
         using (var dst = File.Create(tmp))
+        {
             src.CopyTo(dst);
+        }
+
         Remove(tableFolder); // an older attract.* in another format would otherwise win or linger
         File.Move(tmp, dest, overwrite: true);
         return dest;

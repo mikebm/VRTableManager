@@ -22,9 +22,15 @@ public static class DiskUsage
         try
         {
             if (File.Exists(path))
+            {
                 return new FileInfo(path).Length;
+            }
+
             if (!Directory.Exists(path))
+            {
                 return 0;
+            }
+
             return new DirectoryInfo(path)
                 .EnumerateFiles(
                     "*",
@@ -99,16 +105,21 @@ public static class AppFolders
         try
         {
             if (Directory.Exists(VpxPrefs))
+            {
                 dirs.AddRange(
                     Directory.EnumerateDirectories(VpxPrefs, "Cache", SearchOption.AllDirectories)
                 );
+            }
+
             if (Directory.Exists(s.TablesDir))
+            {
                 dirs.AddRange(
                     Directory
                         .EnumerateDirectories(s.TablesDir)
                         .Select(d => Path.Combine(d, "cache"))
                         .Where(Directory.Exists)
                 );
+            }
         }
         catch
         { /* list what we could */
@@ -166,6 +177,7 @@ public static class AppFolders
         foreach (var dir in entry.Paths.Where(Directory.Exists))
         {
             foreach (var f in Directory.EnumerateFiles(dir))
+            {
                 try
                 {
                     var len = new FileInfo(f).Length;
@@ -173,7 +185,10 @@ public static class AppFolders
                     freed += len;
                 }
                 catch { }
+            }
+
             foreach (var d in Directory.EnumerateDirectories(dir))
+            {
                 try
                 {
                     var len = DiskUsage.SizeOf(d);
@@ -181,6 +196,7 @@ public static class AppFolders
                     freed += len;
                 }
                 catch { }
+            }
         }
         return freed;
     }
@@ -196,6 +212,7 @@ public static class VpxLog
         try
         {
             if (Directory.Exists(AppFolders.VpxPrefs))
+            {
                 candidates.AddRange(
                     Directory.EnumerateFiles(
                         AppFolders.VpxPrefs,
@@ -203,7 +220,10 @@ public static class VpxLog
                         SearchOption.AllDirectories
                     )
                 );
+            }
+
             if (Directory.Exists(s.VpxDir))
+            {
                 candidates.AddRange(
                     Directory.EnumerateFiles(
                         s.VpxDir,
@@ -211,6 +231,7 @@ public static class VpxLog
                         SearchOption.TopDirectoryOnly
                     )
                 );
+            }
         }
         catch { }
         return candidates.OrderByDescending(File.GetLastWriteTimeUtc).FirstOrDefault();
@@ -254,7 +275,10 @@ public static class VpxLog
 
         var start = lines.FindLastIndex(l => l.Contains("Starting VPX"));
         if (start < 0)
+        {
             return null;
+        }
+
         var session = lines.Skip(start).ToList();
         DateTime? started = DateTime.TryParse(
             session[0].Length >= 23 ? session[0][..23] : "",
@@ -287,10 +311,16 @@ public static class VpxLog
                 l.Contains(" WARN ")
                 && (l.Contains("XR") || l.Contains("OpenXR", StringComparison.OrdinalIgnoreCase));
             if (!isError && !isXrWarn)
+            {
                 continue;
+            }
+
             var msg = Message(l);
             if (!seen.Add(Normalise(msg)))
+            {
                 continue;
+            }
+
             (IsHarmless(l, msg, noHeadset, hasPinmameFolder) ? harmless : problems).Add(msg);
         }
         var result = new Session(
@@ -303,13 +333,19 @@ public static class VpxLog
         result.Harmless.AddRange(harmless);
 
         if (noHeadset)
+        {
             result.Hints.Add(
                 "The headset wasn't connected when VPX started, so it opened on the monitor. Start Quest Link (or Virtual Desktop) first."
             );
+        }
+
         if (all.Contains("Corrupted file: image"))
+        {
             result.Hints.Add(
                 "Some of the table's images are stored at a different size than declared. That's an issue in the table file; it usually plays fine."
             );
+        }
+
         if (
             problems.Any(p =>
                 p.Contains("rom", StringComparison.OrdinalIgnoreCase)
@@ -320,13 +356,19 @@ public static class VpxLog
                 )
             )
         )
+        {
             result.Hints.Add(
                 "PinMAME couldn't load the ROM. Check the table has its ROM (My Tables → Get ROM / Add ROM)."
             );
+        }
+
         if (!result.ClosedCleanly && !IsRunning())
+        {
             result.Hints.Add(
                 "VPX stopped without closing normally (it crashed). The errors above are the last things it logged."
             );
+        }
+
         return result;
     }
 
@@ -363,7 +405,9 @@ public static class VpxLog
         {
             var j = line.IndexOf("] ", i + 3, StringComparison.Ordinal);
             if (j >= 0)
+            {
                 return line[(j + 2)..].Trim();
+            }
         }
         return line.Length > 24 ? line[24..].Trim() : line;
     }
@@ -392,13 +436,19 @@ public static class Backup
     public static Result Create(string zipPath, AppSettings s)
     {
         if (File.Exists(zipPath))
+        {
             File.Delete(zipPath);
+        }
+
         using var zip = ZipFile.Open(zipPath, ZipArchiveMode.Create);
         var count = 0;
         void Add(string file, string entry)
         {
             if (!File.Exists(file))
+            {
                 return;
+            }
+
             using var src = new FileStream(
                 file,
                 FileMode.Open,
@@ -412,10 +462,14 @@ public static class Backup
         }
 
         foreach (var f in AppFiles)
+        {
             Add(Path.Combine(AppSettings.DataDir, f), App + f);
+        }
+
         Add(VpxSetup.VrIniPath(s), Vpx + Path.GetFileName(VpxSetup.VrIniPath(s)));
         Add(VpxSetup.DesktopIniPath(s), Vpx + Path.GetFileName(VpxSetup.DesktopIniPath(s)));
         if (Directory.Exists(AppFolders.VpxPrefs))
+        {
             foreach (
                 var ini in Directory.EnumerateFiles(
                     AppFolders.VpxPrefs,
@@ -423,7 +477,10 @@ public static class Backup
                     SearchOption.AllDirectories
                 )
             )
+            {
                 Add(ini, VpxPrefs + Path.GetRelativePath(AppFolders.VpxPrefs, ini));
+            }
+        }
 
         if (Directory.Exists(s.TablesDir))
         {
@@ -431,8 +488,13 @@ public static class Backup
             {
                 var name = Path.GetFileName(folder);
                 foreach (var f in Directory.EnumerateFiles(folder))
+                {
                     if (Path.GetExtension(f).ToLowerInvariant() is ".ini" or ".json")
+                    {
                         Add(f, $"{Tables}{name}/{Path.GetFileName(f)}");
+                    }
+                }
+
                 foreach (
                     var sub in new[]
                     {
@@ -443,11 +505,16 @@ public static class Backup
                 {
                     var dir = Path.Combine(folder, sub);
                     if (!Directory.Exists(dir))
+                    {
                         continue;
+                    }
+
                     foreach (
                         var f in Directory.EnumerateFiles(dir, "*", SearchOption.AllDirectories)
                     )
+                    {
                         Add(f, $"{Tables}{name}/{Path.GetRelativePath(folder, f)}");
+                    }
                 }
             }
         }
@@ -456,9 +523,14 @@ public static class Backup
         {
             var dir = PfxSetup.ProfileDirFor(g);
             if (!Directory.Exists(dir))
+            {
                 continue;
+            }
+
             foreach (var f in Directory.EnumerateFiles(dir, "*.txt"))
+            {
                 Add(f, $"{Uevr}{Path.GetFileName(dir)}/{Path.GetFileName(f)}");
+            }
         }
         return new Result(count, []);
     }
@@ -484,7 +556,10 @@ public static class Backup
                 : name.StartsWith(Tables) ? TableDest(name[Tables.Length..])
                 : null;
             if (dest == null)
+            {
                 continue;
+            }
+
             Directory.CreateDirectory(Path.GetDirectoryName(dest)!);
             e.ExtractToFile(dest, overwrite: true);
             count++;

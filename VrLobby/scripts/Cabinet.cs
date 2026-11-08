@@ -286,7 +286,10 @@ public partial class Cabinet : Node3D
             _real.Visible = false;
             _real.Mesh = null;
             foreach (var g in _generic)
+            {
                 g.Visible = true;
+            }
+
             _plate.Visible = BackglassUrl == null && !HasBackglassArt;
             PlaceGenericPlayfield();
             PlaceGenericBackglass();
@@ -294,10 +297,16 @@ public partial class Cabinet : Node3D
         }
         _real.Mesh = real.Mesh;
         for (var i = 0; i < real.Mesh.GetSurfaceCount(); i++)
+        {
             _real.SetSurfaceOverrideMaterial(i, null); // none left from another table
+        }
+
         _real.Visible = true;
         foreach (var g in _generic)
+        {
             g.Visible = false;
+        }
+
         _playfieldQuad.Size = real.PlayfieldSize;
         _playfield.Rotation = new Vector3(real.PlayfieldSlope - Mathf.Pi / 2, 0, 0); // sloped like the generic one, back end up
         PlacePlayfield(real.PlayfieldCentre + new Vector3(0, 0.003f, 0));
@@ -307,7 +316,9 @@ public partial class Cabinet : Node3D
         // (so the file has none) or draw it another way: then the game's VPS backglass fills in, on the
         // cabinet's backglass part, or as a panel on the front of its backbox.
         if (Borrowed)
+        {
             DressBorrowed(real);
+        }
         // A backglass you chose yourself (UserArtwork) replaces the cabinet's own picture too.
         var mine =
             BackglassUrl?.StartsWith(
@@ -315,7 +326,9 @@ public partial class Cabinet : Node3D
                 StringComparison.Ordinal
             ) == true;
         if (real.BackglassSurface >= 0 && !Borrowed && (!real.BackglassTextured || mine))
+        {
             _real.SetSurfaceOverrideMaterial(real.BackglassSurface, _backglassMat);
+        }
         // A borrowed cabinet may print its own backglass on the backbox itself, so this table's backglass
         // always goes on a panel on the backbox front.
         else if ((Borrowed || real.BackglassSurface < 0) && real.Backbox is { } box)
@@ -412,7 +425,9 @@ public partial class Cabinet : Node3D
         Table = table;
         _star.Visible = favourite;
         if (same && playfieldUrl == PlayfieldUrl && backglassUrl == BackglassUrl)
+        {
             return;
+        }
 
         PlayfieldUrl = playfieldUrl;
         BackglassUrl = backglassUrl;
@@ -440,7 +455,10 @@ public partial class Cabinet : Node3D
             _playfieldMat.AlbedoTexture != null && _playfieldMat.AlbedoTexture != _playfieldArt;
         _playfieldArt = tex;
         if (!playingVideo)
+        {
             _playfieldMat.AlbedoTexture = tex;
+        }
+
         ApplyColours();
     }
 

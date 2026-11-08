@@ -33,10 +33,15 @@ public sealed class ImageLoader : AvaloniaObject
             {
                 img.Source = null;
                 if (e.NewValue is not string url || url == "")
+                {
                     return;
+                }
+
                 var bmp = await Memory.GetOrAdd(url, LoadAsync);
                 if (GetUrl(img) == url)
+                {
                     img.Source = bmp; // still the same item after recycling?
+                }
             }
         );
     }

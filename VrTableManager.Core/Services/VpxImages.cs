@@ -24,12 +24,19 @@ public static class VpxImages
         using var root = RootStorage.OpenRead(vpxPath);
         var game = root.OpenStorage("GameStg");
         if (!game.TryOpenStream("GameData", out var data) || data == null)
+        {
             return null;
+        }
+
         using (data)
         {
             foreach (var (tag, payload) in Records(ReadAll(data, 4 * 1024 * 1024)))
+            {
                 if (tag == "IMAG")
+                {
                     return ReadString(payload);
+                }
+            }
         }
         return null;
     }
@@ -43,7 +50,10 @@ public static class VpxImages
         for (var i = 0; i < 10_000; i++)
         {
             if (!game.TryOpenStream("Image" + i, out var s) || s == null)
+            {
                 break;
+            }
+
             using (s)
             {
                 string? name = null;
@@ -52,16 +62,26 @@ public static class VpxImages
                 foreach (var (tag, payload) in Records(ReadAll(s, HeaderBytes)))
                 {
                     if (tag == "NAME" && name == null)
+                    {
                         name = ReadString(payload);
+                    }
                     else if (tag == "WDTH" && payload.Length >= 4)
+                    {
                         w = BitConverter.ToInt32(payload, 0);
+                    }
                     else if (tag == "HGHT" && payload.Length >= 4)
+                    {
                         h = BitConverter.ToInt32(payload, 0);
+                    }
                     else if (tag is "JPEG" or "BITS")
+                    {
                         break; // the picture itself starts here
+                    }
                 }
                 if (name != null)
+                {
                     list.Add(new VpxImageInfo(i, name, w, h));
+                }
             }
         }
         return list;
@@ -93,7 +113,9 @@ public static class VpxImages
             && string.Equals(i.Name, namedPlayfield, StringComparison.OrdinalIgnoreCase)
         );
         if (named != null && IsPlayfieldShaped(named) && !IsPartOfPlayfield(named.Name))
+        {
             return named;
+        }
         // Shape alone isn't enough: VLM-baked tables (e.g. Metallica) have no flat playfield picture,
         // and their biggest portrait image is a light overlay. Those fall back to the VPS picture.
         return images
@@ -132,18 +154,27 @@ public static class VpxImages
         using var root = RootStorage.OpenRead(vpxPath);
         var game = root.OpenStorage("GameStg");
         if (!game.TryOpenStream("Image" + index, out var s) || s == null)
+        {
             return null;
+        }
+
         using (s)
         {
             var inJpeg = false;
             foreach (var (tag, payload) in Records(ReadAll(s, int.MaxValue)))
             {
                 if (tag == "JPEG")
+                {
                     inJpeg = true; // an encoded picture follows (despite the name: PNG, JPEG, WebP…)
+                }
                 else if (tag == "BITS")
+                {
                     return null; // old raw bitmap: not worth decoding here
+                }
                 else if (inJpeg && tag == "DATA")
+                {
                     return payload;
+                }
             }
         }
         return null;
@@ -163,7 +194,10 @@ public static class VpxImages
         {
             var fi = new FileInfo(vpxPath);
             if (!fi.Exists)
+            {
                 return null;
+            }
+
             var key = Convert.ToHexString(
                 SHA1.HashData(
                     Encoding.UTF8.GetBytes(
@@ -175,9 +209,15 @@ public static class VpxImages
             var file = Path.Combine(cacheDir, "vpx-" + key + ".img");
             var none = Path.Combine(cacheDir, "vpx-" + key + ".none");
             if (File.Exists(file))
+            {
                 return file;
+            }
+
             if (File.Exists(none))
+            {
                 return null;
+            }
+
             var bytes = ExtractPlayfield(vpxPath);
             if (bytes == null || bytes.Length < 16)
             {
@@ -205,7 +245,10 @@ public static class VpxImages
         {
             var len = BitConverter.ToInt32(buf, pos);
             if (len < 4 || pos + 4 + len > buf.Length)
+            {
                 yield break;
+            }
+
             var tag = Encoding.ASCII.GetString(buf, pos + 4, 4);
             var data = new byte[len - 4];
             Buffer.BlockCopy(buf, pos + 8, data, 0, data.Length);
@@ -218,10 +261,16 @@ public static class VpxImages
     static string? ReadString(byte[] data)
     {
         if (data.Length < 4)
+        {
             return null;
+        }
+
         var n = BitConverter.ToInt32(data, 0);
         if (n < 0 || 4 + n > data.Length)
+        {
             return null;
+        }
+
         return Encoding.Latin1.GetString(data, 4, n).TrimEnd('\0');
     }
 
@@ -234,7 +283,10 @@ public static class VpxImages
         {
             var n = s.Read(buf, read, length - read);
             if (n <= 0)
+            {
                 break;
+            }
+
             read += n;
         }
         return read == length ? buf : buf[..read];

@@ -113,7 +113,10 @@ public static class UevrPinballProfile
     public static bool RestoreOriginal(ZenGame g)
     {
         if (!File.Exists(BackupPath(g)))
+        {
             return false;
+        }
+
         File.Copy(BackupPath(g), ConfigPath(g), overwrite: true);
         return true;
     }
@@ -124,7 +127,10 @@ public static class UevrPinballProfile
     public static string? RuntimeFrom(string configPath)
     {
         if (!File.Exists(configPath))
+        {
             return null;
+        }
+
         var line = File.ReadLines(configPath)
             .FirstOrDefault(l => KeyOf(l) == "Frontend_RequestedRuntime");
         var v = line == null ? "" : ValueOf(line).ToLowerInvariant();
@@ -138,7 +144,10 @@ public static class UevrPinballProfile
     {
         var path = ConfigPath(g);
         if (!File.Exists(path))
+        {
             return false;
+        }
+
         var kv = File.ReadAllLines(path)
             .Where(l => l.Contains('='))
             .GroupBy(KeyOf)
@@ -162,12 +171,20 @@ public static partial class Gamepad
     public static bool? IsConnected()
     {
         if (!OperatingSystem.IsWindows())
+        {
             return null;
+        }
+
         try
         {
             for (uint i = 0; i < 4; i++)
+            {
                 if (XInputGetState(i, out _) == 0)
+                {
                     return true; // ERROR_SUCCESS
+                }
+            }
+
             return false;
         }
         catch (DllNotFoundException)

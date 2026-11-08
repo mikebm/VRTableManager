@@ -20,7 +20,10 @@ public sealed partial class MainViewModel
     {
         var table = item.Table;
         if (!TryBeginBusy(table.TablePath))
+        {
             return;
+        }
+
         try
         {
             await GetAttractAudioCoreAsync(table, item.AttractAudioSources);
@@ -104,12 +107,16 @@ public sealed partial class MainViewModel
         var downloads = JobDownloadDir(job);
         // In your browser: no download slot (see FetchAsync).
         if (!src.IsDirect && !SitePolicy.AllowsAutomation(src.Url))
+        {
             return await _assisted.DownloadAsync(src.Url, downloads, job);
+        }
+
         return await WithDownloadSlotAsync(
             job,
             async () =>
             {
                 if (!src.IsDirect)
+                {
                     return await _browser.DownloadAsync(
                         src.Url,
                         downloads,
@@ -117,6 +124,8 @@ public sealed partial class MainViewModel
                         job.Report,
                         job.Cts.Token
                     );
+                }
+
                 var dest = Path.Combine(
                     downloads,
                     TableInstaller.SafeName(
@@ -152,6 +161,8 @@ public sealed partial class MainViewModel
                 string.Equals(i.Table.TablePath, tablePath, StringComparison.OrdinalIgnoreCase)
             )
         )
+        {
             i.HasAttractAudio = on;
+        }
     }
 }

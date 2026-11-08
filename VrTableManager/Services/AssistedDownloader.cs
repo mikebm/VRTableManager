@@ -107,7 +107,10 @@ public sealed class AssistedDownloader
             "Downloads"
         );
         if (!OperatingSystem.IsWindows())
+        {
             return fallback;
+        }
+
         try
         {
             using var key = Microsoft.Win32.Registry.CurrentUser.OpenSubKey(
@@ -117,7 +120,9 @@ public sealed class AssistedDownloader
                 key?.GetValue("{374DE290-123F-4565-9164-39C4925E467B}") is string p
                 && Directory.Exists(Environment.ExpandEnvironmentVariables(p))
             )
+            {
                 return Environment.ExpandEnvironmentVariables(p);
+            }
         }
         catch { }
         return fallback;
@@ -155,7 +160,10 @@ public sealed class AssistedDownloader
         var ct = job.Cts.Token;
         var started = DateTime.UtcNow.AddSeconds(-2);
         lock (_lock)
+        {
             _waiting.Add((job, started));
+        }
+
         try
         {
             Directory.CreateDirectory(destDir);
@@ -186,16 +194,23 @@ public sealed class AssistedDownloader
                         got.Add(CopyIn(picked, destDir, job));
                         lastGot = DateTime.UtcNow;
                         if (!many)
+                        {
                             break;
+                        }
                     }
                     if (handoff.Done)
+                    {
                         doneAt ??= DateTime.UtcNow;
+                    }
                 }
                 foreach (var file in FinishedNewFiles(seen, sizes, started))
                 {
                     var owner = Claim(file, job);
                     if (owner == Owner.Other)
+                    {
                         continue; // another waiting job's: it takes it
+                    }
+
                     seen[file] = File.GetLastWriteTimeUtc(file);
                     if (owner == Owner.Unsure)
                     {
@@ -216,10 +231,14 @@ public sealed class AssistedDownloader
                     got.Add(CopyIn(file, destDir, job));
                     lastGot = DateTime.UtcNow;
                     if (!many)
+                    {
                         break;
+                    }
                 }
                 if (got.Count > 0 && !many)
+                {
                     break;
+                }
                 // Everything that's needed has arrived: no DONE to press.
                 if (got.Count > checkedAt && complete != null)
                 {
@@ -234,17 +253,25 @@ public sealed class AssistedDownloader
                         enough = false;
                     }
                     if (enough)
+                    {
                         break;
+                    }
                 }
                 if (doneAt is { } done)
                 {
                     // DONE was pressed: a download that's still being saved (or just finished) is still yours.
                     // Give the browser a moment, and longer while it's still writing a file.
                     if (PartialDownloads(started))
+                    {
                         lastBusy = DateTime.UtcNow;
+                    }
+
                     var quiet = DateTime.UtcNow - (lastBusy > done ? lastBusy : done);
                     if (quiet > DoneSettle || DateTime.UtcNow - done > DoneGraceMax)
+                    {
                         break;
+                    }
+
                     job.Report("Waiting for the download to finish saving…");
                 }
                 else if (got.Count > 0)
@@ -255,14 +282,19 @@ public sealed class AssistedDownloader
                             : $"Got {got.Count} file{(got.Count == 1 ? "" : "s")}. Download any others you want from the page, then press DONE."
                     );
                     if (DateTime.UtcNow - lastGot > QuietAfterLast)
+                    {
                         break;
+                    }
                 }
                 await Task.WhenAny(Task.Delay(PollInterval, ct), job.HandoffArrived);
             }
             if (got.Count == 0)
+            {
                 throw new InvalidOperationException(
                     $"No file arrived in {DownloadsDir}. Try again; if your browser saves somewhere else, use I SAVED IT while it waits."
                 );
+            }
+
             job.Report(
                 got.Count == 1 ? $"Got {Path.GetFileName(got[0])}." : $"Got {got.Count} files."
             );
@@ -272,7 +304,9 @@ public sealed class AssistedDownloader
         {
             job.EndWaiting();
             lock (_lock)
+            {
                 _waiting.RemoveAll(w => w.job == job);
+            }
         }
     }
 
@@ -328,11 +362,16 @@ public sealed class AssistedDownloader
     string? NamedForOtherGame(string fileName, IReadOnlyList<string> myNames)
     {
         if (myNames.Count == 0 || Score(fileName, myNames) >= 50)
+        {
             return null;
+        }
+
         var fileKey = GameKey(Path.GetFileNameWithoutExtension(fileName));
         var myKeys = myNames.Select(GameKey).Where(k => k.Length > 0).ToList();
         if (myKeys.Any(k => k.Length >= 3 && fileKey.Contains(k)))
+        {
             return null;
+        }
         // "The Simpsons" inside "The Simpsons Pinball Party" is the job's own game, not another one.
         return _knownGameKeys.FirstOrDefault(k =>
             fileKey.Contains(k) && !myKeys.Any(m => m.Contains(k))
@@ -352,7 +391,10 @@ public sealed class AssistedDownloader
         lock (_lock)
         {
             if (_taken.Contains(key))
+            {
                 return Owner.Other;
+            }
+
             var written = File.GetLastWriteTimeUtc(file);
             var ext = Path.GetExtension(file).ToLowerInvariant();
             var candidates = _waiting
@@ -363,19 +405,28 @@ public sealed class AssistedDownloader
                 .Select(w => w.job)
                 .ToList();
             if (!candidates.Contains(me))
+            {
                 return Owner.Other;
+            }
+
             if (
                 candidates.Count == 1
                 && me.NamesMustMatch
                 && Score(Path.GetFileName(file), me.FileNames) == 0
             )
+            {
                 return Owner.NotThis;
+            }
+
             if (
                 candidates.Count == 1
                 && !me.NamesMustMatch
                 && NamedForOtherGame(Path.GetFileName(file), me.FileNames) != null
             )
+            {
                 return Owner.NotThis;
+            }
+
             var owner = candidates.Count == 1 ? me : null;
             if (owner == null)
             {
@@ -384,12 +435,20 @@ public sealed class AssistedDownloader
                     .OrderByDescending(s => s.score)
                     .ToList();
                 if (scores[0].score > 0 && scores[0].score > scores[1].score)
+                {
                     owner = scores[0].j;
+                }
             }
             if (owner == null)
+            {
                 return Owner.Unsure;
+            }
+
             if (owner != me)
+            {
                 return Owner.Other;
+            }
+
             _taken.Add(key);
             return Owner.Mine;
         }
@@ -437,9 +496,15 @@ public sealed class AssistedDownloader
     {
         var d = new Dictionary<string, DateTime>(StringComparer.OrdinalIgnoreCase);
         if (!Directory.Exists(DownloadsDir))
+        {
             return d;
+        }
+
         foreach (var f in Directory.EnumerateFiles(DownloadsDir))
+        {
             d[f] = File.GetLastWriteTimeUtc(f);
+        }
+
         return d;
     }
 
@@ -451,17 +516,29 @@ public sealed class AssistedDownloader
     )
     {
         if (!Directory.Exists(DownloadsDir))
+        {
             yield break;
+        }
+
         foreach (var f in Directory.EnumerateFiles(DownloadsDir).ToList())
         {
             if (!Wanted.Contains(Path.GetExtension(f).ToLowerInvariant()))
+            {
                 continue; // also skips .crdownload / .part / .tmp
+            }
+
             if (File.Exists(f + ".part"))
+            {
                 continue; // Firefox: still downloading
+            }
+
             var written = File.GetLastWriteTimeUtc(f);
             // New since the wait began, or saved over an older copy with the same name.
             if (seen.TryGetValue(f, out var before) && (written <= before || written < started))
+            {
                 continue;
+            }
+
             long size;
             try
             {
@@ -478,7 +555,10 @@ public sealed class AssistedDownloader
                 continue;
             }
             if (!IsClosed(f))
+            {
                 continue;
+            }
+
             yield return f;
         }
     }

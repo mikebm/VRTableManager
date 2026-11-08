@@ -81,7 +81,9 @@ public sealed partial class MainViewModel : ObservableObject, IAsyncDisposable
         Jobs.CollectionChanged += (_, e) =>
         {
             foreach (JobItem j in e.NewItems ?? Array.Empty<JobItem>())
+            {
                 j.Succeeded += OnJobSucceeded;
+            }
         };
         // Partial files from downloads cut off when the app last closed. (Their queue entries are
         // kept and offered again once the catalog has loaded.)
@@ -294,16 +296,24 @@ public sealed partial class MainViewModel : ObservableObject, IAsyncDisposable
             && m != AnyMaker
             && !string.Equals(g.Manufacturer, m, StringComparison.OrdinalIgnoreCase)
         )
+        {
             return false;
+        }
+
         if (EraFilter != AnyEra)
         {
             if (g.Year is not > 0)
+            {
                 return false;
+            }
+
             var decade = g.Year.Value / 10 * 10;
             var ok =
                 EraFilter == "1930s–50s" ? decade <= 1950 : EraFilter.StartsWith(decade.ToString());
             if (!ok)
+            {
                 return false;
+            }
         }
         return TypeFilter switch
         {
@@ -325,7 +335,10 @@ public sealed partial class MainViewModel : ObservableObject, IAsyncDisposable
         HasCatalogFilters =
             ManufacturerFilter != AnyMaker || EraFilter != AnyEra || TypeFilter != AnyType;
         if (Manufacturers.Count > 1 || _allGames.Count == 0)
+        {
             return;
+        }
+
         foreach (
             var m in _allGames
                 .Where(g => !string.IsNullOrWhiteSpace(g.Manufacturer))
@@ -334,7 +347,9 @@ public sealed partial class MainViewModel : ObservableObject, IAsyncDisposable
                 .OrderByDescending(g => g.Count())
                 .Select(g => g.Key)
         )
+        {
             Manufacturers.Add(m);
+        }
     }
 
     [RelayCommand]
@@ -348,7 +363,10 @@ public sealed partial class MainViewModel : ObservableObject, IAsyncDisposable
     void AddPage()
     {
         foreach (var g in _filtered.Skip(Games.Count).Take(PageSize))
+        {
             Games.Add(new GameItem(g, _installedIds.Contains(g.Id)));
+        }
+
         HasMore = Games.Count < _filtered.Count;
         CountLabel = $"{Games.Count} shown · {_filtered.Count} of {_allGames.Count}";
     }
@@ -363,7 +381,10 @@ public sealed partial class MainViewModel : ObservableObject, IAsyncDisposable
     {
         Versions.Clear();
         if (item == null)
+        {
             return;
+        }
+
         var files = item.Game.TableFiles!.Where(IsVisible).OrderByDescending(t => t.UpdatedAt ?? 0);
         foreach (var f in files)
         {
@@ -386,7 +407,9 @@ public sealed partial class MainViewModel : ObservableObject, IAsyncDisposable
     {
         var url = tf.Urls?.FirstOrDefault(u => !u.Broken)?.Url;
         if (url == null)
+        {
             return false;
+        }
 
         var verb = replacing == null ? "" : "Update: ";
         var job = new JobItem($"{verb}{game.Name} — {string.Join(", ", tf.Authors ?? [])}")
@@ -442,7 +465,10 @@ public sealed partial class MainViewModel : ObservableObject, IAsyncDisposable
             RefreshInstalled();
             ApplyFilter();
             if (getRom)
+            {
                 _ = GetRomAsync(installed);
+            }
+
             return true;
         }
         catch (OperationCanceledException)
@@ -461,7 +487,9 @@ public sealed partial class MainViewModel : ObservableObject, IAsyncDisposable
             // Finished, failed or cancelled: nothing to resume. (Not when it was cut off by the app
             // closing: that entry stays so the download is offered again next time.)
             if (!_closing)
+            {
                 _pending.Remove(job.Id);
+            }
         }
     }
 
@@ -480,7 +508,9 @@ public sealed partial class MainViewModel : ObservableObject, IAsyncDisposable
             ) is
             { } file
         )
+        {
             job.HandOff(file);
+        }
     }
 
     /// <summary>
@@ -493,12 +523,16 @@ public sealed partial class MainViewModel : ObservableObject, IAsyncDisposable
     {
         var downloads = JobDownloadDir(job);
         if (!BrowserDownloader.IsDirectFileUrl(url) && !SitePolicy.AllowsAutomation(url))
+        {
             return _assisted.DownloadAsync(url, downloads, job, what);
+        }
+
         return WithDownloadSlotAsync(
             job,
             async () =>
             {
                 if (!BrowserDownloader.IsDirectFileUrl(url))
+                {
                     return await _browser.DownloadAsync(
                         url,
                         downloads,
@@ -506,6 +540,8 @@ public sealed partial class MainViewModel : ObservableObject, IAsyncDisposable
                         job.Report,
                         job.Cts.Token
                     );
+                }
+
                 var file = Path.Combine(
                     downloads,
                     TableInstaller.SafeName(Path.GetFileName(new Uri(url).LocalPath))
@@ -540,7 +576,10 @@ public sealed partial class MainViewModel : ObservableObject, IAsyncDisposable
     {
         var slots = _downloadSlots;
         if (slots.CurrentCount == 0)
+        {
             job.Report("Queued: waiting for a free download slot…");
+        }
+
         await slots.WaitAsync(job.Cts.Token);
         try
         {
@@ -563,8 +602,12 @@ public sealed partial class MainViewModel : ObservableObject, IAsyncDisposable
     void OnJobSucceeded(JobItem job)
     {
         if (!Settings.DeleteDownloadsAfterInstall)
+        {
             return;
+        }
+
         foreach (var f in job.TakeSourceFiles())
+        {
             try
             {
                 File.Delete(f);
@@ -572,6 +615,7 @@ public sealed partial class MainViewModel : ObservableObject, IAsyncDisposable
             catch
             { /* open elsewhere or already gone: leave it */
             }
+        }
     }
 
     /// <summary>Takes a finished or failed job off the downloads list.</summary>
@@ -579,7 +623,9 @@ public sealed partial class MainViewModel : ObservableObject, IAsyncDisposable
     void DismissJob(JobItem job)
     {
         if (job.IsDone || job.IsError)
+        {
             Jobs.Remove(job);
+        }
     }
 
     static void CleanJobDownloads(JobItem job)
@@ -602,7 +648,10 @@ public sealed partial class MainViewModel : ObservableObject, IAsyncDisposable
         // Missing ROM first; otherwise the one the table already uses (to fetch its whole ROM family).
         var missing = t.MissingRoms.Count > 0 ? t.MissingRoms : t.Manifest.RomNames;
         if (missing.Count == 0)
+        {
             return null;
+        }
+
         var game = _allGames.FirstOrDefault(g => g.Id == t.Manifest.GameId);
         bool Matches(VpsFile r, string name) =>
             string.Equals(r.Version, name, StringComparison.OrdinalIgnoreCase)
@@ -612,12 +661,17 @@ public sealed partial class MainViewModel : ObservableObject, IAsyncDisposable
             // This table's own catalog entry first; a parent set or a borrowed ROM (an original running
             // Attack from Mars's ROM) is often only listed under the machine it came from.
             if (game?.RomFiles?.FirstOrDefault(r => Matches(r, name)) is { } own)
+            {
                 return own;
+            }
+
             if (
                 _allGames.SelectMany(g => g.RomFiles ?? []).FirstOrDefault(r => Matches(r, name)) is
                 { } other
             )
+            {
                 return other;
+            }
         }
         return null;
     }
@@ -626,7 +680,10 @@ public sealed partial class MainViewModel : ObservableObject, IAsyncDisposable
     bool IsSternTable(InstalledTable t)
     {
         if (!t.IsVpx)
+        {
             return false;
+        }
+
         var game = _allGames.FirstOrDefault(g => g.Id == t.Manifest.GameId);
         return string.Equals(
                 t.Manifest.Manufacturer ?? game?.Manufacturer,
@@ -702,7 +759,9 @@ public sealed partial class MainViewModel : ObservableObject, IAsyncDisposable
             || !File.Exists(t.TablePath)
             || !_romRechecked.Add(t.TablePath)
         )
+        {
             return;
+        }
         // A loose .vpx straight in the tables folder has no folder (or manifest) of its own to update.
         if (
             string.Equals(
@@ -711,7 +770,10 @@ public sealed partial class MainViewModel : ObservableObject, IAsyncDisposable
                 StringComparison.OrdinalIgnoreCase
             )
         )
+        {
             return;
+        }
+
         await _romCheckOne.WaitAsync();
         bool changed;
         try
@@ -730,14 +792,18 @@ public sealed partial class MainViewModel : ObservableObject, IAsyncDisposable
         { /* still corrected for this session */
         }
         if (changed)
+        {
             RefreshInstalled();
+        }
     }
 
     [RelayCommand]
     void SearchRom(InstalledItem item)
     {
         if (item.Table.MissingRoms.FirstOrDefault() is { } rom)
+        {
             _ui.OpenExternal(RomSources.VpuSearchUrl(rom));
+        }
     }
 
     /// <summary>First link that's a real ROM download (not Stern's firmware site, not a .bin).</summary>
@@ -752,7 +818,10 @@ public sealed partial class MainViewModel : ObservableObject, IAsyncDisposable
     async Task GetRomAsync(InstalledTable table)
     {
         if (!TryBeginBusy(table.TablePath))
+        {
             return; // already fetching this table's ROM
+        }
+
         try
         {
             await GetRomCoreAsync(table);
@@ -767,9 +836,15 @@ public sealed partial class MainViewModel : ObservableObject, IAsyncDisposable
     async Task<bool> InstallAsync(VpsGame game, VpsTableFile tf, InstalledTable? replacing = null)
     {
         if (replacing == null)
+        {
             return await InstallCoreAsync(game, tf, null);
+        }
+
         if (!TryBeginBusy(replacing.TablePath))
+        {
             return false; // already updating this table
+        }
+
         try
         {
             return await InstallCoreAsync(game, tf, replacing);
@@ -786,7 +861,10 @@ public sealed partial class MainViewModel : ObservableObject, IAsyncDisposable
     bool TryBeginBusy(string tablePath)
     {
         if (!_busyTables.Add(tablePath))
+        {
             return false;
+        }
+
         SetBusy(tablePath, true);
         return true;
     }
@@ -804,7 +882,9 @@ public sealed partial class MainViewModel : ObservableObject, IAsyncDisposable
                 string.Equals(i.Table.TablePath, tablePath, StringComparison.OrdinalIgnoreCase)
             )
         )
+        {
             i.IsBusy = on;
+        }
     }
 
     async Task GetRomCoreAsync(InstalledTable table)
@@ -868,7 +948,9 @@ public sealed partial class MainViewModel : ObservableObject, IAsyncDisposable
                         ) is
                         { } zip
                     )
+                    {
                         fromStern.Add(zip);
+                    }
                     else if (await SternOtherVersionAsync(table, rom, urls, job) is { } other)
                     {
                         fromStern.Add(other.zip);
@@ -968,7 +1050,9 @@ public sealed partial class MainViewModel : ObservableObject, IAsyncDisposable
             // Finished, failed or cancelled: nothing to resume. (Not when it was cut off by the app
             // closing: that entry stays so the download is offered again next time.)
             if (!_closing)
+            {
                 _pending.Remove(job.Id);
+            }
         }
     }
 
@@ -989,7 +1073,10 @@ public sealed partial class MainViewModel : ObservableObject, IAsyncDisposable
             !table.Manifest.RomNames.Contains(rom, StringComparer.OrdinalIgnoreCase)
             || FindRomSource(table) != null
         )
+        {
             return null;
+        }
+
         var pinmameDir = Path.Combine(table.Folder, "pinmame");
         var others = await Task.Run(() =>
             PinmameInfo.Family(Settings, pinmameDir, rom).Skip(1).Select(g => g.Name).ToList()
@@ -1012,7 +1099,10 @@ public sealed partial class MainViewModel : ObservableObject, IAsyncDisposable
                 )
                 is not { } zip
             )
+            {
                 continue;
+            }
+
             RomRequirements.WriteAlias(pinmameDir, rom, version);
             table.Manifest.RomAlias = rom;
             table.Manifest.RomNames = [version];
@@ -1041,15 +1131,23 @@ public sealed partial class MainViewModel : ObservableObject, IAsyncDisposable
             Directory.CreateDirectory(roms);
             var own = Path.Combine(t.Folder, "pinmame", "roms");
             if (Directory.Exists(own))
+            {
                 foreach (var z in Directory.EnumerateFiles(own, "*.zip"))
+                {
                     File.Copy(z, Path.Combine(roms, Path.GetFileName(z)), true);
+                }
+            }
+
             RomInstaller.InstallAll(
                 downloads,
                 new InstalledTable(t.Manifest, t.TablePath, tmp),
                 rom
             );
             if (!File.Exists(Path.Combine(roms, rom + ".zip")))
+            {
                 return false;
+            }
+
             return PinmameInfo.Get(Settings, Path.Combine(tmp, "pinmame"), rom) is not { } g
                 || g.Found;
         }
@@ -1076,8 +1174,13 @@ public sealed partial class MainViewModel : ObservableObject, IAsyncDisposable
         );
         var pinmameDir = Path.Combine(t.Folder, "pinmame");
         foreach (var rom in t.Manifest.RomNames.ToList())
-        foreach (var g in PinmameInfo.Family(Settings, pinmameDir, rom))
-            names.Add(g.Name);
+        {
+            foreach (var g in PinmameInfo.Family(Settings, pinmameDir, rom))
+            {
+                names.Add(g.Name);
+            }
+        }
+
         return names;
     }
 
@@ -1112,20 +1215,30 @@ public sealed partial class MainViewModel : ObservableObject, IAsyncDisposable
                 || family.Contains(g.Name)
                 || (g.CloneOf != null && family.Contains(g.CloneOf))
             )
+            {
                 keep.Add(f);
+            }
             else
+            {
                 other.Add((f, g));
+            }
         }
         if (other.Count == 0)
+        {
             return keep;
+        }
+
         var which = string.Join(
             ", ",
             other.Select(o => $"{Path.GetFileName(o.file)} ({o.game.Description})")
         );
         if (keep.Count == 0)
+        {
             throw new InvalidOperationException(
                 $"Got {which}: that's another machine's ROM, not {string.Join(" / ", t.MissingRoms.DefaultIfEmpty(t.Manifest.RomNames.FirstOrDefault() ?? "this table's"))}.zip. Nothing was installed."
             );
+        }
+
         job.Report($"Skipping {which}: another machine's ROM.");
         return keep;
     }
@@ -1134,7 +1247,9 @@ public sealed partial class MainViewModel : ObservableObject, IAsyncDisposable
     void ClearFinishedJobs()
     {
         foreach (var j in Jobs.Where(j => j.IsDone || j.IsError).ToList())
+        {
             Jobs.Remove(j);
+        }
     }
 
     [RelayCommand]
@@ -1143,9 +1258,13 @@ public sealed partial class MainViewModel : ObservableObject, IAsyncDisposable
         try
         {
             if (SitePolicy.AllowsAutomation(url))
+            {
                 await _browser.OpenForSignInAsync(url);
+            }
             else
+            {
                 _ui.OpenExternal(url);
+            }
         }
         catch (Exception e)
         {
@@ -1279,7 +1398,10 @@ public sealed partial class MainViewModel : ObservableObject, IAsyncDisposable
         };
         Installed.Clear();
         foreach (var i in q)
+        {
             Installed.Add(i);
+        }
+
         InstalledTotal = _allInstalled.Count;
         InstalledEmptyText =
             Installed.Count > 0 || _allInstalled.Count == 0 ? ""
@@ -1310,7 +1432,9 @@ public sealed partial class MainViewModel : ObservableObject, IAsyncDisposable
         }
         item.ApplyStats(_stats);
         if (InstalledFilter != "Most played" && InstalledFilter != "Recently played")
+        {
             ShowInstalled();
+        }
     }
 
     [RelayCommand]
@@ -1369,7 +1493,10 @@ public sealed partial class MainViewModel : ObservableObject, IAsyncDisposable
             PlayStatus = $"Finished {item.Title}. Pick your next table.";
             _ui.ShowAfterPlay();
             if (item.Table.IsVpx)
+            {
                 LoadVrView(); // VPX saves the table position when it closes
+            }
+
             await ExplainVpxExitAsync(item, started);
         }
         catch (System.ComponentModel.Win32Exception e) when (e.NativeErrorCode == 1223)
@@ -1407,7 +1534,9 @@ public sealed partial class MainViewModel : ObservableObject, IAsyncDisposable
             PlayStatus = "Checking your headset…";
             var hs = await HeadsetCheck.CheckAsync(Settings, TimeSpan.FromSeconds(15));
             if (hs.State is HeadsetState.Ready or HeadsetState.Unknown)
+            {
                 return true;
+            }
 
             var hasLinkApp = File.Exists(MetaLinkApp);
             var message =
@@ -1421,7 +1550,10 @@ public sealed partial class MainViewModel : ObservableObject, IAsyncDisposable
                         + "and set Meta Quest Link as the active OpenXR runtime (Link app → Settings → General).";
             List<string> buttons = ["TRY AGAIN"];
             if (hasLinkApp)
+            {
                 buttons.Add("OPEN META QUEST LINK");
+            }
+
             buttons.AddRange(["PLAY ANYWAY", "CANCEL"]);
 
             var pick = await _ui.ChoiceAsync("Headset not connected", message, [.. buttons]);
@@ -1474,7 +1606,10 @@ public sealed partial class MainViewModel : ObservableObject, IAsyncDisposable
             buttons
         );
         if (pick == 1)
+        {
             ShowZenReminder = false;
+        }
+
         return pick is 0 or 1;
     }
 
@@ -1492,7 +1627,10 @@ public sealed partial class MainViewModel : ObservableObject, IAsyncDisposable
     async Task LaunchLobbyAsync()
     {
         if (IsLobbyRunning)
+        {
             return;
+        }
+
         var lobbyDir = LobbyRunner.FindLobbyDir();
         if (lobbyDir == null)
         {
@@ -1519,7 +1657,10 @@ public sealed partial class MainViewModel : ObservableObject, IAsyncDisposable
                 job.Cts.Token
             );
             if (LobbyRunner.NeedsBuild(lobbyDir))
+            {
                 await LobbyRunner.BuildAsync(lobbyDir, job.Report, job.Cts.Token);
+            }
+
             await LobbyRunner.ImportIfNeededAsync(godot, lobbyDir, job.Report, job.Cts.Token);
 
             using var lobby = LobbyRunner.Start(godot, lobbyDir);
@@ -1545,7 +1686,10 @@ public sealed partial class MainViewModel : ObservableObject, IAsyncDisposable
         {
             IsLobbyRunning = false;
             if (hidden)
+            {
                 _ui.ShowAfterPlay();
+            }
+
             RefreshInstalled(); // favourites and plays may have changed in the lobby
         }
     }
@@ -1583,7 +1727,9 @@ public sealed partial class MainViewModel : ObservableObject, IAsyncDisposable
         {
             await Task.Delay(500);
             if (Busy())
+            {
                 idleSince = DateTime.UtcNow;
+            }
         }
     }
 
@@ -1619,7 +1765,10 @@ public sealed partial class MainViewModel : ObservableObject, IAsyncDisposable
             downloads
         );
         if (file == null)
+        {
             return;
+        }
+
         TableInstaller.AddRom(item.Table, file);
         RefreshInstalled();
     }
@@ -1631,7 +1780,10 @@ public sealed partial class MainViewModel : ObservableObject, IAsyncDisposable
             ? $"the folder\n{item.Table.Folder}"
             : $"\n{item.Table.TablePath}";
         if (!await _ui.ConfirmAsync("Remove table", $"Delete {item.Title}?\n\nThis removes {what}"))
+        {
             return;
+        }
+
         try
         {
             TableInstaller.Remove(item.Table);
@@ -1787,7 +1939,10 @@ public sealed partial class MainViewModel : ObservableObject, IAsyncDisposable
         }
         Settings.Save();
         if (e.PropertyName == nameof(VpxDir))
+        {
             LoadGraphics();
+        }
+
         if (
             e.PropertyName
             is nameof(VpxDir)
@@ -1849,13 +2004,19 @@ public sealed partial class MainViewModel : ObservableObject, IAsyncDisposable
             : "Pinball settings are off; UEVR uses its own.",
         };
         if (UevrPinballProfile.LastRuntime(g) is { } rt)
+        {
             parts.Add(
                 rt == "OpenVR"
                     ? "Last run used OpenVR: pick OpenXR in the UEVR window next time."
                     : "Last run used OpenXR."
             );
+        }
+
         if (UevrPinballProfile.HasBackup(g))
+        {
             parts.Add("Your original profile is backed up.");
+        }
+
         return string.Join(" ", parts);
     }
 
@@ -1878,9 +2039,13 @@ public sealed partial class MainViewModel : ObservableObject, IAsyncDisposable
         }
         RefreshSetupStatus();
         if (g == ZenGames.PinballM)
+        {
             PmProfileStatus = msg + " " + PmProfileStatus;
+        }
         else
+        {
             PfxProfileStatus = msg + " " + PfxProfileStatus;
+        }
     }
 
     [RelayCommand]
@@ -1888,7 +2053,10 @@ public sealed partial class MainViewModel : ObservableObject, IAsyncDisposable
     {
         var g = ZenGames.For(engineId ?? TableManifest.PinballFx) ?? ZenGames.PinballFx;
         if (!UevrPinballProfile.HasBackup(g))
+        {
             return;
+        }
+
         if (
             !await _ui.ConfirmAsync(
                 "Restore UEVR profile",
@@ -1900,7 +2068,10 @@ public sealed partial class MainViewModel : ObservableObject, IAsyncDisposable
                     )
             )
         )
+        {
             return;
+        }
+
         UevrPinballProfile.RestoreOriginal(g);
         ApplyPinballUevrProfile = false;
         RefreshSetupStatus();
@@ -1977,7 +2148,9 @@ public sealed partial class MainViewModel : ObservableObject, IAsyncDisposable
                     {
                         LatestVpx = s;
                         if (s.StartsWith("Extracting"))
+                        {
                             VpxProgressUnknown = true;
+                        }
                     }),
                 cts.Token
             );
@@ -2020,14 +2193,18 @@ public sealed partial class MainViewModel : ObservableObject, IAsyncDisposable
     async Task BrowseVpxDirAsync()
     {
         if (await _ui.PickFolderAsync("VPX install folder") is { } d)
+        {
             VpxDir = d;
+        }
     }
 
     [RelayCommand]
     async Task BrowseTablesDirAsync()
     {
         if (await _ui.PickFolderAsync("Tables folder") is { } d)
+        {
             TablesDir = d;
+        }
     }
 
     [ObservableProperty]
@@ -2038,7 +2215,10 @@ public sealed partial class MainViewModel : ObservableObject, IAsyncDisposable
     async Task ImportTablesAsync()
     {
         if (await _ui.PickFolderAsync("Another VPX install, or its Tables folder") is not { } src)
+        {
             return;
+        }
+
         if (TableImport.FindTablesDir(src) == null)
         {
             ImportStatus = "No .vpx tables in that folder or its Tables folder.";
@@ -2081,14 +2261,18 @@ public sealed partial class MainViewModel : ObservableObject, IAsyncDisposable
     async Task BrowseFpDirAsync()
     {
         if (await _ui.PickFolderAsync("Future Pinball folder") is { } d)
+        {
             FpDir = d;
+        }
     }
 
     [RelayCommand]
     async Task BrowseUevrDirAsync()
     {
         if (await _ui.PickFolderAsync("UEVR folder (contains UEVRInjector.exe)") is { } d)
+        {
             UevrDir = d;
+        }
     }
 
     /// <param name="engineId">Which Zen game the profile is for: "PFX" (Pinball FX) or "PM" (Pinball M).</param>
@@ -2098,7 +2282,10 @@ public sealed partial class MainViewModel : ObservableObject, IAsyncDisposable
         var game = ZenGames.For(engineId ?? TableManifest.PinballFx) ?? ZenGames.PinballFx;
         var zip = await _ui.PickFileAsync($"Choose a UEVR profile zip for {game.Title}", "*.zip");
         if (zip == null)
+        {
             return;
+        }
+
         try
         {
             PfxSetup.ImportProfile(zip, game);
@@ -2107,9 +2294,14 @@ public sealed partial class MainViewModel : ObservableObject, IAsyncDisposable
         {
             var msg = "Couldn't import the profile: " + e.Message;
             if (game == ZenGames.PinballM)
+            {
                 PmStatus = msg;
+            }
             else
+            {
                 PfxStatus = msg;
+            }
+
             return;
         }
         RefreshSetupStatus();
@@ -2129,9 +2321,15 @@ public sealed partial class MainViewModel : ObservableObject, IAsyncDisposable
     void RecheckSetup()
     {
         if (string.IsNullOrWhiteSpace(FpDir) && FpSetup.AutoDetect() is { } fp)
+        {
             FpDir = fp;
+        }
+
         if (string.IsNullOrWhiteSpace(UevrDir) && PfxSetup.AutoDetectUevr() is { } uevr)
+        {
             UevrDir = uevr;
+        }
+
         RefreshInstalled();
         RefreshSetupStatus();
     }
@@ -2180,7 +2378,10 @@ public sealed partial class MainViewModel : ObservableObject, IAsyncDisposable
     void ApplyTableUpdates()
     {
         if (_allGames.Count == 0)
+        {
             return;
+        }
+
         var updates = TableUpdates
             .Find(_allInstalled.Select(i => i.Table), _allGames)
             .ToDictionary(u => u.Table.TablePath, StringComparer.OrdinalIgnoreCase);
@@ -2322,7 +2523,10 @@ public sealed partial class MainViewModel : ObservableObject, IAsyncDisposable
     async Task UpdateTableAsync(InstalledItem item)
     {
         if (item.Update is not { } u)
+        {
             return;
+        }
+
         await InstallAsync(u.Game, u.File, u.Table);
     }
 
@@ -2331,7 +2535,9 @@ public sealed partial class MainViewModel : ObservableObject, IAsyncDisposable
     {
         // One at a time: the browser downloader handles one site page at a time anyway.
         foreach (var u in _allInstalled.Select(i => i.Update).OfType<TableUpdate>().ToList())
+        {
             await InstallAsync(u.Game, u.File, u.Table);
+        }
     }
 
     [RelayCommand]
@@ -2370,9 +2576,15 @@ public sealed partial class MainViewModel : ObservableObject, IAsyncDisposable
         try
         {
             if (HasVpxUpdate)
+            {
                 await InstallVpxAsync();
+            }
+
             if (HasUevrUpdate)
+            {
                 await InstallUevrAsync();
+            }
+
             await UpdateAllTablesAsync();
             await UpdateAllAddonsAsync();
             await CheckUpdatesAsync();
@@ -2402,14 +2614,19 @@ public sealed partial class MainViewModel : ObservableObject, IAsyncDisposable
         { /* never block the resume offer */
         }
         if (!IsUpdatingApp)
+        {
             await OfferResumeAsync();
+        }
     }
 
     async Task OfferResumeAsync()
     {
         var items = _pending.Items;
         if (items.Count == 0)
+        {
             return;
+        }
+
         var list =
             string.Join("\n", items.Take(8).Select(i => "• " + i.Title))
             + (items.Count > 8 ? $"\n• …and {items.Count - 8} more" : "");
@@ -2420,7 +2637,9 @@ public sealed partial class MainViewModel : ObservableObject, IAsyncDisposable
         );
         _pending.Clear(); // resumed jobs add themselves back
         if (pick != 0)
+        {
             return;
+        }
 
         var installed = TableInstaller.Scan(Settings);
         InstalledTable? Find(string? path) =>
@@ -2439,9 +2658,14 @@ public sealed partial class MainViewModel : ObservableObject, IAsyncDisposable
             if (item.Kind == PendingDownload.RomKind)
             {
                 if (Find(item.TablePath) is { } t)
+                {
                     _ = GetRomAsync(t);
+                }
                 else
+                {
                     skipped.Add(item.Title);
+                }
+
                 continue;
             }
             if (PendingDownload.AddonKindOf(item.Kind) != null)
@@ -2460,8 +2684,10 @@ public sealed partial class MainViewModel : ObservableObject, IAsyncDisposable
             _ = InstallAsync(game, tf, replacing is { IsIncomplete: false } ? replacing : null);
         }
         if (skipped.Count > 0)
+        {
             CatalogStatus =
                 $"Couldn't resume {string.Join(", ", skipped)}: no longer in the catalog or installed.";
+        }
     }
 
     /// <summary>Reinstalls a table whose install was cut off (INCOMPLETE on My Tables).</summary>
@@ -2488,7 +2714,10 @@ public sealed partial class MainViewModel : ObservableObject, IAsyncDisposable
         }
         // Cut off before the table file arrived: nothing to replace, but still mark this card busy.
         if (!TryBeginBusy(item.Table.TablePath))
+        {
             return;
+        }
+
         try
         {
             await InstallAsync(game, tf);

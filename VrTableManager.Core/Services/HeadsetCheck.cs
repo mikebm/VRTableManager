@@ -31,10 +31,15 @@ public static class HeadsetCheck
     public static async Task<HeadsetStatus> CheckAsync(AppSettings s, TimeSpan timeout)
     {
         if (!OperatingSystem.IsWindows())
+        {
             return new(HeadsetState.Unknown, "Headset check is Windows-only.");
+        }
+
         var loader = FindLoader(s);
         if (loader == null)
+        {
             return new(HeadsetState.Unknown, "No OpenXR loader found (install VPX first).");
+        }
 
         // Some runtimes (SteamVR) start up on first contact, which can take a while; don't hang on it.
         var work = Task.Run(() => Query(loader));
@@ -50,15 +55,22 @@ public static class HeadsetCheck
         foreach (var dir in new[] { s.VpxDir, s.UevrDir })
         {
             if (string.IsNullOrWhiteSpace(dir) || !Directory.Exists(dir))
+            {
                 continue;
+            }
+
             foreach (var n in names)
+            {
                 if (
                     Directory
                         .EnumerateFiles(dir, n, SearchOption.AllDirectories)
                         .FirstOrDefault() is
                     { } hit
                 )
+                {
                     return hit;
+                }
+            }
         }
         return null;
     }
@@ -145,9 +157,15 @@ public static class HeadsetCheck
             };
             var r = create(ref info, out var instance);
             if (r == XR_ERROR_RUNTIME_UNAVAILABLE || r == XR_ERROR_RUNTIME_FAILURE)
+            {
                 return new(HeadsetState.NoRuntime, $"No working OpenXR runtime (error {r}).");
+            }
+
             if (r != XR_SUCCESS)
+            {
                 return new(HeadsetState.Unknown, $"OpenXR couldn't start (error {r}).");
+            }
+
             try
             {
                 var sys = new XrSystemGetInfo

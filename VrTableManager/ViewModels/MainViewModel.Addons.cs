@@ -40,7 +40,10 @@ public sealed partial class MainViewModel
             || t.Manifest.GameId == ""
             || _allGames.FirstOrDefault(g => g.Id == t.Manifest.GameId) is not { } game
         )
+        {
             return [];
+        }
+
         return slot.Kind == AddonKind.Pup
             ? PupPacks
                 .SourcesFor(game, t)
@@ -67,21 +70,27 @@ public sealed partial class MainViewModel
     void ApplyAddons()
     {
         if (_allGames.Count == 0)
+        {
             return;
+        }
+
         var updates = Addons.FindUpdates(_allInstalled.Select(i => i.Table), _allGames);
         foreach (var item in _allInstalled)
-        foreach (var slot in item.Addons)
         {
-            slot.Choices = ChoicesFor(slot);
-            slot.Update = updates.FirstOrDefault(u =>
-                u.Kind == slot.Kind
-                && string.Equals(
-                    u.Table.TablePath,
-                    item.Table.TablePath,
-                    StringComparison.OrdinalIgnoreCase
-                )
-            );
+            foreach (var slot in item.Addons)
+            {
+                slot.Choices = ChoicesFor(slot);
+                slot.Update = updates.FirstOrDefault(u =>
+                    u.Kind == slot.Kind
+                    && string.Equals(
+                        u.Table.TablePath,
+                        item.Table.TablePath,
+                        StringComparison.OrdinalIgnoreCase
+                    )
+                );
+            }
         }
+
         AddonUpdateCount = updates.Count;
         var tracked = _allInstalled.Sum(i =>
             Enum.GetValues<AddonKind>().Count(k => Addons.Record(i.Table, k) != null)
@@ -117,13 +126,18 @@ public sealed partial class MainViewModel
                 .OfType<AddonUpdate>()
                 .ToList()
         )
+        {
             await GetAddonAsync(u.Kind, u.Table, u.Game, u.File);
+        }
     }
 
     async Task GetAddonAsync(AddonKind kind, InstalledTable table, VpsGame game, VpsFile file)
     {
         if (!TryBeginBusy(table.TablePath))
+        {
             return;
+        }
+
         try
         {
             await GetAddonCoreAsync(kind, table, game, file);
@@ -180,7 +194,9 @@ public sealed partial class MainViewModel
             )
             is not { } path
         )
+        {
             return;
+        }
 
         var name = Path.GetFileName(path);
         VpsFile entry = new() { Id = "file:" + name };
@@ -193,16 +209,24 @@ public sealed partial class MainViewModel
                 [.. buttons]
             );
             if (pick < 0 || buttons[pick] == "CANCEL")
+            {
                 return;
+            }
+
             if (pick < slot.Choices.Count)
+            {
                 entry = slot.Choices[pick].File;
+            }
         }
         var game =
             _allGames.FirstOrDefault(g => g.Id == table.Manifest.GameId)
             ?? new VpsGame { Id = table.Manifest.GameId, Name = table.Manifest.GameName };
 
         if (!TryBeginBusy(table.TablePath))
+        {
             return;
+        }
+
         try
         {
             await GetAddonCoreAsync(slot.Kind, table, game, entry, path);
@@ -258,6 +282,7 @@ public sealed partial class MainViewModel
         Jobs.Insert(0, job);
         // Only a download can be resumed after a restart.
         if (localFile == null)
+        {
             _pending.Add(
                 new PendingDownload
                 {
@@ -269,6 +294,8 @@ public sealed partial class MainViewModel
                     TablePath = table.TablePath,
                 }
             );
+        }
+
         try
         {
             var downloaded = localFile ?? await FetchAddonAsync(kind, file, job);
@@ -346,7 +373,9 @@ public sealed partial class MainViewModel
         {
             CleanJobDownloads(job);
             if (!_closing)
+            {
                 _pending.Remove(job.Id);
+            }
         }
     }
 
@@ -360,7 +389,10 @@ public sealed partial class MainViewModel
             ? (slot.Kind == AddonKind.AltColor ? $"{tr.Location}\\{tr.Folder}" : tr.Folder)
             : state.Folders.FirstOrDefault();
         if (folder == null)
+        {
             return;
+        }
+
         var shown = slot.Kind switch
         {
             AddonKind.Pup => $"{PupPacks.FolderName}\\{folder}",
@@ -373,13 +405,21 @@ public sealed partial class MainViewModel
                 $"Delete {shown} from {slot.Item.Title}'s folder? The table itself stays."
             )
         )
+        {
             return;
+        }
+
         try
         {
             if (slot.Kind == AddonKind.Pup)
+            {
                 PupPacks.Remove(table, folder);
+            }
             else
+            {
                 AltPacks.Remove(table, slot.Kind, folder);
+            }
+
             if (state.Tracked != null && record != null)
             {
                 Addons.SetRecord(table, slot.Kind, null);
@@ -407,7 +447,9 @@ public sealed partial class MainViewModel
                 : t.Folder,
         };
         if (Directory.Exists(dir))
+        {
             _ui.OpenExternal(dir);
+        }
     }
 
     void ResumeAddon(PendingDownload d, Func<string?, InstalledTable?> find, List<string> skipped)
@@ -419,9 +461,13 @@ public sealed partial class MainViewModel
                 ? null
                 : Addons.FilesOf(game, kind.Value).FirstOrDefault(f => f.Id == d.AddonFileId);
         if (find(d.TablePath) is { } t && game != null && file != null)
+        {
             _ = GetAddonAsync(kind!.Value, t, game, file);
+        }
         else
+        {
             skipped.Add(d.Title);
+        }
     }
 }
 

@@ -74,7 +74,10 @@ public partial class Main : Node3D
     void Trace(string what)
     {
         if (!_perfTrace)
+        {
             return;
+        }
+
         _perfEvents.Add(what);
         GD.Print($"  {_perfClock:0.00}s {what}");
     }
@@ -178,9 +181,11 @@ public partial class Main : Node3D
             ProjectSettings.GlobalizePath(DefaultCabinetFile)
         );
         if (_template == null)
+        {
             GD.PushWarning(
                 $"No default cabinet at {DefaultCabinetFile}: tables without their own use the drawn cabinet."
             );
+        }
         // --settings / --state (or VRLOBBY_SETTINGS / VRLOBBY_STATE) point elsewhere; used by the self-test.
         _settingsPath =
             args.GetValueOrDefault("settings")
@@ -191,7 +196,10 @@ public partial class Main : Node3D
         var selfTest = args.ContainsKey("selftest");
         _perfTrace = args.ContainsKey("perf-trace");
         if (int.TryParse(args.GetValueOrDefault("perf-trace"), out var steps) && steps >= 0)
+        {
             _perfStepCount = steps;
+        }
+
         if (selfTest && _settingsPath == null)
         {
             var fx = Tests.LobbyFixture.Create(
@@ -229,7 +237,9 @@ public partial class Main : Node3D
                     out var pitch
                 ) && GetViewport().GetCamera3D() is { } cam
             )
+            {
                 cam.Rotation = new Vector3(Mathf.DegToRad(pitch), 0, 0);
+            }
             // --fov=<degrees>: zoom in from the same standing spot (same perspective, closer look).
             if (
                 float.TryParse(
@@ -238,7 +248,9 @@ public partial class Main : Node3D
                     out var fov
                 ) && GetViewport().GetCamera3D() is { } zoomCam
             )
+            {
                 zoomCam.Fov = fov;
+            }
             // --cam-y=<metres>: eye height for the shot (default standing height), e.g. to look a cabinet's front in the face.
             if (
                 float.TryParse(
@@ -247,7 +259,10 @@ public partial class Main : Node3D
                     out var camY
                 ) && GetViewport().GetCamera3D() is { } lowCam
             )
+            {
                 lowCam.Position = new Vector3(lowCam.Position.X, camY, lowCam.Position.Z);
+            }
+
             GetTree().CreateTimer(6).Timeout += () =>
             {
                 GetViewport().GetTexture().GetImage().SavePng(shot);
@@ -257,17 +272,24 @@ public partial class Main : Node3D
         Rebuild(args.GetValueOrDefault("select", ""));
         LoadBackglassIndex();
         if (!_noDepth)
+        {
             WarmPlayfieldDepth();
+        }
+
         if (!selfTest)
+        {
             RefreshHighScoreMaps();
+        }
 
         if (selfTest)
+        {
             Callable
                 .From(() =>
                 {
                     _ = SelfTest.RunAsync(this);
                 })
                 .CallDeferred();
+        }
     }
 
     /// <summary>
@@ -298,7 +320,9 @@ public partial class Main : Node3D
             var bytes = Godot.FileAccess.GetFileAsBytes("res://icon.png");
             var img = new Image();
             if (bytes.Length > 0 && img.LoadPngFromBuffer(bytes) == Error.Ok)
+            {
                 DisplayServer.SetIcon(img);
+            }
         }
         catch
         { /* cosmetic only */
@@ -317,8 +341,12 @@ public partial class Main : Node3D
                     {
                         _backglass = index;
                         foreach (var cab in _pool)
+                        {
                             if (cab.Table != null)
+                            {
                                 AssignCabinet(cab, cab.Index, requestArt: true);
+                            }
+                        }
                     })
                     .CallDeferred();
             });
@@ -605,9 +633,14 @@ public partial class Main : Node3D
                 * (3.2f * Mathf.Exp(-Mathf.Pow((v - 0.16f) / 0.06f, 2))); // ceiling light
             c += Palette.Lamp * (0.8f * Mathf.Exp(-Mathf.Pow((v - 0.45f) / 0.015f, 2))); // lamps round the room
             if (v > 0.5f)
+            {
                 c *= 0.35f; // dark floor
+            }
+
             for (var x = 0; x < w; x++)
+            {
                 img.SetPixel(x, y, c);
+            }
         }
         return ImageTexture.CreateFromImage(img);
     }
@@ -692,7 +725,10 @@ public partial class Main : Node3D
     public void SaveHeight()
     {
         if (!_heightDirty)
+        {
             return;
+        }
+
         State.Save();
         _heightDirty = false;
     }
@@ -717,7 +753,10 @@ public partial class Main : Node3D
         );
         _scroll = Selected;
         foreach (var cab in _pool)
+        {
             cab.Park(); // the list changed: every cabinet gets re-assigned
+        }
+
         BuildRail();
         UpdateSelection();
         Layout();
@@ -740,23 +779,32 @@ public partial class Main : Node3D
         // Already read this table's own cabinet (or know it has none)? Show it straight away.
         ShowCabinetFor(cab);
         if (requestArt)
+        {
             RequestArt(cab);
+        }
     }
 
     void RequestArt(Cabinet cab)
     {
         // Playfield: the table file's own picture at up to 2048 px, else the VPS picture.
         if (cab.PlayfieldUrl != null && !cab.HasPlayfieldArt && cab.Table != null)
+        {
             _art.Request(
                 cab.PlayfieldUrl,
                 LobbyArt.PlayfieldUrl(cab.Table),
                 ArtLoader.PlayfieldMaxSide
             );
+        }
+
         if (cab.BackglassUrl != null && !cab.HasBackglassArt)
+        {
             _art.Request(cab.BackglassUrl);
+        }
         // The table's own VR cabinet, read in the background the first time it's needed.
         if (cab.Table != null && VpxFile(cab.Table) is { } vpx && !_cabs.IsKnown(vpx))
+        {
             _cabs.Request(vpx);
+        }
     }
 
     /// <summary>The table's .vpx, if it's a VPX table (only those carry a VR cabinet).</summary>
@@ -786,33 +834,50 @@ public partial class Main : Node3D
     {
         _template = template;
         foreach (var cab in _pool)
+        {
             if (cab.Table != null)
+            {
                 ShowCabinetFor(cab);
+            }
+        }
     }
 
     void ShowCabinetFor(Cabinet cab)
     {
         if (cab.Table == null)
+        {
             return;
+        }
+
         var vpx = VpxFile(cab.Table);
         // --borrow-all (diagnostic): every table borrows the template, to preview how it dresses other tables.
         var own = vpx != null && !_borrowAll ? _cabs.Get(vpx) : null;
         if (own != null)
+        {
             cab.ShowReal(own);
+        }
         // Not read yet: it may have its own, so show nothing rather than the default cabinet swapping out.
         else if (vpx != null && !_borrowAll && !_cabs.IsKnown(vpx))
+        {
             cab.ShowLoading();
+        }
         else if (_template != null)
+        {
             cab.ShowReal(_template, borrowed: true);
+        }
         else
+        {
             cab.ShowReal(null);
+        }
     }
 
     void OnCabinetReady(string vpx, RealCabinet? real)
     {
         Trace("cabinet " + Path.GetFileNameWithoutExtension(vpx));
         foreach (var cab in _pool)
+        {
             ShowCabinetFor(cab);
+        }
     }
 
     /// <summary>
@@ -833,9 +898,13 @@ public partial class Main : Node3D
                 continue;
             }
             if (cab.Index != i || cab.Table != Shown[i])
+            {
                 AssignCabinet(cab, i, settledEnough);
+            }
             else if (settledEnough)
+            {
                 RequestArt(cab);
+            }
 
             var offset = i - _scroll;
             var a = offset * Step;
@@ -860,10 +929,16 @@ public partial class Main : Node3D
     void BuildRail()
     {
         foreach (var (label, _) in _railItems)
+        {
             label.QueueFree();
+        }
+
         _railItems.Clear();
         if (Groups.Count == 0)
+        {
             return;
+        }
+
         var current = LobbyNav.GroupAt(Groups, Selected);
         // Letters all fit; long lists (manufacturers) show a window around the current one.
         int first = 0,
@@ -950,7 +1025,10 @@ public partial class Main : Node3D
     public void JumpToGroup(int g)
     {
         if (g < 0 || g >= Groups.Count)
+        {
             return;
+        }
+
         Select(LobbyNav.IndexForGroup(Groups, g));
         ShowFlash();
     }
@@ -970,7 +1048,10 @@ public partial class Main : Node3D
     void TrackMenuHold(double delta)
     {
         if (_menuHeld < 0)
+        {
             return;
+        }
+
         if (
             _left?.IsButtonPressed("menu_button") != true
             && _right?.IsButtonPressed("menu_button") != true
@@ -986,7 +1067,9 @@ public partial class Main : Node3D
             Leave("menu button held");
         }
         else
+        {
             ShowFlash("HOLD TO LEAVE");
+        }
     }
 
     /// <summary>
@@ -1006,7 +1089,10 @@ public partial class Main : Node3D
         {
             var g = LobbyNav.GroupAt(Groups, Selected);
             if (g == -1)
+            {
                 return;
+            }
+
             text = Groups[g].Label;
         }
         _flash.Text = text;
@@ -1037,7 +1123,9 @@ public partial class Main : Node3D
         var where = $"{Selected + 1} / {Shown.Count}  ·  {State.Filter}";
         var g = LobbyNav.GroupAt(Groups, Selected);
         if (g != -1 && State.Filter is "Manufacturer" or "Decade")
+        {
             where += ": " + Groups[g].Label;
+        }
         // Shared with the manager: plays and time are counted by VrTableManager --play.
         var lines = new List<string>
         {
@@ -1046,11 +1134,14 @@ public partial class Main : Node3D
             where,
         };
         if (t.MissingRoms.Count > 0)
+        {
             lines.Add(
                 "Needs ROM: "
                     + string.Join(", ", t.MissingRoms)
                     + ".zip (add it in VR Table Manager)"
             );
+        }
+
         _status.Text = string.Join("\n", lines);
         _status.Modulate = t.MissingRoms.Count > 0 ? Palette.Red.Lightened(0.25f) : Palette.Text;
         // An error about this table (it failed to start) stays until you move on, through stats refreshes.
@@ -1060,7 +1151,10 @@ public partial class Main : Node3D
             _status.Modulate = Palette.Red.Lightened(0.25f);
         }
         else
+        {
             _error = null;
+        }
+
         ShowScores(t);
     }
 
@@ -1076,7 +1170,10 @@ public partial class Main : Node3D
         _scores.Text = "";
         _scoresPanel.Visible = false;
         if (t.Engine != VrTableManager.Models.TableManifest.Vpx)
+        {
             return;
+        }
+
         if (_scoreLines.TryGetValue(t.Id, out var lines))
         {
             PlaceScores(lines);
@@ -1087,14 +1184,19 @@ public partial class Main : Node3D
             .ContinueWith(task =>
             {
                 if (!IsInstanceValid(this))
+                {
                     return;
+                }
+
                 var result = task.IsCompletedSuccessfully ? task.Result : [];
                 Callable
                     .From(() =>
                     {
                         _scoreLines[id] = result;
                         if (Shown.Count > 0 && Shown[Selected].Id == id)
+                        {
                             PlaceScores(result);
+                        }
                     })
                     .CallDeferred();
             });
@@ -1105,7 +1207,9 @@ public partial class Main : Node3D
         _scores.Text = string.Join("\n", lines);
         _scoresPanel.Visible = lines.Count > 0;
         if (lines.Count == 0)
+        {
             return;
+        }
         // Just under however many lines the stats text wrapped to, on a dark DMD-glass panel so the
         // lamps on the far wall don't run through the dots.
         var statusSize = (_status.Font ?? ThemeDB.FallbackFont).GetMultilineStringSize(
@@ -1136,13 +1240,18 @@ public partial class Main : Node3D
             .ContinueWith(task =>
             {
                 if (had || !task.IsCompletedSuccessfully || !task.Result || !IsInstanceValid(this))
+                {
                     return;
+                }
+
                 Callable
                     .From(() =>
                     {
                         _scoreLines.Clear();
                         if (Shown.Count > 0)
+                        {
                             ShowScores(Shown[Selected]);
+                        }
                     })
                     .CallDeferred();
             });
@@ -1153,14 +1262,22 @@ public partial class Main : Node3D
     public void Select(int i)
     {
         if (Shown.Count == 0)
+        {
             return;
+        }
+
         var before = Selected;
         Selected = Math.Clamp(i, 0, Shown.Count - 1);
         if (Selected == before)
+        {
             return;
+        }
         // Long jumps (A → M) start the animation a few cabinets away instead of spinning through dozens.
         if (Mathf.Abs(Selected - _scroll) > Side * 2)
+        {
             _scroll = Selected + Mathf.Sign(_scroll - Selected) * Side;
+        }
+
         UpdateSelection();
         _left?.TriggerHapticPulse("haptic", 0.0, 0.3, 0.05, 0.0);
         _right?.TriggerHapticPulse("haptic", 0.0, 0.3, 0.05, 0.0);
@@ -1170,7 +1287,10 @@ public partial class Main : Node3D
     public void SelectRandom()
     {
         if (Shown.Count < 2)
+        {
             return;
+        }
+
         var r = Random.Shared.Next(Shown.Count - 1);
         Select(r >= Selected ? r + 1 : r);
         ShowFlash("?");
@@ -1200,28 +1320,48 @@ public partial class Main : Node3D
     public bool RefreshFromStats()
     {
         if (!State.RefreshStats())
+        {
             return false;
+        }
+
         foreach (var cab in _pool)
+        {
             if (cab.Table != null)
+            {
                 cab.SetFavourite(State.IsFavourite(cab.Table.Id));
+            }
+        }
+
         if (IsStatsFilter(State.Filter))
+        {
             Rebuild(Shown.Count > 0 ? Shown[Selected].Id : "");
+        }
         else
+        {
             UpdateSelection();
+        }
+
         return true;
     }
 
     public void ToggleFavourite()
     {
         if (Shown.Count == 0)
+        {
             return;
+        }
+
         var t = Shown[Selected];
         var on = State.ToggleFavourite(t.Id);
         SelectedCabinet?.SetFavourite(on);
         if (State.Filter == "Favourites" && !on)
+        {
             Rebuild(Shown[Math.Min(Selected + 1, Shown.Count - 1)].Id);
+        }
         else
+        {
             UpdateSelection();
+        }
     }
 
     // ---- Attract sound -----------------------------------------------------------------
@@ -1233,28 +1373,42 @@ public partial class Main : Node3D
     void MaybePlayAttract()
     {
         if (Shown.Count == 0 || AttractPlaying != null)
+        {
             return;
+        }
+
         var t = Shown[Selected];
         if (!_attractFiles.TryGetValue(t.Id, out var file))
+        {
             _attractFiles[t.Id] = file = LobbyArt.AttractSound(t);
+        }
+
         if (file == null)
         {
             // A ROM table: record its own sound in the background, once; it plays when ready.
             if (_recordRoms)
+            {
                 _recorder.Request(t);
+            }
+
             return;
         }
         // Read off the main thread: a recorded ROM sound is a WAV of several MB, and reading it on the main
         // thread cost the headset a frame just as the table arrived.
         if (_attractLoading == t.Id)
+        {
             return;
+        }
+
         _attractLoading = t.Id;
         var id = t.Id;
         Task.Run(() => LoadSound(file))
             .ContinueWith(task =>
             {
                 if (!_closing)
+                {
                     Callable.From(() => PlayLoadedSound(task, id, file)).CallDeferred();
+                }
             });
     }
 
@@ -1266,7 +1420,10 @@ public partial class Main : Node3D
     void PlayLoadedSound(Task<AudioStream?> task, string id, string file)
     {
         if (_attractLoading != id)
+        {
             return; // moved on (or stopped) while it loaded
+        }
+
         _attractLoading = null;
         var stream = task.IsCompletedSuccessfully ? task.Result : null;
         if (stream == null)
@@ -1275,7 +1432,10 @@ public partial class Main : Node3D
             return;
         } // unreadable: don't try again
         if (_launching || AttractPlaying != null || Shown.Count == 0 || Shown[Selected].Id != id)
+        {
             return;
+        }
+
         _attract.Stream = stream;
         _attract.Position = new Vector3(
             0,
@@ -1322,19 +1482,26 @@ public partial class Main : Node3D
             .Select(j => (j.Video!.Value.Folder, j.TablePath))
             .ToList();
         if (jobs.Count == 0)
+        {
             return;
+        }
+
         Task.Run(() =>
         {
             foreach (var (folder, vpx) in jobs)
+            {
                 try
                 {
                     if (!File.Exists(Path.Combine(folder, PlayfieldDepth.FileName)))
+                    {
                         PlayfieldDepth.Load(folder, vpx);
+                    }
                 }
                 catch (Exception e)
                 {
                     GD.PushWarning($"Playfield depth warm-up {vpx}: {e.Message}");
                 } // one table mustn't stop the rest
+            }
         });
     }
 
@@ -1347,7 +1514,10 @@ public partial class Main : Node3D
             || SelectedCabinet is not { Table: { } t } cab
             || _videoCheckedFor == t.Id
         )
+        {
             return;
+        }
+
         _videoCheckedFor = t.Id;
         if (LobbyArt.PlayfieldVideo(t) is var (folder, info))
         {
@@ -1360,7 +1530,10 @@ public partial class Main : Node3D
     {
         _attractLoading = null;
         if (AttractPlaying == null)
+        {
             return;
+        }
+
         _attract.Stop();
         AttractPlaying = null;
     }
@@ -1370,17 +1543,27 @@ public partial class Main : Node3D
     public override void _Process(double delta)
     {
         if (_perfTrace)
+        {
             PerfTrace(delta);
+        }
+
         TrackMenuHold(delta);
         if (_loading != null)
         {
             if (_playing)
+            {
                 UpdatePlaying(delta);
+            }
             else
+            {
                 UpdateLoading(delta);
+            }
         }
         if (_returning >= 0)
+        {
             WatchReturn(delta);
+        }
+
         var d = (float)delta;
         if (!Mathf.IsEqualApprox(_scroll, Selected))
         {
@@ -1400,24 +1583,31 @@ public partial class Main : Node3D
             // The playfield video starts while the table is still coming in (decoding its first frame takes a
             // moment), so it's already playing when it arrives instead of swapping in after it stops.
             if (away < VideoFrom)
+            {
                 MaybePlayVideo();
+            }
             // The sound waits until it has (nearly) arrived and you've stayed on it for a moment.
             if (away < 0.02f)
             {
                 _settled += delta;
                 if (_settled > AttractAfter)
+                {
                     MaybePlayAttract();
+                }
             }
         }
         if (AttractPlaying != null)
         {
             _attractLeft -= delta;
             if (_attractLeft < 1.5)
+            {
                 _attract.VolumeDb = Mathf.Lerp(
                     -40f,
                     -12f,
                     Mathf.Clamp((float)_attractLeft / 1.5f, 0f, 1f)
                 );
+            }
+
             if (_attractLeft <= 0)
             {
                 _attract.Stop();
@@ -1452,7 +1642,9 @@ public partial class Main : Node3D
         }
 
         if (!_vr || _launching || _left == null || _right == null || _ray == null)
+        {
             return;
+        }
 
         var lv = _left.GetVector2("primary");
         var rv = _right.GetVector2("primary");
@@ -1463,13 +1655,20 @@ public partial class Main : Node3D
         {
             var next = LobbyHeight.Step(State.HeightOffset, lv.Y, delta);
             if (next != State.HeightOffset)
+            {
                 SetHeight(next);
+            }
             else if (_heightShow < 0.5)
+            {
                 ShowHeight(); // keep the readout up while gripping
+            }
+
             lv = Vector2.Zero;
         }
         else
+        {
             SaveHeight();
+        }
 
         // Either stick ← → turns the ring (faster while held); ↑ ↓ jumps between rail groups.
         var step = Stick("x", Strongest(lv.X, rv.X), delta);
@@ -1477,7 +1676,9 @@ public partial class Main : Node3D
         {
             Select(Selected + step);
             if (_held["x"] > 0.6)
+            {
                 ShowFlash(); // moving fast: show which letter we're passing
+            }
         }
         var j = Stick("jump", Strongest(lv.Y, rv.Y), delta);
         if (j != 0)
@@ -1492,9 +1693,13 @@ public partial class Main : Node3D
         if (_ray.IsColliding() && _ray.GetCollider() is GodotObject hit)
         {
             if (hit.HasMeta("cabinet_slot"))
+            {
                 slot = hit.GetMeta("cabinet_slot").AsInt32();
+            }
             else if (hit.HasMeta("rail_group"))
+            {
                 rail = hit.GetMeta("rail_group").AsInt32();
+            }
         }
         if (rail != _hoverRail)
         {
@@ -1510,7 +1715,9 @@ public partial class Main : Node3D
         {
             _hoverTime += delta;
             if (_hoverTime > 0.25)
+            {
                 Select(idx);
+            }
         }
     }
 
@@ -1524,11 +1731,17 @@ public partial class Main : Node3D
             return 0;
         }
         if (Mathf.Abs(value) < 0.6f)
+        {
             return 0;
+        }
+
         _held[channel] += delta;
         _cool[channel] -= delta;
         if (_cool[channel] > 0)
+        {
             return 0;
+        }
+
         _cool[channel] = LobbyNav.RepeatInterval(_held[channel]);
         return value > 0 ? 1 : -1;
     }
@@ -1556,7 +1769,10 @@ public partial class Main : Node3D
                     return;
                 }
                 if (controller == _right && _hoverSlot != -1 && _pool[_hoverSlot].Index >= 0)
+                {
                     Select(_pool[_hoverSlot].Index);
+                }
+
                 _ = LaunchAsync();
                 break;
             case "by_button" when controller == _left:
@@ -1584,11 +1800,17 @@ public partial class Main : Node3D
     public override void _UnhandledInput(InputEvent @event)
     {
         if (@event is not InputEventKey { Pressed: true } k)
+        {
             return;
+        }
+
         if (_launching)
         {
             if (k.Keycode == Key.Escape && _loading != null)
+            {
                 Leave("Escape pressed while " + _loading.Title + " was loading");
+            }
+
             return;
         }
         switch (k.Keycode)
@@ -1643,7 +1865,10 @@ public partial class Main : Node3D
                     && k.Unicode is > 0 and < 128
                     && char.IsLetterOrDigit((char)k.Unicode)
                 )
+                {
                     JumpToKey((char)k.Unicode);
+                }
+
                 break;
         }
     }
@@ -1654,12 +1879,18 @@ public partial class Main : Node3D
     {
         _perfClock += delta;
         if (delta > 0.010)
+        {
             GD.Print(
                 $"SLOW {delta * 1000:0} ms at {_perfClock:0.00}s (scroll {_scroll - Selected:0.000}, settled {_settled:0.00}): {string.Join(", ", _perfEvents)}"
             );
+        }
+
         _perfEvents.Clear();
         if (_perfClock < _perfNextStep)
+        {
             return;
+        }
+
         if (_perfSteps++ == _perfStepCount)
         {
             GetTree().Quit();
@@ -1676,18 +1907,29 @@ public partial class Main : Node3D
         foreach (var cab in _pool)
         {
             if (cab.Table == null)
+            {
                 continue;
+            }
+
             if (cab.PlayfieldUrl == url)
+            {
                 cab.SetPlayfield(tex);
+            }
+
             if (cab.BackglassUrl == url)
+            {
                 cab.SetBackglass(tex, average);
+            }
         }
     }
 
     async Task LaunchAsync()
     {
         if (Shown.Count == 0)
+        {
             return;
+        }
+
         var t = Shown[Selected];
         if (LobbyLauncher.CheckReady(t, Settings) is { } problem)
         {
@@ -1719,7 +1961,9 @@ public partial class Main : Node3D
         }
         State.MarkPlayed(t.Id);
         if (!wait)
+        {
             Leave("starting " + t.Title); // ends our OpenXR session so the table gets the headset
+        }
     }
 
     // ---- Loading screen --------------------------------------------------------------
@@ -1771,7 +2015,10 @@ public partial class Main : Node3D
         _loadingTime = _unfocused = 0;
         _loadingPoll = 0.25;
         foreach (var cab in _pool)
+        {
             cab.Visible = cab.Index == Selected && cab.Table == t;
+        }
+
         _rail.Visible = _hint.Visible = _scores.Visible = _scoresPanel.Visible = false;
         _chase.Visible = true;
         _header.Text = t.Title;
@@ -1795,12 +2042,18 @@ public partial class Main : Node3D
     void StopLoading()
     {
         if (_loading == null)
+        {
             return;
+        }
+
         _loading = null;
         _statusFile = null;
         _launching = false;
         foreach (var cab in _pool)
+        {
             cab.Visible = cab.Index >= 0;
+        }
+
         _rail.Visible = _hint.Visible = _scores.Visible = true;
         _chase.Visible = false;
         UpdateSelection();
@@ -1829,7 +2082,10 @@ public partial class Main : Node3D
 
         _loadingPoll -= delta;
         if (_loadingPoll > 0)
+        {
             return;
+        }
+
         _loadingPoll = 0.25;
         var t = _loading!;
         var st = _statusFile != null ? PlayStatus.Read(_statusFile) : null;
@@ -1853,7 +2109,10 @@ public partial class Main : Node3D
         if (!_vr)
         {
             if (running)
+            {
                 Leave("started " + t.Title);
+            }
+
             return;
         }
         // The runtime gives the headset's focus to the newest app, so once the table's own session starts ours
@@ -1864,14 +2123,22 @@ public partial class Main : Node3D
             if (_unfocused >= 0.5)
             {
                 if (Settings.LobbyStaysOpen && _statusFile != null)
+                {
                     StartPlaying(t);
+                }
                 else
+                {
                     Leave(t.Title + " took over the headset");
+                }
+
                 return;
             }
         }
         else
+        {
             _unfocused = 0;
+        }
+
         if (_loadingTime > LoadingGiveUp)
         {
             Leave($"still waiting for {t.Title} after {LoadingGiveUp:0} s");
@@ -1889,11 +2156,14 @@ public partial class Main : Node3D
         _loadingPoll = 0.5;
         _hidden.Clear();
         foreach (var child in GetChildren())
+        {
             if (child is Node3D n && n != _rig)
             {
                 _hidden.Add((n, n.Visible));
                 n.Visible = false;
             }
+        }
+
         _scoreLines.Remove(t.Id); // its high scores can change while it's played
         GD.Print($"Lobby waiting behind {t.Title}");
     }
@@ -1902,21 +2172,31 @@ public partial class Main : Node3D
     {
         _loadingPoll -= delta;
         if (_loadingPoll > 0)
+        {
             return;
+        }
+
         _loadingPoll = 0.5;
         var st = _statusFile != null ? PlayStatus.Read(_statusFile) : null;
         if (st?.State is PlayStatus.Exited or PlayStatus.Failed)
+        {
             ComeBack(_loading!.Title + " closed");
+        }
         // No status to go by: the headset's focus coming back means the table is gone.
         else if (st == null && _xr?.GetSessionState() == OpenXRInterface.SessionState.Focused)
+        {
             ComeBack("focus came back");
+        }
     }
 
     /// <summary>The table closed: the room comes back on the table you played, and we wait for the headset's focus.</summary>
     void ComeBack(string why)
     {
         foreach (var (n, was) in _hidden)
+        {
             n.Visible = was;
+        }
+
         _hidden.Clear();
         _playing = false;
         StopLoading(); // the ring, rail and the table's stats again
@@ -1938,13 +2218,20 @@ public partial class Main : Node3D
             return;
         }
         if (_returning < ReturnGiveUp)
+        {
             return;
+        }
+
         _returning = -1;
         var id = Shown.Count > 0 ? Shown[Selected].Id : "";
         if (LobbyLauncher.Restart(id, _settingsPath, _statePath) is { } error)
+        {
             GD.PushWarning("Couldn't restart the lobby: " + error);
+        }
         else
+        {
             Leave($"the headset didn't come back after {ReturnGiveUp:0} s; started a fresh lobby");
+        }
     }
 
     /// <summary>Self-test: what happens when the table takes over the headset, without a headset.</summary>
@@ -1967,12 +2254,19 @@ public partial class Main : Node3D
         foreach (var a in OS.GetCmdlineUserArgs())
         {
             if (!a.StartsWith("--"))
+            {
                 continue;
+            }
+
             var eq = a.IndexOf('=');
             if (eq > 2)
+            {
                 d[a[2..eq]] = a[(eq + 1)..];
+            }
             else
+            {
                 d[a[2..]] = "";
+            }
         }
         return d;
     }

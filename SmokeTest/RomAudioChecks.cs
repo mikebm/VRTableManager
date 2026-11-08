@@ -49,7 +49,10 @@ public static class RomAudioChecks
         const int rate = 1000;
         var samples = new short[60 * rate];
         for (var i = 30 * rate; i < 40 * rate; i++)
+        {
             samples[i] = (short)(i % 2 == 0 ? 1000 : -1000); // 10 s of quiet sound
+        }
+
         var clip = RomAudio.Clip(samples, 1, rate);
         yield return (
             clip != null && clip.Length is > 10 * rate and < 11 * rate,

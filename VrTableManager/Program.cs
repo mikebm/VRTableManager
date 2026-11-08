@@ -10,7 +10,9 @@ static class Program
     {
         // Launched by the VR lobby: play one table headless, then start the lobby again.
         if (PlaySession.IsPlayCommand(args))
+        {
             return PlaySession.RunAsync(args).GetAwaiter().GetResult();
+        }
 
         RecordExePath();
         return BuildAvaloniaApp().StartWithClassicDesktopLifetime(args);

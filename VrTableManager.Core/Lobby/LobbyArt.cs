@@ -19,8 +19,13 @@ public static class LobbyArt
     {
         var index = new Dictionary<string, string>(StringComparer.Ordinal);
         foreach (var g in games)
+        {
             if (!string.IsNullOrEmpty(g.Id) && BackglassUrl(g) is { } url)
+            {
                 index.TryAdd(g.Id, url);
+            }
+        }
+
         return index;
     }
 
@@ -60,14 +65,20 @@ public static class LobbyArt
     public static string? BackglassFor(LobbyTable t, IReadOnlyDictionary<string, string>? index)
     {
         if (UserArtwork.Key(t.Source, UserArtwork.Kind.Backglass) is { } mine)
+        {
             return mine;
+        }
+
         var gameId = t.Source.Manifest.GameId;
         if (
             index != null
             && !string.IsNullOrEmpty(gameId)
             && index.TryGetValue(gameId, out var url)
         )
+        {
             return url;
+        }
+
         return IsStoreGame(t) && !string.IsNullOrWhiteSpace(t.ImgUrl) ? t.ImgUrl : null;
     }
 
@@ -95,16 +106,24 @@ public static class LobbyArt
     static string? LooseSound(LobbyTable t)
     {
         if (t.Engine != TableManifest.Vpx)
+        {
             return null;
+        }
+
         var folder = t.Source.Folder;
         if (string.IsNullOrEmpty(folder) || !Directory.Exists(folder))
+        {
             return null;
+        }
         // Loose .vpx files in the tables root share the folder with other tables: skip those too.
         if (
             !File.Exists(Path.Combine(folder, "vrtm.json"))
             && Directory.EnumerateFiles(folder, "*.vpx").Skip(1).Any()
         )
+        {
             return null;
+        }
+
         try
         {
             var candidates = new[] { folder, Path.Combine(folder, "music") }
@@ -130,8 +149,13 @@ public static class LobbyArt
     static int PreferenceRank(string name)
     {
         for (var i = 0; i < Preferred.Length; i++)
+        {
             if (name.Contains(Preferred[i], StringComparison.OrdinalIgnoreCase))
+            {
                 return i;
+            }
+        }
+
         return Preferred.Length;
     }
 }

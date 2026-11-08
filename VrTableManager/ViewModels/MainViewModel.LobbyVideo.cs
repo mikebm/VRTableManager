@@ -16,7 +16,10 @@ public sealed partial class MainViewModel
     {
         var table = item.Table;
         if (!item.CanHaveLobbyVideo || !TryBeginBusy(table.TablePath))
+        {
             return;
+        }
+
         var record = false;
         try
         {
@@ -34,7 +37,10 @@ public sealed partial class MainViewModel
                 return;
             } // you cancelled it: don't offer to record instead
             if (problem == null)
+            {
                 return;
+            }
+
             record =
                 await _ui.ChoiceAsync(
                     $"Record {item.Title}'s attract mode?",
@@ -49,7 +55,9 @@ public sealed partial class MainViewModel
             EndBusy(table.TablePath);
         }
         if (record)
+        {
             await RecordLobbyVideo(item);
+        }
     }
 
     /// <summary>
@@ -81,6 +89,7 @@ public sealed partial class MainViewModel
                     );
                     // The same pack has the table's music: keep it too when there's none yet (saves a second download).
                     if (MediaPackAudio.Existing(table.Folder) == null)
+                    {
                         try
                         {
                             if (
@@ -93,11 +102,15 @@ public sealed partial class MainViewModel
                                     )
                                 ) != null
                             )
+                            {
                                 SetHasAttractAudio(table.TablePath, true);
+                            }
                         }
                         catch (Exception)
                         { /* the video is what was asked for */
                         }
+                    }
+
                     CleanJobDownloads(job);
                     if (video == null)
                     {
@@ -173,9 +186,15 @@ public sealed partial class MainViewModel
     {
         var table = item.Table;
         if (!item.CanHaveLobbyVideo)
+        {
             return true;
+        }
+
         if (!TryBeginBusy(table.TablePath))
+        {
             return true; // something else is running for this table: skip it
+        }
+
         var job = new JobItem($"Recording {table.Manifest.GameName} for the lobby")
         {
             FileNames = [table.Manifest.GameName],
@@ -272,7 +291,10 @@ public sealed partial class MainViewModel
     async Task RecordAllLobbyVideos()
     {
         if (IsBatchRecording)
+        {
             return;
+        }
+
         if (IsLobbyRunning)
         {
             PlayStatus = "Close the VR lobby first: recording runs the tables in VPX.";
@@ -310,7 +332,9 @@ public sealed partial class MainViewModel
                 ["RECORD ALL", "CANCEL"]
             ) != 0
         )
+        {
             return;
+        }
 
         IsBatchRecording = true;
         _batchStop = false;
@@ -334,9 +358,13 @@ public sealed partial class MainViewModel
                     break;
                 }
                 if (LobbyVideo.Existing(item.Table.Folder) != null)
+                {
                     recorded++;
+                }
                 else
+                {
                     failed++;
+                }
             }
         }
         finally
@@ -364,7 +392,9 @@ public sealed partial class MainViewModel
         {
             LobbyVideo.Remove(item.Table.Folder);
             if (LobbyVideo.ExistingPlayfieldVideo(item.Table.Folder) is { } video)
+            {
                 File.Delete(video);
+            }
         }
         catch (Exception e)
         {
@@ -382,6 +412,8 @@ public sealed partial class MainViewModel
                 string.Equals(i.Table.TablePath, tablePath, StringComparison.OrdinalIgnoreCase)
             )
         )
+        {
             i.HasLobbyVideo = on;
+        }
     }
 }

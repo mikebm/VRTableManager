@@ -20,11 +20,17 @@ public static class RomRequirements
     public static bool Update(InstalledTable t, AppSettings s)
     {
         if (!t.IsVpx || !File.Exists(t.TablePath))
+        {
             return false;
+        }
+
         var m = t.Manifest;
         // Only counts as checked when PinMAME could be asked; otherwise try again once VPX is installed.
         if (File.Exists(RomAudio.PinmameDll(s)))
+        {
             m.RomCheck = Version;
+        }
+
         var before = (string.Join(",", m.RomNames), string.Join(",", m.RomParents), m.RomAlias);
         AltPacks.FixLayout(t.Folder);
 
@@ -37,7 +43,9 @@ public static class RomRequirements
             return Changed();
         }
         if (info.GameName is not { } name)
+        {
             return Changed();
+        }
 
         var pinmameDir = Path.Combine(t.Folder, "pinmame");
         var dll = RomAudio.PinmameDll(s);
@@ -92,13 +100,19 @@ public static class RomRequirements
     public static void RefreshParents(InstalledTable t, AppSettings s)
     {
         if (!t.IsVpx || t.Manifest.RomNames.Count != 1)
+        {
             return;
+        }
+
         var pinmameDir = Path.Combine(t.Folder, "pinmame");
         if (
             RomZip(pinmameDir, t.Manifest.RomNames[0])
             && PinmameInfo.Family(s, pinmameDir, t.Manifest.RomNames[0]).Count == 0
         )
+        {
             return; // no PinMAME to ask: keep what's known
+        }
+
         t.Manifest.RomParents = ParentsNeeded(s, pinmameDir, t.Manifest.RomNames[0]);
     }
 
@@ -110,7 +124,10 @@ public static class RomRequirements
     static List<string> ParentsNeeded(AppSettings s, string pinmameDir, string game)
     {
         if (!RomZip(pinmameDir, game))
+        {
             return [];
+        }
+
         var family = PinmameInfo.Family(s, pinmameDir, game);
         return family.Count > 0 && !family[0].Found
             ? family.Skip(1).Select(g => g.Name).ToList()
@@ -133,11 +150,19 @@ public static class RomRequirements
             existing >= 0
             && lines[existing].Trim().Equals(line, StringComparison.OrdinalIgnoreCase)
         )
+        {
             return;
+        }
+
         if (existing >= 0)
+        {
             lines[existing] = line;
+        }
         else
+        {
             lines.Add(line);
+        }
+
         Directory.CreateDirectory(pinmameDir);
         File.WriteAllLines(file, lines);
     }

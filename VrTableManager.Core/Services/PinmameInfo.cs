@@ -29,7 +29,10 @@ public static class PinmameInfo
         for (var name = game; name != null && chain.Count < 4 && !chain.Any(g => g.Name == name); )
         {
             if (Query(dll, pinmameDir, [name]).GetValueOrDefault(name) is not { } g)
+            {
                 break;
+            }
+
             chain.Add(g);
             name = g.CloneOf;
         }
@@ -45,7 +48,10 @@ public static class PinmameInfo
     {
         var result = new Dictionary<string, PinmameGame>(StringComparer.OrdinalIgnoreCase);
         if (!OperatingSystem.IsWindows() || !File.Exists(dll) || names.Count == 0)
+        {
             return result;
+        }
+
         lock (RomAudio.OneAtATime)
         {
             try
@@ -75,7 +81,9 @@ public static class PinmameInfo
                 {
                     last = null;
                     if (getGame(n, cb, IntPtr.Zero) == StatusOk && last != null)
+                    {
                         result[n] = last;
+                    }
                 }
                 GC.KeepAlive(cb);
             }

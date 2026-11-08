@@ -28,7 +28,10 @@ public static class VpsCatalog
         try
         {
             if (!File.Exists(path))
+            {
                 return null;
+            }
+
             using var stream = File.OpenRead(path);
             return JsonSerializer.Deserialize<List<VpsGame>>(stream, Json);
         }
@@ -130,7 +133,9 @@ public static class Http
                 await dst.WriteAsync(buffer.AsMemory(0, n), ct);
                 read += n;
                 if (total > 0)
+                {
                     progress?.Report((double)read / total.Value);
+                }
             }
         }
         catch (OperationCanceledException) when (!ct.IsCancellationRequested)

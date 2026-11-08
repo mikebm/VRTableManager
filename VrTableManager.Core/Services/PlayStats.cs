@@ -34,7 +34,10 @@ public sealed class PlayStats
     public static string Key(string tablePath)
     {
         if (string.IsNullOrEmpty(tablePath))
+        {
             return tablePath;
+        }
+
         try
         {
             return Path.GetFullPath(tablePath);
@@ -112,7 +115,10 @@ public sealed class PlayStats
     {
         var k = Key(tablePath);
         if (!Tables.TryGetValue(k, out var t))
+        {
             Tables[k] = t = new TableStats();
+        }
+
         return t;
     }
 
@@ -133,13 +139,17 @@ public sealed class PlayStats
         t.Plays++;
         t.LastPlayed = startedAt;
         if (duration is { } d && d > TimeSpan.Zero)
+        {
             t.MinutesPlayed += d.TotalMinutes;
+        }
     }
 
     public void AddTime(string tablePath, TimeSpan played)
     {
         if (played > TimeSpan.Zero)
+        {
             GetOrAdd(tablePath).MinutesPlayed += played.TotalMinutes;
+        }
     }
 
     /// <summary>Marks a table as just picked without counting a play (the lobby, before handing over).</summary>

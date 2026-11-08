@@ -9,7 +9,9 @@ void Check(bool ok, string what)
 {
     Console.WriteLine($"{(ok ? "PASS" : "FAIL")}  {what}");
     if (!ok)
+    {
         failures++;
+    }
 }
 
 // 1. Catalog
@@ -50,7 +52,10 @@ using (
         ZipArchiveMode.Create
     )
 )
+{
     rom.CreateEntry("rom.bin");
+}
+
 var pack = Path.Combine(root, "pack.zip");
 ZipFile.CreateFromDirectory(src, pack);
 
@@ -151,7 +156,9 @@ var again = await TableInstaller.InstallAsync(
 );
 Check(again.Folder == folder, "reinstalling the same table file goes back into its folder");
 foreach (var t in TableInstaller.Scan(settings).Where(t => t.IsVpx))
+{
     TableInstaller.Remove(t);
+}
 
 // 2b. roms\ and VPinMAME\nvram\ beside a .vpx at the archive's root end up where PinMAME looks.
 var flat = Path.Combine(root, "flat");
@@ -160,7 +167,10 @@ Directory.CreateDirectory(Path.Combine(flat, "VPinMAME", "nvram"));
 File.WriteAllText(Path.Combine(flat, "Test Table 1.0.vpx"), "desktop");
 File.WriteAllText(Path.Combine(flat, "VPinMAME", "nvram", "tt_l1.nv"), "nv");
 using (var rom = ZipFile.Open(Path.Combine(flat, "roms", "tt_l1.zip"), ZipArchiveMode.Create))
+{
     rom.CreateEntry("rom.bin");
+}
+
 var flatPack = Path.Combine(root, "flat.zip");
 ZipFile.CreateFromDirectory(flat, flatPack);
 var flatInst = await TableInstaller.InstallAsync(
@@ -241,7 +251,9 @@ using (var site = new MockTableSite())
         s =>
         {
             lock (statuses)
+            {
                 statuses.Add(s);
+            }
         },
         CancellationToken.None
     );
@@ -812,7 +824,10 @@ byte[] Zip(byte[] raw)
             System.IO.Compression.CompressionLevel.Optimal
         )
     )
+    {
         z.Write(raw);
+    }
+
     return ms.ToArray();
 }
 byte[] Prim(
@@ -836,7 +851,10 @@ byte[] Prim(
     recs.AddRange(Rec("RTV3", F32(traX)));
     recs.AddRange(Rec("NAME", WStr(name)));
     if (mat != null)
+    {
         recs.AddRange(Rec("MATR", Str(mat)));
+    }
+
     recs.AddRange(Rec("U3DM", I32(1)));
     recs.AddRange(Rec("M3VN", I32(verts8.Length / 8)));
     if (compress)
@@ -846,7 +864,10 @@ byte[] Prim(
         recs.AddRange(Rec("M3CX", z));
     }
     else
+    {
         recs.AddRange(Rec("M3DX", vb));
+    }
+
     recs.AddRange(Rec("M3FN", I32(idx.Length)));
     if (compress)
     {
@@ -855,7 +876,10 @@ byte[] Prim(
         recs.AddRange(Rec("M3CI", z));
     }
     else
+    {
         recs.AddRange(Rec("M3DI", ib));
+    }
+
     recs.AddRange(Rec("ENDB", []));
     return [.. recs];
 }
@@ -1069,6 +1093,7 @@ if (realCab != null)
     int agree = 0,
         total = 0;
     foreach (var part in model?.Parts ?? [])
+    {
         for (var k = 0; k + 2 < part.Indices.Length; k += 3)
         {
             System.Numerics.Vector3 P(int i) =>
@@ -1080,11 +1105,18 @@ if (realCab != null)
                 c = part.Indices[k + 2];
             var face = System.Numerics.Vector3.Cross(P(c) - P(a), P(b) - P(a));
             if (face.LengthSquared() < 1e-14f)
+            {
                 continue;
+            }
+
             total++;
             if (System.Numerics.Vector3.Dot(face, N(a) + N(b) + N(c)) > 0)
+            {
                 agree++;
+            }
         }
+    }
+
     Console.WriteLine($"   front faces along their normals: {agree} of {total} triangles");
     Check(
         total > 0 && agree > total * 0.9,
@@ -1201,11 +1233,17 @@ Check(
 // Height adjustment (grip + stick in the lobby)
 var h = 0.0;
 for (var i = 0; i < 90; i++)
+{
     h = LobbyHeight.Step(h, 1.0, 1 / 90.0); // full stick up for 1 s
+}
+
 Check(Math.Abs(h - 0.3) < 1e-9, $"full stick moves 30 cm per second ({h:F3} m)");
 Check(LobbyHeight.Step(h, 0.1, 1.0) == h, "stick inside the dead zone doesn't drift");
 for (var i = 0; i < 900; i++)
+{
     h = LobbyHeight.Step(h, -1.0, 1 / 90.0); // 10 s down
+}
+
 Check(h == -LobbyHeight.Max, "clamped at −60 cm");
 Check(
     LobbyHeight.Clamp(double.NaN) == 0 && LobbyHeight.Clamp(5) == 0.6,
@@ -1254,7 +1292,10 @@ File.Copy(stand, Path.Combine(fx.VpxDir, "VPinballX_BGFX64.exe"), overwrite: tru
 string? FindRepo(string? start)
 {
     while (start != null && !Directory.Exists(Path.Combine(start, "VrTableManager.Core")))
+    {
         start = Path.GetDirectoryName(start);
+    }
+
     return start;
 }
 var repo = FindRepo(AppContext.BaseDirectory) ?? FindRepo(Directory.GetCurrentDirectory());
@@ -1282,7 +1323,10 @@ foreach (
         ["/Q", "where.exe"]
     )
 )
+{
     psi.ArgumentList.Add(a);
+}
+
 using (var play = System.Diagnostics.Process.Start(psi)!)
 {
     await play.WaitForExitAsync();
@@ -1354,9 +1398,15 @@ Check(
             Environment.ProcessId
         )
     )
+    {
         waitPsi.ArgumentList.Add(a);
+    }
+
     using (var play = System.Diagnostics.Process.Start(waitPsi)!)
+    {
         await play.WaitForExitAsync();
+    }
+
     var waitLog = File.ReadAllLines(PlaySession.LogPath).Skip(mark).ToList();
     Check(PlayStatus.Read(statusFile)?.State == PlayStatus.Exited, "status says the table exited");
     Check(
@@ -1383,9 +1433,15 @@ Check(
             Environment.ProcessId
         )
     )
+    {
         badPsi.ArgumentList.Add(a);
+    }
+
     using (var play = System.Diagnostics.Process.Start(badPsi)!)
+    {
         await play.WaitForExitAsync();
+    }
+
     Check(
         PlayStatus.Read(statusFile) is { State: PlayStatus.Failed } bad
             && bad.Message.Contains("Table not found"),
@@ -1416,7 +1472,10 @@ Check(
     };
     var p10 = Path.Combine(root, "upd10.zip");
     using (var z = ZipFile.Open(p10, ZipArchiveMode.Create))
+    {
         z.CreateEntry("Upd Table v1.0.vpx");
+    }
+
     var old = await TableInstaller.InstallAsync(p10, ug, v10, us, _ => { }, CancellationToken.None);
     var nvram = Path.Combine(old.Folder, "pinmame", "nvram", "upd.nv");
     Directory.CreateDirectory(Path.GetDirectoryName(nvram)!);
@@ -1453,7 +1512,10 @@ Check(
 
     var p11 = Path.Combine(root, "upd11.zip");
     using (var z = ZipFile.Open(p11, ZipArchiveMode.Create))
+    {
         z.CreateEntry("Upd Table v1.1.vpx");
+    }
+
     var upd = await TableInstaller.InstallAsync(
         p11,
         ug,
@@ -1602,7 +1664,9 @@ Check(uevrRel?.Url.EndsWith("/UEVR.zip") == true, "finds the latest UEVR release
         );
     }
     else
+    {
         Console.WriteLine("SKIP  PinMAME checks (VPX isn't installed here)");
+    }
 
     var rt = new InstalledTable(
         new TableManifest { Engine = TableManifest.Vpx, RomNames = ["mm_109", "mm_109c"] },
@@ -1615,7 +1679,10 @@ Check(uevrRel?.Url.EndsWith("/UEVR.zip") == true, "finds the latest UEVR release
     // The download is the ROM itself, under a different name.
     var plain = Path.Combine(root, "Medieval Madness 1.09c.zip");
     using (var z = ZipFile.Open(plain, ZipArchiveMode.Create))
+    {
         z.CreateEntry("mm_109c.u6");
+    }
+
     var placed = RomInstaller.Install(plain, rt, "mm_109c");
     Check(
         placed.Count == 1
@@ -1633,8 +1700,12 @@ Check(uevrRel?.Url.EndsWith("/UEVR.zip") == true, "finds the latest UEVR release
     using (var z = ZipFile.Open(pack2, ZipArchiveMode.Create))
     {
         foreach (var n in new[] { "mm_109.zip", "mm_109c.zip" })
+        {
             using (var e = z.CreateEntry(n).Open())
+            {
                 e.Write([1, 2, 3]);
+            }
+        }
     }
     var placed2 = RomInstaller.Install(pack2, rt2, "mm_109c");
     Check(
@@ -1664,9 +1735,12 @@ Check(uevrRel?.Url.EndsWith("/UEVR.zip") == true, "finds the latest UEVR release
     var rpack = Path.Combine(root, "romtable-pack.zip");
     using (var z = ZipFile.Open(rpack, ZipArchiveMode.Create))
     using (var e = new StreamWriter(z.CreateEntry("Rom Table.vpx").Open()))
+    {
         e.Write(
             "...binary...Const cGameName = \"mm_109c\"...LoadVPM \"01560000\", \"WPC.VBS\", 3.26..."
         );
+    }
+
     var rinst = await TableInstaller.InstallAsync(
         rpack,
         rg,
@@ -1811,8 +1885,11 @@ Console.WriteLine(
         "config.txt"
     );
     if (File.Exists(real))
+    {
         File.Copy(real, cfg);
+    }
     else
+    {
         File.WriteAllLines(
             cfg,
             [
@@ -1823,6 +1900,8 @@ Console.WriteLine(
                 "VR_SnapTurn=false",
             ]
         );
+    }
+
     Console.WriteLine(
         $"   UEVR profile test using {(File.Exists(real) ? "a copy of this PC's Pinball M profile" : "a sample profile")}"
     );
@@ -1920,7 +1999,10 @@ Console.WriteLine($"   gamepad connected: {Gamepad.IsConnected()?.ToString() ?? 
     var opack = Path.Combine(root, "orig-pack.zip");
     using (var z = ZipFile.Open(opack, ZipArchiveMode.Create))
     using (var e = new StreamWriter(z.CreateEntry("Jaws.vpx").Open()))
+    {
         e.Write("...Const cGameName = \"JAWS_50Th_Anniversary\"...");
+    }
+
     var oinst = await TableInstaller.InstallAsync(
         opack,
         new VpsGame
@@ -1951,7 +2033,9 @@ Console.WriteLine($"   gamepad connected: {Gamepad.IsConnected()?.ToString() ?? 
             ? Directory.EnumerateFiles(tblDir, "*.vpx").FirstOrDefault()
             : null;
         if (vpx != null)
+        {
             Console.WriteLine($"   this PC: {name}: {RomDetector.Inspect(vpx)}");
+        }
     }
 }
 
@@ -2051,7 +2135,10 @@ Console.WriteLine($"   gamepad connected: {Gamepad.IsConnected()?.ToString() ?? 
     };
     var hpack = Path.Combine(root, "cut-late.zip");
     using (var z = ZipFile.Open(hpack, ZipArchiveMode.Create))
+    {
         z.CreateEntry("Cut Late.vpx");
+    }
+
     var redone = await TableInstaller.InstallAsync(
         hpack,
         hg,
@@ -2068,39 +2155,89 @@ Console.WriteLine($"   gamepad connected: {Gamepad.IsConnected()?.ToString() ?? 
 }
 
 foreach (var (ok, name) in HighScoreChecks.Run())
+{
     Check(ok, name);
+}
+
 foreach (var (ok, name) in RomAudioChecks.Run())
+{
     Check(ok, name);
+}
+
 foreach (var (ok, name) in MediaPackAudioChecks.Run(root))
+{
     Check(ok, name);
+}
+
 foreach (var (ok, name) in PupPackChecks.Run(root))
+{
     Check(ok, name);
+}
+
 foreach (var (ok, name) in AltPackChecks.Run(root))
+{
     Check(ok, name);
+}
+
 foreach (var (ok, name) in VpxInputChecks.Run(root))
+{
     Check(ok, name);
+}
+
 foreach (var (ok, name) in VrViewChecks.Run(root))
+{
     Check(ok, name);
+}
+
 foreach (var (ok, name) in LobbyVideoChecks.Run(root))
+{
     Check(ok, name);
+}
+
 foreach (var (ok, name) in VrDmdFixChecks.Run(root))
+{
     Check(ok, name);
+}
+
 foreach (var (ok, name) in VrRoomSwitchChecks.Run(root))
+{
     Check(ok, name);
+}
+
 foreach (var (ok, name) in VpxTextureCacheChecks.Run(root))
+{
     Check(ok, name);
+}
+
 foreach (var (ok, name) in VpxIniLayersChecks.Run(root))
+{
     Check(ok, name);
+}
+
 foreach (var (ok, name) in UserArtworkChecks.Run(root))
+{
     Check(ok, name);
+}
+
 foreach (var (ok, name) in TableFileMatchChecks.Run())
+{
     Check(ok, name);
+}
+
 foreach (var (ok, name) in await VpxInstallChecks.RunAsync(root))
+{
     Check(ok, name);
+}
+
 foreach (var (ok, name) in RuleSheetChecks.Run(root))
+{
     Check(ok, name);
+}
+
 foreach (var (ok, name) in await AssistedDownloadChecks.RunAsync(root))
+{
     Check(ok, name);
+}
 
 // ---- VR graphics, logs, storage, backup ----
 {

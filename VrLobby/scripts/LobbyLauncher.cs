@@ -17,7 +17,9 @@ public static class LobbyLauncher
     {
         var candidates = new List<string>();
         if (!string.IsNullOrEmpty(s.ManagerExe))
+        {
             candidates.Add(s.ManagerExe);
+        }
         // Exported lobby shipped next to the manager.
         candidates.Add(
             Path.Combine(Path.GetDirectoryName(OS.GetExecutablePath()) ?? "", "VrTableManager.exe")
@@ -25,9 +27,12 @@ public static class LobbyLauncher
         // Running from source: the manager's build output next to this project.
         var repo = Path.GetFullPath(Path.Combine(ProjectSettings.GlobalizePath("res://"), ".."));
         foreach (var config in new[] { "Release", "Debug" })
+        {
             candidates.Add(
                 Path.Combine(repo, "VrTableManager", "bin", config, "net10.0", "VrTableManager.exe")
             );
+        }
+
         return candidates.FirstOrDefault(File.Exists);
     }
 
@@ -58,13 +63,22 @@ public static class LobbyLauncher
     {
         var args = new List<string>();
         if (!OS.HasFeature("template"))
+        {
             args.AddRange(["--path", ProjectSettings.GlobalizePath("res://")]);
+        }
+
         args.Add("--");
         args.Add("--select=" + selectId);
         if (!string.IsNullOrEmpty(settingsPath))
+        {
             args.Add("--settings=" + settingsPath);
+        }
+
         if (!string.IsNullOrEmpty(statePath))
+        {
             args.Add("--state=" + statePath);
+        }
+
         return (OS.GetExecutablePath(), args);
     }
 
@@ -74,7 +88,10 @@ public static class LobbyLauncher
         var (exe, args) = ReturnCommand(selectId, settingsPath, statePath);
         var psi = new ProcessStartInfo(exe) { UseShellExecute = false };
         foreach (var a in args)
+        {
             psi.ArgumentList.Add(a);
+        }
+
         try
         {
             Process.Start(psi);
@@ -100,10 +117,16 @@ public static class LobbyLauncher
     )
     {
         if (CheckReady(t, s) is { } problem)
+        {
             return problem;
+        }
+
         var manager = FindManagerExe(s);
         if (manager == null)
+        {
             return "VR Table Manager wasn't found. Open it once so the lobby can find it.";
+        }
+
         var (retExe, retArgs) = ReturnCommand(t.Id, settingsPath, statePath);
         var psi = new ProcessStartInfo(manager)
         {
@@ -111,7 +134,10 @@ public static class LobbyLauncher
             WorkingDirectory = Path.GetDirectoryName(manager)!,
         };
         if (statusPath != null)
+        {
             PlayStatus.Clear(statusPath); // only this launch's news counts
+        }
+
         var lobbyPid = statusPath != null ? OS.GetProcessId() : 0;
         foreach (
             var a in PlaySession.BuildArgs(
@@ -124,7 +150,10 @@ public static class LobbyLauncher
                 lobbyPid
             )
         )
+        {
             psi.ArgumentList.Add(a);
+        }
+
         try
         {
             Process.Start(psi);

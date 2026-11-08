@@ -38,13 +38,19 @@ public static partial class VrRoomSwitch
     public static Switch? Find(string script)
     {
         if (script.Contains("RenderingMode", StringComparison.OrdinalIgnoreCase))
+        {
             return null;
+        }
+
         var found = SwitchLine()
             .Matches(script)
             .Where(m => SaysZeroIsOff().IsMatch(m.Groups["comment"].Value))
             .ToList();
         if (found.Count != 1)
+        {
             return null; // none, or more than one: not sure which is the real one
+        }
+
         var v = found[0].Groups["value"];
         return new Switch(v.Index, v.Length, found[0].Groups["name"].Value, int.Parse(v.Value));
     }
@@ -86,14 +92,19 @@ public static partial class VrRoomSwitch
         }
         // A script of the user's own in the table's user\ or scripts\ folder: one beside the table would hide it.
         if (note == null && !File.Exists(sidecar) && OtherScriptOverride(vpx))
+        {
             return null;
+        }
 
         var hasSidecar = File.Exists(sidecar);
         var current = hasSidecar ? Encoding.Latin1.GetString(File.ReadAllBytes(sidecar)) : builtIn;
         if (Find(current) is not { } sw)
         {
             if (note != null)
+            {
                 File.Delete(notePath);
+            }
+
             return null;
         }
 
@@ -105,20 +116,34 @@ public static partial class VrRoomSwitch
         if (want == own)
         {
             if (note == null)
+            {
                 return null;
+            }
+
             var restored = WithValue(current, sw, own);
             if (note.Created && restored == builtIn)
+            {
                 File.Delete(sidecar);
+            }
             else if (restored != current)
+            {
                 File.WriteAllBytes(sidecar, Encoding.Latin1.GetBytes(restored));
+            }
+
             File.Delete(notePath);
             return $"{sw.Name} back to the table's own {own}";
         }
 
         if (note == null)
+        {
             File.WriteAllText(notePath, JsonSerializer.Serialize(new Note(own, !hasSidecar, hash)));
+        }
+
         if (sw.Value != want)
+        {
             File.WriteAllBytes(sidecar, Encoding.Latin1.GetBytes(WithValue(current, sw, want)));
+        }
+
         return $"{sw.Name} = {want} for {(vr ? "VR" : "desktop")} (the table has {own})";
     }
 

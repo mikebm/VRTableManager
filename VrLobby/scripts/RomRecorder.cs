@@ -30,7 +30,10 @@ public partial class RomRecorder : Node
     public void Request(LobbyTable t)
     {
         if (!_tried.Add(t.Id) || !RomAudio.NeedsRecording(t.Source))
+        {
             return;
+        }
+
         _queue.AddFirst(t);
         Next();
     }
@@ -38,7 +41,10 @@ public partial class RomRecorder : Node
     void Next()
     {
         if (_running != null || _queue.Count == 0)
+        {
             return;
+        }
+
         var t = _queue.First!.Value;
         _queue.RemoveFirst();
         var psi = new ProcessStartInfo(OS.GetExecutablePath())
@@ -55,12 +61,18 @@ public partial class RomRecorder : Node
         psi.ArgumentList.Add("--");
         psi.ArgumentList.Add("--record-audio=" + t.Id);
         if (!string.IsNullOrEmpty(SettingsPath))
+        {
             psi.ArgumentList.Add("--settings=" + SettingsPath);
+        }
+
         try
         {
             var p = Process.Start(psi);
             if (p == null)
+            {
                 return;
+            }
+
             _running = p;
             // Killing the recording on exit ends this wait too; calling back then (into a node the engine is
             // freeing) crashed the lobby on its way out.
@@ -68,7 +80,9 @@ public partial class RomRecorder : Node
                 .ContinueWith(_ =>
                 {
                     if (!_closing)
+                    {
                         Callable.From(() => Done(p, t.Id)).CallDeferred();
+                    }
                 });
         }
         catch (Exception e)
@@ -80,7 +94,10 @@ public partial class RomRecorder : Node
     void Done(Process p, string id)
     {
         if (_running != p)
+        {
             return;
+        }
+
         _running = null;
         p.Dispose();
         Recorded?.Invoke(id);
@@ -92,7 +109,10 @@ public partial class RomRecorder : Node
     {
         _queue.Clear();
         if (_running == null)
+        {
             return;
+        }
+
         try
         {
             _running.Kill(entireProcessTree: true);

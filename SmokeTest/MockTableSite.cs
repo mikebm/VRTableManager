@@ -127,7 +127,10 @@ sealed class MockTableSite : IDisposable
                     Log.Enqueue("rom-" + roms[r - 1]);
                     using var ms = new MemoryStream();
                     using (var z = new ZipArchive(ms, ZipArchiveMode.Create, true))
+                    {
                         z.CreateEntry(roms[r - 1] + ".rom");
+                    }
+
                     res.ContentType = "application/zip";
                     res.AddHeader(
                         "Content-Disposition",
@@ -165,7 +168,10 @@ sealed class MockTableSite : IDisposable
                 var name = q["r"] == "2" ? "Test Table VR.zip" : "Test Table desktop.zip";
                 using var ms = new MemoryStream();
                 using (var z = new ZipArchive(ms, ZipArchiveMode.Create, true))
+                {
                     z.CreateEntry("Test Table.vpx");
+                }
+
                 res.ContentType = "application/zip";
                 res.AddHeader("Content-Disposition", $"attachment; filename=\"{name}\"");
                 await res.OutputStream.WriteAsync(ms.ToArray());
@@ -259,7 +265,10 @@ sealed class MockTableSite : IDisposable
             Log.Enqueue("vpf-file");
             using var ms = new MemoryStream();
             using (var z = new ZipArchive(ms, ZipArchiveMode.Create, true))
+            {
                 z.CreateEntry("afm_113b.rom");
+            }
+
             res.ContentType = "application/zip";
             res.AddHeader("Content-Disposition", "attachment; filename=\"afm_113b.zip\"");
             await res.OutputStream.WriteAsync(ms.ToArray());

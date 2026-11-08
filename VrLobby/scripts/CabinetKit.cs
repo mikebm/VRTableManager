@@ -182,11 +182,14 @@ public static class CabinetKit
         var wallBasis = new Basis(Vector3.Right, Slope); // follows the playfield slope (back end higher)
         var wallMidZ = (Front + BoxFront) / 2;
         foreach (var sx in new[] { -1f, 1f })
+        {
             m.AddBox(
                 new Vector3(sx * (x - WallThick / 2), TopAt(wallMidZ) + WallRise / 2, wallMidZ),
                 new Vector3(WallThick, WallRise, Front - BoxFront),
                 wallBasis
             );
+        }
+
         m.AddBox(
             new Vector3(0, TopFront + WallRise / 2, Front - FrontWall / 2),
             new Vector3(Width, WallRise, FrontWall)
@@ -314,6 +317,7 @@ public static class CabinetKit
                 new Vector3(0.004f, 0.15f, 2 * LegTopHalf - 0.012f)
             );
             foreach (var by in new[] { LegTop + 0.0f, LegTop + 0.1f })
+            {
                 m.AddBar(
                     new Vector3(plateX, by, top.Z),
                     new Vector3(plateX + sx * 0.008f, by, top.Z),
@@ -322,15 +326,19 @@ public static class CabinetKit
                     Vector3.Up,
                     12
                 );
+            }
         }
         // Chrome rings round the speakers.
         foreach (var sx in new[] { -1f, 1f })
+        {
             m.AddRing(
                 new Vector3(sx * SpeakerX, PanelCentreY, BoxFront + 0.006f),
                 SpeakerRadius + 0.006f,
                 0.006f,
                 24
             );
+        }
+
         return m.Commit();
     }
 
@@ -338,11 +346,14 @@ public static class CabinetKit
     {
         var m = new MeshKit();
         foreach (var sx in new[] { -1f, 1f })
+        {
             m.AddDisc(
                 new Vector3(sx * SpeakerX, PanelCentreY, BoxFront + 0.002f),
                 SpeakerRadius,
                 32
             );
+        }
+
         return m.Commit();
     }
 
@@ -397,14 +408,17 @@ public static class CabinetKit
         const int n = 64;
         var img = Image.CreateEmpty(n, n, false, Image.Format.Rgba8);
         for (var y = 0; y < n; y++)
-        for (var x = 0; x < n; x++)
         {
-            var dx = (x + 0.5f) / n * 2 - 1;
-            var dy = (y + 0.5f) / n * 2 - 1;
-            var d = Mathf.Sqrt(dx * dx + dy * dy);
-            var a = Mathf.Clamp(1f - Mathf.SmoothStep(0.45f, 1f, d), 0f, 1f) * 0.75f;
-            img.SetPixel(x, y, new Color(0, 0, 0, a));
+            for (var x = 0; x < n; x++)
+            {
+                var dx = (x + 0.5f) / n * 2 - 1;
+                var dy = (y + 0.5f) / n * 2 - 1;
+                var d = Mathf.Sqrt(dx * dx + dy * dy);
+                var a = Mathf.Clamp(1f - Mathf.SmoothStep(0.45f, 1f, d), 0f, 1f) * 0.75f;
+                img.SetPixel(x, y, new Color(0, 0, 0, a));
+            }
         }
+
         return ImageTexture.CreateFromImage(img);
     }
 
@@ -415,17 +429,20 @@ public static class CabinetKit
             pitch = 8;
         var img = Image.CreateEmpty(n, n, true, Image.Format.Rgb8);
         for (var y = 0; y < n; y++)
-        for (var x = 0; x < n; x++)
         {
-            // Staggered rows of holes, like punched metal.
-            var row = y / pitch;
-            var ox = (row % 2) * pitch / 2;
-            var cx = ((x + ox) % pitch) - pitch / 2f + 0.5f;
-            var cy = (y % pitch) - pitch / 2f + 0.5f;
-            var hole = cx * cx + cy * cy < 7.5f;
-            var v = hole ? 0.05f : 0.75f;
-            img.SetPixel(x, y, new Color(v, v, v));
+            for (var x = 0; x < n; x++)
+            {
+                // Staggered rows of holes, like punched metal.
+                var row = y / pitch;
+                var ox = (row % 2) * pitch / 2;
+                var cx = ((x + ox) % pitch) - pitch / 2f + 0.5f;
+                var cy = (y % pitch) - pitch / 2f + 0.5f;
+                var hole = cx * cx + cy * cy < 7.5f;
+                var v = hole ? 0.05f : 0.75f;
+                img.SetPixel(x, y, new Color(v, v, v));
+            }
         }
+
         img.GenerateMipmaps();
         return ImageTexture.CreateFromImage(img);
     }
@@ -501,7 +518,10 @@ public sealed class MeshKit
         Face(t0, t1, t2, t3); // top
         Face(b3, b2, b1, b0); // bottom
         if (!skipFront)
+        {
             Face(b0, b1, t1, t0); // front (+z)
+        }
+
         Face(b2, b3, t3, t2); // back
         Face(b3, b0, t0, t3); // left
         Face(b1, b2, t2, t1); // right

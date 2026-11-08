@@ -76,9 +76,12 @@ public partial class MainWindow : Window, IUiHost
                     : [all],
         };
         if (startFolder != null && Directory.Exists(startFolder))
+        {
             options.SuggestedStartLocation = await StorageProvider.TryGetFolderFromPathAsync(
                 startFolder
             );
+        }
+
         var res = await StorageProvider.OpenFilePickerAsync(options);
         return res.FirstOrDefault()?.TryGetLocalPath();
     }
@@ -137,9 +140,12 @@ public partial class MainWindow : Window, IUiHost
             FileTypeChoices = [new FilePickerFileType(pattern) { Patterns = [pattern] }],
         };
         if (startFolder != null)
+        {
             options.SuggestedStartLocation = await StorageProvider.TryGetFolderFromPathAsync(
                 startFolder
             );
+        }
+
         var file = await StorageProvider.SaveFilePickerAsync(options);
         return file?.TryGetLocalPath();
     }
@@ -167,7 +173,10 @@ public partial class MainWindow : Window, IUiHost
             var index = i;
             var b = new Button { Content = buttons[i], Margin = new(8, 8, 0, 0) };
             if (i == 0)
+            {
                 b.Classes.Add("primary");
+            }
+
             b.Click += (_, _) =>
             {
                 result = index;
@@ -191,6 +200,7 @@ public partial class MainWindow : Window, IUiHost
             },
         };
         if (details != null)
+        {
             panel.Children.Add(
                 new Border
                 {
@@ -213,6 +223,8 @@ public partial class MainWindow : Window, IUiHost
                     },
                 }
             );
+        }
+
         panel.Children.Add(row);
         dialog.Content = panel;
         await dialog.ShowDialog(this);

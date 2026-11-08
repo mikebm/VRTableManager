@@ -18,20 +18,26 @@ public static class SelfTest
     {
         GD.Print((ok ? "PASS  " : "FAIL  ") + what);
         if (!ok)
+        {
             _failures++;
+        }
     }
 
     /// <summary>Cycles B / Tab until the filter is reached (also proves it's in the cycle).</summary>
     static void SetFilter(Main lobby, string filter)
     {
         for (var i = 0; i < LobbyNav.Filters.Length && lobby.State.Filter != filter; i++)
+        {
             lobby.CycleFilter();
+        }
     }
 
     static async Task Frames(Main lobby, int n)
     {
         for (var i = 0; i < n; i++)
+        {
             await lobby.ToSignal(lobby.GetTree(), SceneTree.SignalName.ProcessFrame);
+        }
     }
 
     /// <summary>Real time, not frames: headless runs frames far faster than 90 per second.</summary>
@@ -127,7 +133,10 @@ public static class SelfTest
 
         // ---- Art -----------------------------------------------------------------------
         for (var i = 0; i < 600 && !lobby.BackglassIndexReady; i++)
+        {
             await Frames(lobby, 1);
+        }
+
         Check(lobby.BackglassIndexReady, "backglass index loaded from the cached VPS catalog");
         sel = lobby.SelectedCabinet!;
         Check(
@@ -195,7 +204,10 @@ public static class SelfTest
                 "cabinet-cache-afm"
             );
             if (Directory.Exists(cacheDir))
+            {
                 Directory.Delete(cacheDir, true);
+            }
+
             async Task<(RealCabinet? Cab, long Ms, int Hits)> LoadReal()
             {
                 var loader = new RealCabinetLoader { CacheDir = cacheDir };
@@ -209,7 +221,10 @@ public static class SelfTest
                 };
                 loader.Request(realVpx);
                 for (var i = 0; i < 600 && !finished; i++)
+                {
                     await Seconds(lobby, 0.05);
+                }
+
                 var result = (cab, loader.LastLoadMs, loader.CacheHits);
                 loader.QueueFree();
                 return result;
@@ -291,12 +306,17 @@ public static class SelfTest
             $"selected table's own attract sound plays after a moment (found: {LobbyArt.AttractSound(lobby.Shown[mmIndex]) ?? "none"}, playing: {lobby.AttractPlaying ?? "nothing"})"
         );
         if (nvWritten)
+        {
             Check(
                 lobby.ScoresText.StartsWith("GRAND CHAMPION  VRT  1,234,567,890"),
                 $"high scores from the table's pinmame/nvram .nv, as DMD lines ({lobby.ScoresText.Split('\n')[0]})"
             );
+        }
         else
+        {
             GD.Print("SKIP  high scores (no cached NVRAM map for mm_109c)");
+        }
+
         var mmCab = lobby.SelectedCabinet!;
         mmCab.BodyColour.ToHsv(out var myHue, out var mySat, out _);
         Check(
@@ -315,12 +335,15 @@ public static class SelfTest
         for (var i = 0; i < 12; i++)
         {
             if (mmCab.PlayfieldTextureColour() is { } c)
+            {
                 seen.Add(
                     c.R > 0.5f ? "r"
                     : c.G > 0.5f ? "g"
                     : c.B > 0.5f ? "b"
                     : "?"
                 );
+            }
+
             await Seconds(lobby, 0.05);
         }
         // The headless (dummy) renderer keeps a texture's first picture, so colours are only checked with a real one.
@@ -443,10 +466,13 @@ public static class SelfTest
                 : "Pinball M filter explains it isn't installed"
         );
         if (lobby.Shown.Count > 0)
+        {
             Check(
                 lobby.SelectedCabinet?.PlayfieldUrl == null,
                 "store games put their landscape header on the backglass, not the playfield"
             );
+        }
+
         SetFilter(lobby, "All");
 
         // Loading screen: only the picked table stays, with its title and a running count; a failed launch
@@ -602,7 +628,10 @@ public static class SelfTest
         w.Write("data"u8);
         w.Write(samples);
         for (var i = 0; i < samples; i++)
+        {
             w.Write((byte)128);
+        }
+
         w.Flush();
         return ms.ToArray();
     }

@@ -29,7 +29,9 @@ static class VpxTextureCacheChecks
             var game = cfb.CreateStorage("GameStg");
             string[] images = ["Playfield", "LUT_8", "Wood", "TargetNormal", "Unused", "Flash<1>"];
             for (int i = 0; i < images.Length; i++)
+            {
                 Write(game, "Image" + i, [.. Str("NAME", images[i]), .. Rec("ENDB", [])]);
+            }
             // The script sits between settings: its record length doesn't cover it, so a parser that trusts it
             // reads the script as records and misses IMCG after it.
             var code = Encoding.Latin1.GetBytes("Table1.ColorGradeImage = \"Unused\"\r\n");

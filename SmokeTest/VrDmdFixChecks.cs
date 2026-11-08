@@ -35,9 +35,15 @@ static class VrDmdFixChecks
             int len = BitConverter.ToInt32(d, p);
             var tag = Encoding.ASCII.GetString(d, p + 4, 4);
             if (tag is "DPNT" or "ENDB")
+            {
                 break;
+            }
+
             if (len == 8)
+            {
                 tags[tag] = BitConverter.ToInt32(d, p + 8);
+            }
+
             p += 4 + len;
         }
         return tags;

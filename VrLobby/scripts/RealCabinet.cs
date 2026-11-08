@@ -69,13 +69,16 @@ public sealed class RealCabinet
         var cy = GlassCentreY(box);
         float? hit = null;
         foreach (var (v, idx) in surfaces)
+        {
             for (var i = 0; i + 2 < idx.Length; i += 3)
             {
                 Vector3 a = v[idx[i]],
                     b = v[idx[i + 1]],
                     c = v[idx[i + 2]];
                 if (Mathf.Min(a.Z, Mathf.Min(b.Z, c.Z)) > front + 0.02f)
+                {
                     continue; // in front of the box (a topper, a lamp)
+                }
                 // Cheap reject: seen from the front, the triangle's outline doesn't reach (cx, cy).
                 if (
                     cx < Mathf.Min(a.X, Mathf.Min(b.X, c.X))
@@ -83,19 +86,31 @@ public sealed class RealCabinet
                     || cy < Mathf.Min(a.Y, Mathf.Min(b.Y, c.Y))
                     || cy > Mathf.Max(a.Y, Mathf.Max(b.Y, c.Y))
                 )
+                {
                     continue;
+                }
                 // Does the triangle cover (cx, cy)? Then where along z.
                 var d = (b.X - a.X) * (c.Y - a.Y) - (b.Y - a.Y) * (c.X - a.X);
                 if (Mathf.Abs(d) < 1e-9f)
+                {
                     continue;
+                }
+
                 var w1 = ((cx - a.X) * (c.Y - a.Y) - (cy - a.Y) * (c.X - a.X)) / d;
                 var w2 = ((b.X - a.X) * (cy - a.Y) - (b.Y - a.Y) * (cx - a.X)) / d;
                 if (w1 < 0 || w2 < 0 || w1 + w2 > 1)
+                {
                     continue;
+                }
+
                 var z = a.Z + w1 * (b.Z - a.Z) + w2 * (c.Z - a.Z);
                 if (hit == null || z > hit)
+                {
                     hit = z;
+                }
             }
+        }
+
         return hit is { } h ? Mathf.Max(h + 0.003f, front - 0.04f) : front - 0.02f;
     }
 
@@ -145,7 +160,10 @@ public partial class RealCabinetLoader : Node
             return;
         }
         if (!_pending.Add(vpx))
+        {
             return;
+        }
+
         var dir = CacheDir;
         _ = Task.Run(async () =>
         {
@@ -163,7 +181,9 @@ public partial class RealCabinetLoader : Node
                 {
                     parsed = Parse(vpx);
                     if (dir != null)
+                    {
                         CabinetCache.Save(vpx, dir, parsed);
+                    }
                 }
                 var glass = GlassZOf(parsed); // walks every triangle: here, not on the main thread
                 Callable.From(() => Finish(vpx, parsed, glass, sw)).CallDeferred();
@@ -203,7 +223,10 @@ public partial class RealCabinetLoader : Node
     {
         var parsed = Parse(vpx);
         if (parsed == null)
+        {
             return false;
+        }
+
         foreach (var name in parsed.Images.Keys.ToList())
         {
             var blank = Image.CreateEmpty(4, 4, false, Image.Format.Rgb8);
@@ -245,7 +268,10 @@ public partial class RealCabinetLoader : Node
     {
         var model = VpxCabinet.Load(vpx, CabinetKit.Front);
         if (model == null)
+        {
             return null;
+        }
+
         var images = new Dictionary<string, Image>(StringComparer.OrdinalIgnoreCase);
         var alphaModes = new Dictionary<string, Image.AlphaMode>(StringComparer.OrdinalIgnoreCase);
         var catalogue = VpxImages.ListImages(vpx);
@@ -259,19 +285,33 @@ public partial class RealCabinetLoader : Node
                 string.Equals(i.Name, name, StringComparison.OrdinalIgnoreCase)
             );
             if (info == null)
+            {
                 continue;
+            }
+
             var bytes = VpxImages.ExtractImage(vpx, info.Index);
             if (bytes == null)
+            {
                 continue;
+            }
+
             var img = ArtLoader.Decode(bytes);
             if (img == null)
+            {
                 continue;
+            }
+
             if (img.IsCompressed())
+            {
                 img.Decompress();
+            }
             // A backglass picture that's one flat colour (Harry Potter's is plain black) is a placeholder the
             // table's script or PuP pack draws over while playing: leave it out, so the VPS backglass shows.
             if (backglassImages.Contains(name) && IsBlank(img))
+            {
                 continue;
+            }
+
             ArtLoader.Shrink(img, TextureMaxSide);
             img.GenerateMipmaps();
             // GPU block compression (DXT): ~4-8x less video memory for a ring of cabinets. Uncompressed if
@@ -321,7 +361,9 @@ public partial class RealCabinetLoader : Node
                     uvs.Add(new Vector2(part.Uvs[i * 2], part.Uvs[i * 2 + 1]));
                 }
                 foreach (var k in part.Indices)
+                {
                     idx.Add(start + k);
+                }
             }
             var first = group.First();
             surfaces.Add(
@@ -364,7 +406,9 @@ public partial class RealCabinetLoader : Node
         try
         {
             if (parsed != null)
+            {
                 cab = Build(parsed, glassZ);
+            }
         }
         catch (Exception e)
         {
@@ -450,7 +494,10 @@ public partial class RealCabinetLoader : Node
     internal static Image.AlphaMode AlphaOf(Image img)
     {
         if (img.GetFormat() != Image.Format.Rgba8)
+        {
             return img.DetectAlpha(); // no alpha channel (or one we don't read): as Godot says
+        }
+
         var data = img.GetData();
         var pixels = img.GetWidth() * img.GetHeight(); // the full-size level; any mipmaps follow it
         int clear = 0,
@@ -460,12 +507,19 @@ public partial class RealCabinetLoader : Node
         {
             var a = data[i * 4 + 3];
             if (a < 8)
+            {
                 clear++;
+            }
             else if (a < 248)
+            {
                 partial++;
+            }
         }
         if (clear == 0 && partial == 0)
+        {
             return Image.AlphaMode.None;
+        }
+
         return partial > seen / 100 ? Image.AlphaMode.Blend : Image.AlphaMode.Bit;
     }
 
@@ -476,15 +530,23 @@ public partial class RealCabinetLoader : Node
             h = img.GetHeight();
         var first = img.GetPixel(0, 0);
         for (var y = 0; y < 16; y++)
-        for (var x = 0; x < 16; x++)
         {
-            var c = img.GetPixel(
-                Math.Min(w - 1, x * w / 16 + w / 32),
-                Math.Min(h - 1, y * h / 16 + h / 32)
-            );
-            if (Math.Abs(c.R - first.R) + Math.Abs(c.G - first.G) + Math.Abs(c.B - first.B) > 0.06f)
-                return false;
+            for (var x = 0; x < 16; x++)
+            {
+                var c = img.GetPixel(
+                    Math.Min(w - 1, x * w / 16 + w / 32),
+                    Math.Min(h - 1, y * h / 16 + h / 32)
+                );
+                if (
+                    Math.Abs(c.R - first.R) + Math.Abs(c.G - first.G) + Math.Abs(c.B - first.B)
+                    > 0.06f
+                )
+                {
+                    return false;
+                }
+            }
         }
+
         return true;
     }
 
@@ -495,16 +557,28 @@ public partial class RealCabinetLoader : Node
     static SurfaceKind KindOf(string name, bool textured, bool backglass)
     {
         if (backglass)
+        {
             return SurfaceKind.Backglass;
+        }
+
         if (!textured)
+        {
             return SurfaceKind.Keep;
+        }
+
         if (
             name.Contains("grill", StringComparison.OrdinalIgnoreCase)
             || name.Contains("speaker", StringComparison.OrdinalIgnoreCase)
         )
+        {
             return SurfaceKind.Grille;
+        }
+
         if (name.Contains("dmd", StringComparison.OrdinalIgnoreCase))
+        {
             return SurfaceKind.Dmd;
+        }
+
         return SurfaceKind.Art;
     }
 
@@ -512,6 +586,7 @@ public partial class RealCabinetLoader : Node
     {
         Aabb? box = null;
         foreach (var part in parts)
+        {
             for (var i = 0; i < part.Positions.Length; i += 3)
             {
                 var v = new Vector3(
@@ -521,6 +596,8 @@ public partial class RealCabinetLoader : Node
                 );
                 box = box is { } b ? b.Expand(v) : new Aabb(v, Vector3.Zero);
             }
+        }
+
         return box;
     }
 
@@ -552,7 +629,9 @@ public partial class RealCabinetLoader : Node
                 mat.AlphaScissorThreshold = 0.5f;
             }
             else if (alpha == Image.AlphaMode.Blend)
+            {
                 mat.Transparency = BaseMaterial3D.TransparencyEnum.AlphaDepthPrePass;
+            }
         }
         else if (m != null)
         {
@@ -570,7 +649,9 @@ public partial class RealCabinetLoader : Node
             }
         }
         else
+        {
             mat.Roughness = 0.6f;
+        }
         // "Disable lighting" in VPX means: show the texture as it is, whatever the room's lights do
         // (backglasses, and many VR cabinets' art, which has its lighting baked in). These used to be drawn
         // unshaded, which ignored the room: cabinets around the ring were as bright as the one in front of you,

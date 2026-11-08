@@ -52,8 +52,13 @@ public static class AppUpdater
         get
         {
             for (var dir = AppContext.BaseDirectory; dir != null; dir = Path.GetDirectoryName(dir))
+            {
                 if (File.Exists(Path.Combine(dir, "VR Table Manager.slnx")))
+                {
                     return true;
+                }
+            }
+
             return false;
         }
     }
@@ -76,7 +81,10 @@ public static class AppUpdater
         using var doc = JsonDocument.Parse(json);
         var rel = doc.RootElement;
         if (rel.GetProperty("draft").GetBoolean() || rel.GetProperty("prerelease").GetBoolean())
+        {
             return null;
+        }
+
         var tag = rel.GetProperty("tag_name").GetString() ?? "";
         string? zip = null,
             sha = null;
@@ -91,10 +99,15 @@ public static class AppUpdater
                 size = asset.GetProperty("size").GetInt64();
             }
             else if (name.StartsWith("VrTableManager-") && name.EndsWith("-win-x64.zip.sha256"))
+            {
                 sha = url;
+            }
         }
         if (zip == null)
+        {
             return null;
+        }
+
         return new AppRelease(
             tag,
             tag.TrimStart('v', 'V'),
@@ -122,13 +135,25 @@ public static class AppUpdater
         var (va, pa) = Parse(a);
         var (vb, pb) = Parse(b);
         if (va != vb)
+        {
             return va > vb;
+        }
+
         if (pa == pb)
+        {
             return false;
+        }
+
         if (pa == "")
+        {
             return true; // a release is newer than its prereleases
+        }
+
         if (pb == "")
+        {
             return false;
+        }
+
         return string.CompareOrdinal(pa, pb) > 0;
     }
 
@@ -160,10 +185,16 @@ public static class AppUpdater
     )
     {
         if (!OperatingSystem.IsWindows())
+        {
             throw new PlatformNotSupportedException("Self-update is Windows-only.");
+        }
+
         var work = Path.Combine(Path.GetTempPath(), "vrtm-update-" + rel.Version);
         if (Directory.Exists(work))
+        {
             Directory.Delete(work, recursive: true);
+        }
+
         Directory.CreateDirectory(work);
         var zip = Path.Combine(work, "update.zip");
 
@@ -180,9 +211,11 @@ public static class AppUpdater
             await using var f = File.OpenRead(zip);
             var actual = Convert.ToHexStringLower(await SHA256.HashDataAsync(f, ct));
             if (actual != expected)
+            {
                 throw new InvalidDataException(
                     "The download doesn't match its published SHA-256. Try again later."
                 );
+            }
         }
 
         status("Unpacking…");
@@ -193,7 +226,9 @@ public static class AppUpdater
             ? Path.Combine(staging, "VrTableManager")
             : staging;
         if (!File.Exists(Path.Combine(newFiles, "VrTableManager.exe")))
+        {
             throw new InvalidDataException("The release zip doesn't contain VrTableManager.exe.");
+        }
 
         var exe = Environment.ProcessPath ?? Path.Combine(InstallDir, "VrTableManager.exe");
         var script = Path.Combine(work, "apply-update.ps1");
@@ -233,7 +268,10 @@ public static class AppUpdater
                 script,
             }
         )
+        {
             psi.ArgumentList.Add(a);
+        }
+
         Process.Start(psi);
         status("Restarting to finish the update…");
     }

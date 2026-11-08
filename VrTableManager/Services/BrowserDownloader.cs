@@ -36,12 +36,21 @@ public sealed class BrowserDownloader : IAsyncDisposable
     public static bool IsDirectFileUrl(string url)
     {
         if (!Uri.TryCreate(url, UriKind.Absolute, out var u))
+        {
             return false;
+        }
+
         var path = u.AbsolutePath.ToLowerInvariant();
         if (u.Host.EndsWith("github.com") && path.Contains("/releases/download/"))
+        {
             return true;
+        }
+
         if (u.Host == "raw.githubusercontent.com" || u.Host == "objects.githubusercontent.com")
+        {
             return true;
+        }
+
         return path.EndsWith(".zip")
             || path.EndsWith(".7z")
             || path.EndsWith(".rar")
@@ -52,7 +61,10 @@ public sealed class BrowserDownloader : IAsyncDisposable
     async Task<IBrowserContext> EnsureContextAsync(Action<string> status)
     {
         if (_ctx != null)
+        {
             return _ctx;
+        }
+
         _pw ??= await Playwright.CreateAsync();
 
         var opts = new BrowserTypeLaunchPersistentContextOptions
@@ -82,10 +94,12 @@ public sealed class BrowserDownloader : IAsyncDisposable
         // A browser profile can only be open in one browser at a time. If it's in use (the download
         // window from another copy of this app is still open), say so rather than fetch a new browser.
         if (_ctx == null && ProfileInUse(_profileDir))
+        {
             throw new InvalidOperationException(
                 "The download browser is already open, probably from another copy of VR Table Manager. Close that window (or the other app) and try again.",
                 firstError
             );
+        }
 
         if (_ctx == null)
         {
@@ -104,7 +118,10 @@ public sealed class BrowserDownloader : IAsyncDisposable
     {
         var lockFile = Path.Combine(profileDir, "lockfile");
         if (!File.Exists(lockFile))
+        {
             return false;
+        }
+
         try
         {
             using var _ = new FileStream(
@@ -237,9 +254,11 @@ public sealed class BrowserDownloader : IAsyncDisposable
                 }
 
                 if (finished != got.Task || !got.Task.IsCompletedSuccessfully)
+                {
                     throw new TimeoutException(
                         "No download started. You can click the download button yourself in the browser window and try again."
                     );
+                }
 
                 var download = got.Task.Result;
                 status($"Downloading {download.SuggestedFilename}…");
@@ -277,7 +296,10 @@ public sealed class BrowserDownloader : IAsyncDisposable
         await download.SaveAsAsync(dest);
         var failure = await download.FailureAsync();
         if (failure != null)
+        {
             throw new IOException($"Download of {download.SuggestedFilename} failed: {failure}");
+        }
+
         return dest;
     }
 
@@ -296,9 +318,14 @@ public sealed class BrowserDownloader : IAsyncDisposable
                 || !Uri.TryCreate(new Uri(page.Url), href, out var u)
                 || u.Host != host
             )
+            {
                 continue;
+            }
+
             if (!result.Contains(u.ToString()))
+            {
                 result.Add(u.ToString());
+            }
         }
         return result;
     }
@@ -424,7 +451,10 @@ public sealed class BrowserDownloader : IAsyncDisposable
                     waitUntil = null;
                     status("Signed in. Finding the download…");
                     if (!SameFilePage(page.Url, pageUrl))
+                    {
                         await GotoAsync(page, pageUrl);
+                    }
+
                     continue;
                 }
 
@@ -524,14 +554,20 @@ public sealed class BrowserDownloader : IAsyncDisposable
     public static bool IsAuthUrl(string url)
     {
         if (!Uri.TryCreate(url, UriKind.Absolute, out var u))
+        {
             return false;
+        }
+
         var words = System.Text.RegularExpressions.Regex.Split(
             (u.AbsolutePath + " " + u.Query).ToLowerInvariant(),
             "[^a-z0-9]+"
         );
         var joined = new HashSet<string>(words);
         for (var i = 0; i + 1 < words.Length; i++)
+        {
             joined.Add(words[i] + words[i + 1]); // "sign-in" → "signin"
+        }
+
         return new[]
         {
             "login",
@@ -548,12 +584,20 @@ public sealed class BrowserDownloader : IAsyncDisposable
     public static async Task<bool> IsSigningInAsync(IPage page)
     {
         if (IsAuthUrl(page.Url))
+        {
             return true;
+        }
+
         var passwords = page.Locator("input[type=password]");
         var n = await passwords.CountAsync();
         for (var i = 0; i < Math.Min(n, 5); i++)
+        {
             if (await passwords.Nth(i).IsVisibleAsync())
+            {
                 return true;
+            }
+        }
+
         return false;
     }
 
@@ -568,12 +612,21 @@ public sealed class BrowserDownloader : IAsyncDisposable
     {
         // A sign-out link or user menu means signed in, whatever else is on the page.
         foreach (var sel in SignedInSelectors)
+        {
             if (await page.Locator(sel).CountAsync() > 0)
+            {
                 return false;
+            }
+        }
 
         foreach (var sel in SignInSelectors)
+        {
             if (await AnyVisibleAsync(page.Locator(sel)))
+            {
                 return true;
+            }
+        }
+
         return false;
     }
 
@@ -582,8 +635,13 @@ public sealed class BrowserDownloader : IAsyncDisposable
     {
         var n = Math.Min(await matches.CountAsync(), 10);
         for (var i = 0; i < n; i++)
+        {
             if (await matches.Nth(i).IsVisibleAsync())
+            {
                 return true;
+            }
+        }
+
         return false;
     }
 
@@ -598,36 +656,51 @@ public sealed class BrowserDownloader : IAsyncDisposable
             var all = page.Locator(sel);
             var count = await all.CountAsync();
             if (count == 0)
+            {
                 continue;
+            }
 
             var candidates = new List<(ILocator el, string key, string text)>();
             for (var i = 0; i < Math.Min(count, 30); i++)
             {
                 var el = all.Nth(i);
                 if (!await el.IsVisibleAsync())
+                {
                     continue;
+                }
+
                 var href = await el.GetAttributeAsync("href") ?? "";
                 var text = (await el.InnerTextAsync()).Trim();
                 var key = sel + "|" + href + "|" + text;
                 if (clicked.Contains(key))
+                {
                     continue;
+                }
                 // Only click download links on the page's own site, never off-site ads.
                 if (
                     href.StartsWith("http")
                     && Uri.TryCreate(href, UriKind.Absolute, out var u)
                     && !u.Host.EndsWith(new Uri(page.Url).Host.Replace("www.", ""))
                 )
+                {
                     continue;
+                }
+
                 candidates.Add((el, key, text));
             }
             if (candidates.Count == 0)
+            {
                 continue;
+            }
 
             // Several files on offer (e.g. desktop and VR builds): prefer the one matching the hint.
             // When nothing matches and there's more than one choice, let the user pick.
             var row = await PickAsync(candidates, preferHint);
             if (row == null)
+            {
                 return null;
+            }
+
             clicked.Add(row.Value.key);
             return row.Value.el;
         }
@@ -640,7 +713,9 @@ public sealed class BrowserDownloader : IAsyncDisposable
     )
     {
         if (candidates.Count == 1 || !candidates[0].key.Contains("r="))
+        {
             return candidates[0];
+        }
 
         foreach (var c in candidates)
         {
@@ -649,7 +724,9 @@ public sealed class BrowserDownloader : IAsyncDisposable
                 .el.Locator("xpath=ancestor::*[self::li or self::tr or self::div][1]")
                 .InnerTextAsync();
             if (preferHint.Any(h => rowText.Contains(h, StringComparison.OrdinalIgnoreCase)))
+            {
                 return c;
+            }
         }
         return null;
     }
@@ -665,7 +742,10 @@ public sealed class BrowserDownloader : IAsyncDisposable
             !Uri.TryCreate(current, UriKind.Absolute, out var a)
             || !Uri.TryCreate(target, UriKind.Absolute, out var b)
         )
+        {
             return false;
+        }
+
         static string Host(Uri u) => u.Host.StartsWith("www.") ? u.Host[4..] : u.Host;
         static string Query(Uri u) =>
             string.Join(
@@ -686,14 +766,20 @@ public sealed class BrowserDownloader : IAsyncDisposable
     static string MakeSafe(string name)
     {
         foreach (var c in Path.GetInvalidFileNameChars())
+        {
             name = name.Replace(c, '_');
+        }
+
         return name;
     }
 
     public async ValueTask DisposeAsync()
     {
         if (_ctx != null)
+        {
             await _ctx.CloseAsync();
+        }
+
         _pw?.Dispose();
     }
 }

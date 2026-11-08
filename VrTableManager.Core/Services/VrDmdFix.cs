@@ -44,21 +44,27 @@ public static class VrDmdFix
             using var root = RootStorage.OpenRead(vpx);
             var game = root.OpenStorage("GameStg");
             for (int i = 0; game.TryOpenStream("GameItem" + i, out var s) && s != null; i++)
+            {
                 using (s)
                 {
                     var d = ReadAll(s);
                     if (IsOldDmd(d, out var name))
+                    {
                         (
                             name.Contains("pup", StringComparison.OrdinalIgnoreCase) ? named : other
                         ).Add(new(i, name));
+                    }
                 }
+            }
         }
         catch (Exception)
         {
             return [];
         }
         if (other.Count == 0)
+        {
             return named;
+        }
         // Reading the script means reading the whole file, so only when there's a flasher it would decide.
         var script = RomDetector.Inspect(vpx);
         return script is { UsesPup: true, UsesPinMame: false, UsesOwnDmd: false }
@@ -75,7 +81,10 @@ public static class VrDmdFix
     {
         var flashers = Find(vpx);
         if (flashers.Count == 0)
+        {
             return flashers;
+        }
+
         File.Copy(vpx, BackupPath(vpx), overwrite: true);
         var tmp = vpx + ".dmdfix.tmp";
         File.Copy(vpx, tmp, overwrite: true);
@@ -95,15 +104,20 @@ public static class VrDmdFix
                 root.Flush();
             }
             if (Find(tmp).Count != 0)
+            {
                 throw new InvalidOperationException(
                     "the patched table still has the old DMD setting"
                 );
+            }
+
             File.Move(tmp, vpx, overwrite: true);
         }
         finally
         {
             if (File.Exists(tmp))
+            {
                 File.Delete(tmp);
+            }
         }
         return flashers;
     }
@@ -131,10 +145,16 @@ public static class VrDmdFix
         {
             int len = BitConverter.ToInt32(d, p);
             if (len < 4 || p + 4 + len > d.Length)
+            {
                 break;
+            }
+
             var tag = Encoding.ASCII.GetString(d, p + 4, 4);
             if (tag is "DPNT" or "ENDB")
+            {
                 break;
+            }
+
             list.Add(new(p, 4 + len, tag));
             p += 4 + len;
         }
@@ -146,7 +166,10 @@ public static class VrDmdFix
     {
         name = "";
         if (d.Length < 4 || BitConverter.ToInt32(d, 0) != FlasherType)
+        {
             return false;
+        }
+
         bool dmd = false,
             modern = false;
         foreach (var r in TopRecords(d))

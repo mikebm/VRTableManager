@@ -33,17 +33,24 @@ public static class TableUpdates
         {
             var m = t.Manifest;
             if (m.GameId == "" || m.TableFileId == "" || !byId.TryGetValue(m.GameId, out var game))
+            {
                 continue;
+            }
+
             var tf = game.TableFiles?.FirstOrDefault(f => f.Id == m.TableFileId);
             if (tf == null)
+            {
                 continue;
+            }
 
             var newer = !string.IsNullOrWhiteSpace(tf.Version)
                 ? !SameVersion(tf.Version, m.Version)
                 : string.IsNullOrWhiteSpace(m.Version)
                     && tf.UpdatedAt > (m.SourceUpdatedAt ?? long.MaxValue);
             if (newer && tf.Urls?.Any(u => !u.Broken) == true)
+            {
                 result.Add(new TableUpdate(t, game, tf));
+            }
         }
         return result;
     }
@@ -73,14 +80,21 @@ public static class UevrSetup
         foreach (var rel in doc.RootElement.EnumerateArray())
         {
             if (rel.GetProperty("draft").GetBoolean() || rel.GetProperty("prerelease").GetBoolean())
+            {
                 continue;
+            }
+
             foreach (var asset in rel.GetProperty("assets").EnumerateArray())
+            {
                 if (asset.GetProperty("name").GetString() == "UEVR.zip")
+                {
                     return new ToolRelease(
                         rel.GetProperty("tag_name").GetString()!,
                         asset.GetProperty("browser_download_url").GetString()!,
                         asset.GetProperty("size").GetInt64()
                     );
+                }
+            }
         }
         return null;
     }
@@ -89,7 +103,10 @@ public static class UevrSetup
     public static string? InstalledVersion(AppSettings s)
     {
         if (string.IsNullOrWhiteSpace(s.UevrDir) || !File.Exists(PfxSetup.InjectorPath(s)))
+        {
             return null;
+        }
+
         var f = Path.Combine(s.UevrDir, VersionFile);
         return File.Exists(f) ? File.ReadAllText(f).Trim() : "unknown";
     }
@@ -106,9 +123,15 @@ public static class UevrSetup
     )
     {
         if (string.IsNullOrWhiteSpace(s.UevrDir))
+        {
             s.UevrDir = DefaultDir;
+        }
+
         if (Process.GetProcessesByName("UEVRInjector").Length > 0)
+        {
             throw new InvalidOperationException("Close UEVRInjector first, then update.");
+        }
+
         var tmp = Path.Combine(Path.GetTempPath(), $"UEVR-{rel.Tag}.zip");
         await Http.DownloadFileAsync(rel.Url, tmp, progress, ct);
         await Task.Run(() => TableInstaller.Extract(tmp, s.UevrDir), ct);
@@ -140,7 +163,10 @@ public static partial class BamCheck
     {
         var loader = FpSetup.LoaderPath(s);
         if (string.IsNullOrWhiteSpace(s.FpDir) || !File.Exists(loader))
+        {
             return null;
+        }
+
         var v = FileVersionInfo.GetVersionInfo(loader);
         return string.IsNullOrWhiteSpace(v.ProductVersion) ? "installed" : v.ProductVersion.Trim();
     }

@@ -63,7 +63,10 @@ public static partial class RomAudio
     {
         var rom = RomOf(table);
         if (rom == null || !File.Exists(pinmameDll))
+        {
             return null;
+        }
+
         var scratch = Path.Combine(
             Path.GetTempPath(),
             "vrtm-romaudio-" + Guid.NewGuid().ToString("N")[..8]
@@ -80,7 +83,9 @@ public static partial class RomAudio
                     "*.zip"
                 )
             )
+            {
                 File.Copy(zip, Path.Combine(roms, Path.GetFileName(zip)));
+            }
 
             var (samples, channels, rate) = Run(
                 pinmameDll,
@@ -125,28 +130,40 @@ public static partial class RomAudio
         var block = rate / 10 * channels;
         var blocks = clip.Length / block;
         if (blocks == 0)
+        {
             return null;
+        }
+
         var rms = new double[blocks];
         for (var b = 0; b < blocks; b++)
         {
             double sum = 0;
             for (var i = b * block; i < (b + 1) * block; i++)
+            {
                 sum += (double)clip[i] * clip[i];
+            }
+
             rms[b] = Math.Sqrt(sum / block);
         }
         const double Quiet = 15; // about -67 dBFS: emulated machines play quietly, the clip is normalised below
         var loud = rms.Count(r => r > Quiet);
         if (loud < 20)
+        {
             return null; // under 2 s of sound
+        }
         // Start at the first sound, end after the last block before 3 s of quiet.
         var first = Array.FindIndex(rms, r => r > Quiet);
         var last = first;
         for (var b = first; b < blocks; b++)
         {
             if (rms[b] > Quiet)
+            {
                 last = b;
+            }
             else if (b - last >= 30)
+            {
                 break;
+            }
         }
         var start = first * block;
         var end = Math.Min(clip.Length, (last + 3) * block);
@@ -160,7 +177,10 @@ public static partial class RomAudio
             var g = gain;
             var left = cut.Length - i;
             if (left < fade)
+            {
                 g *= (double)left / fade;
+            }
+
             cut[i] = (short)Math.Clamp(cut[i] * g, short.MinValue, short.MaxValue);
         }
         return cut;
@@ -193,30 +213,44 @@ public static partial class RomAudio
         {
             var line = raw.Trim();
             if (line.StartsWith("With ", StringComparison.OrdinalIgnoreCase))
+            {
                 inTroughWith = line.Contains("trough", StringComparison.OrdinalIgnoreCase);
+            }
             else if (line.StartsWith("End With", StringComparison.OrdinalIgnoreCase))
+            {
                 inTroughWith = false;
+            }
+
             if (
                 line.StartsWith('\'')
                 || !(inTroughWith || line.Contains("trough", StringComparison.OrdinalIgnoreCase))
             )
+            {
                 continue;
+            }
+
             if (InitSwitches().Match(line) is { Success: true } array)
+            {
                 found.AddRange(
                     array
                         .Groups[1]
                         .Value.Split(',')
                         .Select(x => int.TryParse(x.Trim(), out var n) ? n : 0)
                 );
+            }
             else if (InitSw().Match(line) is { Success: true } init)
+            {
                 found.AddRange(
                     init.Groups[1]
                         .Value.Split(',')
                         .Skip(1)
                         .Select(x => int.TryParse(x.Trim(), out var n) ? n : 0)
                 );
+            }
             else if (line.Contains("_Hit", StringComparison.OrdinalIgnoreCase))
+            {
                 found.AddRange(SwitchOn().Matches(line).Select(m => int.Parse(m.Groups[1].Value)));
+            }
         }
         return found.Where(n => n > 0).Distinct().Take(8).ToList();
     }
@@ -241,7 +275,10 @@ public static partial class RomAudio
         {
             var len = BitConverter.ToInt32(bytes, i);
             if (len < 4 || i + 4 + len > bytes.Length)
+            {
                 break;
+            }
+
             if (Encoding.ASCII.GetString(bytes, i + 4, 4) == "CODE")
             {
                 // CODE is the one record whose length field doesn't cover its data: a second length follows.
@@ -398,7 +435,10 @@ public static partial class RomAudio
                 var chunk = new short[n];
                 Marshal.Copy(buffer, chunk, 0, n);
                 lock (audio)
+                {
                     audio.AddRange(chunk);
+                }
+
                 return samples;
             };
             byte[]? display = null;
@@ -406,10 +446,16 @@ public static partial class RomAudio
             DisplayUpdatedFn onDisplay = (index, data, layout, _) =>
             {
                 if (index != 0 || data == IntPtr.Zero || log == null)
+                {
                     return;
+                }
+
                 var l = Marshal.PtrToStructure<DisplayLayout>(layout);
                 if (l.Width <= 0 || l.Height <= 0 || l.Width > 256 || l.Height > 64)
+                {
                     return;
+                }
+
                 var pixels = new byte[l.Width * l.Height];
                 Marshal.Copy(data, pixels, 0, pixels.Length);
                 (display, displayWidth) = (pixels, l.Width);
@@ -461,14 +507,19 @@ public static partial class RomAudio
                     if (!ballsIn && clock.Elapsed.TotalSeconds > 2)
                     {
                         foreach (var sw in balls)
+                        {
                             setSwitch(sw, 1);
+                        }
+
                         ballsIn = true;
                     }
                     Thread.Sleep(100);
                 }
                 stop();
                 for (var i = 0; i < 50 && isRunning() != 0; i++)
+                {
                     Thread.Sleep(100);
+                }
             }
             finally
             {
@@ -478,7 +529,9 @@ public static partial class RomAudio
                 GC.KeepAlive(isKeyPressed);
             }
             if (display != null && log != null)
+            {
                 for (var y = 0; y < display.Length / displayWidth; y++)
+                {
                     log(
                         new string(
                             display
@@ -488,8 +541,13 @@ public static partial class RomAudio
                                 .ToArray()
                         ).TrimEnd()
                     );
+                }
+            }
+
             lock (audio)
+            {
                 return (audio.ToArray(), channels, rate);
+            }
         }
 
         static bool Pressed(double t, double at) => t >= at && t < at + 0.25;

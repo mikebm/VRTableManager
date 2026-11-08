@@ -28,8 +28,11 @@ public sealed record PupLayout(
             string.Join("; ", names.Select(n => $"\"{n}\""));
         var note = "";
         if (Applied != null)
+        {
             note = $" Set up with the pack's VR layout ({List([Applied])}).";
+        }
         else if (Options.Count > 0)
+        {
             note =
                 (
                     VrOptions.Count > 1
@@ -37,9 +40,14 @@ public sealed record PupLayout(
                         : $" The pack comes with layouts its own .bat files switch between ({List(Options)}). This app doesn't run them, so it's on the pack's default, which may not suit VR."
                 )
                 + $" If the backglass or DMD look wrong, open {shownFolder}, see which files the chosen layout's .bat copies (open it in Notepad), and copy them yourself, skipping any .exe or .bat.";
+        }
+
         if (ReadMes.Count > 0)
+        {
             note +=
                 $" The pack's own notes: {string.Join(", ", ReadMes.Take(3))}{(ReadMes.Count > 3 ? "…" : "")} in {shownFolder}.";
+        }
+
         return note;
     }
 }
@@ -93,15 +101,23 @@ public static partial class PupPackOptions
     {
         var switched = new List<string>();
         if (!Directory.Exists(pupDir))
+        {
             return switched;
+        }
+
         foreach (var pack in PupPacks.PackRoots(pupDir))
         {
             if (File.Exists(Path.Combine(pack, Marker)))
+            {
                 continue;
+            }
+
             try
             {
                 if (SetUpForVr(pack).Applied is { } applied)
+                {
                     switched.Add($"{Path.GetFileName(pack)}: {applied}");
+                }
             }
             catch (Exception e) when (e is IOException or UnauthorizedAccessException)
             { /* leave it as it is; tried again next launch */
@@ -113,7 +129,10 @@ public static partial class PupPackOptions
     public static PupLayout SetUpForVr(string pack)
     {
         if (!Directory.Exists(pack))
+        {
             return PupLayout.None;
+        }
+
         var options = FindOptions(pack);
         var vr = options.Where(o => o.Source != null && VrNameRegex().IsMatch(o.Name)).ToList();
         string? applied = null;
@@ -179,11 +198,15 @@ public static partial class PupPackOptions
                 continue;
             }
             if (!text.Contains(".pup", StringComparison.OrdinalIgnoreCase))
+            {
                 continue;
+            }
+
             var name = Path.GetFileNameWithoutExtension(bat)!;
             list.Add(new(name, FolderNamed(name) ?? SourceIn(text, pack)));
         }
         foreach (var f in folders.Order(StringComparer.OrdinalIgnoreCase))
+        {
             if (
                 !list.Any(o =>
                     o.Source != null
@@ -191,7 +214,11 @@ public static partial class PupPackOptions
                         .Equals(Path.GetFullPath(f), StringComparison.OrdinalIgnoreCase)
                 )
             )
+            {
                 list.Add(new(Path.GetFileName(f)!, f));
+            }
+        }
+
         return list;
     }
 
@@ -202,10 +229,15 @@ public static partial class PupPackOptions
         {
             var dir = Path.GetDirectoryName(m.Groups[1].Value.Replace('/', '\\'));
             if (string.IsNullOrEmpty(dir) || Path.IsPathRooted(dir) || dir.Contains(".."))
+            {
                 continue;
+            }
+
             var full = Path.Combine(pack, dir);
             if (Directory.Exists(full))
+            {
                 return full;
+            }
         }
         return null;
     }
@@ -215,7 +247,10 @@ public static partial class PupPackOptions
         foreach (var file in Directory.EnumerateFiles(source, "*", SearchOption.AllDirectories))
         {
             if (Programs.Contains(Path.GetExtension(file).ToLowerInvariant()))
+            {
                 continue;
+            }
+
             var rel = Path.GetRelativePath(source, file);
             var dest = Path.Combine(pack, rel);
             // The pack's own file is kept the first time it's replaced (a later run finds the backup already there).

@@ -18,7 +18,10 @@ public static class Qoi
             || header[2] != 'i'
             || header[3] != 'f'
         )
+        {
             return null;
+        }
+
         var w = (header[4] << 24) | (header[5] << 16) | (header[6] << 8) | header[7];
         var h = (header[8] << 24) | (header[9] << 16) | (header[10] << 8) | header[11];
         return w > 0 && h > 0 && (long)w * h <= 400_000_000 ? (w, h) : null;
@@ -27,7 +30,10 @@ public static class Qoi
     public static Image Decode(ReadOnlySpan<byte> data)
     {
         if (ReadSize(data) is not var (w, h))
+        {
             throw new InvalidDataException("Not a QOI image.");
+        }
+
         var px = new byte[w * h * 4];
         Span<byte> index = stackalloc byte[64 * 4];
         byte r = 0,
@@ -40,7 +46,9 @@ public static class Qoi
         for (var o = 0; o < px.Length; o += 4)
         {
             if (run > 0)
+            {
                 run--;
+            }
             else if (p < end)
             {
                 var b1 = data[p++];

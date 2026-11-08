@@ -25,10 +25,15 @@ public sealed record InstalledTable(TableManifest Manifest, string TablePath, st
         get
         {
             if (!IsVpx || Manifest.RomNames.Count == 0)
+            {
                 return [];
+            }
+
             bool Has(string r) => File.Exists(Path.Combine(Folder, "pinmame", "roms", r + ".zip"));
             if (!Manifest.RomNames.Any(Has))
+            {
                 return Manifest.RomNames;
+            }
             // The ROM is there; a clone may still need its parent set.
             return Manifest.RomParents.Where(p => !Has(p)).ToList();
         }
@@ -115,7 +120,10 @@ public static class TableInstaller
                 )
                 {
                     if (LooksLikeRom(nested, game))
+                    {
                         continue;
+                    }
+
                     await Task.Run(
                         () =>
                             Extract(
@@ -132,9 +140,11 @@ public static class TableInstaller
                 tables = Find(staging, "*" + tableExt);
             }
             if (tables.Count == 0)
+            {
                 throw new InvalidDataException(
                     $"No {tableExt} file in the download. It may be a patch or a media pack, not a table."
                 );
+            }
 
             var main = PickMainTable(tables, tf);
             // (*.BIN entries are Stern firmware files, not PinMAME ROM names.)
@@ -199,7 +209,10 @@ public static class TableInstaller
             var table = new InstalledTable(manifest, installed.tablePath, installed.folder);
             // Ask PinMAME what the ROM really is (aliases, parent sets) before the manifest is saved.
             if (!isFp && !rom.NoRomNeeded)
+            {
                 await Task.Run(() => RomRequirements.Update(table, settings), ct);
+            }
+
             await File.WriteAllTextAsync(
                 ManifestPathFor(installed.tablePath, isFp),
                 JsonSerializer.Serialize(manifest, Json),
@@ -207,7 +220,9 @@ public static class TableInstaller
             );
             // Everything's in place: the folder is no longer half-installed.
             if (!isFp)
+            {
                 File.Delete(Path.Combine(installed.folder, InstallingMarker));
+            }
 
             // Updating: the new version usually has a new file name ("… v1.2.vpx"). Remove the old table file so
             // only one version shows up; ROMs, NVRAM and settings in the folder stay. Only now, once the new
@@ -223,7 +238,9 @@ public static class TableInstaller
                 File.Delete(replacing.TablePath);
                 File.Delete(VrDmdFix.BackupPath(replacing.TablePath));
                 if (isFp && File.Exists(ManifestPathFor(replacing.TablePath, true)))
+                {
                     File.Delete(ManifestPathFor(replacing.TablePath, true));
+                }
             }
             return table;
         }
@@ -294,7 +311,9 @@ public static class TableInstaller
                 _ => null,
             };
             if (target != null)
+            {
                 CopyTree(dir, target);
+            }
         }
 
         // Loose ROM zips and backglasses anywhere in the pack.
@@ -306,15 +325,22 @@ public static class TableInstaller
                     StringComparison.OrdinalIgnoreCase
                 )
             )
+            {
                 continue;
+            }
+
             var fn = Path.GetFileNameWithoutExtension(file);
             if (
                 file.EndsWith(".zip", StringComparison.OrdinalIgnoreCase)
                 && romNames.Contains(fn, StringComparer.OrdinalIgnoreCase)
             )
+            {
                 CopyFile(file, Path.Combine(folder, "pinmame", "roms", Path.GetFileName(file)));
+            }
             else if (file.EndsWith(".directb2s", StringComparison.OrdinalIgnoreCase))
+            {
                 CopyFile(file, Path.Combine(folder, Path.GetFileName(file)));
+            }
         }
 
         // ROM zips that sat right next to the .vpx belong in pinmame/roms too.
@@ -326,15 +352,22 @@ public static class TableInstaller
                     StringComparer.OrdinalIgnoreCase
                 )
             )
+            {
                 MoveFile(zip, Path.Combine(folder, "pinmame", "roms", Path.GetFileName(zip)));
+            }
         }
 
         AltPacks.FixLayout(folder);
         // A PuP pack that came in the table's archive gets its VR layout too, when it has one.
         var pupDir = Path.Combine(folder, PupPacks.FolderName);
         if (Directory.Exists(pupDir))
+        {
             foreach (var pack in PupPacks.PackRoots(pupDir))
+            {
                 PupPackOptions.SetUpForVr(pack);
+            }
+        }
+
         return (Path.Combine(folder, Path.GetFileName(main)), folder);
     }
 
@@ -356,13 +389,19 @@ public static class TableInstaller
             && Directory.Exists(replacing.Folder)
             && !SamePath(replacing.Folder, settings.TablesDir)
         )
+        {
             return replacing.Folder;
+        }
+
         var baseName = SafeName(game.DisplayTitle);
         for (var n = 1; ; n++)
         {
             var folder = Path.Combine(settings.TablesDir, n == 1 ? baseName : $"{baseName} ({n})");
             if (!Directory.Exists(folder))
+            {
                 return folder;
+            }
+
             var owner =
                 ReadManifest(Path.Combine(folder, ManifestName))?.TableFileId
                 ?? ReadMarker(folder)?.TableFileId;
@@ -371,7 +410,9 @@ public static class TableInstaller
                     ? owner == tableFileId
                     : !Directory.EnumerateFiles(folder, "*.vpx").Any()
             )
+            {
                 return folder;
+            }
         }
     }
 
@@ -385,22 +426,33 @@ public static class TableInstaller
         var parts = rel.Split(Path.DirectorySeparatorChar, StringSplitOptions.RemoveEmptyEntries);
         var name = parts[^1].ToLowerInvariant();
         if (name is not ("roms" or "nvram"))
+        {
             return;
+        }
+
         if (
             parts.Length > 2
             || (parts.Length == 2 && parts[0].ToLowerInvariant() is not ("vpinmame" or "pinmame"))
         )
+        {
             return;
+        }
+
         var copied = Path.Combine(folder, rel);
         var target = Path.Combine(folder, "pinmame", name);
         if (SamePath(copied, target) || !Directory.Exists(copied))
+        {
             return;
+        }
+
         CopyTree(dir, target);
         try
         {
             Directory.Delete(copied, recursive: true);
             if (parts.Length == 2)
+            {
                 Addons.DeleteIfEmpty(Path.GetDirectoryName(copied)!);
+            }
         }
         catch (IOException)
         { /* the copy in pinmame\ is what counts */
@@ -423,9 +475,11 @@ public static class TableInstaller
     )
     {
         if (string.IsNullOrWhiteSpace(settings.FpDir) || !Directory.Exists(settings.FpDir))
+        {
             throw new InvalidOperationException(
                 "Set your Future Pinball folder on the Setup tab first."
             );
+        }
 
         var tablesDir = Path.Combine(settings.FpDir, "Tables");
         var libsDir = Path.Combine(settings.FpDir, "Libraries");
@@ -435,11 +489,15 @@ public static class TableInstaller
         {
             var ext = Path.GetExtension(file).ToLowerInvariant();
             if (ext == ".fpl")
+            {
                 CopyFile(file, Path.Combine(libsDir, Path.GetFileName(file)));
+            }
             else if (
                 Path.GetDirectoryName(file)!.Equals(contentRoot, StringComparison.OrdinalIgnoreCase)
             )
+            {
                 CopyFile(file, Path.Combine(tablesDir, Path.GetFileName(file))); // .fpt plus its .vbs/.ini/.directb2s
+            }
         }
 
         foreach (
@@ -448,13 +506,17 @@ public static class TableInstaller
         {
             var name = Path.GetFileName(dir).ToLowerInvariant();
             if (name == "music")
+            {
                 CopyTree(dir, Path.Combine(settings.FpDir, "Music"));
+            }
             else if (
                 name == "cfg"
                 && Path.GetFileName(Path.GetDirectoryName(dir))!
                     .Equals("BAM", StringComparison.OrdinalIgnoreCase)
             )
+            {
                 CopyTree(dir, Path.Combine(settings.FpDir, "BAM", "cfg"));
+            }
         }
 
         return (Path.Combine(tablesDir, Path.GetFileName(main)), tablesDir);
@@ -493,7 +555,10 @@ public static class TableInstaller
                     continue;
                 }
                 if (vpx == null)
+                {
                     continue;
+                }
+
                 m ??= new TableManifest
                 {
                     GameName = Path.GetFileName(folder),
@@ -503,6 +568,7 @@ public static class TableInstaller
             }
             // Loose .vpx files from a manual install (not in their own folder).
             foreach (var vpx in Directory.EnumerateFiles(settings.TablesDir, "*.vpx"))
+            {
                 result.Add(
                     new InstalledTable(
                         new TableManifest
@@ -517,6 +583,7 @@ public static class TableInstaller
                         SharedFolder = true,
                     }
                 );
+            }
         }
 
         var fpTables = Path.Combine(settings.FpDir, "Tables");
@@ -553,9 +620,12 @@ public static class TableInstaller
     public static void Remove(InstalledTable table)
     {
         if (!Engines.For(table.Manifest.Engine).ManagesFiles)
+        {
             throw new InvalidOperationException(
                 "This game belongs to a store; uninstall it there."
             );
+        }
+
         if (table.IsIncomplete && SamePath(table.TablePath, table.Folder))
         {
             // Cut off before the table file arrived; the marker shows this app created the folder.
@@ -567,17 +637,23 @@ public static class TableInstaller
             && Path.GetFullPath(table.Folder)
                 != Path.GetFullPath(Path.GetDirectoryName(table.TablePath)!)
         )
+        {
             throw new InvalidOperationException("Unexpected table layout; not removing.");
+        }
 
         if (table.IsVpx && File.Exists(Path.Combine(table.Folder, ManifestName)))
+        {
             Directory.Delete(table.Folder, recursive: true); // folder was created by this app
+        }
         else
         {
             File.Delete(table.TablePath);
             File.Delete(VrDmdFix.BackupPath(table.TablePath)); // no-op when there's none
             var manifest = ManifestPathFor(table.TablePath, !table.IsVpx);
             if (File.Exists(manifest))
+            {
                 File.Delete(manifest);
+            }
         }
     }
 
@@ -615,7 +691,10 @@ public static class TableInstaller
     static string PickMainTable(List<string> tables, VpsTableFile tf)
     {
         if (tables.Count == 1)
+        {
             return tables[0];
+        }
+
         var wantVr = VpsCatalog.HasFeature(tf, "VR");
         bool IsVrName(string p) =>
             Path.GetFileNameWithoutExtension(p).Contains("VR", StringComparison.Ordinal);
@@ -640,9 +719,13 @@ public static class TableInstaller
     static void Unpack(string file, string staging)
     {
         if (IsArchive(file))
+        {
             Extract(file, staging);
+        }
         else
+        {
             File.Copy(file, Path.Combine(staging, Path.GetFileName(file)));
+        }
     }
 
     public static void Extract(string archivePath, string destDir)
@@ -654,7 +737,10 @@ public static class TableInstaller
             !Path.GetExtension(archivePath).Equals(".gz", StringComparison.OrdinalIgnoreCase)
             && TryNative7Zip(archivePath, destDir, root)
         )
+        {
             return;
+        }
+
         using var archive = ArchiveFactory.OpenArchive(archivePath);
         // 7z (and solid RAR) packs many files into one compressed stream. Opening entries one by one
         // makes each restart that stream from the top, so a big table pack takes hours; read it once, in order.
@@ -664,7 +750,10 @@ public static class TableInstaller
             while (reader.MoveToNextEntry())
             {
                 if (Target(reader.Entry, destDir, root) is not { } dest)
+                {
                     continue;
+                }
+
                 using var src = reader.OpenEntryStream();
                 using var dst = File.Create(dest);
                 src.CopyTo(dst);
@@ -674,7 +763,10 @@ public static class TableInstaller
         foreach (var entry in archive.Entries)
         {
             if (Target(entry, destDir, root) is not { } dest)
+            {
                 continue;
+            }
+
             using var src = entry.OpenEntryStream();
             using var dst = File.Create(dest);
             src.CopyTo(dst);
@@ -707,10 +799,16 @@ public static class TableInstaller
     static string? Target(bool isFolder, string? key, string destDir, string root)
     {
         if (isFolder || string.IsNullOrEmpty(key))
+        {
             return null;
+        }
+
         var dest = Path.GetFullPath(Path.Combine(destDir, key));
         if (!dest.StartsWith(root, StringComparison.OrdinalIgnoreCase))
+        {
             return null;
+        }
+
         Directory.CreateDirectory(Path.GetDirectoryName(dest)!);
         return dest;
     }
@@ -718,7 +816,9 @@ public static class TableInstaller
     static void CopyTree(string src, string dest)
     {
         foreach (var file in Directory.EnumerateFiles(src, "*", SearchOption.AllDirectories))
+        {
             CopyFile(file, Path.Combine(dest, Path.GetRelativePath(src, file)));
+        }
     }
 
     static void CopyFile(string src, string dest)
@@ -736,7 +836,10 @@ public static class TableInstaller
     public static string SafeName(string name)
     {
         foreach (var c in Path.GetInvalidFileNameChars())
+        {
             name = name.Replace(c, '_');
+        }
+
         return name.Trim().TrimEnd('.');
     }
 }

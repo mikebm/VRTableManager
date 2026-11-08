@@ -48,7 +48,10 @@ static class CabinetCache
             var fi = new FileInfo(vpx);
             var file = FileFor(vpx, dir);
             if (!fi.Exists || !File.Exists(file))
+            {
                 return false;
+            }
+
             using var r = new BinaryReader(new BufferedStream(File.OpenRead(file), 1 << 16));
             if (
                 !r.ReadBytes(Magic.Length).AsSpan().SequenceEqual(Magic)
@@ -56,9 +59,15 @@ static class CabinetCache
                 || r.ReadInt64() != fi.Length
                 || r.ReadInt64() != fi.LastWriteTimeUtc.Ticks
             )
+            {
                 return false;
+            }
+
             if (!r.ReadBoolean())
+            {
                 return true; // known: no VR cabinet in this table
+            }
+
             parsed = ReadBody(r);
             return true;
         }
@@ -78,7 +87,10 @@ static class CabinetCache
         {
             var fi = new FileInfo(vpx);
             if (!fi.Exists)
+            {
                 return;
+            }
+
             Directory.CreateDirectory(dir);
             using (var w = new BinaryWriter(new BufferedStream(File.Create(tmp), 1 << 16)))
             {
@@ -88,7 +100,9 @@ static class CabinetCache
                 w.Write(fi.LastWriteTimeUtc.Ticks);
                 w.Write(parsed != null);
                 if (parsed != null)
+                {
                     WriteBody(w, parsed);
+                }
             }
             File.Move(tmp, file, overwrite: true);
         }
@@ -113,7 +127,10 @@ static class CabinetCache
                 !r.ReadBytes(DumpMagic.Length).AsSpan().SequenceEqual(DumpMagic)
                 || r.ReadInt32() != DumpVersion
             )
+            {
                 return false;
+            }
+
             parsed = ReadBody(r);
             return true;
         }
@@ -242,7 +259,10 @@ static class CabinetCache
             w.Write(s.Name);
             w.Write(s.Image != null);
             if (s.Image != null)
+            {
                 w.Write(s.Image);
+            }
+
             w.Write(s.Material != null);
             if (s.Material is { } m)
             {

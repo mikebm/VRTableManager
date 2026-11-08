@@ -22,7 +22,10 @@ public static partial class RomDetector
     public static VpxRomInfo Inspect(string vpxPath)
     {
         if (!File.Exists(vpxPath))
+        {
             return new(null, false);
+        }
+
         const int Chunk = 4 << 20,
             Overlap = 256;
         var buffer = new byte[Chunk + Overlap];
@@ -43,7 +46,10 @@ public static partial class RomDetector
         while (chunksAfter < 2 && (read = fs.Read(buffer, carry, Chunk)) > 0)
         {
             if (gameName != null && pinMame)
+            {
                 chunksAfter++;
+            }
+
             var total = carry + read;
             var text = Encoding.Latin1.GetString(buffer, 0, total);
             gameName ??= FromScript(text);
@@ -54,8 +60,12 @@ public static partial class RomDetector
             ownDmd = ownDmd || CreatesOwnDmd(text);
             ownDmdOff = ownDmdOff || OwnDmdSwitchedOff(text);
             foreach (var a in AliasTargetsIn(text))
+            {
                 if (!aliasTargets.Contains(a, StringComparer.OrdinalIgnoreCase))
+                {
                     aliasTargets.Add(a);
+                }
+            }
             // Keep the tail so a match split across chunks is still found.
             var keep = Math.Min(Overlap, total);
             Buffer.BlockCopy(buffer, total - keep, buffer, 0, keep);
@@ -84,10 +94,17 @@ public static partial class RomDetector
     public static bool OwnDmdSwitchedOff(string script)
     {
         foreach (var word in (string[])["UseFlexDMD", "UseUltraDMD"])
-        foreach (var line in CodeLinesWith(script, word))
-            if (OwnDmdSwitchRegex().Match(line) is { Success: true } m)
-                return m.Groups[1].Value is "0"
-                    || m.Groups[1].Value.Equals("False", StringComparison.OrdinalIgnoreCase);
+        {
+            foreach (var line in CodeLinesWith(script, word))
+            {
+                if (OwnDmdSwitchRegex().Match(line) is { Success: true } m)
+                {
+                    return m.Groups[1].Value is "0"
+                        || m.Groups[1].Value.Equals("False", StringComparison.OrdinalIgnoreCase);
+                }
+            }
+        }
+
         return false;
     }
 
@@ -98,9 +115,14 @@ public static partial class RomDetector
     public static bool? PupSwitch(string script)
     {
         foreach (var line in CodeLinesWith(script, "usePUP"))
+        {
             if (UsePupSwitchRegex().Match(line) is { Success: true } m)
+            {
                 return m.Groups[1].Value is "1"
                     || m.Groups[1].Value.Equals("True", StringComparison.OrdinalIgnoreCase);
+            }
+        }
+
         return null;
     }
 
@@ -113,13 +135,23 @@ public static partial class RomDetector
         foreach (var line in CodeLinesWith(script, "Init"))
         {
             if (PupInitRegex().Match(line) is not { Success: true } m)
+            {
                 continue;
+            }
+
             if (m.Groups[1].Success)
+            {
                 return m.Groups[1].Value;
+            }
+
             var variable = m.Groups[2].Value;
             if (variable.Equals("cGameName", StringComparison.OrdinalIgnoreCase))
+            {
                 return gameName ?? FromScript(script);
+            }
+
             foreach (var assign in CodeLinesWith(script, variable))
+            {
                 if (
                     Regex.Match(
                         assign,
@@ -128,7 +160,10 @@ public static partial class RomDetector
                     ) is
                     { Success: true } a
                 )
+                {
                     return a.Groups[1].Value;
+                }
+            }
         }
         return null;
     }
@@ -140,8 +175,13 @@ public static partial class RomDetector
     public static string? FromScript(string script)
     {
         foreach (var line in CodeLinesWith(script, "cGameName"))
+        {
             if (GameNameRegex().Match(line) is { Success: true } m)
+            {
                 return m.Groups[1].Value;
+            }
+        }
+
         return null;
     }
 
@@ -172,14 +212,19 @@ public static partial class RomDetector
             var start = text.LastIndexOfAny(['\r', '\n'], i) + 1;
             var end = text.IndexOfAny(['\r', '\n'], i);
             if (end < 0)
+            {
                 end = text.Length;
+            }
             // A "line" can run through binary data; only look nearby.
             start = Math.Max(start, i - 300);
             end = Math.Min(end, i + 300);
             var line = text[start..end];
             var comment = line.IndexOf('\'');
             if (comment >= 0 && comment < i - start)
+            {
                 continue; // the word is inside a comment
+            }
+
             yield return comment >= 0 ? line[..comment] : line;
         }
     }
@@ -261,7 +306,10 @@ public static partial class MachineScript
         {
             var lineStart = script.LastIndexOfAny(['\r', '\n'], m.Index) + 1;
             if (script.AsSpan(lineStart, m.Index - lineStart).Contains('\''))
+            {
                 continue; // commented out
+            }
+
             return m.Groups[1].Value;
         }
         return null;
@@ -276,9 +324,15 @@ public static partial class MachineScript
         try
         {
             if (Needed(vpxPath) is not { } name)
+            {
                 return null;
+            }
+
             if (VpxSetup.FindExe(s) is not { } exe)
+            {
                 return null; // without VPX there's nothing to compare with
+            }
+
             string[] dirs =
             [
                 Path.GetDirectoryName(vpxPath)!,
@@ -309,11 +363,20 @@ public static class RomSources
     public static bool IsUsable(string url, string? romName)
     {
         if (romName != null && romName.EndsWith(".bin", StringComparison.OrdinalIgnoreCase))
+        {
             return false;
+        }
+
         if (!Uri.TryCreate(url, UriKind.Absolute, out var u))
+        {
             return false;
+        }
+
         if (u.Host.EndsWith("sternpinball.com", StringComparison.OrdinalIgnoreCase))
+        {
             return false;
+        }
+
         return !u.AbsolutePath.EndsWith(".bin", StringComparison.OrdinalIgnoreCase);
     }
 
@@ -373,7 +436,10 @@ public static class RomInstaller
                     .EnumerateFiles(tmp, "*.zip", SearchOption.AllDirectories)
                     .ToList();
                 if (zips.Count == 0)
+                {
                     throw new InvalidDataException("No ROM zip inside the download.");
+                }
+
                 return PlaceNested(
                     zips.Select(f =>
                             (Path.GetFileName(f), (Action<string>)(d => File.Copy(f, d, true)))
@@ -411,7 +477,9 @@ public static class RomInstaller
     )
     {
         if (downloads.Count == 1)
+        {
             return Install(downloads[0], table, romName);
+        }
 
         var romsDir = Path.Combine(table.Folder, "pinmame", "roms");
         Directory.CreateDirectory(romsDir);
@@ -474,7 +542,10 @@ public static class RomInstaller
             }
         }
         if (placed.Count == 0)
+        {
             throw new InvalidDataException("None of the downloads contained a ROM zip.");
+        }
+
         return placed;
     }
 
@@ -490,11 +561,17 @@ public static class RomInstaller
             )
             .ToList();
         if (match.Count == 0 && zips.Count == 1)
+        {
             match = [(romName + ".zip", zips[0].save)];
+        }
+
         if (match.Count == 0)
+        {
             throw new InvalidDataException(
                 $"The download has {zips.Count} ROM zips but none called {romName}.zip."
             );
+        }
+
         var placed = new List<string>();
         foreach (var (name, save) in match)
         {

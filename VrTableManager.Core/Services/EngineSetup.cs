@@ -84,7 +84,10 @@ public static class VpxSetup
         using var runs = JsonDocument.Parse(await Http.Client.GetStringAsync(NightlyRunsApi, ct));
         var run = runs.RootElement.GetProperty("workflow_runs").EnumerateArray().FirstOrDefault();
         if (run.ValueKind != JsonValueKind.Object)
+        {
             return null;
+        }
+
         var artifactsUrl = run.GetProperty("artifacts_url").GetString() + "?per_page=100";
         return ParseNightlyArtifacts(await Http.Client.GetStringAsync(artifactsUrl, ct));
     }
@@ -100,7 +103,9 @@ public static class VpxSetup
                 || !name.StartsWith("VPinballX_BGFX-")
                 || !name.EndsWith(AssetSuffix)
             )
+            {
                 continue;
+            }
             // "VPinballX_BGFX-10.8.1-6625-2ad1916b2-windows-x64-Release.zip" → "v10.8.1-6625-2ad1916b2"
             var tag = "v" + name["VPinballX_BGFX-".Length..^AssetSuffix.Length];
             return new VpxRelease(
@@ -121,13 +126,22 @@ public static class VpxSetup
         foreach (var rel in doc.RootElement.EnumerateArray())
         {
             if (rel.GetProperty("draft").GetBoolean())
+            {
                 continue;
+            }
+
             var name = rel.TryGetProperty("name", out var n) ? n.GetString() ?? "" : "";
             var asset = BgfxAsset(rel);
             if (asset == null)
+            {
                 continue;
+            }
+
             if (useDoNotUse || !name.StartsWith("DO NOT USE", StringComparison.OrdinalIgnoreCase))
+            {
                 return new VpxReleases(asset, withdrawn);
+            }
+
             withdrawn ??= asset;
         }
         return new VpxReleases(null, withdrawn);
@@ -139,12 +153,14 @@ public static class VpxSetup
         {
             var an = asset.GetProperty("name").GetString() ?? "";
             if (an.StartsWith("VPinballX_BGFX-") && an.EndsWith(AssetSuffix))
+            {
                 return new VpxRelease(
                     rel.GetProperty("tag_name").GetString()!,
                     an,
                     asset.GetProperty("browser_download_url").GetString()!,
                     asset.GetProperty("size").GetInt64()
                 );
+            }
         }
         return null;
     }
@@ -156,6 +172,7 @@ public static class VpxSetup
             ? $" The VPX team has marked newer builds (up to {w.Tag}) \"DO NOT USE\" on GitHub, so they aren't offered."
             : "";
         if (r.Latest == null)
+        {
             return (
                 installed != null ? $"Keeping your installed {installed}.{note}"
                 : r.Withdrawn != null
@@ -163,14 +180,24 @@ public static class VpxSetup
                 : "No VPX release found for this OS.",
                 false
             );
+        }
+
         var latest = r.Latest.Nightly ? $"{r.Latest.Tag} (nightly)" : r.Latest.Tag;
         if (installed == null)
+        {
             return ($"Not installed. Latest is {latest}.{note}", false);
+        }
+
         if (installed == r.Latest.Tag || SameBuild(installed, r.Latest.Tag))
+        {
             return ($"Up to date ({installed}).{note}", false);
+        }
         // Installed something newer than the newest usable build (e.g. a build later marked DO NOT USE): keep it.
         if (installed == r.Withdrawn?.Tag || IsNewer(installed, r.Latest.Tag))
+        {
             return ($"Keeping your installed {installed}.{note}", false);
+        }
+
         return ($"{installed} → {latest}", true);
     }
 
@@ -200,10 +227,16 @@ public static class VpxSetup
     public static string? InstalledVersion(AppSettings s)
     {
         if (FindExe(s) is not { } exe)
+        {
             return null;
+        }
+
         var f = Path.Combine(s.VpxDir, VersionFile);
         if (File.Exists(f))
+        {
             return File.ReadAllText(f).Trim();
+        }
+
         return TagFromProductVersion(FileVersionInfo.GetVersionInfo(exe).ProductVersion);
     }
 
@@ -211,7 +244,10 @@ public static class VpxSetup
     {
         var p = (productVersion ?? "").Trim().Split('.');
         if (p.Length < 4 || !p.Take(4).All(x => int.TryParse(x, out _)))
+        {
             return null;
+        }
+
         return $"v{p[0]}.{p[1]}.{p[2]}-{p[3]}" + (p.Length > 4 && p[4] != "" ? "-" + p[4] : "");
     }
 
@@ -245,12 +281,15 @@ public static class VpxSetup
             var wrapped = tmp + ".zip";
             File.Move(tmp, wrapped, overwrite: true);
             using (var zip = ZipFile.OpenRead(wrapped))
+            {
                 (
                     zip.GetEntry(rel.AssetName)
                     ?? throw new InvalidDataException(
                         $"{rel.AssetName} wasn't in the nightly download."
                     )
                 ).ExtractToFile(tmp, overwrite: true);
+            }
+
             File.Delete(wrapped);
         }
 
@@ -273,7 +312,10 @@ public static class VpxSetup
     public static string? FindExe(AppSettings s)
     {
         if (!Directory.Exists(s.VpxDir))
+        {
             return null;
+        }
+
         var files = Directory
             .EnumerateFiles(s.VpxDir, "VPinballX*", SearchOption.AllDirectories)
             .Where(f =>
@@ -354,14 +396,18 @@ public static class VpxSetup
         // folder. Serum, VNI and AltSound are its colorization and sound companions, read from the table folder.
         var on = s.UseBuiltInPinmame ? "1" : "0";
         foreach (var plugin in BuiltInPinmamePlugins)
+        {
             IniFile.Set(ini, "Plugin." + plugin, "Enable", on);
+        }
         // PinUP Player plugin: plays a table's pupvideos\<pack> on the backglass/DMD; tables without one are unaffected.
         IniFile.Set(ini, "Plugin." + PupPlugin, "Enable", s.UsePupPlugin ? "1" : "0");
         // FlexDMD stands in for the FlexDMD/UltraDMD components many originals draw their DMD with (Jaws,
         // Mass Effect); B2S shows a table's .directb2s backglass. Set explicitly rather than left to VPX's default.
         var display = s.UseDisplayPlugins ? "1" : "0";
         foreach (var plugin in DisplayPlugins)
+        {
             IniFile.Set(ini, "Plugin." + plugin, "Enable", display);
+        }
     }
 
     /// <summary>Id of VPX's PinUP Player plugin (plugins\pup\plugin.cfg).</summary>
@@ -376,7 +422,10 @@ public static class VpxSetup
     public static string DescribeOpenXrRuntime()
     {
         if (!OperatingSystem.IsWindows())
+        {
             return "Check your OpenXR runtime (e.g. SteamVR or Monado).";
+        }
+
         try
         {
             using var key = Microsoft.Win32.Registry.LocalMachine.OpenSubKey(
@@ -384,7 +433,10 @@ public static class VpxSetup
             );
             var path = key?.GetValue("ActiveRuntime") as string;
             if (string.IsNullOrEmpty(path))
+            {
                 return "No OpenXR runtime found. Install the Meta Quest Link app (or SteamVR / Virtual Desktop).";
+            }
+
             return $"Active OpenXR runtime: {OpenXrRuntimes.NameFor(path)}";
         }
         catch (Exception e)
@@ -427,14 +479,23 @@ public static class FpSetup
     public static string Describe(AppSettings s)
     {
         if (!OperatingSystem.IsWindows())
+        {
             return "Future Pinball is Windows-only.";
+        }
+
         if (
             string.IsNullOrWhiteSpace(s.FpDir)
             || !File.Exists(Path.Combine(s.FpDir, "Future Pinball.exe"))
         )
+        {
             return "Future Pinball not found. Install it, then choose its folder.";
+        }
+
         if (!File.Exists(LoaderPath(s)))
+        {
             return "Future Pinball found, but BAM is missing (BAM\\FPLoader.exe). Install BAM to enable VR.";
+        }
+
         var vr =
             File.Exists(Path.Combine(s.FpDir, "BAM", "openvr_api.dll"))
             || Directory
@@ -544,9 +605,13 @@ public static class Launcher
             UseShellExecute = false,
         };
         if (vr)
+        {
             VpxSetup.EnsureVrIni(s);
+        }
         else
+        {
             VpxSetup.EnsureDesktopIni(s);
+        }
         // Only in this launch's play file, not the overrides: the next table gets its own pick.
         var backglass = vr ? VpxSetup.VrBackglassFor(s, table) : null;
         var play = VpxIniLayers.Build(
@@ -555,22 +620,34 @@ public static class Launcher
             extra: backglass is null ? null : [("PlayerVR", "AddBackglass", backglass)]
         );
         if (VrRoomSwitch.Prepare(tablePath, vr, s.AutoVrRoom) is { } changed)
+        {
             PlaySession.Log($"{Path.GetFileName(tablePath)}: {changed}");
+        }
         // Without VPX's texture list (written when a table closes) a table's first launch plays very dark.
         if (VpxTextureCache.Prepare(tablePath) is { } textures)
+        {
             PlaySession.Log($"{Path.GetFileName(tablePath)}: {textures}");
+        }
         // PuP packs installed before VR layouts were chosen (or copied from another install) get theirs now, once.
         if (vr && s.UsePupPlugin)
+        {
             foreach (
                 var pack in PupPackOptions.SetUpOnce(
                     Path.Combine(Path.GetDirectoryName(tablePath)!, PupPacks.FolderName)
                 )
             )
+            {
                 PlaySession.Log(
                     $"{Path.GetFileName(tablePath)}: PuP pack switched to its VR layout ({pack})"
                 );
+            }
+        }
+
         foreach (var a in VpxArgs(play.Path, tablePath))
+        {
             psi.ArgumentList.Add(a);
+        }
+
         var proc = Process.Start(psi)!;
         VpxIniLayers.SaveBackOnExit(proc, play, PlaySession.Log);
         return proc;
@@ -586,7 +663,10 @@ public static class Launcher
     {
         var args = new List<string>();
         if (iniPath != null)
+        {
             args.AddRange(["-Ini", iniPath]);
+        }
+
         args.AddRange(["-Play", tablePath]);
         return args;
     }
@@ -595,7 +675,10 @@ public static class Launcher
     {
         var loader = FpSetup.LoaderPath(s);
         if (!File.Exists(loader))
+        {
             throw new InvalidOperationException("BAM's FPLoader.exe wasn't found (Setup tab).");
+        }
+
         var psi = new ProcessStartInfo(loader)
         {
             WorkingDirectory = Path.GetDirectoryName(loader)!,

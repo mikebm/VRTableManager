@@ -24,7 +24,10 @@ if (conceptsSheet != null)
 int[] icoSizes = [16, 20, 24, 32, 40, 48, 64, 128, 256];
 var pngs = icoSizes.ToDictionary(s => s, Render);
 if (preview != null)
+{
     WritePreview(preview, pngs);
+}
+
 WriteIco(Path.Combine(outDir, "app.ico"), pngs);
 File.WriteAllBytes(Path.Combine(outDir, "app-icon.png"), Render(512));
 File.WriteAllBytes(Path.Combine(outDir, "dmd-dots.png"), DmdDot(6));
@@ -36,7 +39,10 @@ static string FindAssets()
 {
     var dir = AppContext.BaseDirectory;
     while (dir != null && !Directory.Exists(Path.Combine(dir, "VrTableManager", "Assets")))
+    {
         dir = Path.GetDirectoryName(dir);
+    }
+
     return dir != null
         ? Path.Combine(dir, "VrTableManager", "Assets")
         : Directory.GetCurrentDirectory();
@@ -107,7 +113,9 @@ static void WriteIco(string path, Dictionary<int, byte[]> pngs)
         offset += png.Length;
     }
     foreach (var png in pngs.Values)
+    {
         w.Write(png);
+    }
 }
 
 static byte[] RenderConcept(int size, int concept)

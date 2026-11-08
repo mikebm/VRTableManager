@@ -28,18 +28,32 @@ public static class PlaySession
     {
         var a = new List<string> { PlayFlag, tablePath };
         if (vr)
+        {
             a.Add("--vr");
+        }
+
         if (!string.IsNullOrEmpty(settingsPath))
+        {
             a.AddRange(["--settings", settingsPath]);
+        }
+
         if (!string.IsNullOrEmpty(statusPath))
+        {
             a.AddRange(["--status", statusPath]);
+        }
+
         if (lobbyPid > 0)
+        {
             a.AddRange(["--lobby-pid", lobbyPid.ToString()]);
+        }
+
         if (!string.IsNullOrEmpty(returnExe))
         {
             a.AddRange(["--return", returnExe]);
             foreach (var r in returnArgs)
+            {
                 a.AddRange(["--return-arg", r]);
+            }
         }
         return a;
     }
@@ -96,7 +110,9 @@ public static class PlaySession
         void Status(string state, string message = "")
         {
             if (req.StatusPath != null)
+            {
                 PlayStatus.Write(req.StatusPath, state, message);
+            }
         }
         Status(PlayStatus.Starting);
         try
@@ -136,12 +152,17 @@ public static class PlaySession
             // A lobby that's still open is still on its loading screen (the table failed, or closed before it
             // took over the headset). It reads the status and carries on, so starting another would make two.
             if (LobbyStillOpen(req.LobbyPid))
+            {
                 Log("lobby still open; not starting another");
+            }
             else if (!string.IsNullOrEmpty(req.ReturnExe))
             {
                 var psi = new ProcessStartInfo(req.ReturnExe) { UseShellExecute = false };
                 foreach (var a in req.ReturnArgs)
+                {
                     psi.ArgumentList.Add(a);
+                }
+
                 try
                 {
                     Process.Start(psi);
@@ -163,7 +184,10 @@ public static class PlaySession
     static bool LobbyStillOpen(int pid)
     {
         if (pid <= 0)
+        {
             return false;
+        }
+
         try
         {
             using var p = Process.GetProcessById(pid);

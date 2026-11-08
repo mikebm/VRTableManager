@@ -47,7 +47,10 @@ public static class LobbyLibrary
     public static string NormalizeId(string path)
     {
         if (string.IsNullOrEmpty(path))
+        {
             return path;
+        }
+
         try
         {
             return Path.GetFullPath(path);
@@ -69,9 +72,15 @@ public static class LobbyLibrary
         );
         var parts = new List<string> { Engines.For(m.Engine).DisplayName };
         if (maker != "")
+        {
             parts.Add(maker);
+        }
+
         if (!string.IsNullOrWhiteSpace(m.Version))
+        {
             parts.Add("v" + m.Version);
+        }
+
         return new LobbyTable(
             Id: NormalizeId(t.TablePath),
             Engine: m.Engine,

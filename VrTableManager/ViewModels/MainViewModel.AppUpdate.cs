@@ -29,12 +29,15 @@ public sealed partial class MainViewModel
     {
         var args = Environment.GetCommandLineArgs();
         if (args.Contains("--updated"))
+        {
             await _ui.ChoiceAsync(
                 "Updated",
                 $"VR Table Manager is now version {AppUpdater.CurrentVersion}.",
                 ["OK"]
             );
+        }
         else if (args.Contains("--update-failed"))
+        {
             await _ui.ChoiceAsync(
                 "Update didn't finish",
                 "The new files couldn't be copied into the app's folder (a file may have been in use). You're still on "
@@ -42,13 +45,20 @@ public sealed partial class MainViewModel
                     + ". Try again from Setup → Updates, or download the release yourself.",
                 ["OK"]
             );
+        }
 
         await CheckAppUpdateAsync();
         if (!HasAppUpdate || _appLatest is not { } rel || rel.Version == Settings.SkippedAppVersion)
+        {
             return;
+        }
+
         var notes = rel.Notes.Trim();
         if (notes.Length > 600)
+        {
             notes = notes[..600].TrimEnd() + "…";
+        }
+
         var pick = await _ui.ChoiceAsync(
             $"VR Table Manager {rel.Version} is out",
             $"You have {AppUpdater.CurrentVersion}. Update now? The app closes, updates and opens again; your tables and settings stay as they are.",
@@ -56,7 +66,9 @@ public sealed partial class MainViewModel
             notes == "" ? null : notes
         );
         if (pick == 0)
+        {
             await UpdateAppAsync();
+        }
         else if (pick == 1)
         {
             Settings.SkippedAppVersion = rel.Version;
@@ -98,7 +110,10 @@ public sealed partial class MainViewModel
     async Task UpdateAppAsync()
     {
         if (IsUpdatingApp || _appLatest is not { } rel)
+        {
             return;
+        }
+
         if (IsLobbyRunning)
         {
             AppUpdateText = "Quit the VR lobby first, then update.";
@@ -120,7 +135,9 @@ public sealed partial class MainViewModel
                 $"{running} job{(running == 1 ? " is" : "s are")} still running. Unfinished downloads are offered again after the update."
             )
         )
+        {
             return;
+        }
 
         IsUpdatingApp = true;
         try

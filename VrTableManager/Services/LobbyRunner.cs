@@ -31,11 +31,16 @@ public static class LobbyRunner
         while (dir != null)
         {
             foreach (var candidate in new[] { Path.Combine(dir, "VrLobby"), dir })
+            {
                 if (
                     File.Exists(Path.Combine(candidate, "project.godot"))
                     && File.Exists(Path.Combine(candidate, "VrLobby.csproj"))
                 )
+                {
                     return candidate;
+                }
+            }
+
             dir = Path.GetDirectoryName(dir);
         }
         return null;
@@ -45,7 +50,10 @@ public static class LobbyRunner
     public static string? FindGodot()
     {
         if (!Directory.Exists(GodotDir))
+        {
             return null;
+        }
+
         return Directory
             .EnumerateFiles(GodotDir, "Godot_v*_mono_win64.exe", SearchOption.AllDirectories)
             .FirstOrDefault(f => !f.EndsWith("_console.exe", StringComparison.OrdinalIgnoreCase));
@@ -58,11 +66,17 @@ public static class LobbyRunner
     )
     {
         if (FindGodot() is { } have)
+        {
             return have;
+        }
+
         if (!OperatingSystem.IsWindows())
+        {
             throw new PlatformNotSupportedException(
                 "The one-click lobby start is Windows-only for now."
             );
+        }
+
         var tmp = Path.Combine(Path.GetTempPath(), GodotZip);
         status($"Downloading Godot {GodotVersion} (.NET), 117 MB, one time…");
         await Http.DownloadFileAsync(GodotUrl, tmp, progress, ct);
@@ -94,10 +108,16 @@ public static class LobbyRunner
     {
         var dll = LobbyDll(lobbyDir);
         if (!File.Exists(dll))
+        {
             return true;
+        }
+
         var core = CoreDir(lobbyDir);
         if (!Directory.Exists(core))
+        {
             return false;
+        }
+
         var built = File.GetLastWriteTimeUtc(dll);
         return new[] { lobbyDir, core }
             .SelectMany(d => Directory.EnumerateFiles(d, "*.cs*", SearchOption.AllDirectories))
@@ -120,9 +140,12 @@ public static class LobbyRunner
     )
     {
         if (!Directory.Exists(CoreDir(lobbyDir)))
+        {
             throw new InvalidOperationException(
                 "The lobby's compiled code is missing from the VrLobby folder. Unzip the release again, keeping VrLobby next to VrTableManager.exe."
             );
+        }
+
         status("Building the lobby…");
         var (code, output) = await RunAsync(
             DotnetExe(),
@@ -153,7 +176,10 @@ public static class LobbyRunner
     )
     {
         if (Directory.Exists(Path.Combine(lobbyDir, ".godot", "imported")))
+        {
             return;
+        }
+
         status("Preparing the lobby's assets (first run)…");
         await RunAsync(
             ConsoleExe(godot),
@@ -210,7 +236,10 @@ public static class LobbyRunner
             CreateNoWindow = true,
         };
         foreach (var a in args)
+        {
             psi.ArgumentList.Add(a);
+        }
+
         using var p =
             Process.Start(psi)
             ?? throw new InvalidOperationException($"Couldn't start {Path.GetFileName(exe)}.");

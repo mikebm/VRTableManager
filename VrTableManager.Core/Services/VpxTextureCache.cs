@@ -35,10 +35,16 @@ public static class VpxTextureCache
         {
             var path = ListPath(vpx);
             if (File.Exists(path) || !File.Exists(vpx))
+            {
                 return null;
+            }
+
             var used = UsedTextures(vpx);
             if (used.Count == 0)
+            {
                 return null;
+            }
+
             Directory.CreateDirectory(Path.GetDirectoryName(path)!);
             File.WriteAllText(path, ToXml(used), new UTF8Encoding(false));
             return $"wrote VPX's texture list for the first launch ({used.Count} textures)";
@@ -56,36 +62,62 @@ public static class VpxTextureCache
         var game = root.OpenStorage("GameStg");
         var images = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
         for (int i = 0; game.TryOpenStream("Image" + i, out var s) && s != null; i++)
+        {
             using (s)
+            {
                 if (Strings(ReadAll(s), 0).FirstOrDefault(t => t.Tag == "NAME").Value is { } name)
+                {
                     images.TryAdd(name, name);
+                }
+            }
+        }
 
         var used = new List<(string Name, bool Linear)>();
         var index = new Dictionary<string, int>(StringComparer.OrdinalIgnoreCase);
         void Use(string value, bool linear)
         {
             if (!images.TryGetValue(value, out var name))
+            {
                 return;
+            }
+
             if (!index.TryGetValue(name, out var at))
             {
                 index[name] = used.Count;
                 used.Add((name, linear));
             }
             else if (linear)
+            {
                 used[at] = (name, true);
+            }
         }
         // Table settings: the playfield image (IMAG) and the color grade (IMCG). The ball's and the environment's
         // images aren't in VPX's list either.
         using (var gd = game.OpenStream("GameData"))
+        {
             foreach (var (tag, value) in Strings(ReadAll(gd), 0))
+            {
                 if (tag is "IMAG" or "IMCG")
+                {
                     Use(value, tag == "IMCG");
+                }
+            }
+        }
         // Parts: any setting naming an image (IMAG, IMAB, SIMG, a light's IMG1…); NRMA is a primitive's normal map.
         for (int i = 0; game.TryOpenStream("GameItem" + i, out var s) && s != null; i++)
+        {
             using (s)
+            {
                 foreach (var (tag, value) in Strings(ReadAll(s), 4))
+                {
                     if (tag != "NAME")
+                    {
                         Use(value, tag == "NRMA");
+                    }
+                }
+            }
+        }
+
         return used;
     }
 
@@ -93,9 +125,12 @@ public static class VpxTextureCache
     {
         var sb = new StringBuilder("<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n<textures>\n");
         foreach (var (name, linear) in used)
+        {
             sb.Append(
                 $"    <texture linear=\"{(linear ? "true" : "false")}\" age=\"0\">{SecurityElement.Escape(name)}</texture>\n"
             );
+        }
+
         return sb.Append("</textures>\n").ToString();
     }
 
@@ -116,19 +151,31 @@ public static class VpxTextureCache
         {
             int len = BitConverter.ToInt32(d, p);
             if (len < 4 || p + 4 + len > d.Length)
+            {
                 yield break;
+            }
+
             var tag = Encoding.ASCII.GetString(d, p + 4, 4);
             if (tag is "ENDB" or "DPNT")
+            {
                 yield break;
+            }
+
             if (tag == "CODE")
             {
                 if (p + 12 > d.Length)
+                {
                     yield break;
+                }
+
                 p += 12 + Math.Max(0, BitConverter.ToInt32(d, p + 8));
                 continue;
             }
             if (len >= 8 && BitConverter.ToInt32(d, p + 8) is var n && n > 0 && n == len - 8)
+            {
                 yield return (tag, Encoding.Latin1.GetString(d, p + 12, n));
+            }
+
             p += 4 + len;
         }
     }

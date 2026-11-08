@@ -55,7 +55,10 @@ public sealed partial class MainViewModel
     {
         Runtimes.Clear();
         foreach (var r in OpenXrRuntimes.List())
+        {
             Runtimes.Add(r);
+        }
+
         var active = Runtimes.FirstOrDefault(r => r.IsActive);
         IsMetaRuntime = active?.IsMeta == true;
         IsRuntimeWarning = active == null || active.IsSteamVr;
@@ -79,7 +82,10 @@ public sealed partial class MainViewModel
     async Task MakeRuntimeActiveAsync(OpenXrRuntime? runtime)
     {
         if (runtime == null || runtime.IsActive)
+        {
             return;
+        }
+
         var pick = await _ui.ChoiceAsync(
             $"Use {runtime.Name} for VR?",
             $"VPX, UEVR (in OpenXR mode) and other OpenXR games will use {runtime.Name}.\n\n"
@@ -87,14 +93,19 @@ public sealed partial class MainViewModel
             ["SWITCH", "CANCEL"]
         );
         if (pick != 0)
+        {
             return;
+        }
+
         var ok = await OpenXrRuntimes.SetActiveAsync(runtime);
         RefreshVrStatus();
         RefreshSetupStatus();
         if (!ok)
+        {
             RuntimeAdvice =
                 "The runtime wasn't changed (the administrator prompt was declined or failed). "
                 + RuntimeAdvice;
+        }
     }
 
     [RelayCommand]
@@ -117,7 +128,10 @@ public sealed partial class MainViewModel
     async Task ApplyAswAsync()
     {
         if (Settings.MetaAswMode == MetaAsw.Modes[0] || OpenXrRuntimes.Active()?.IsMeta != true)
+        {
             return;
+        }
+
         await MetaAsw.ApplyAsync(Settings.MetaAswMode);
     }
 
@@ -215,7 +229,10 @@ public sealed partial class MainViewModel
     void SaveGraphics()
     {
         if (_loadingGraphics)
+        {
             return;
+        }
+
         try
         {
             var g = CurrentGraphics();
@@ -251,7 +268,10 @@ public sealed partial class MainViewModel
     void ApplyGraphicsPreset(string name)
     {
         if (VpxGraphics.Presets.FirstOrDefault(p => p.Name == name).Settings is not { } preset)
+        {
             return;
+        }
+
         _loadingGraphics = true;
         try
         {
@@ -293,7 +313,10 @@ public sealed partial class MainViewModel
             ["RESET", "CANCEL"]
         );
         if (pick != 0)
+        {
             return;
+        }
+
         try
         {
             VrView.Reset(VpxSetup.VrIniPath(Settings));
@@ -312,7 +335,10 @@ public sealed partial class MainViewModel
     void SetTableScale(object? parameter)
     {
         if (parameter is not TableScaleChoice c)
+        {
             return;
+        }
+
         try
         {
             VpxGraphics.WriteTableScale(c.Item.Table.TablePath, c.Scale);
@@ -336,7 +362,9 @@ public sealed partial class MainViewModel
     async Task<bool> PreflightAsync(InstalledItem item, IPinballEngine engine)
     {
         if (!await EnsureHeadsetAsync())
+        {
             return false;
+        }
 
         if (item.Table.IsVpx && !File.Exists(item.Table.TablePath))
         {
@@ -374,7 +402,9 @@ public sealed partial class MainViewModel
         }
 
         if (!await OfferDmdFixAsync(item))
+        {
             return false;
+        }
 
         // Future Pinball's BAM uses OpenVR (SteamVR) on purpose; the runtime check is for OpenXR games.
         var usesOpenXr = engine.Id != TableManifest.FuturePinball;
@@ -404,7 +434,10 @@ public sealed partial class MainViewModel
             {
                 case "SWITCH TO META QUEST LINK":
                     if (!await OpenXrRuntimes.SetActiveAsync(meta!))
+                    {
                         PlayStatus = "The runtime wasn't changed; playing through SteamVR.";
+                    }
+
                     RefreshVrStatus();
                     break;
                 case "DON'T ASK AGAIN":
@@ -418,7 +451,10 @@ public sealed partial class MainViewModel
         }
 
         if (usesOpenXr)
+        {
             await ApplyAswAsync();
+        }
+
         return true;
     }
 
@@ -426,17 +462,31 @@ public sealed partial class MainViewModel
     async Task ExplainVpxExitAsync(InstalledItem item, DateTime started)
     {
         if (!Settings.ExplainFailedLaunches || !item.Table.IsVpx)
+        {
             return;
+        }
+
         var quick = DateTime.Now - started < TimeSpan.FromSeconds(20);
         if (VpxLog.Find(Settings) is not { } log || VpxLog.LastSession(log) is not { } session)
+        {
             return;
+        }
+
         if (session.Started is { } t && t < started.AddSeconds(-10))
+        {
             return; // not this run's log
+        }
+
         if (!quick && session.ClosedCleanly)
+        {
             return;
+        }
         // A quick, clean close with nothing wrong (you just left the table): only harmless log lines, no dialog.
         if (session.ClosedCleanly && session.Problems.Count == 0 && session.Hints.Count == 0)
+        {
             return;
+        }
+
         await ShowLogSummaryAsync(
             quick && session.ClosedCleanly
                 ? $"{item.Title} closed straight away"
@@ -450,20 +500,29 @@ public sealed partial class MainViewModel
     {
         var lines = new List<string>();
         if (session.Table != null)
+        {
             lines.Add($"Table: {Path.GetFileName(session.Table)}");
+        }
+
         if (session.Started is { } t)
+        {
             lines.Add(
                 $"Started {t:g} · {(session.ClosedCleanly ? "closed normally" : "did not close normally")} · {(session.UsedVr ? "VR started" : "VR did not start")}"
             );
+        }
+
         lines.AddRange(session.Hints.Select(h => "• " + h));
         var details =
             session.Problems.Count == 0
                 ? "No errors in the log."
                 : string.Join("\n", session.Problems.Take(30));
         if (session.Harmless.Count > 0)
+        {
             details +=
                 "\n\nAlso logged, usually harmless (a PuP pack missing some of its files, and the like):\n"
                 + string.Join("\n", session.Harmless.Take(15));
+        }
+
         var pick = await _ui.ChoiceAsync(
             title,
             string.Join("\n", lines),
@@ -471,7 +530,9 @@ public sealed partial class MainViewModel
             details
         );
         if (pick == 0)
+        {
             _ui.OpenExternal(log);
+        }
     }
 
     [RelayCommand]

@@ -82,11 +82,17 @@ public static class Addons
     {
         var parts = new List<string>();
         if (!string.IsNullOrWhiteSpace(f.Version))
+        {
             parts.Add("v" + f.Version.Trim().TrimStart('v', 'V'));
+        }
+
         if (f.Authors is { Count: > 0 } a)
+        {
             parts.Add(
                 "by " + string.Join(", ", a.Take(3)) + (a.Count > 3 ? " +" + (a.Count - 3) : "")
             );
+        }
+
         var text = parts.Count > 0 ? string.Join(" ", parts) : fallback;
         return string.IsNullOrWhiteSpace(f.Comment) ? text : $"{text} — {f.Comment.Trim()}";
     }
@@ -145,21 +151,32 @@ public static class Addons
         foreach (var t in installed)
         {
             if (t.Manifest.GameId == "" || !byId.TryGetValue(t.Manifest.GameId, out var game))
+            {
                 continue;
+            }
+
             foreach (var kind in Enum.GetValues<AddonKind>())
             {
                 if (Record(t, kind) is not { } rec)
+                {
                     continue;
+                }
+
                 var f = FilesOf(game, kind).FirstOrDefault(x => x.Id == rec.FileId);
                 // A pack from the table's own page has the table's version, not its own: the table's update covers it.
                 if (f == null || f is VpsTableFile || UsableUrl(f) == null)
+                {
                     continue;
+                }
+
                 var newer = !string.IsNullOrWhiteSpace(f.Version)
                     ? !TableUpdates.SameVersion(f.Version, rec.Version)
                     : string.IsNullOrWhiteSpace(rec.Version)
                         && f.UpdatedAt > (rec.SourceUpdatedAt ?? long.MaxValue);
                 if (newer && StateOf(t, kind).Tracked != null)
+                {
                     result.Add(new AddonUpdate(t, game, f, kind));
+                }
             }
         }
         return result;
@@ -199,22 +216,30 @@ public static class Addons
             return;
         }
         if (!IsArchive(downloaded))
+        {
             throw new InvalidDataException(
                 $"Expected a {what} archive, got {Path.GetFileName(downloaded)}."
             );
+        }
+
         TableInstaller.Extract(downloaded, staging);
         if (found())
+        {
             return;
+        }
+
         foreach (
             var nested in Directory
                 .EnumerateFiles(staging, "*", SearchOption.AllDirectories)
                 .Where(IsArchive)
                 .ToList()
         )
+        {
             TableInstaller.Extract(
                 nested,
                 Path.Combine(staging, "_nested", Path.GetFileNameWithoutExtension(nested))
             );
+        }
     }
 
     /// <summary>Topmost folders under <paramref name="dir"/> (itself included) that pass <paramref name="isRoot"/>.</summary>
@@ -245,14 +270,18 @@ public static class Addons
     public static void DeleteFolder(string dir)
     {
         if (Directory.Exists(dir))
+        {
             Directory.Delete(dir, recursive: true);
+        }
     }
 
     /// <summary>Removes <paramref name="dir"/> when nothing is left in it.</summary>
     public static void DeleteIfEmpty(string dir)
     {
         if (Directory.Exists(dir) && !Directory.EnumerateFileSystemEntries(dir).Any())
+        {
             Directory.Delete(dir);
+        }
     }
 
     /// <summary>Packs run to gigabytes: a move when staging is on the same drive, a copy otherwise.</summary>
@@ -284,7 +313,10 @@ public static class Addons
                     StringComparison.OrdinalIgnoreCase
                 )
             )
+            {
                 continue;
+            }
+
             var target = Path.Combine(dest, Path.GetRelativePath(src, file));
             Directory.CreateDirectory(Path.GetDirectoryName(target)!);
             File.Copy(file, target, overwrite: true);

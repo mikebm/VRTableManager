@@ -31,7 +31,10 @@ public static partial class SternGameCode
     {
         var result = new List<SternCode>();
         if (PostsRegex().Match(html) is not { Success: true } m)
+        {
             return result;
+        }
+
         try
         {
             using var doc = JsonDocument.Parse(m.Groups[1].Value);
@@ -45,7 +48,10 @@ public static partial class SternGameCode
                     Str("download_type") == "file" ? Str("download_file") : Str("download_link");
                 var title = Str("title");
                 if (url == "" || title.Contains("read me", StringComparison.OrdinalIgnoreCase))
+                {
                     continue;
+                }
+
                 var path = Uri.TryCreate(url, UriKind.Absolute, out var u) ? u.AbsolutePath : url;
                 if (
                     Path.GetExtension(path).ToLowerInvariant()
@@ -54,7 +60,10 @@ public static partial class SternGameCode
                         or ".doc"
                         or ".docx"
                 )
+                {
                     continue;
+                }
+
                 result.Add(new SternCode(title, url));
             }
         }
@@ -76,10 +85,16 @@ public static partial class SternGameCode
         {
             var score = 0;
             if (want != null && Version(c.Title) == want)
+            {
                 score += 10;
+            }
+
             var isLe = LeRegex().IsMatch(c.Title);
             if (isLe == le)
+            {
                 score += 3;
+            }
+
             return score;
         }
         var list = codes.ToList();
@@ -95,7 +110,10 @@ public static partial class SternGameCode
     static string? Version(string text)
     {
         if (VersionRegex().Match(text) is not { Success: true } m)
+        {
             return null;
+        }
+
         var parts = m
             .Value.TrimStart('V', 'v')
             .Split('.')
@@ -103,9 +121,15 @@ public static partial class SternGameCode
             .ToList();
         // Drop trailing zero parts and zeros at the end of the minor part ("2.00" = "2.0" = "2").
         if (parts.Count > 1)
+        {
             parts[1] = parts[1].TrimEnd('0') is { Length: > 0 } mi ? mi : "0";
+        }
+
         while (parts.Count > 1 && parts[^1] == "0")
+        {
             parts.RemoveAt(parts.Count - 1);
+        }
+
         return string.Join(".", parts);
     }
 
@@ -162,18 +186,26 @@ public static partial class SternGameCode
                 Directory.CreateDirectory(Path.GetDirectoryName(dest)!);
                 var backup = File.Exists(dest) ? dest + ".vrtm-old" : null;
                 if (backup != null)
+                {
                     File.Move(dest, backup, overwrite: true);
+                }
+
                 File.Move(packed, dest, overwrite: true);
                 // Keep it only if PinMAME agrees it's the set (without PinMAME to ask, trust the version match).
                 if (info == null || PinmameInfo.Get(s, pinmameDir, rom) is { Found: true })
                 {
                     if (backup != null)
+                    {
                         File.Delete(backup);
+                    }
+
                     return dest;
                 }
                 File.Delete(dest);
                 if (backup != null)
+                {
                     File.Move(backup, dest);
+                }
             }
             catch (HttpRequestException) { }
             catch (InvalidDataException) { } // not a zip after all

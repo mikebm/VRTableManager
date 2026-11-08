@@ -153,7 +153,9 @@ public sealed class AppSettings
         try
         {
             if (File.Exists(path))
+            {
                 s = JsonSerializer.Deserialize<AppSettings>(File.ReadAllText(path)) ?? s;
+            }
         }
         catch
         { /* corrupt settings: fall back to defaults */

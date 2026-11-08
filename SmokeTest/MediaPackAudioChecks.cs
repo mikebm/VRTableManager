@@ -181,8 +181,12 @@ public static class MediaPackAudioChecks
         using (var z = ZipFile.Open(pack, ZipArchiveMode.Create))
         {
             foreach (var (path, _) in pinup)
+            {
                 using (var w = new StreamWriter(z.CreateEntry(path).Open()))
+                {
                     w.Write(path.Contains("/Audio/") ? "THEME" : "other");
+                }
+            }
         }
         var saved = MediaPackAudio.Save(pack, table, "Fish Tales");
         var music = Directory
@@ -202,7 +206,10 @@ public static class MediaPackAudioChecks
         var inner = Path.Combine(dir, "PinballX.zip");
         using (var z = ZipFile.Open(inner, ZipArchiveMode.Create))
         using (var w = new StreamWriter(z.CreateEntry("Table Audio/Fish Tales.ogg").Open()))
+        {
             w.Write("INNER");
+        }
+
         using (var z = ZipFile.Open(outer, ZipArchiveMode.Create))
         {
             z.CreateEntryFromFile(inner, "PinballX.zip");
@@ -220,7 +227,10 @@ public static class MediaPackAudioChecks
         // A pack with no audio leaves the table alone; a downloaded .mp3 is used as is.
         var videos = Path.Combine(dir, "videos.zip");
         using (var z = ZipFile.Open(videos, ZipArchiveMode.Create))
+        {
             z.CreateEntry("PlayField/a.mp4");
+        }
+
         yield return (
             MediaPackAudio.Save(videos, table, "Fish Tales") == null
                 && File.Exists(Path.Combine(table, "music", "attract.ogg")),
@@ -245,7 +255,9 @@ public static class MediaPackAudioChecks
         yield return (MediaPackAudio.Existing(table) == null, "remove deletes the attract audio");
 
         foreach (var check in CompressedChecks(dir, table))
+        {
             yield return check;
+        }
     }
 
     /// <summary>AAC (video sound tracks, .m4a) converted to MP3 through Windows' Media Foundation, with real encoded files.</summary>
@@ -322,7 +334,9 @@ public static class MediaPackAudioChecks
             "a file that isn't audio or video gives nothing"
         );
         foreach (var f in Directory.GetFiles(dir, "converted-*"))
+        {
             File.Delete(f); // the direct conversions above
+        }
 
         // A HyperPin-style pack with videos only: the table video's sound (an .f4v, really MP4) is used, the silent tutorial isn't.
         var videoPack = Path.Combine(dir, "hyperpin.zip");
@@ -356,7 +370,9 @@ public static class MediaPackAudioChecks
             "a single downloaded video gives its sound as music\\attract.mp3"
         );
         foreach (var f in Directory.GetFiles(dir, "converted-*"))
+        {
             File.Delete(f);
+        }
     }
 
     static void EncodeAac(string path, double silenceSeconds, double toneSeconds)

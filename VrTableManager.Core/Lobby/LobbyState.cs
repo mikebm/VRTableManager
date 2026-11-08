@@ -62,15 +62,23 @@ public sealed class LobbyState
         try
         {
             if (File.Exists(path))
+            {
                 s = JsonSerializer.Deserialize<LobbyState>(File.ReadAllText(path)) ?? s;
+            }
         }
         catch
         { /* corrupt: start fresh */
         }
         if (!LobbyNav.Filters.Contains(s.Filter))
+        {
             s.Filter = "All";
+        }
+
         if (s.View is not ("ring" or "wall"))
+        {
             s.View = "ring";
+        }
+
         s.HeightOffset = LobbyHeight.Clamp(s.HeightOffset);
         s.Path = path;
 
@@ -82,11 +90,17 @@ public sealed class LobbyState
                 st =>
                 {
                     foreach (var f in favs)
+                    {
                         st.SetFavourite(f, true);
+                    }
                     // Keep the old order: newest first, a minute apart, for tables not seen yet.
                     for (var i = 0; i < recent.Count; i++)
+                    {
                         if (st.LastPlayedOf(recent[i]) == null)
+                        {
                             st.Touch(recent[i], DateTime.Now.AddMinutes(-i - 1));
+                        }
+                    }
                 },
                 s.StatsPath
             );
@@ -130,7 +144,10 @@ public sealed class LobbyState
             return false;
         }
         if (stamp == _statsStamp)
+        {
             return false;
+        }
+
         _statsStamp = stamp;
         Stats = PlayStats.Load(StatsPath);
         return true;

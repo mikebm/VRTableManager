@@ -29,10 +29,16 @@ public static class TableImport
     public static string? FindTablesDir(string picked)
     {
         if (!Directory.Exists(picked))
+        {
             return null;
+        }
+
         var tables = Path.Combine(picked, "Tables");
         if (Directory.Exists(tables) && HasTables(tables))
+        {
             return tables;
+        }
+
         return HasTables(picked) ? picked : null;
 
         static bool HasTables(string dir) =>
@@ -55,7 +61,10 @@ public static class TableImport
                 "No .vpx tables in that folder or its Tables folder."
             );
         if (SamePath(tablesDir, settings.TablesDir))
+        {
             throw new InvalidOperationException("That's this app's own tables folder.");
+        }
+
         Directory.CreateDirectory(settings.TablesDir);
 
         // Where a classic install keeps what its tables share: VPinMAME\roms etc. beside Tables\.
@@ -129,7 +138,10 @@ public static class TableImport
                 Directory.CreateDirectory(dest);
                 // The table and the files named like it: backglass, settings, sidecar script, POV …
                 foreach (var f in Directory.EnumerateFiles(tablesDir, name + ".*"))
+                {
                     CopyFile(f, Path.Combine(dest, Path.GetFileName(f)));
+                }
+
                 FinishTable(
                     dest,
                     Path.Combine(dest, Path.GetFileName(vpxSrc)),
@@ -162,7 +174,9 @@ public static class TableImport
         var manifestPath = Path.Combine(folder, "vrtm.json");
         // Copied from another VR Table Manager: its manifest already says what the table is.
         if (File.Exists(manifestPath))
+        {
             return;
+        }
 
         var rom = RomDetector.Inspect(vpx);
         var romName = rom.NoRomNeeded ? null : rom.GameName;
@@ -191,11 +205,16 @@ public static class TableImport
         }
         var pupName = rom.UsesPup ? rom.PupName ?? rom.GameName : null;
         if (pupName != null)
+        {
             foreach (var pup in pupDirs)
+            {
                 CopyTreeIfMissing(
                     Path.Combine(pup, pupName),
                     Path.Combine(folder, PupPacks.FolderName, pupName)
                 );
+            }
+        }
+
         AltPacks.FixLayout(folder);
 
         var manifest = new TableManifest
@@ -215,31 +234,42 @@ public static class TableImport
         { /* PinMAME missing or unhappy: the ROM check runs again later */
         }
         foreach (var parent in manifest.RomParents)
-        foreach (var pm in pinmameDirs)
-            CopyIfMissing(
-                Path.Combine(pm, "roms", parent + ".zip"),
-                Path.Combine(folder, "pinmame", "roms", parent + ".zip")
-            );
+        {
+            foreach (var pm in pinmameDirs)
+            {
+                CopyIfMissing(
+                    Path.Combine(pm, "roms", parent + ".zip"),
+                    Path.Combine(folder, "pinmame", "roms", parent + ".zip")
+                );
+            }
+        }
+
         File.WriteAllText(manifestPath, JsonSerializer.Serialize(manifest, Json));
     }
 
     static void CopyIfMissing(string src, string dest)
     {
         if (File.Exists(src) && !File.Exists(dest))
+        {
             CopyFile(src, dest);
+        }
     }
 
     static void CopyTreeIfMissing(string src, string dest)
     {
         if (Directory.Exists(src) && !Directory.Exists(dest))
+        {
             CopyTree(src, dest);
+        }
     }
 
     static void CopyTree(string src, string dest)
     {
         Directory.CreateDirectory(dest);
         foreach (var file in Directory.EnumerateFiles(src, "*", SearchOption.AllDirectories))
+        {
             CopyFile(file, Path.Combine(dest, Path.GetRelativePath(src, file)));
+        }
     }
 
     static void CopyFile(string src, string dest)

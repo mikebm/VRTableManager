@@ -155,7 +155,9 @@ public sealed record VpxGraphics
             ("ShowFPS", FpsOverlay.ToString()),
         };
         foreach (var (k, v) in values)
+        {
             IniFile.Set(iniPath, "Player", k, v);
+        }
     }
 
     // ---- Per-table render scale -----------------------------------------------------
@@ -178,7 +180,10 @@ public sealed record VpxGraphics
     {
         var ini = TableIniPath(tablePath);
         if (scale == null && !File.Exists(ini))
+        {
             return;
+        }
+
         IniFile.Set(
             ini,
             "Player",
@@ -218,7 +223,10 @@ public static class OpenXrRuntimes
     {
         var result = new List<OpenXrRuntime>();
         if (!OperatingSystem.IsWindows())
+        {
             return result;
+        }
+
         try
         {
             using var key = Microsoft.Win32.Registry.LocalMachine.OpenSubKey(Key);
@@ -230,7 +238,10 @@ public static class OpenXrRuntimes
             foreach (var path in (avail?.GetValueNames() ?? []).Prepend(active))
             {
                 if (string.IsNullOrEmpty(path) || !seen.Add(path) || !File.Exists(path))
+                {
                     continue;
+                }
+
                 result.Add(
                     new OpenXrRuntime(
                         NameFor(path),
@@ -252,7 +263,10 @@ public static class OpenXrRuntimes
     public static async Task<bool> SetActiveAsync(OpenXrRuntime runtime)
     {
         if (!OperatingSystem.IsWindows())
+        {
             return false;
+        }
+
         var psi = new ProcessStartInfo("reg.exe")
         {
             Arguments =
@@ -265,7 +279,10 @@ public static class OpenXrRuntimes
         {
             using var p = Process.Start(psi);
             if (p == null)
+            {
                 return false;
+            }
+
             await p.WaitForExitAsync();
             return p.ExitCode == 0;
         }
@@ -309,7 +326,10 @@ public static class MetaAsw
             _ => null,
         };
         if (cmd == null || !IsAvailable)
+        {
             return false;
+        }
+
         var script = Path.Combine(Path.GetTempPath(), "vrtm-asw.txt");
         try
         {

@@ -47,7 +47,10 @@ public partial class PlayfieldVideo : Node
                     && PlayfieldDepth.Load(folder, vpxPath) is { } h
                     && !ct.IsCancellationRequested
                 )
+                {
                     Volatile.Write(ref _heights, h);
+                }
+
                 Decode(folder, info.Frames, ct);
             },
             ct
@@ -61,16 +64,24 @@ public partial class PlayfieldVideo : Node
             for (var i = 0; !ct.IsCancellationRequested; i = (i + 1) % frames)
             {
                 while (_ready.Count >= Ahead && !ct.IsCancellationRequested)
+                {
                     Thread.Sleep(5);
+                }
+
                 var img = new Image();
                 if (
                     img.LoadJpgFromBuffer(File.ReadAllBytes(LobbyVideo.FramePath(folder, i)))
                     != Error.Ok
                 )
+                {
                     continue;
+                }
+
                 img.GenerateMipmaps(); // the playfield material samples mipmaps (it's seen at a low angle)
                 if (!ct.IsCancellationRequested)
+                {
                     _ready.Enqueue(img);
+                }
             }
         }
         catch (Exception e) when (e is IOException or UnauthorizedAccessException)
@@ -95,17 +106,25 @@ public partial class PlayfieldVideo : Node
     public override void _Process(double delta)
     {
         if (Playing == null || _cab == null)
+        {
             return;
+        }
         // The depth switches on in the same frame as the first video picture, so the still picture never shows
         // with it and the change is one swap, made while the table is still turning in (Main.VideoFrom).
         if (FramesShown > 0 && Interlocked.Exchange(ref _heights, null) is { } heights)
+        {
             _cab.SetPlayfieldDepth(
                 ImageTexture.CreateFromImage(heights),
                 PlayfieldDepth.DepthOf(heights)
             );
+        }
+
         _untilNext -= delta;
         if (_untilNext > 0 || !_ready.TryDequeue(out var img))
+        {
             return;
+        }
+
         _untilNext = Math.Max(_untilNext + _frameTime, 0); // keep the pace; don't rush to catch up after a stall
         if (
             _tex == null
@@ -118,10 +137,18 @@ public partial class PlayfieldVideo : Node
             FirstFrameShown?.Invoke();
         }
         else
+        {
             _tex.Update(img);
+        }
+
         FramesShown++;
         if (Interlocked.Exchange(ref _heights, null) is { } ready) // usually here: built before the frames
-            _cab.SetPlayfieldDepth(ImageTexture.CreateFromImage(ready), PlayfieldDepth.DepthOf(ready));
+        {
+            _cab.SetPlayfieldDepth(
+                ImageTexture.CreateFromImage(ready),
+                PlayfieldDepth.DepthOf(ready)
+            );
+        }
     }
 
     public override void _ExitTree()

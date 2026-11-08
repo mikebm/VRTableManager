@@ -18,12 +18,17 @@ public static class VpxInput
         yield return Path.Combine(s.VpxDir, "VPinballX.ini");
         // 10.8.1+: one folder per minor version.
         if (Directory.Exists(AppFolders.VpxPrefs))
+        {
             foreach (
                 var dir in Directory
                     .EnumerateDirectories(AppFolders.VpxPrefs)
                     .OrderByDescending(d => Path.GetFileName(d), StringComparer.Ordinal)
             )
+            {
                 yield return Path.Combine(dir, "VPinballX.ini");
+            }
+        }
+
         yield return Path.Combine(AppFolders.VpxPrefs, "VPinballX.ini");
     }
 
@@ -51,7 +56,10 @@ public static class VpxInput
     {
         var vrValues = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
         foreach (var (k, v) in vr)
+        {
             vrValues[k] = v;
+        }
+
         var desktopDevices = Split(
             desktop
                 .FirstOrDefault(kv => kv.Key.Equals("Devices", StringComparison.OrdinalIgnoreCase))
@@ -63,17 +71,22 @@ public static class VpxInput
         foreach (var (key, value) in desktop)
         {
             if (value == "")
+            {
                 continue;
+            }
+
             vrValues.TryGetValue(key, out var current);
             current ??= "";
             string merged;
             if (key.Equals("Devices", StringComparison.OrdinalIgnoreCase))
+            {
                 merged = string.Join(
                     ";",
                     desktopDevices
                         .Concat(Split(current, ';'))
                         .Distinct(StringComparer.OrdinalIgnoreCase)
                 );
+            }
             else if (
                 key.StartsWith("Mapping.", StringComparison.OrdinalIgnoreCase) && !IsSensor(key)
             )
@@ -90,9 +103,14 @@ public static class VpxInput
                 );
             }
             else
+            {
                 merged = value;
+            }
+
             if (merged != current)
+            {
                 result.Add((key, merged));
+            }
         }
         return result;
     }
@@ -115,14 +133,20 @@ public static class VpxInput
     public static string? Import(AppSettings s)
     {
         if (FindDesktopIni(s) is not { } desktop)
+        {
             return null;
+        }
+
         var vrIni = VpxSetup.VrIniPath(s);
         var changes = Merge(
             IniFile.ReadSection(desktop, Section),
             IniFile.ReadSection(vrIni, Section)
         );
         if (changes.Count > 0)
+        {
             IniFile.SetMany(vrIni, Section, changes);
+        }
+
         var mapped = changes.Count(c =>
             c.Key.StartsWith("Mapping.", StringComparison.OrdinalIgnoreCase)
         );

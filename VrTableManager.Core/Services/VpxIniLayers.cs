@@ -42,14 +42,19 @@ public static class VpxIniLayers
                 : null;
         var candidates = new List<string>();
         if (version != null)
+        {
             candidates.Add(Path.Combine(prefs, version, "VPinballX.ini"));
+        }
         else if (Directory.Exists(prefs))
+        {
             candidates.AddRange(
                 Directory
                     .EnumerateDirectories(prefs)
                     .OrderByDescending(Path.GetFileName, StringComparer.Ordinal)
                     .Select(d => Path.Combine(d, "VPinballX.ini"))
             );
+        }
+
         candidates.Add(Path.Combine(s.VpxDir, "VPinballX.ini"));
         return candidates.FirstOrDefault(File.Exists);
     }
@@ -59,7 +64,10 @@ public static class VpxIniLayers
     {
         var result = BasePath(s) is { } b ? IniFile.Read(b) : IniFile.Read("");
         foreach (var (k, v) in Overrides(OverridePath(s, vr)))
+        {
             result[k] = v;
+        }
+
         return result;
     }
 
@@ -84,18 +92,29 @@ public static class VpxIniLayers
         Directory.CreateDirectory(Path.GetDirectoryName(path)!);
         // Starting from the player's file keeps its layout and comments; overrides go in section by section.
         if (BasePath(s) is { } b)
+        {
             File.Copy(b, path, overwrite: true);
+        }
         else
+        {
             File.WriteAllText(path, "");
+        }
+
         foreach (
             var section in Overrides(OverridePath(s, vr))
                 .GroupBy(kv => kv.Key.Section, StringComparer.OrdinalIgnoreCase)
         )
+        {
             IniFile.SetMany(path, section.Key, section.Select(kv => (kv.Key.Key, kv.Value)));
+        }
+
         foreach (
             var section in (extra ?? []).GroupBy(e => e.Section, StringComparer.OrdinalIgnoreCase)
         )
+        {
             IniFile.SetMany(path, section.Key, section.Select(e => (e.Key, e.Value)));
+        }
+
         return new Play(path, OverridePath(s, vr), IniFile.Read(path));
     }
 
@@ -116,12 +135,18 @@ public static class VpxIniLayers
         public int SaveBack()
         {
             if (Interlocked.Exchange(ref _saved, 1) == 1)
+            {
                 return 0;
+            }
+
             var changed = Changes(before, IniFile.Read(Path)).ToList();
             foreach (
                 var section in changed.GroupBy(c => c.Section, StringComparer.OrdinalIgnoreCase)
             )
+            {
                 IniFile.SetMany(overridePath, section.Key, section.Select(c => (c.Key, c.Value)));
+            }
+
             return changed.Count;
         }
     }
@@ -135,16 +160,24 @@ public static class VpxIniLayers
         foreach (var ((section, key), value) in after)
         {
             if (NotSettings.Contains(section, StringComparer.OrdinalIgnoreCase))
+            {
                 continue;
+            }
+
             if (!Same(before.GetValueOrDefault((section, key)) ?? "", value))
+            {
                 yield return (section, key, value);
+            }
         }
     }
 
     static bool Same(string a, string b)
     {
         if (a == b)
+        {
             return true;
+        }
+
         const NumberStyles n = NumberStyles.Float;
         var c = CultureInfo.InvariantCulture;
         return double.TryParse(a, n, c, out var x)
@@ -165,7 +198,9 @@ public static class VpxIniLayers
             try
             {
                 if (play.SaveBack() is > 0 and var n)
+                {
                     log($"kept {n} setting{(n == 1 ? "" : "s")} changed during play as overrides");
+                }
             }
             catch (Exception e)
             {
@@ -185,7 +220,10 @@ public static class VpxIniLayers
         _ = Task.Run(async () =>
         {
             using (watcher)
+            {
                 await watcher.WaitForExitAsync();
+            }
+
             Save();
         });
     }
@@ -194,6 +232,8 @@ public static class VpxIniLayers
     public static void Finish(Process vpx)
     {
         if (Saves.TryGetValue(vpx, out var save))
+        {
             save();
+        }
     }
 }

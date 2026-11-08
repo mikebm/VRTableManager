@@ -65,7 +65,10 @@ public static class PupPacks
             && VpsCatalog.HasFeature(tf, BundledFeature)
             && Addons.UsableUrl(tf) != null
         )
+        {
             packs.Insert(0, tf);
+        }
+
         return packs;
     }
 
@@ -85,7 +88,10 @@ public static class PupPacks
     {
         var root = Path.Combine(t.Folder, FolderName);
         if (!Directory.Exists(root))
+        {
             return AddonState.None;
+        }
+
         var folders = Directory
             .EnumerateDirectories(root)
             .Where(IsPackFolder)
@@ -138,9 +144,11 @@ public static class PupPacks
             Addons.Unpack(downloaded, staging, () => PackRoots(staging).Count > 0, "PuP pack");
             var roots = PackRoots(staging);
             if (roots.Count == 0)
+            {
                 throw new InvalidDataException(
                     "No PuP pack in the download (no screens.pup or playlists.pup). It may be an add-on for another pack."
                 );
+            }
 
             var (root, name) = Choose(roots, staging, expectedNames);
             var pupDir = Path.Combine(table.Folder, FolderName);
@@ -152,7 +160,10 @@ public static class PupPacks
                 table.Manifest.PupPack is { Folder: { Length: > 0 } old }
                 && !old.Equals(Path.GetFileName(dest), StringComparison.OrdinalIgnoreCase)
             )
+            {
                 Addons.DeleteFolder(Path.Combine(pupDir, old));
+            }
+
             Addons.DeleteFolder(dest);
             Addons.MoveTree(root, dest);
             status?.Invoke("Checking the pack's layouts…");
@@ -174,7 +185,10 @@ public static class PupPacks
     {
         folder ??= table.Manifest.PupPack?.Folder;
         if (string.IsNullOrEmpty(folder))
+        {
             return;
+        }
+
         var pupDir = Path.Combine(table.Folder, FolderName);
         Addons.DeleteFolder(Path.Combine(pupDir, folder));
         Addons.DeleteIfEmpty(pupDir);
@@ -212,6 +226,7 @@ public static class PupPacks
                         .First()
             );
         if (Unnamed(root))
+        {
             return (
                 root,
                 all.FirstOrDefault()
@@ -219,6 +234,8 @@ public static class PupPacks
                         "The PuP pack has no folder name and the table doesn't say which one it opens."
                     )
             );
+        }
+
         var own = NameOf(root);
         return (
             root,

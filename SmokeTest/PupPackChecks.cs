@@ -456,8 +456,13 @@ public static class PupPackChecks
         Directory.CreateDirectory(root);
         using var z = ZipFile.Open(path, ZipArchiveMode.Create);
         foreach (var (p, t) in entries)
+        {
             using (var w = new StreamWriter(z.CreateEntry(p).Open()))
+            {
                 w.Write(t);
+            }
+        }
+
         return path;
     }
 }

@@ -31,12 +31,18 @@ public static class AltPacks
     public static List<VpsFile> SourcesFor(VpsGame game, InstalledTable t, AddonKind kind)
     {
         if (t.Manifest.RomNames.Count == 0)
+        {
             return [];
+        }
+
         if (kind == AddonKind.AltSound)
+        {
             return (game.AltSoundFiles ?? [])
                 .Where(f => Addons.UsableUrl(f) != null)
                 .OrderByDescending(f => f.UpdatedAt ?? 0)
                 .ToList<VpsFile>();
+        }
+
         return (game.AltColorFiles ?? [])
             .Where(f =>
                 Addons.UsableUrl(f) != null
@@ -55,11 +61,20 @@ public static class AltPacks
     {
         var text = Addons.Describe(f, f is VpsAltColorFile ? "Colorization" : "AltSound");
         if (f is not VpsAltColorFile c)
+        {
             return text;
+        }
+
         if (!string.IsNullOrWhiteSpace(c.Type))
+        {
             text = $"{c.Type.Trim()} · {text}";
+        }
+
         if (PacOnlyFiles.IsKnown(c))
+        {
             text += " — PAC only, VPX can't use it";
+        }
+
         return !string.IsNullOrWhiteSpace(c.Folder) && !ForTable(c, t)
             ? $"{text} (made for {c.Folder})"
             : text;
@@ -99,18 +114,21 @@ public static class AltPacks
             {
                 var root = Path.Combine(t.Folder, loc);
                 if (Directory.Exists(root))
+                {
                     folders.AddRange(
                         Directory
                             .EnumerateDirectories(root)
                             .Where(d => HasFile(d, exts))
                             .Select(d => loc + "\\" + Path.GetFileName(d))
                     );
+                }
             }
         }
         else
         {
             var root = Path.Combine(t.Folder, SoundFolder);
             if (Directory.Exists(root))
+            {
                 folders.AddRange(
                     Directory
                         .EnumerateDirectories(root)
@@ -119,6 +137,7 @@ public static class AltPacks
                         )
                         .Select(d => Path.GetFileName(d)!)
                 );
+            }
         }
         folders.Sort(StringComparer.OrdinalIgnoreCase);
         var rec = Addons.Record(t, kind);
@@ -216,11 +235,14 @@ public static class AltPacks
                         f != main && !SerumExts.Contains(Path.GetExtension(f).ToLowerInvariant())
                     )
             )
+            {
                 File.Copy(
                     extra,
                     Path.Combine(dest, game + Path.GetFileName(extra)[stem.Length..]),
                     overwrite: true
                 );
+            }
+
             return Addons.NewRecord(file, SerumFolder, game);
         }
         if (Find(VniExts) is { Count: > 0 } vni)
@@ -243,7 +265,10 @@ public static class AltPacks
             return Addons.NewRecord(file, VniFolder, game);
         }
         if (Find([".pac"]).Count > 0)
+        {
             throw PacOnlyFiles.Error();
+        }
+
         throw new InvalidDataException(
             "No colorization in the download (no .cRZ, .cROM, .vni or .pal file)."
         );
@@ -266,9 +291,12 @@ public static class AltPacks
         );
         var roots = Addons.Roots(staging, IsSoundRoot);
         if (roots.Count == 0)
+        {
             throw new InvalidDataException(
                 "No AltSound pack in the download (no altsound.csv, g-sound.csv or PinSound folders)."
             );
+        }
+
         var names = table.Manifest.RomNames.Append(game).ToList();
         var root =
             roots.FirstOrDefault(r =>
@@ -298,12 +326,18 @@ public static class AltPacks
     {
         var kind = location == SoundFolder ? AddonKind.AltSound : AddonKind.AltColor;
         if (Addons.Record(table, kind) is { } old)
+        {
             Remove(table, kind, Display(old, kind));
+        }
+
         var dest = Path.Combine(table.Folder, location, game);
         status?.Invoke($"Installing to {location}\\{game}…");
         Addons.DeleteFolder(dest);
         if (create)
+        {
             Directory.CreateDirectory(dest);
+        }
+
         return dest;
     }
 
@@ -347,7 +381,10 @@ public static class AltPacks
             )
             {
                 if (!Directory.Exists(src))
+                {
                     continue;
+                }
+
                 foreach (var dir in Directory.EnumerateDirectories(src).ToList())
                 {
                     var loc =
@@ -355,7 +392,9 @@ public static class AltPacks
                         : HasFile(dir, VniExts) ? VniFolder
                         : null;
                     if (loc != null)
+                    {
                         MoveIfFree(dir, Path.Combine(tableFolder, loc, Path.GetFileName(dir)));
+                    }
                 }
                 Addons.DeleteIfEmpty(src);
             }
@@ -363,7 +402,10 @@ public static class AltPacks
             if (Directory.Exists(oldSound))
             {
                 foreach (var dir in Directory.EnumerateDirectories(oldSound).ToList())
+                {
                     MoveIfFree(dir, Path.Combine(tableFolder, SoundFolder, Path.GetFileName(dir)));
+                }
+
                 Addons.DeleteIfEmpty(oldSound);
             }
         }
@@ -375,7 +417,10 @@ public static class AltPacks
     static void MoveIfFree(string dir, string dest)
     {
         if (Directory.Exists(dest))
+        {
             return;
+        }
+
         Directory.CreateDirectory(Path.GetDirectoryName(dest)!);
         Directory.Move(dir, dest);
     }
@@ -412,7 +457,10 @@ public static class PacOnlyFiles
     static Dictionary<string, long> Load()
     {
         if (_cache != null && _cachePath == StorePath)
+        {
             return _cache;
+        }
+
         _cachePath = StorePath;
         return _cache = Read();
     }
@@ -440,7 +488,10 @@ public static class PacOnlyFiles
     public static void Mark(VpsFile f)
     {
         if (f.Id == "")
+        {
             return;
+        }
+
         var all = new Dictionary<string, long>(Load()) { [f.Id] = f.UpdatedAt ?? 0 };
         _cache = all;
         try

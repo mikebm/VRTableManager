@@ -81,7 +81,10 @@ static class Concepts
     static void Glow(SKCanvas c, SKPoint at, float r, SKColor color, byte alpha, bool small)
     {
         if (small)
+        {
             return;
+        }
+
         using var g = new SKPaint { IsAntialias = true };
         g.Shader = SKShader.CreateRadialGradient(
             at,
@@ -126,15 +129,21 @@ static class Concepts
         var y0 = 256 - pitch * (rows - 1) / 2;
         using var unlit = new SKPaint { IsAntialias = true, Color = Dmd.WithAlpha(16) };
         for (var row = 0; row < rows; row++)
-        for (var col = 0; col < cols; col++)
         {
-            var lit = col < 5 ? V[row][col] == 'X' : col > 5 && R[row][col - 6] == 'X';
-            var x = x0 + col * pitch;
-            var y = y0 + row * pitch;
-            if (lit)
-                LitDot(c, x, y, r, small);
-            else if (!small)
-                c.DrawCircle(x, y, r * 0.8f, unlit);
+            for (var col = 0; col < cols; col++)
+            {
+                var lit = col < 5 ? V[row][col] == 'X' : col > 5 && R[row][col - 6] == 'X';
+                var x = x0 + col * pitch;
+                var y = y0 + row * pitch;
+                if (lit)
+                {
+                    LitDot(c, x, y, r, small);
+                }
+                else if (!small)
+                {
+                    c.DrawCircle(x, y, r * 0.8f, unlit);
+                }
+            }
         }
     }
 
@@ -256,7 +265,10 @@ static class Concepts
         }
         using var spec = new SKPaint { IsAntialias = true, Color = SKColors.White };
         if (!small)
+        {
             spec.MaskFilter = SKMaskFilter.CreateBlur(SKBlurStyle.Normal, 4);
+        }
+
         c.DrawOval(
             new SKRect(at.X - r * 0.62f, at.Y - r * 0.7f, at.X - r * 0.22f, at.Y - r * 0.4f),
             spec
@@ -268,7 +280,9 @@ static class Concepts
     {
         // Strap
         using (var strap = new SKPaint { IsAntialias = true, Color = SKColor.Parse("#2E2E33") })
+        {
             c.DrawRoundRect(new SKRect(40, 230, 472, 290), 30, 30, strap);
+        }
         // Visor body with chrome rim
         var visor = new SKRoundRect(new SKRect(86, 150, 426, 370), 90);
         using (var rim = new SKPaint { IsAntialias = true })
@@ -289,7 +303,9 @@ static class Concepts
         }
         var glass = new SKRoundRect(new SKRect(104, 168, 408, 352), 74);
         using (var g = new SKPaint { IsAntialias = true, Color = SKColor.Parse("#120803") })
+        {
             c.DrawRoundRect(glass, g);
+        }
         // DMD dots inside the glass: a ball (filled circle of lit dots)
         c.Save();
         c.ClipRoundRect(glass, antialias: true);
@@ -298,16 +314,23 @@ static class Concepts
         var centre = new SKPoint(256, 260);
         using var unlit = new SKPaint { IsAntialias = true, Color = Dmd.WithAlpha(40) };
         for (var y = 168 + pitch / 2; y < 352; y += pitch)
-        for (var x = 104 + pitch / 2; x < 408; x += pitch)
         {
-            var dx = x - centre.X;
-            var dy = y - centre.Y;
-            var dist = Math.Sqrt(dx * dx + dy * dy);
-            if (dist < (small ? 62 : 66))
-                LitDot(c, x, y, r, small);
-            else if (!small)
-                c.DrawCircle(x, y, r * 0.75f, unlit);
+            for (var x = 104 + pitch / 2; x < 408; x += pitch)
+            {
+                var dx = x - centre.X;
+                var dy = y - centre.Y;
+                var dist = Math.Sqrt(dx * dx + dy * dy);
+                if (dist < (small ? 62 : 66))
+                {
+                    LitDot(c, x, y, r, small);
+                }
+                else if (!small)
+                {
+                    c.DrawCircle(x, y, r * 0.75f, unlit);
+                }
+            }
         }
+
         c.Restore();
     }
 
@@ -326,7 +349,9 @@ static class Concepts
             StrokeJoin = SKStrokeJoin.Round,
         };
         if (!small)
+        {
             line.ImageFilter = SKImageFilter.CreateDropShadow(0, 0, 6, 6, Amber.WithAlpha(150));
+        }
         // Body (sloped top: low at the front/left, high at the back/right)
         using var body = new SKPath();
         body.MoveTo(96, 300);

@@ -38,12 +38,16 @@ public static class CompressedAudio
     public static string? ToLobbyAudio(string input, string workDir)
     {
         if (!OperatingSystem.IsWindows())
+        {
             return null;
+        }
+
         string? copy = null;
         try
         {
             // Flash video (.f4v) is MP4 inside; Media Foundation goes by the extension.
             if (Path.GetExtension(input).Equals(".f4v", StringComparison.OrdinalIgnoreCase))
+            {
                 File.Copy(
                     input,
                     copy = Path.Combine(
@@ -51,19 +55,26 @@ public static class CompressedAudio
                         "f4v-" + Guid.NewGuid().ToString("N")[..8] + ".mp4"
                     )
                 );
+            }
+
             MediaFoundationApi.Startup();
             using var reader = new MediaFoundationReader(copy ?? input);
             var source = reader.ToSampleProvider();
             var (samples, rate, channels) = ReadClip(source);
             if (samples == null)
+            {
                 return null;
+            }
 
             var pcm = new byte[samples.Length * 2];
             for (var i = 0; i < samples.Length; i++)
+            {
                 BitConverter.TryWriteBytes(
                     pcm.AsSpan(i * 2),
                     (short)Math.Clamp(samples[i] * 32767f, short.MinValue, short.MaxValue)
                 );
+            }
+
             var format = new WaveFormat(rate, 16, channels);
             var name = Path.Combine(workDir, "converted-" + Guid.NewGuid().ToString("N")[..8]);
             try
@@ -71,13 +82,18 @@ public static class CompressedAudio
                 using var raw = new RawSourceWaveStream(new MemoryStream(pcm), format);
                 MediaFoundationEncoder.EncodeToMp3(raw, name + ".mp3", 192_000);
                 if (new FileInfo(name + ".mp3").Length > 0)
+                {
                     return name + ".mp3";
+                }
             }
             catch (Exception)
             { /* no MP3 encoder for this rate/layout: WAV is still playable */
             }
             using (var raw = new RawSourceWaveStream(new MemoryStream(pcm), format))
+            {
                 WaveFileWriter.CreateWaveFile(name + ".wav", raw);
+            }
+
             return name + ".wav";
         }
         catch (Exception)
@@ -87,11 +103,13 @@ public static class CompressedAudio
         finally
         {
             if (copy != null)
+            {
                 try
                 {
                     File.Delete(copy);
                 }
                 catch { }
+            }
         }
     }
 
@@ -122,19 +140,29 @@ public static class CompressedAudio
                 {
                     var loud = false;
                     for (var c = 0; c < inChannels; c++)
+                    {
                         loud |= Math.Abs(buffer[f + c]) > SilenceLevel;
+                    }
+
                     if (!loud && ++leadIn < maxLeadIn)
+                    {
                         continue;
+                    }
+
                     started = true;
                 }
                 for (var c = 0; c < channels; c++)
+                {
                     frames.Add(buffer[f + c]);
+                }
             }
         }
         var samples = frames.ToArray();
         var peak = samples.Length == 0 ? 0 : samples.Max(Math.Abs);
         if (peak <= SilenceLevel)
+        {
             return (null, rate, channels);
+        }
 
         // Quiet recordings are brought up to a normal level; the end fades out instead of cutting off.
         var gain = peak < 0.5f ? 0.9f / peak : 1f;
@@ -144,7 +172,9 @@ public static class CompressedAudio
         {
             var g = gain * (f >= total - fadeFrames ? (total - f) / (float)fadeFrames : 1f);
             for (var c = 0; c < channels; c++)
+            {
                 samples[f * channels + c] *= g;
+            }
         }
         return (samples, rate, channels);
     }

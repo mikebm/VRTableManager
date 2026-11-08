@@ -96,7 +96,10 @@ static class UserArtworkChecks
         );
 
         foreach (var k in Enum.GetValues<UserArtwork.Kind>())
+        {
             UserArtwork.Remove(t, k);
+        }
+
         results.Add(
             (
                 (LobbyArt.PlayfieldSource(lobby), LobbyArt.BackglassFor(lobby, index)) == before,

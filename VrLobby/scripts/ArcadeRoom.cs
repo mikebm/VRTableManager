@@ -162,12 +162,17 @@ public static class ArcadeRoom
                 Stroke(px, size, [c - new Vector2(0, r), c + new Vector2(0, r)], 3f * s, colour);
             }
             else
+            {
                 Dot(px, size, c, (2.5f + (float)rng.NextDouble() * 3.5f) * s, colour);
+            }
         }
 
         var bytes = new byte[size * size * 3];
         for (var i = 0; i < bytes.Length; i++)
+        {
             bytes[i] = (byte)Math.Clamp(ToSrgb(px[i]) * 255f + 0.5f, 0, 255);
+        }
+
         var img = Image.CreateFromData(size, size, false, Image.Format.Rgb8, bytes);
         img.GenerateMipmaps();
         return img;
@@ -194,11 +199,14 @@ public static class ArcadeRoom
         var dir = Vector2.FromAngle(angle);
         var side = dir.Orthogonal();
         for (var i = 0; i <= 5; i++)
+        {
             pts.Add(
                 c
                     + dir * ((i / 5f - 0.5f) * length)
                     + side * ((i % 2 == 0 ? -1 : 1) * length * 0.1f)
             );
+        }
+
         return pts;
     }
 
@@ -206,7 +214,10 @@ public static class ArcadeRoom
     {
         var pts = new List<Vector2>();
         for (var i = 0; i < 10; i++)
+        {
             pts.Add(c + Vector2.FromAngle(angle + i * Mathf.Pi / 5) * (i % 2 == 0 ? r : r * 0.45f));
+        }
+
         return pts;
     }
 
@@ -246,7 +257,10 @@ public static class ArcadeRoom
             {
                 var d = float.MaxValue;
                 for (var i = 0; i < count; i++)
+                {
                     d = Mathf.Min(d, SegmentDistance(p, pts[i], pts[(i + 1) % pts.Count]));
+                }
+
                 return d - width / 2;
             }
         );
@@ -287,15 +301,20 @@ public static class ArcadeRoom
     {
         var lin = colour.SrgbToLinear() * 0.6f; // fibres, not paint: a little short of full neon
         for (var y = (int)Mathf.Floor(from.Y); y <= (int)Mathf.Ceil(to.Y); y++)
-        for (var x = (int)Mathf.Floor(from.X); x <= (int)Mathf.Ceil(to.X); x++)
         {
-            var cover = Mathf.Clamp(0.5f - distance(new Vector2(x + 0.5f, y + 0.5f)), 0f, 1f);
-            if (cover <= 0)
-                continue;
-            var i = (((y % size) + size) % size * size + ((x % size) + size) % size) * 3;
-            px[i] = Mathf.Lerp(px[i], lin.R, cover);
-            px[i + 1] = Mathf.Lerp(px[i + 1], lin.G, cover);
-            px[i + 2] = Mathf.Lerp(px[i + 2], lin.B, cover);
+            for (var x = (int)Mathf.Floor(from.X); x <= (int)Mathf.Ceil(to.X); x++)
+            {
+                var cover = Mathf.Clamp(0.5f - distance(new Vector2(x + 0.5f, y + 0.5f)), 0f, 1f);
+                if (cover <= 0)
+                {
+                    continue;
+                }
+
+                var i = (((y % size) + size) % size * size + ((x % size) + size) % size) * 3;
+                px[i] = Mathf.Lerp(px[i], lin.R, cover);
+                px[i + 1] = Mathf.Lerp(px[i + 1], lin.G, cover);
+                px[i + 2] = Mathf.Lerp(px[i + 2], lin.B, cover);
+            }
         }
     }
 
@@ -318,25 +337,32 @@ public static class ArcadeRoom
         var bytes = new byte[size * size * 3];
         var grid = Mathf.Max(2, size / 64);
         for (var y = 0; y < size; y++)
-        for (var x = 0; x < size; x++)
         {
-            var edge = Math.Min(Math.Min(x, size - 1 - x), Math.Min(y, size - 1 - y));
-            float v;
-            if (edge < grid)
-                v = 0.20f; // the metal T-bar
-            else if (edge < grid + 2)
-                v = 0.035f; // its shadow on the tile
-            else
+            for (var x = 0; x < size; x++)
             {
-                var n = (float)rng.NextDouble();
-                v = n > 0.985f ? 0.015f : 0.05f + n * 0.018f; // fissured board with pinholes
+                var edge = Math.Min(Math.Min(x, size - 1 - x), Math.Min(y, size - 1 - y));
+                float v;
+                if (edge < grid)
+                {
+                    v = 0.20f; // the metal T-bar
+                }
+                else if (edge < grid + 2)
+                {
+                    v = 0.035f; // its shadow on the tile
+                }
+                else
+                {
+                    var n = (float)rng.NextDouble();
+                    v = n > 0.985f ? 0.015f : 0.05f + n * 0.018f; // fissured board with pinholes
+                }
+                var b = (byte)Math.Clamp(ToSrgb(v) * 255f + 0.5f, 0, 255);
+                var i = (y * size + x) * 3;
+                bytes[i] = b;
+                bytes[i + 1] = b;
+                bytes[i + 2] = (byte)Math.Min(255, b + 2);
             }
-            var b = (byte)Math.Clamp(ToSrgb(v) * 255f + 0.5f, 0, 255);
-            var i = (y * size + x) * 3;
-            bytes[i] = b;
-            bytes[i + 1] = b;
-            bytes[i + 2] = (byte)Math.Min(255, b + 2);
         }
+
         var img = Image.CreateFromData(size, size, false, Image.Format.Rgb8, bytes);
         img.GenerateMipmaps();
         return img;

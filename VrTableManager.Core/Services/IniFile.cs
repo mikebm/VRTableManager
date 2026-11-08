@@ -8,7 +8,10 @@ public static class IniFile
     {
         var result = new Dictionary<(string, string), string>(SectionKeyComparer.Instance);
         if (!File.Exists(path))
+        {
             return result;
+        }
+
         var section = "";
         foreach (var raw in File.ReadLines(path))
         {
@@ -20,7 +23,9 @@ public static class IniFile
             }
             var eq = line.IndexOf('=');
             if (eq > 0 && !line.StartsWith(';'))
+            {
                 result[(section, line[..eq].Trim())] = line[(eq + 1)..].Trim();
+            }
         }
         return result;
     }
@@ -45,7 +50,10 @@ public static class IniFile
     {
         var result = new List<(string, string)>();
         if (!File.Exists(path))
+        {
             return result;
+        }
+
         var inside = false;
         foreach (var raw in File.ReadLines(path))
         {
@@ -57,7 +65,9 @@ public static class IniFile
             }
             var eq = line.IndexOf('=');
             if (inside && eq > 0 && !line.StartsWith(';'))
+            {
                 result.Add((line[..eq].Trim(), line[(eq + 1)..].Trim()));
+            }
         }
         return result;
     }
@@ -80,7 +90,10 @@ public static class IniFile
         if (start < 0)
         {
             if (lines.Count > 0 && lines[^1].Trim() != "")
+            {
                 lines.Add("");
+            }
+
             lines.Add(header);
             start = lines.Count - 1;
         }
@@ -88,7 +101,10 @@ public static class IniFile
         {
             var end = lines.FindIndex(start + 1, l => l.TrimStart().StartsWith('['));
             if (end < 0)
+            {
                 end = lines.Count;
+            }
+
             var existing = -1;
             for (var i = start + 1; i < end; i++)
             {
@@ -100,13 +116,18 @@ public static class IniFile
                 }
             }
             if (existing >= 0)
+            {
                 lines[existing] = $"{key} = {value}";
+            }
             else
             {
                 // Before any blank lines that separate this section from the next.
                 var at = end;
                 while (at > start + 1 && lines[at - 1].Trim() == "")
+                {
                     at--;
+                }
+
                 lines.Insert(at, $"{key} = {value}");
             }
         }

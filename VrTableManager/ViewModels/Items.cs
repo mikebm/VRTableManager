@@ -55,13 +55,25 @@ public sealed class GameItem(VpsGame game, bool installed)
                 )
             );
             if (maker != "")
+            {
                 parts.Add(maker);
+            }
+
             if (VrCount > 0)
+            {
                 parts.Add(VrCount == 1 ? "1 VR table" : $"{VrCount} VR tables");
+            }
+
             if (HasFp)
+            {
                 parts.Add("Future Pinball");
+            }
+
             if (IsInstalled)
+            {
                 parts.Add("✓ installed");
+            }
+
             return string.Join(" · ", parts);
         }
     }
@@ -382,16 +394,25 @@ public sealed partial class InstalledItem : ObservableObject
         get
         {
             if (Plays == 0)
+            {
                 return LastPlayed is { } picked ? $"Picked {Ago(picked)}" : "Not played yet";
+            }
+
             var parts = new List<string> { Plays == 1 ? "Played once" : $"Played {Plays}×" };
             if (MinutesPlayed >= 1)
+            {
                 parts.Add(
                     MinutesPlayed >= 60
                         ? $"{(int)(MinutesPlayed / 60)} h {(int)(MinutesPlayed % 60)} m"
                         : $"{(int)MinutesPlayed} m"
                 );
+            }
+
             if (LastPlayed is { } last)
+            {
                 parts.Add(Ago(last));
+            }
+
             return string.Join(" · ", parts);
         }
     }
@@ -452,7 +473,9 @@ public sealed partial class JobItem : ObservableObject
         OnUi(() =>
         {
             if (!IsFinished)
+            {
                 Status = status;
+            }
         });
 
     public IProgress<double> ProgressReporter =>
@@ -460,7 +483,10 @@ public sealed partial class JobItem : ObservableObject
             OnUi(() =>
             {
                 if (IsFinished)
+                {
                     return;
+                }
+
                 IsIndeterminate = false;
                 Progress = p * 100;
             })
@@ -474,11 +500,18 @@ public sealed partial class JobItem : ObservableObject
             IsIndeterminate = false;
             Progress = 100;
             if (error)
+            {
                 IsError = true;
+            }
             else
+            {
                 IsDone = true;
+            }
+
             if (!error)
+            {
                 Succeeded?.Invoke(this);
+            }
         });
 
     /// <summary>Raised on the UI thread when the job finishes without an error.</summary>
@@ -490,7 +523,9 @@ public sealed partial class JobItem : ObservableObject
     public void AddSourceFile(string path)
     {
         lock (_sourceFiles)
+        {
             _sourceFiles.Add(path);
+        }
     }
 
     /// <summary>The files from <see cref="AddSourceFile"/>, handed over once.</summary>
@@ -510,9 +545,13 @@ public sealed partial class JobItem : ObservableObject
     static void OnUi(Action a)
     {
         if (Dispatcher.UIThread.CheckAccess())
+        {
             a();
+        }
         else
+        {
             Dispatcher.UIThread.Post(a);
+        }
     }
 
     [RelayCommand]
@@ -550,7 +589,9 @@ public sealed partial class JobItem : ObservableObject
         get
         {
             lock (_handoffLock)
+            {
                 return _handoffArrived.Task;
+            }
         }
     }
 
@@ -577,7 +618,10 @@ public sealed partial class JobItem : ObservableObject
         {
             var h = _handoff;
             if (h == null)
+            {
                 return null;
+            }
+
             _handoff = null;
             _handoffArrived = new(TaskCreationOptions.RunContinuationsAsynchronously);
             return h;
@@ -597,6 +641,7 @@ public sealed partial class JobItem : ObservableObject
     void OpenWaitingPage()
     {
         if (WaitingUrl is { } url)
+        {
             try
             {
                 System.Diagnostics.Process.Start(
@@ -604,6 +649,7 @@ public sealed partial class JobItem : ObservableObject
                 );
             }
             catch { }
+        }
     }
 
     [RelayCommand]

@@ -38,14 +38,18 @@ public sealed partial class MainViewModel
     void OpenUevrFolder()
     {
         if (!string.IsNullOrWhiteSpace(Settings.UevrDir))
+        {
             OpenFolder(Settings.UevrDir);
+        }
     }
 
     [RelayCommand]
     void OpenFpFolder()
     {
         if (!string.IsNullOrWhiteSpace(Settings.FpDir))
+        {
             OpenFolder(Settings.FpDir);
+        }
     }
 
     /// <summary>Result of the last "use my desktop controls" import, shown under the button.</summary>
@@ -69,7 +73,10 @@ public sealed partial class MainViewModel
             ["COPY CONTROLS", "CANCEL"]
         );
         if (pick != 0)
+        {
             return;
+        }
+
         try
         {
             VpxSetup.EnsureVrIni(Settings);
@@ -95,8 +102,10 @@ public sealed partial class MainViewModel
             _ui.OpenExternal(ini);
         }
         else
+        {
             SettingsFilesStatus =
                 "VPX hasn't saved settings of its own yet. Start VPinballX.exe on its own once (not from here) and it creates VPinballX.ini.";
+        }
     }
 
     [RelayCommand]
@@ -104,7 +113,10 @@ public sealed partial class MainViewModel
     {
         var ini = VpxSetup.VrIniPath(Settings);
         if (!File.Exists(ini))
+        {
             VpxSetup.EnsureVrIni(Settings);
+        }
+
         _ui.OpenExternal(ini);
     }
 
@@ -113,7 +125,10 @@ public sealed partial class MainViewModel
     {
         var ini = VpxSetup.DesktopIniPath(Settings);
         if (!File.Exists(ini))
+        {
             VpxSetup.EnsureDesktopIni(Settings);
+        }
+
         _ui.OpenExternal(ini);
     }
 
@@ -121,9 +136,13 @@ public sealed partial class MainViewModel
     void OpenPlayLog()
     {
         if (File.Exists(PlaySession.LogPath))
+        {
             _ui.OpenExternal(PlaySession.LogPath);
+        }
         else
+        {
             OpenFolder(AppSettings.DataDir);
+        }
     }
 
     [RelayCommand]
@@ -139,10 +158,13 @@ public sealed partial class MainViewModel
     {
         var ini = VpxGraphics.TableIniPath(item.Table.TablePath);
         if (!File.Exists(ini))
+        {
             File.WriteAllText(
                 ini,
                 "; Settings for this table only. They override VPX's own settings.\r\n"
             );
+        }
+
         _ui.OpenExternal(ini);
     }
 
@@ -154,7 +176,9 @@ public sealed partial class MainViewModel
         try
         {
             if (Directory.Exists(dir))
+            {
                 Directory.Delete(dir, true);
+            }
         }
         catch (Exception e)
         {
@@ -196,7 +220,10 @@ public sealed partial class MainViewModel
                 .ToList()
         );
         if (gen != _sizeGeneration)
+        {
             return; // a newer scan replaced these items
+        }
+
         for (var i = 0; i < items.Count; i++)
         {
             items[i].SizeBytes = sizes[i];
@@ -205,7 +232,9 @@ public sealed partial class MainViewModel
         }
         InstalledSizeText = DiskUsage.Format(sizes.Sum());
         if (InstalledSort == "Largest first")
+        {
             ShowInstalled();
+        }
     }
 
     /// <summary>Downloads the NVRAM maps the first time (and monthly), then shows the scores they unlock.</summary>
@@ -213,7 +242,9 @@ public sealed partial class MainViewModel
     {
         var hadMaps = Directory.Exists(HighScores.MapsDir);
         if (await HighScores.EnsureMapsAsync(CancellationToken.None) && !hadMaps)
+        {
             await RefreshSizesAsync();
+        }
     }
 
     // ---- Storage panel -----------------------------------------------------------------------
@@ -235,7 +266,10 @@ public sealed partial class MainViewModel
             var entries = await Task.Run(() => AppFolders.Survey(Settings));
             Storage.Clear();
             foreach (var e in entries)
+            {
                 Storage.Add(e);
+            }
+
             StorageStatus = $"{DiskUsage.Format(entries.Sum(e => e.Bytes))} in total";
         }
         finally
@@ -248,23 +282,33 @@ public sealed partial class MainViewModel
     void OpenStorage(StorageEntry entry)
     {
         if (entry.Paths.Count == 1)
+        {
             OpenFolder(entry.Paths[0]);
+        }
         else if (entry.Paths.Count > 1)
+        {
             OpenFolder(Path.GetDirectoryName(entry.Paths[0])!);
+        }
     }
 
     [RelayCommand]
     async Task ClearStorageAsync(StorageEntry entry)
     {
         if (!entry.CanClear)
+        {
             return;
+        }
+
         var pick = await _ui.ChoiceAsync(
             $"Clear {entry.Name.ToLowerInvariant()}?",
             $"{entry.Description}\n\nFrees about {entry.SizeText}.",
             ["CLEAR", "CANCEL"]
         );
         if (pick != 0)
+        {
             return;
+        }
+
         var freed = await Task.Run(() => AppFolders.Clear(entry));
         await RefreshStorageAsync();
         StorageStatus = $"✓ Freed {DiskUsage.Format(freed)}. " + StorageStatus;
@@ -286,7 +330,10 @@ public sealed partial class MainViewModel
             AppFolders.Backups
         );
         if (path == null)
+        {
             return;
+        }
+
         try
         {
             var r = await Task.Run(() => Backup.Create(path, Settings));
@@ -303,7 +350,10 @@ public sealed partial class MainViewModel
     {
         var path = await _ui.PickFileAsync("Choose a VR Table Manager backup", "*.zip");
         if (path == null)
+        {
             return;
+        }
+
         var pick = await _ui.ChoiceAsync(
             "Restore this backup?",
             "Favourites, play stats, app and VPX settings, table settings, high scores and UEVR profiles are put back as they were in the backup, "
@@ -311,7 +361,10 @@ public sealed partial class MainViewModel
             ["RESTORE", "CANCEL"]
         );
         if (pick != 0)
+        {
             return;
+        }
+
         try
         {
             var r = await Task.Run(() => Backup.Restore(path, Settings));

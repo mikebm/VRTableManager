@@ -49,12 +49,18 @@ public partial class ArtLoader : Node
     public void Request(string? url, string? fallback = null, int maxSide = MaxSide)
     {
         if (string.IsNullOrEmpty(url))
+        {
             return;
+        }
+
         Touch(url);
         if (_textures.TryGetValue(url, out var known))
         {
             if (known.Tex != null)
+            {
                 Loaded?.Invoke(url, known.Tex, known.Avg);
+            }
+
             return; // loaded, or still on its way
         }
         _textures[url] = (null, default);
@@ -64,11 +70,20 @@ public partial class ArtLoader : Node
             {
                 var img = Decode(await FetchAsync(url) ?? []);
                 if (img == null && !string.IsNullOrEmpty(fallback))
+                {
                     img = Decode(await FetchAsync(fallback) ?? []);
+                }
+
                 if (img == null)
+                {
                     return;
+                }
+
                 if (img.IsCompressed())
+                {
                     img.Decompress();
+                }
+
                 Shrink(img, maxSide);
                 FillHoles(img);
                 var avg = Average(img);
@@ -87,7 +102,10 @@ public partial class ArtLoader : Node
         try
         {
             if (UserArtwork.PathOf(url) is { } mine)
+            {
                 return await File.ReadAllBytesAsync(mine); // a picture you chose
+            }
+
             if (url.StartsWith(VrTableManager.Lobby.LobbyArt.VpxScheme, StringComparison.Ordinal))
             {
                 // Extracted once per table version into the same cache folder, then read from there.
@@ -121,7 +139,9 @@ public partial class ArtLoader : Node
     public override void _Process(double delta)
     {
         if (_decoded.TryDequeue(out var d))
+        {
             Finish(d.Url, d.Img, d.Avg);
+        }
     }
 
     void Finish(string url, Image img, Color avg)
@@ -146,7 +166,9 @@ public partial class ArtLoader : Node
             var old = _recent.Last!.Value;
             _recent.RemoveLast();
             if (_textures.TryGetValue(old, out var e) && e.Tex != null)
+            {
                 _textures.Remove(old);
+            }
         }
     }
 
@@ -156,7 +178,10 @@ public partial class ArtLoader : Node
         var (w, h) = (img.GetWidth(), img.GetHeight());
         var longest = Math.Max(w, h);
         if (longest <= maxSide)
+        {
             return;
+        }
+
         img.Resize(
             Math.Max(1, w * maxSide / longest),
             Math.Max(1, h * maxSide / longest),
@@ -174,9 +199,15 @@ public partial class ArtLoader : Node
     public static void FillHoles(Image img)
     {
         if (img.DetectAlpha() == Image.AlphaMode.None)
+        {
             return;
+        }
+
         if (img.GetFormat() != Image.Format.Rgba8)
+        {
             img.Convert(Image.Format.Rgba8);
+        }
+
         int w = img.GetWidth(),
             h = img.GetHeight();
         var data = img.GetData();
@@ -200,20 +231,30 @@ public partial class ArtLoader : Node
                 nh = Math.Max(1, (ph + 1) / 2);
             var np = new float[nw * nh * 4];
             for (var y = 0; y < ph; y++)
-            for (var x = 0; x < pw; x++)
             {
-                int s = (y * pw + x) * 4,
-                    d = (y / 2 * nw + x / 2) * 4;
-                for (var k = 0; k < 4; k++)
-                    np[d + k] += pp[s + k];
+                for (var x = 0; x < pw; x++)
+                {
+                    int s = (y * pw + x) * 4,
+                        d = (y / 2 * nw + x / 2) * 4;
+                    for (var k = 0; k < 4; k++)
+                    {
+                        np[d + k] += pp[s + k];
+                    }
+                }
             }
+
             for (var i = 0; i < nw * nh; i++)
+            {
                 if (np[i * 4 + 3] > 1)
                 {
                     var f = 1 / np[i * 4 + 3];
                     for (var k = 0; k < 4; k++)
+                    {
                         np[i * 4 + k] *= f;
+                    }
                 } // keep weight ≤ 1
+            }
+
             levels.Add((nw, nh, np));
         }
         // Push: from coarse to fine, a pixel short of full weight takes the rest from its parent.
@@ -222,17 +263,25 @@ public partial class ArtLoader : Node
             var (cw, ch, cp) = levels[l];
             var (uw, _, up) = levels[l + 1];
             for (var y = 0; y < ch; y++)
-            for (var x = 0; x < cw; x++)
             {
-                int i = (y * cw + x) * 4,
-                    u = (y / 2 * uw + x / 2) * 4;
-                var missing = 1 - cp[i + 3];
-                if (missing <= 0)
-                    continue;
-                var uw8 = up[u + 3] > 0 ? 1 / up[u + 3] : 0;
-                for (var k = 0; k < 3; k++)
-                    cp[i + k] += up[u + k] * uw8 * missing;
-                cp[i + 3] = 1;
+                for (var x = 0; x < cw; x++)
+                {
+                    int i = (y * cw + x) * 4,
+                        u = (y / 2 * uw + x / 2) * 4;
+                    var missing = 1 - cp[i + 3];
+                    if (missing <= 0)
+                    {
+                        continue;
+                    }
+
+                    var uw8 = up[u + 3] > 0 ? 1 / up[u + 3] : 0;
+                    for (var k = 0; k < 3; k++)
+                    {
+                        cp[i + k] += up[u + k] * uw8 * missing;
+                    }
+
+                    cp[i + 3] = 1;
+                }
             }
         }
         var out0 = levels[0].P;
@@ -240,7 +289,10 @@ public partial class ArtLoader : Node
         {
             var a = Math.Max(out0[i * 4 + 3], 1e-6f);
             for (var k = 0; k < 3; k++)
+            {
                 data[i * 4 + k] = (byte)Math.Clamp(out0[i * 4 + k] / a, 0, 255);
+            }
+
             data[i * 4 + 3] = 255;
         }
         img.SetData(w, h, false, Image.Format.Rgba8, data);
@@ -251,19 +303,25 @@ public partial class ArtLoader : Node
     {
         var small = (Image)img.Duplicate();
         if (small.IsCompressed())
+        {
             small.Decompress();
+        }
+
         small.Resize(4, 4, Image.Interpolation.Bilinear);
         float r = 0,
             g = 0,
             b = 0;
         for (var y = 0; y < 4; y++)
-        for (var x = 0; x < 4; x++)
         {
-            var c = small.GetPixel(x, y);
-            r += c.R;
-            g += c.G;
-            b += c.B;
+            for (var x = 0; x < 4; x++)
+            {
+                var c = small.GetPixel(x, y);
+                r += c.R;
+                g += c.G;
+                b += c.B;
+            }
         }
+
         return new Color(r / 16, g / 16, b / 16);
     }
 
@@ -271,15 +329,25 @@ public partial class ArtLoader : Node
     public static Image? Decode(byte[] bytes)
     {
         if (bytes.Length < 12)
+        {
             return null;
+        }
+
         var img = new Image();
         var err = Error.FileUnrecognized;
         if (bytes[0] == 0x89 && bytes[1] == 0x50)
+        {
             err = img.LoadPngFromBuffer(bytes);
+        }
         else if (bytes[0] == 0xFF && bytes[1] == 0xD8)
+        {
             err = img.LoadJpgFromBuffer(bytes);
+        }
         else if (Encoding.ASCII.GetString(bytes, 8, 4) == "WEBP")
+        {
             err = img.LoadWebpFromBuffer(bytes);
+        }
+
         return err == Error.Ok ? img : null;
     }
 }

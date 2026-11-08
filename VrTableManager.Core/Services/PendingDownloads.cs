@@ -56,7 +56,9 @@ public sealed class PendingDownloads
         get
         {
             lock (_lock)
+            {
                 return _items.ToList();
+            }
         }
     }
 
@@ -75,7 +77,9 @@ public sealed class PendingDownloads
         lock (_lock)
         {
             if (_items.RemoveAll(x => x.Id == id) > 0)
+            {
                 Save();
+            }
         }
     }
 
@@ -93,8 +97,10 @@ public sealed class PendingDownloads
         try
         {
             if (File.Exists(path))
+            {
                 return JsonSerializer.Deserialize<List<PendingDownload>>(File.ReadAllText(path))
                     ?? [];
+            }
         }
         catch
         { /* corrupt: start empty */
@@ -126,16 +132,24 @@ public sealed class PendingDownloads
     {
         downloadsDir ??= Path.Combine(AppSettings.DataDir, "downloads");
         if (!Directory.Exists(downloadsDir))
+        {
             return 0;
+        }
+
         var removed = 0;
         foreach (var entry in Directory.EnumerateFileSystemEntries(downloadsDir))
         {
             try
             {
                 if (Directory.Exists(entry))
+                {
                     Directory.Delete(entry, recursive: true);
+                }
                 else
+                {
                     File.Delete(entry);
+                }
+
                 removed++;
             }
             catch

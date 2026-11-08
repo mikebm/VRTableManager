@@ -78,10 +78,16 @@ public static partial class TableFileMatch
     {
         var file = NameWords(Path.GetFileNameWithoutExtension(fileName));
         if (file.Count == 0)
+        {
             return 0;
+        }
+
         var name = NameWords(g.Name);
         if (name.Count == 0)
+        {
             return 0;
+        }
+
         var fileSet = file.ToHashSet();
         // Also accept the name's words run together ("AttackFromMars", "attack_from_mars" split differently).
         var joined = string.Concat(file);
@@ -89,7 +95,9 @@ public static partial class TableFileMatch
         var hits = name.Count(Found);
         // Numbers alone (a version, a year) don't identify a game: "V.1" mustn't match every "1.0" file.
         if (!name.Any(w => !w.All(char.IsDigit) && Found(w)))
+        {
             return 0;
+        }
         // Share of the game's words found, less a little for file words the name doesn't explain.
         var extra = file.Count(w => !name.Contains(w) && !w.All(char.IsDigit));
         // More words matched wins a tie ("Attack from Mars" over "Attack" for "AttackFromMars").
@@ -98,9 +106,15 @@ public static partial class TableFileMatch
             !string.IsNullOrWhiteSpace(g.Manufacturer)
             && NameWords(g.Manufacturer).Any(fileSet.Contains)
         )
+        {
             score += 0.1;
+        }
+
         if (g.Year is > 0 && fileSet.Contains(g.Year.Value.ToString()))
+        {
             score += 0.1;
+        }
+
         return score;
     }
 
@@ -129,7 +143,10 @@ public static partial class TableFileMatch
         var fp = IsFuturePinball(file);
         var candidates = (g.TableFiles ?? []).Where(t => VpsCatalog.IsVpx(t) != fp).ToList();
         if (candidates.Count == 0)
+        {
             return null;
+        }
+
         var name = Path.GetFileNameWithoutExtension(file).ToLowerInvariant();
         var versions = VersionNumber().Matches(name).Select(m => m.Value).ToHashSet();
         var words = Words(name).ToHashSet();
@@ -144,13 +161,19 @@ public static partial class TableFileMatch
     static bool SameVersion(string? version, HashSet<string> inName)
     {
         if (string.IsNullOrWhiteSpace(version))
+        {
             return false;
+        }
+
         var v = Trim0(version.Trim().TrimStart('v', 'V'));
         return inName.Any(n => Trim0(n) == v);
         static string Trim0(string s)
         {
             while (s.EndsWith(".0") && s.Count(c => c == '.') > 1)
+            {
                 s = s[..^2];
+            }
+
             return s;
         }
     }
@@ -165,7 +188,10 @@ public static partial class TableFileMatch
             )
             .Trim();
         if (title == "")
+        {
             title = "Table";
+        }
+
         var tf = new VpsTableFile { Id = "", TableFormat = IsFuturePinball(file) ? "FP" : "VPX" };
         return (
             new VpsGame

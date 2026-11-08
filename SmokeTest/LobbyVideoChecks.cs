@@ -41,9 +41,16 @@ static class LobbyVideoChecks
         Directory.CreateDirectory(folder);
         var zip = Path.Combine(root, "media-pack.zip");
         using (var z = ZipFile.Open(zip, ZipArchiveMode.Create))
+        {
             foreach (var (path, _) in pack)
+            {
                 using (var w = new StreamWriter(z.CreateEntry(path).Open()))
+                {
                     w.Write(path);
+                }
+            }
+        }
+
         var saved = LobbyVideo.SavePlayfieldVideo(zip, folder, "Fish Tales");
         yield return (
             saved != null
@@ -66,7 +73,10 @@ static class LobbyVideoChecks
             "frames and video.json land in medias\\lobby-video"
         );
         using (var b = new LobbyVideo.Builder(folder, "cancelled"))
+        {
             File.WriteAllText(b.NextFramePath(), "jpg"); // disposed without Commit
+        }
+
         yield return (
             LobbyVideo.Existing(folder)?.Source == "test"
                 && !Directory.Exists(LobbyVideo.Folder(folder) + ".new"),

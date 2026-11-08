@@ -50,7 +50,10 @@ public static class LobbyVideo
         {
             var path = Path.Combine(folder, InfoFile);
             if (!File.Exists(path))
+            {
                 return null;
+            }
+
             var info = JsonSerializer.Deserialize<Info>(File.ReadAllText(path));
             return
                 info is { Frames: > 0, Fps: > 0 } && File.Exists(FramePath(folder, info.Frames - 1))
@@ -67,7 +70,9 @@ public static class LobbyVideo
     {
         var folder = Folder(tableFolder);
         if (Directory.Exists(folder))
+        {
             Directory.Delete(folder, true);
+        }
     }
 
     /// <summary>Writes one picture as a lobby frame: scaled to fit <see cref="Width"/>×<see cref="Height"/>, turned, JPEG.</summary>
@@ -95,7 +100,10 @@ public static class LobbyVideo
             _source = source;
             _staging = Folder(tableFolder) + ".new";
             if (Directory.Exists(_staging))
+            {
                 Directory.Delete(_staging, true);
+            }
+
             Directory.CreateDirectory(_staging);
         }
 
@@ -104,7 +112,10 @@ public static class LobbyVideo
         public Info Commit()
         {
             if (Count == 0)
+            {
                 throw new InvalidDataException("No frames.");
+            }
+
             var info = new Info(Fps, Count, Width, Height, _source);
             File.WriteAllText(
                 Path.Combine(_staging, InfoFile),
@@ -120,7 +131,9 @@ public static class LobbyVideo
             try
             {
                 if (Directory.Exists(_staging))
+                {
                     Directory.Delete(_staging, true);
+                }
             }
             catch { }
         }
@@ -139,7 +152,10 @@ public static class LobbyVideo
     public static int? PlayfieldScore(string entryPath, long size, string gameName)
     {
         if (size <= 0 || !VideoExts.Contains(Path.GetExtension(entryPath).ToLowerInvariant()))
+        {
             return null;
+        }
+
         var parts = entryPath
             .Replace('\\', '/')
             .Split('/', StringSplitOptions.RemoveEmptyEntries)
@@ -168,20 +184,39 @@ public static class LobbyVideo
             "desktop",
         ];
         if (folders.Any(f => others.Any(f.Contains)) || others.Any(o => file.StartsWith(o)))
+        {
             return null;
+        }
+
         var score = 0;
         if (folders.Any(f => f is "playfield" or "tablevideos" or "tablevideo" or "table"))
+        {
             score += 50;
+        }
         else if (folders.Any(f => f.Contains("playfield") || f.Contains("table")))
+        {
             score += 25;
+        }
         else if (!file.Contains("playfield"))
+        {
             return null; // a video somewhere else is some other screen
+        }
+
         if (file.Contains("playfield"))
+        {
             score += 20;
+        }
+
         if (Normalize(gameName) is { Length: > 2 } name && file.Contains(name))
+        {
             score += 10;
+        }
+
         if (Path.GetExtension(entryPath).Equals(".mp4", StringComparison.OrdinalIgnoreCase))
+        {
             score += 5; // plays as is; .f4v needs a copy
+        }
+
         return score;
     }
 
@@ -242,7 +277,10 @@ public static class LobbyVideo
             return WriteVideo(src, Path.GetExtension(best).ToLowerInvariant(), tableFolder);
         }
         if (!nested)
+        {
             return null;
+        }
+
         foreach (
             var inner in files.Where(e =>
                 ArchiveExts.Contains(Path.GetExtension(e.Key!).ToLowerInvariant())
@@ -257,9 +295,14 @@ public static class LobbyVideo
             {
                 using (var src = inner.OpenEntryStream())
                 using (var dst = File.Create(tmp))
+                {
                     src.CopyTo(dst);
+                }
+
                 if (FromArchive(tmp, tableFolder, gameName, nested: false) is { } saved)
+                {
                     return saved;
+                }
             }
             finally
             {
@@ -282,12 +325,18 @@ public static class LobbyVideo
         );
         var tmp = dest + ".tmp";
         using (var dst = File.Create(tmp))
+        {
             src.CopyTo(dst);
+        }
+
         if (
             ExistingPlayfieldVideo(tableFolder) is { } old
             && !old.Equals(dest, StringComparison.OrdinalIgnoreCase)
         )
+        {
             File.Delete(old);
+        }
+
         File.Move(tmp, dest, overwrite: true);
         return dest;
     }
@@ -345,7 +394,10 @@ public static class LobbyVideo
     public static void DeleteCapture(InstalledTable t)
     {
         foreach (var f in CapturedFrames(t))
+        {
             File.Delete(f);
+        }
+
         try
         {
             Directory.Delete(CaptureFolder(t));
@@ -370,7 +422,10 @@ public static class LobbyVideo
                 "Visual Pinball X isn't installed yet (Setup tab)."
             );
         if (!t.IsVpx || !File.Exists(t.TablePath))
+        {
             throw new InvalidOperationException("Only VPX tables can be recorded.");
+        }
+
         DeleteCapture(t);
         var psi = new ProcessStartInfo(exe)
         {
@@ -378,7 +433,10 @@ public static class LobbyVideo
             UseShellExecute = false,
         };
         foreach (var a in CaptureArgs(WriteCaptureIni(s), t.TablePath))
+        {
             psi.ArgumentList.Add(a);
+        }
+
         using var proc =
             Process.Start(psi) ?? throw new InvalidOperationException("VPX didn't start.");
         try
@@ -395,7 +453,10 @@ public static class LobbyVideo
             }
             catch { }
             if (ct.IsCancellationRequested)
+            {
                 throw;
+            }
+
             throw new TimeoutException("VPX didn't finish recording within 3 minutes.");
         }
         return CapturedFrames(t);

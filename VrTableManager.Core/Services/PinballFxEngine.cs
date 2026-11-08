@@ -96,7 +96,10 @@ public static partial class PfxSetup
     public static string ResolveProcessName(ZenGame g)
     {
         if (Detect(g) is not { } inst)
+        {
             return g.DefaultProcessName;
+        }
+
         return ProcessNames.GetOrAdd(
             inst.InstallDir,
             dir => FindShippingExe(dir) ?? g.DefaultProcessName
@@ -117,10 +120,15 @@ public static partial class PfxSetup
             {
                 var bin = Path.Combine(project, "Binaries", "Win64");
                 if (!Directory.Exists(bin))
+                {
                     continue;
+                }
+
                 var exe = Directory.EnumerateFiles(bin, "*-Win64-Shipping.exe").FirstOrDefault();
                 if (exe != null)
+                {
                     return Path.GetFileNameWithoutExtension(exe);
+                }
             }
         }
         catch
@@ -134,7 +142,10 @@ public static partial class PfxSetup
     static PfxInstall? DetectSteam(ZenGame g)
     {
         if (!OperatingSystem.IsWindows())
+        {
             return null;
+        }
+
         string? steam;
         try
         {
@@ -148,24 +159,36 @@ public static partial class PfxSetup
             return null;
         }
         if (steam == null)
+        {
             return null;
+        }
 
         var vdf = Path.Combine(steam, "steamapps", "libraryfolders.vdf");
         var libraries = File.Exists(vdf) ? ParseLibraryFolders(File.ReadAllText(vdf)) : [];
         if (!libraries.Contains(steam, StringComparer.OrdinalIgnoreCase))
+        {
             libraries.Insert(0, steam);
+        }
 
         foreach (var lib in libraries)
         {
             var acf = Path.Combine(lib, "steamapps", $"appmanifest_{g.SteamAppId}.acf");
             if (!File.Exists(acf))
+            {
                 continue;
+            }
+
             var dir = ParseInstallDir(File.ReadAllText(acf));
             if (dir == null)
+            {
                 continue;
+            }
+
             var full = Path.Combine(lib, "steamapps", "common", dir);
             if (Directory.Exists(full))
+            {
                 return new PfxInstall("Steam", full, $"steam://rungameid/{g.SteamAppId}");
+            }
         }
         return null;
     }
@@ -194,13 +217,18 @@ public static partial class PfxSetup
             "Manifests"
         );
         if (!Directory.Exists(manifests))
+        {
             return null;
+        }
+
         foreach (var item in Directory.EnumerateFiles(manifests, "*.item"))
         {
             try
             {
                 if (ParseEpicManifest(File.ReadAllText(item), g) is { } found)
+                {
                     return found;
+                }
             }
             catch
             { /* unreadable manifest: skip */
@@ -218,10 +246,16 @@ public static partial class PfxSetup
         // Exact names only: "Pinball FX" must not match Pinball FX2/FX3 (not Unreal games) or "Pinball FX Midnight".
         var name = Get("DisplayName")?.Trim();
         if (!g.EpicNames.Any(n => string.Equals(n, name, StringComparison.OrdinalIgnoreCase)))
+        {
             return null;
+        }
+
         var dir = Get("InstallLocation");
         if (string.IsNullOrEmpty(dir))
+        {
             return null;
+        }
+
         var uri =
             $"com.epicgames.launcher://apps/{Get("CatalogNamespace")}%3A{Get("CatalogItemId")}%3A{Get("AppName")}?action=launch&silent=true";
         return new PfxInstall("Epic", dir, uri);
@@ -260,7 +294,10 @@ public static partial class PfxSetup
             var root = tmp;
             var entries = Directory.GetFileSystemEntries(tmp);
             if (entries.Length == 1 && Directory.Exists(entries[0]))
+            {
                 root = entries[0];
+            }
+
             Directory.CreateDirectory(target);
             foreach (var file in Directory.EnumerateFiles(root, "*", SearchOption.AllDirectories))
             {
@@ -283,7 +320,10 @@ public static partial class PfxSetup
     {
         g ??= ZenGames.PinballFx;
         if (!OperatingSystem.IsWindows())
+        {
             return $"{g.Title} + UEVR is Windows-only.";
+        }
+
         var game = Detect(g);
         var parts = new List<string>
         {
@@ -295,11 +335,14 @@ public static partial class PfxSetup
                 : "UEVR not found. Install it from Updates above, or choose its folder.",
         };
         if (game != null)
+        {
             parts.Add(
                 HasProfileFor(g)
                     ? $"{g.Title} UEVR profile installed."
                     : $"No UEVR profile for {g.Title} yet (optional, but recommended)."
             );
+        }
+
         return string.Join(" ", parts);
     }
 }
@@ -318,7 +361,10 @@ public class ZenUevrEngine(ZenGame game) : IPinballEngine
     public IEnumerable<InstalledTable> ListExtraTables(AppSettings s)
     {
         if (PfxSetup.Detect(Game) is not { } found)
+        {
             yield break;
+        }
+
         yield return new InstalledTable(
             new TableManifest
             {
@@ -352,7 +398,9 @@ public class ZenUevrEngine(ZenGame game) : IPinballEngine
         {
             var exe = PfxSetup.InjectorPath(s);
             if (!File.Exists(exe))
+            {
                 throw new InvalidOperationException("UEVRInjector.exe wasn't found (Setup tab).");
+            }
             // Pinball-tuned UEVR settings (level table, menus in front, Quest controllers off).
             // Applied here so launches from the VR lobby get them too.
             if (s.ApplyPinballUevrProfile)
@@ -385,7 +433,9 @@ public class ZenUevrEngine(ZenGame game) : IPinballEngine
         {
             running = Process.GetProcessesByName(processName).FirstOrDefault();
             if (running == null)
+            {
                 await Task.Delay(1000, ct);
+            }
         }
         if (running == null)
         {
@@ -415,14 +465,22 @@ public class ZenUevrEngine(ZenGame game) : IPinballEngine
     static void CloseQuietly(Process? p)
     {
         if (p == null)
+        {
             return;
+        }
+
         try
         {
             if (p.HasExited)
+            {
                 return;
+            }
+
             p.CloseMainWindow();
             if (!p.WaitForExit(5000))
+            {
                 p.Kill();
+            }
         }
         catch
         { /* already gone */

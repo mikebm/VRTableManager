@@ -32,7 +32,10 @@ public sealed partial class MainViewModel
             )
             is not { } file
         )
+        {
             return;
+        }
+
         try
         {
             UserArtwork.Set(item.Table, kind, file);
@@ -55,7 +58,9 @@ public sealed partial class MainViewModel
         try
         {
             foreach (var k in Enum.GetValues<UserArtwork.Kind>())
+            {
                 UserArtwork.Remove(item.Table, k);
+            }
         }
         catch (Exception e)
         {
@@ -76,7 +81,10 @@ public sealed partial class MainViewModel
     {
         var table = item.Table;
         if (!item.CanHaveLobbyVideo)
+        {
             return;
+        }
+
         if (
             await _ui.PickFileAsync(
                 $"Choose a playfield video for {item.Title}",
@@ -85,9 +93,15 @@ public sealed partial class MainViewModel
             )
             is not { } video
         )
+        {
             return;
+        }
+
         if (!TryBeginBusy(table.TablePath))
+        {
             return;
+        }
+
         var job = new JobItem($"Lobby video for {table.Manifest.GameName}")
         {
             FileNames = [table.Manifest.GameName],
@@ -133,6 +147,8 @@ public sealed partial class MainViewModel
                 string.Equals(i.Table.TablePath, tablePath, StringComparison.OrdinalIgnoreCase)
             )
         )
+        {
             i.RefreshUserArtwork();
+        }
     }
 }

@@ -24,7 +24,9 @@ public sealed partial class MainViewModel
             )
             is not { } file
         )
+        {
             return;
+        }
 
         var fp = TableFileMatch.IsFuturePinball(file);
         if (fp && string.IsNullOrWhiteSpace(Settings.FpDir))
@@ -58,15 +60,22 @@ public sealed partial class MainViewModel
                 + "Not listed? Choose Not in the catalog, or find it in Get Tables.";
         var pick = await _ui.ChoiceAsync("Which table is this?", message, [.. buttons]);
         if (pick < 0 || buttons[pick] == "CANCEL")
+        {
             return;
+        }
+
         if (buttons[pick] == "NOT IN THE CATALOG")
+        {
             (game, tf) = TableFileMatch.NotInCatalog(file);
+        }
         else
         {
             game = guesses[pick];
             tf = TableFileMatch.PickTableFile(game, file);
             if (tf == null)
+            {
                 return;
+            }
         }
 
         // Already installed: this replaces it (ROMs, high scores and settings in its folder stay).
@@ -87,7 +96,9 @@ public sealed partial class MainViewModel
                 ["REPLACE", "CANCEL"]
             ) != 0
         )
+        {
             return;
+        }
 
         var job = new JobItem($"{(replacing == null ? "" : "Update: ")}{game.Name} — from {name}")
         {
@@ -115,7 +126,9 @@ public sealed partial class MainViewModel
             RefreshInstalled();
             ApplyFilter();
             if (getRom)
+            {
                 _ = GetRomAsync(installed);
+            }
         }
         catch (OperationCanceledException)
         {

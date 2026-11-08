@@ -8,8 +8,8 @@
             "type": "command",
             "shell": "bash",
             "command": "bash \"$CLAUDE_PROJECT_DIR/.claude/hooks/csharpier-format.sh\" 2>/dev/null || true",
-            "timeout": 60,
-            "statusMessage": "Formatting with CSharpier"
+            "timeout": 90,
+            "statusMessage": "Adding braces and formatting with CSharpier"
           }
         ]
       }

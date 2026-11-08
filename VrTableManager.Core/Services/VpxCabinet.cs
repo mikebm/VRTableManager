@@ -187,7 +187,10 @@ public static class VpxCabinet
             var pw = t.Right - t.Left;
             var ph = t.Bottom - t.Top;
             if (pw <= 0 || ph <= 0)
+            {
                 return null;
+            }
+
             var meshes = new List<(Vector3[] Px, int[] Idx)>();
             foreach (var p in t.Prims)
             {
@@ -198,17 +201,29 @@ public static class VpxCabinet
                     || p.Indices == null
                     || p.NumVerts == 0
                 )
+                {
                     continue;
+                }
+
                 if (
                     NotGeometry.IsMatch(p.Name)
                     || IsPlayfieldGlass(p.Name)
                     || HeightMapSkip.IsMatch(p.Name)
                 )
+                {
                     continue;
+                }
+
                 if (SpaceOf(p.Group, t) != 0)
+                {
                     continue; // cabinet / room space
+                }
+
                 if (include != null && !include(p.Name))
+                {
                     continue;
+                }
+
                 var m = FullMatrix(p, t);
                 var px = new Vector3[p.NumVerts];
                 for (var i = 0; i < p.NumVerts; i++)
@@ -232,6 +247,7 @@ public static class VpxCabinet
             {
                 var drew = false;
                 for (var i = 0; i + 2 < idx.Length; i += 3)
+                {
                     drew |= Raster(
                         top,
                         null,
@@ -241,13 +257,22 @@ public static class VpxCabinet
                         px[idx[i + 1]],
                         px[idx[i + 2]]
                     );
+                }
+
                 if (drew)
+                {
                     used++;
+                }
             }
             var under = (float[])top.Clone();
             foreach (var (px, idx) in meshes)
+            {
                 for (var i = 0; i + 2 < idx.Length; i += 3)
+                {
                     Raster(top, under, width, height, px[idx[i]], px[idx[i + 1]], px[idx[i + 2]]);
+                }
+            }
+
             for (var i = 0; i < top.Length; i++)
             {
                 top[i] = Math.Clamp(top[i] / HeightMapTop, 0f, 1f);
@@ -284,13 +309,19 @@ public static class VpxCabinet
     {
         // Entirely above what's recorded (a backbox, a topper): not playfield.
         if (a.Z > HeightMapTop * 1.5f && b.Z > HeightMapTop * 1.5f && c.Z > HeightMapTop * 1.5f)
+        {
             return false;
+        }
+
         var minX = Math.Max(0, (int)MathF.Floor(MathF.Min(a.X, MathF.Min(b.X, c.X))));
         var maxX = Math.Min(w - 1, (int)MathF.Ceiling(MathF.Max(a.X, MathF.Max(b.X, c.X))));
         var minY = Math.Max(0, (int)MathF.Floor(MathF.Min(a.Y, MathF.Min(b.Y, c.Y))));
         var maxY = Math.Min(h - 1, (int)MathF.Ceiling(MathF.Max(a.Y, MathF.Max(b.Y, c.Y))));
         if (minX > maxX || minY > maxY)
+        {
             return false;
+        }
+
         var area = (b.X - a.X) * (c.Y - a.Y) - (b.Y - a.Y) * (c.X - a.X);
         var any = false;
 
@@ -299,16 +330,25 @@ public static class VpxCabinet
             if (under == null)
             {
                 if (zHigh <= top[i])
+                {
                     return false;
+                }
+
                 top[i] = zHigh;
                 return true;
             }
             var layer = top[i] - HeightMapLayer;
             if (zHigh < layer)
+            {
                 return false;
+            }
+
             var z = MathF.Max(zLow, layer);
             if (z >= under[i])
+            {
                 return false;
+            }
+
             under[i] = z;
             return true;
         }
@@ -317,27 +357,41 @@ public static class VpxCabinet
         {
             // Seen edge-on (a wall's side): it marks the pixels it passes over, from its top edge down.
             if (maxX - minX > 2 && maxY - minY > 2)
+            {
                 return false;
+            }
+
             var zHigh = MathF.Max(a.Z, MathF.Max(b.Z, c.Z));
             var zLow = MathF.Min(a.Z, MathF.Min(b.Z, c.Z));
             for (var y = minY; y <= maxY; y++)
-            for (var x = minX; x <= maxX; x++)
-                any |= Put(y * w + x, zHigh, zLow);
+            {
+                for (var x = minX; x <= maxX; x++)
+                {
+                    any |= Put(y * w + x, zHigh, zLow);
+                }
+            }
+
             return any;
         }
         for (var y = minY; y <= maxY; y++)
-        for (var x = minX; x <= maxX; x++)
         {
-            float sx = x + 0.5f,
-                sy = y + 0.5f;
-            var w0 = ((b.X - sx) * (c.Y - sy) - (b.Y - sy) * (c.X - sx)) / area;
-            var w1 = ((c.X - sx) * (a.Y - sy) - (c.Y - sy) * (a.X - sx)) / area;
-            var w2 = 1 - w0 - w1;
-            if (w0 < -1e-4f || w1 < -1e-4f || w2 < -1e-4f)
-                continue;
-            var z = w0 * a.Z + w1 * b.Z + w2 * c.Z;
-            any |= Put(y * w + x, z, z);
+            for (var x = minX; x <= maxX; x++)
+            {
+                float sx = x + 0.5f,
+                    sy = y + 0.5f;
+                var w0 = ((b.X - sx) * (c.Y - sy) - (b.Y - sy) * (c.X - sx)) / area;
+                var w1 = ((c.X - sx) * (a.Y - sy) - (c.Y - sy) * (a.X - sx)) / area;
+                var w2 = 1 - w0 - w1;
+                if (w0 < -1e-4f || w1 < -1e-4f || w2 < -1e-4f)
+                {
+                    continue;
+                }
+
+                var z = w0 * a.Z + w1 * b.Z + w2 * c.Z;
+                any |= Put(y * w + x, z, z);
+            }
         }
+
         return any;
     }
 
@@ -415,7 +469,9 @@ public static class VpxCabinet
             var t = Read(vpxPath, meshes: true);
             var picked = Pick(t);
             if (picked.Count == 0)
+            {
                 return null;
+            }
 
             // Build every part in VPX space first (in metres, axes swapped), then anchor the whole cabinet.
             var parts = new List<(Prim P, float[] Pos, float[] Nrm, float[] Uv, int[] Idx)>();
@@ -464,7 +520,9 @@ public static class VpxCabinet
             var (sin, cos) = MathF.SinCos(tilt);
             Vector3 Level(Vector3 v) => new(v.X, v.Y * cos - v.Z * sin, v.Y * sin + v.Z * cos);
             if (tilt != 0)
+            {
                 foreach (var (_, pos, nrm, _, _) in parts)
+                {
                     for (var i = 0; i < pos.Length; i += 3)
                     {
                         var v = Level(new Vector3(pos[i], pos[i + 1], pos[i + 2]));
@@ -476,16 +534,20 @@ public static class VpxCabinet
                         nrm[i + 1] = n.Y;
                         nrm[i + 2] = n.Z;
                     }
+                }
+            }
 
             var min = new Vector3(float.MaxValue);
             var max = new Vector3(float.MinValue);
             foreach (var (_, pos, _, _, _) in parts)
+            {
                 for (var i = 0; i < pos.Length; i += 3)
                 {
                     var v = new Vector3(pos[i], pos[i + 1], pos[i + 2]);
                     min = Vector3.Min(min, v);
                     max = Vector3.Max(max, v);
                 }
+            }
             // Floor at y = 0 (the bottom of the legs), centred across, front edge at frontZ.
             var shift = new Vector3(-(min.X + max.X) / 2, -min.Y, frontZ - max.Z);
             var outParts = parts
@@ -550,25 +612,39 @@ public static class VpxCabinet
         float zMin = float.MaxValue,
             zMax = float.MinValue;
         foreach (var pos in positions)
+        {
             for (var i = 2; i < pos.Length; i += 3)
             {
                 zMin = Math.Min(zMin, pos[i]);
                 zMax = Math.Max(zMax, pos[i]);
             }
+        }
+
         if (zMax <= zMin)
+        {
             return 0;
+        }
+
         var band = (zMax - zMin) * 0.2f;
         (float Y, float Z) back = (float.MaxValue, 0),
             front = (float.MaxValue, 0);
         foreach (var pos in positions)
+        {
             for (var i = 0; i < pos.Length; i += 3)
             {
                 var (y, z) = (pos[i + 1], pos[i + 2]);
                 if (z <= zMin + band && y < back.Y)
+                {
                     back = (y, z);
+                }
+
                 if (z >= zMax - band && y < front.Y)
+                {
                     front = (y, z);
+                }
             }
+        }
+
         var tilt = MathF.Atan2(front.Y - back.Y, front.Z - back.Z);
         return tilt is > 0.5f * MathF.PI / 180 and < 12f * MathF.PI / 180 ? tilt : 0;
     }
@@ -608,7 +684,9 @@ public static class VpxCabinet
                 )
                 .ToList();
             if (inVr.Any(p => CabinetBody.IsMatch(p.Name)))
+            {
                 candidates = inVr;
+            }
         }
         // The body anchors the selection: "PinCab_Cabinet", "CabinetMain", "cab"… (the biggest such part).
         var body = candidates
@@ -620,7 +698,10 @@ public static class VpxCabinet
             })
             .FirstOrDefault();
         if (body == null)
+        {
             return [];
+        }
+
         var (bmin, bmax) = Bounds(body, t);
         var margin = 0.6f / VpuToMetres; // 60 cm
         bmin -= new Vector3(margin, margin, margin * 2);
@@ -640,7 +721,10 @@ public static class VpxCabinet
                     && a.Z >= bmin.Z
                     && b.Z <= bmax.Z;
                 if (!nearBody)
+                {
                     return false;
+                }
+
                 var onPlayfield =
                     a.X >= t.Left + inset
                     && b.X <= t.Right - inset
@@ -670,10 +754,16 @@ public static class VpxCabinet
             .Where(p =>
             {
                 if (TrailingOff.Match(p.Name) is not { Success: true } m)
+                {
                     return true;
+                }
+
                 var stem = m.Groups["stem"].Value;
                 if (stem.EndsWith("DT", StringComparison.OrdinalIgnoreCase))
+                {
                     stem = stem[..^2]; // "…DTOff" / "…DTON": desktop variants
+                }
+
                 return !picked.Any(o =>
                     o != p
                     && !TrailingOff.IsMatch(o.Name)
@@ -703,9 +793,15 @@ public static class VpxCabinet
                 || p.Indices == null
                 || p.NumVerts is 0 or > 2000
             )
+            {
                 continue;
+            }
+
             if (NotGeometry.IsMatch(p.Name) || IsPlayfieldGlass(p.Name) || SpaceOf(p.Group, t) != 0)
+            {
                 continue;
+            }
+
             var (a, b) = Bounds(p, t);
             var along = b.Y - a.Y >= (t.Bottom - t.Top) * 0.8f;
             var bothSides =
@@ -715,7 +811,9 @@ public static class VpxCabinet
                 && b.X <= t.Right + 150;
             var railHigh = a.Z >= -60 && b.Z is >= 120 and <= 500;
             if (!along || !bothSides || !railHigh)
+            {
                 continue;
+            }
             // Walls keep to the edges; metal guide walls and the like run across the middle of the playfield too.
             // Judged by what the part covers seen from above (its triangles; a mesh may carry unused vertices).
             const int W = 48,
@@ -736,6 +834,7 @@ public static class VpxCabinet
             }
             var cover = new float[W * H];
             for (var i = 0; i + 2 < p.Indices.Length; i += 3)
+            {
                 Raster(
                     cover,
                     null,
@@ -745,20 +844,34 @@ public static class VpxCabinet
                     px[p.Indices[i + 1]],
                     px[p.Indices[i + 2]]
                 );
+            }
+
             int covered = 0,
                 middle = 0;
             for (var y = 0; y < H; y++)
-            for (var x = 0; x < W; x++)
-                if (cover[y * W + x] > 0)
+            {
+                for (var x = 0; x < W; x++)
                 {
-                    covered++;
-                    if (x >= W / 10 && x < W - W / 10 && y >= H / 10 && y < H - H / 10)
-                        middle++; // inside the outer 10%
+                    if (cover[y * W + x] > 0)
+                    {
+                        covered++;
+                        if (x >= W / 10 && x < W - W / 10 && y >= H / 10 && y < H - H / 10)
+                        {
+                            middle++; // inside the outer 10%
+                        }
+                    }
                 }
+            }
+
             if (covered == 0 || middle > covered / 10)
+            {
                 continue;
+            }
+
             if (seen.Add((p.NumVerts, (int)a.Y, (int)b.Z)))
+            {
                 walls.Add(p);
+            }
         }
         return walls;
     }
@@ -780,7 +893,10 @@ public static class VpxCabinet
     static (Vector3 Min, Vector3 Max) Bounds(Prim p, TableData t)
     {
         if (p.Verts == null || p.NumVerts == 0)
+        {
             return (p.Pos, p.Pos);
+        }
+
         var m = FullMatrix(p, t);
         var min = new Vector3(float.MaxValue);
         var max = new Vector3(float.MinValue);
@@ -817,7 +933,10 @@ public static class VpxCabinet
             * Matrix4x4.CreateRotationX(Rad(r[6]));
         var m = Matrix4x4.CreateScale(p.Size) * rt * Matrix4x4.CreateTranslation(p.Pos);
         if (SpaceOf(p.Group, t) != 0)
+        {
             m *= Matrix4x4.CreateTranslation(0, 0, -(t.GroundToLockbar - t.GlassBottom));
+        }
+
         return m;
     }
 
@@ -827,9 +946,15 @@ public static class VpxCabinet
         for (var depth = 0; group != null && depth < 32; depth++)
         {
             if (!t.Groups.TryGetValue(group, out var g))
+            {
                 return 0;
+            }
+
             if (g.Space != 4)
+            {
                 return g.Space;
+            }
+
             group = g.Parent;
         }
         return 0;
@@ -842,34 +967,54 @@ public static class VpxCabinet
         var game = root.OpenStorage("GameStg");
 
         if (game.TryOpenStream("GameData", out var gd) && gd != null)
+        {
             using (gd)
+            {
                 ReadGameData(ReadAll(gd), t);
+            }
+        }
 
         for (var i = 0; i < 100_000; i++)
         {
             if (!game.TryOpenStream("GameItem" + i, out var s) || s == null)
+            {
                 break;
+            }
+
             using (s)
             {
                 var head = new byte[4];
                 if (s.Read(head, 0, 4) < 4)
+                {
                     continue;
+                }
+
                 var type = BitConverter.ToInt32(head, 0);
                 if (type != ItemPrimitive && type != ItemPartGroup)
+                {
                     continue;
+                }
+
                 s.Position = 0;
                 var buf = ReadAll(s);
                 if (type == ItemPrimitive)
+                {
                     t.Prims.Add(ReadPrimitive(buf, meshes));
+                }
                 else
+                {
                     ReadPartGroup(buf, t);
+                }
             }
         }
         // Collections live in streams of their own: a NAME and one ITEM per member.
         for (var i = 0; i < 10_000; i++)
         {
             if (!game.TryOpenStream("Collection" + i, out var s) || s == null)
+            {
                 break;
+            }
+
             using (s)
             {
                 string? name = null;
@@ -877,12 +1022,18 @@ public static class VpxCabinet
                 foreach (var (tag, d) in Records(ReadAll(s), 0))
                 {
                     if (tag == "NAME")
+                    {
                         name = WStr(d);
+                    }
                     else if (tag == "ITEM" && WStr(d) is { Length: > 0 } item)
+                    {
                         items.Add(item);
+                    }
                 }
                 if (name != null)
+                {
                     t.Collections[name] = items;
+                }
             }
         }
         return t;
@@ -922,7 +1073,10 @@ public static class VpxCabinet
                     break;
                 case "MATR": // 10.8+: one nested object per material
                     if (ReadMaterial(d) is { } m)
+                    {
                         t.Materials[m.Name] = m;
+                    }
+
                     break;
             }
         }
@@ -1001,7 +1155,9 @@ public static class VpxCabinet
             }
         }
         if (name != null)
+        {
             t.Groups[name] = (space, string.IsNullOrEmpty(parent) ? null : parent);
+        }
     }
 
     static Prim ReadPrimitive(byte[] buf, bool meshes)
@@ -1074,26 +1230,38 @@ public static class VpxCabinet
                     break;
                 default:
                     if (tag.Length == 4 && tag.StartsWith("RTV") && tag[3] is >= '0' and <= '8')
+                    {
                         p.RotTra[tag[3] - '0'] = F(d);
+                    }
+
                     break;
             }
         }
         if (!meshes || !p.Use3DMesh || p.NumVerts <= 0 || p.NumIndices <= 0)
+        {
             return p;
+        }
+
         try
         {
             var vbytes = cv != null ? Inflate(cv, p.NumVerts * 32) : rv;
             var big = p.NumVerts > 65535;
             var ibytes = ci != null ? Inflate(ci, p.NumIndices * (big ? 4 : 2)) : ri;
             if (vbytes == null || ibytes == null || vbytes.Length < p.NumVerts * 32)
+            {
                 return p;
+            }
+
             p.Verts = new float[p.NumVerts * 8];
             Buffer.BlockCopy(vbytes, 0, p.Verts, 0, p.NumVerts * 32);
             p.Indices = new int[p.NumIndices];
             for (var i = 0; i < p.NumIndices; i++)
+            {
                 p.Indices[i] = big
                     ? BitConverter.ToInt32(ibytes, i * 4)
                     : BitConverter.ToUInt16(ibytes, i * 2);
+            }
+
             if (p.Indices.Any(i => i < 0 || i >= p.NumVerts))
             {
                 p.Verts = null;
@@ -1117,7 +1285,10 @@ public static class VpxCabinet
         {
             var n = z.Read(outBuf, read, expected - read);
             if (n <= 0)
+            {
                 break;
+            }
+
             read += n;
         }
         return read == expected ? outBuf : outBuf[..read];
@@ -1133,13 +1304,19 @@ public static class VpxCabinet
         {
             var len = BitConverter.ToInt32(buf, pos);
             if (len < 4 || pos + 4 + len > buf.Length)
+            {
                 yield break;
+            }
+
             var tag = Encoding.ASCII.GetString(buf, pos + 4, 4);
             var data = new byte[len - 4];
             Buffer.BlockCopy(buf, pos + 8, data, 0, data.Length);
             yield return (tag, data);
             if (tag == "ENDB")
+            {
                 yield break;
+            }
+
             pos += 4 + len;
         }
     }
@@ -1160,7 +1337,10 @@ public static class VpxCabinet
     static string? Str(byte[] d)
     {
         if (d.Length < 4)
+        {
             return null;
+        }
+
         var n = BitConverter.ToInt32(d, 0);
         return n < 0 || 4 + n > d.Length ? null : Encoding.Latin1.GetString(d, 4, n).TrimEnd('\0');
     }
@@ -1168,13 +1348,22 @@ public static class VpxCabinet
     static string? WStr(byte[] d)
     {
         if (d.Length < 4)
+        {
             return null;
+        }
+
         var n = BitConverter.ToInt32(d, 0);
         // Wide strings store their length in bytes in older files and in characters in newer ones; accept both.
         if (n >= 0 && 4 + n * 2 <= d.Length)
+        {
             return Encoding.Unicode.GetString(d, 4, n * 2).TrimEnd('\0');
+        }
+
         if (n >= 0 && 4 + n <= d.Length)
+        {
             return Encoding.Unicode.GetString(d, 4, n & ~1).TrimEnd('\0');
+        }
+
         return null;
     }
 
@@ -1186,7 +1375,10 @@ public static class VpxCabinet
         {
             var n = s.Read(buf, read, buf.Length - read);
             if (n <= 0)
+            {
                 break;
+            }
+
             read += n;
         }
         return buf;

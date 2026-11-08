@@ -16,16 +16,30 @@ public sealed partial class MainViewModel
     {
         var path = item.Table.TablePath;
         if (!item.Table.IsVpx || !Settings.UsePupPlugin || !File.Exists(path))
+        {
             return true;
+        }
+
         if (Settings.DmdFixDeclined.Contains(path, StringComparer.OrdinalIgnoreCase))
+        {
             return true;
+        }
+
         if (PupPacks.StateOf(item.Table).Folders.Count == 0)
+        {
             return true;
+        }
+
         if (!VrDmdFix.EngineSupportsFix(VpxSetup.InstalledVersion(Settings)))
+        {
             return true;
+        }
+
         var flashers = await Task.Run(() => VrDmdFix.Find(path));
         if (flashers.Count == 0)
+        {
             return true;
+        }
 
         // Short labels: four buttons fit on one row.
         List<string> buttons = ["FIX AND PLAY", "PLAY AS IS", "DON'T ASK AGAIN", "CANCEL"];

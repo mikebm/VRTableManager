@@ -121,12 +121,17 @@ public static class PlayfieldDepth
             {
                 var img = new Image();
                 if (img.LoadPngFromBuffer(File.ReadAllBytes(cache)) == Error.Ok)
+                {
                     return img;
+                }
                 // Unreadable (left over from a crash): made again below.
             }
             var map = VpxCabinet.HeightMap(vpxPath);
             if (map == null || map.Coverage < 0.03f)
+            {
                 return null;
+            }
+
             var bytes = new byte[map.Heights.Length * 3];
             for (var i = 0; i < map.Heights.Length; i++)
             {
@@ -173,7 +178,10 @@ public static class PlayfieldDepth
             : 1;
         var counts = new int[256];
         for (var i = 0; i < data.Length; i += px)
+        {
             counts[data[i]]++;
+        }
+
         var keep = data.Length / px * 0.9995;
         var level = 255;
         for (int i = 0, sum = 0; i < 256; i++)

@@ -133,7 +133,10 @@ public static class LobbyFixture
     public static Paths Create(string root)
     {
         if (Directory.Exists(root))
+        {
             Directory.Delete(root, true);
+        }
+
         var vpx = Path.Combine(root, "VPinball X");
         var tables = Path.Combine(root, "Tables");
         var fp = Path.Combine(root, "Future Pinball");
@@ -165,7 +168,9 @@ public static class LobbyFixture
                 )
             );
             if (isMm)
+            {
                 mm = Path.Combine(folder, "table.vpx");
+            }
         }
         // Installed by hand (no manifest), and a folder with no table in it.
         Write(Path.Combine(tables, "Attack From Mars Hand", "AFM.vpx"), "");

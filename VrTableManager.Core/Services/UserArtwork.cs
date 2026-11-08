@@ -34,7 +34,10 @@ public static class UserArtwork
     public static string FolderFor(InstalledTable t)
     {
         if (t.IsVpx && File.Exists(Path.Combine(t.Folder, "vrtm.json")))
+        {
             return Path.Combine(t.Folder, FolderName);
+        }
+
         var hash = Convert.ToHexString(
             SHA1.HashData(Encoding.UTF8.GetBytes(t.TablePath.ToLowerInvariant()))
         )[..10];
@@ -51,7 +54,10 @@ public static class UserArtwork
     {
         var dir = FolderFor(t);
         if (!Directory.Exists(dir))
+        {
             return null;
+        }
+
         try
         {
             return Directory
@@ -81,7 +87,10 @@ public static class UserArtwork
     public static string? PathOf(string key)
     {
         if (!key.StartsWith(LocalScheme, StringComparison.Ordinal))
+        {
             return null;
+        }
+
         var rest = key[LocalScheme.Length..];
         var bar = rest.LastIndexOf('|');
         return bar > 0 ? rest[..bar] : rest;
@@ -92,9 +101,12 @@ public static class UserArtwork
     {
         var ext = Path.GetExtension(picture).ToLowerInvariant();
         if (!PictureExts.Contains(ext))
+        {
             throw new InvalidOperationException(
                 $"Use a {string.Join(", ", PictureExts.Select(e => e.TrimStart('.')))} picture."
             );
+        }
+
         var dir = Directory.CreateDirectory(FolderFor(t)).FullName;
         var target = Path.Combine(dir, FileStem(kind) + ext);
         var tmp = target + ".tmp";
@@ -110,12 +122,17 @@ public static class UserArtwork
     {
         var dir = FolderFor(t);
         if (!Directory.Exists(dir))
+        {
             return;
+        }
+
         foreach (
             var f in Directory
                 .EnumerateFiles(dir, FileStem(kind) + ".*")
                 .Where(f => PictureExts.Contains(Path.GetExtension(f).ToLowerInvariant()))
         )
+        {
             File.Delete(f);
+        }
     }
 }

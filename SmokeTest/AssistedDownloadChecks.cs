@@ -201,7 +201,10 @@ public static class AssistedDownloadChecks
                 "BTILC_2026_Original_1.0.1.vpx",
             }
         )
+        {
             File.WriteAllText(Path.Combine(multiDir, n), n);
+        }
+
         var names = (await Task.WhenAll(waits).WaitAsync(TimeSpan.FromSeconds(15)))
             .Select(Path.GetFileName)
             .ToList();

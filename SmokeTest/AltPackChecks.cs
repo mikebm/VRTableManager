@@ -349,11 +349,19 @@ public static class AltPackChecks
         var path = Path.Combine(root, name);
         Directory.CreateDirectory(root);
         if (File.Exists(path))
+        {
             File.Delete(path);
+        }
+
         using var z = ZipFile.Open(path, ZipArchiveMode.Create);
         foreach (var (p, t) in entries)
+        {
             using (var w = new StreamWriter(z.CreateEntry(p).Open()))
+            {
                 w.Write(t);
+            }
+        }
+
         return path;
     }
 }

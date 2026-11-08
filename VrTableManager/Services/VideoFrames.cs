@@ -104,9 +104,13 @@ public sealed class VideoFrames : LobbyVideo.IFrameSink
     )
     {
         if (!OperatingSystem.IsWindows())
+        {
             yield break;
+        }
+
         string? copy = null;
         if (Path.GetExtension(path).Equals(".f4v", StringComparison.OrdinalIgnoreCase)) // MP4 inside; MF goes by the extension
+        {
             File.Copy(
                 path,
                 copy = Path.Combine(
@@ -114,6 +118,8 @@ public sealed class VideoFrames : LobbyVideo.IFrameSink
                     "vrtm-" + Guid.NewGuid().ToString("N")[..8] + ".mp4"
                 )
             );
+        }
+
         IMFSourceReader? reader = null;
         try
         {
@@ -139,7 +145,9 @@ public sealed class VideoFrames : LobbyVideo.IFrameSink
             catch (COMException) { }
             Marshal.ReleaseComObject(actual);
             if (width <= 0 || height <= 0)
+            {
                 yield break;
+            }
 
             var step = 10_000_000L / fps; // 100 ns units
             long next = 0;
@@ -158,14 +166,20 @@ public sealed class VideoFrames : LobbyVideo.IFrameSink
                 if (sample == null)
                 {
                     if ((flags & MF_SOURCE_READER_FLAG.MF_SOURCE_READERF_ENDOFSTREAM) != 0)
+                    {
                         break;
+                    }
+
                     continue;
                 }
                 byte[]? rgba = null;
                 try
                 {
                     if ((long)time + step / 2 < next)
+                    {
                         continue; // between the frames we keep
+                    }
+
                     next = (long)time + step;
                     sample.ConvertToContiguousBuffer(out var buffer);
                     try
@@ -190,7 +204,10 @@ public sealed class VideoFrames : LobbyVideo.IFrameSink
                     Marshal.ReleaseComObject(sample);
                 }
                 if (rgba == null)
+                {
                     break;
+                }
+
                 count++;
                 yield return (width, height, rgba);
             }
@@ -198,13 +215,18 @@ public sealed class VideoFrames : LobbyVideo.IFrameSink
         finally
         {
             if (reader != null)
+            {
                 Marshal.ReleaseComObject(reader);
+            }
+
             if (copy != null)
+            {
                 try
                 {
                     File.Delete(copy);
                 }
                 catch { }
+            }
         }
     }
 
@@ -213,7 +235,10 @@ public sealed class VideoFrames : LobbyVideo.IFrameSink
     {
         var pitch = Math.Abs(stride);
         if (pitch < width * 4 || (long)pitch * height > length)
+        {
             return null;
+        }
+
         var row = new byte[pitch];
         var rgba = new byte[width * height * 4];
         for (var y = 0; y < height; y++)
@@ -260,12 +285,18 @@ public sealed class VideoFrames : LobbyVideo.IFrameSink
         const int Clockwise = 1,
             Anticlockwise = 3;
         if (playfieldImage == null)
+        {
             return Clockwise; // VPX's cabinet view (and most packs made from it): top on the left
+        }
+
         try
         {
             using var reference = SKBitmap.Decode(playfieldImage);
             if (reference == null)
+            {
                 return Clockwise;
+            }
+
             var target = Thumb(reference, 0);
             using var frame = ToBitmap(w, h, rgba);
             return
@@ -304,11 +335,14 @@ public sealed class VideoFrames : LobbyVideo.IFrameSink
         }
         var px = new float[ThumbW * ThumbH];
         for (var y = 0; y < ThumbH; y++)
-        for (var x = 0; x < ThumbW; x++)
         {
-            var c = small.GetPixel(x, y);
-            px[y * ThumbW + x] = 0.3f * c.Red + 0.59f * c.Green + 0.11f * c.Blue;
+            for (var x = 0; x < ThumbW; x++)
+            {
+                var c = small.GetPixel(x, y);
+                px[y * ThumbW + x] = 0.3f * c.Red + 0.59f * c.Green + 0.11f * c.Blue;
+            }
         }
+
         return px;
     }
 
