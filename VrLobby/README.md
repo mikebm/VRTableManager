@@ -45,6 +45,21 @@ godot --path VrLobby
 | Hold left grip + click left stick | Home | Reset height |
 | Hold Menu (1 s) | Esc | Quit the lobby (a short press only shows "HOLD TO LEAVE"). Every close is written to the lobby's log with its reason. |
 
+### Cabinet buttons
+
+On a cabinet controller (PinOne, Pinscape, Zeb's and the like) you don't need the Quest controllers. The lobby uses the buttons you set up in VPX, read from the settings VR play uses (VPX 10.8.1's `[Input]` mappings, or the older `[Player]` keys and joystick buttons; VPX's default keys where nothing is set), so a board that works in VPX works here with nothing to set up:
+
+| Cabinet button | Default key | Action |
+|---|---|---|
+| Left / right flipper | Left / Right Shift | Previous / next table (hold to keep going) |
+| Left / right magna-save | Left / Right Ctrl | Previous / next letter |
+| Start, Launch ball, Lockbar fire | 1, Enter, Left Alt | Play |
+| Coin | 5 | Next filter |
+| Extra ball | B | Random table |
+| Exit | Q | Hold 1 s to quit the lobby |
+
+Keys count only in VR, so the desktop window keeps its own keyboard controls. Boards in joystick mode work in both. Every joystick button press is written to the lobby's log (`Joystick 0 button 3`), to check a board's numbering against VPX's.
+
 The old flat "wall" view is gone: the cabinet ring replaces it, and the thumbstick click no longer switches views.
 
 ### Getting to the M tables (in a 100-table library)

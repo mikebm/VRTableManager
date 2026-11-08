@@ -54,6 +54,10 @@ public partial class Main : Node3D
     readonly Dictionary<string, IReadOnlyList<string>> _scoreLines = []; // per table id; .nv files only change while a table runs (StartPlaying drops that table's lines)
     readonly Dictionary<string, double> _held = new() { ["x"] = 0, ["jump"] = 0 };
     readonly Dictionary<string, double> _cool = new() { ["x"] = 0, ["jump"] = 0 };
+
+    // Cabinet buttons (flippers, magna-saves, Start…), mapped like the player's VPX controls (CabinetButtons).
+    CabinetButtons _cabinet = CabinetButtons.None;
+    readonly HashSet<CabinetAction> _cabinetHeld = [];
     readonly AudioStreamPlayer3D _attract = new() { VolumeDb = -12f, UnitSize = 3f };
     readonly Dictionary<string, string?> _attractFiles = [];
     readonly PlayfieldVideo _video = new();
@@ -102,6 +106,8 @@ public partial class Main : Node3D
     float _scroll;
     int _hoverSlot = -1,
         _hoverRail = -1;
+    Vector3 _aimAtSelect; // where the laser pointed when the selection last changed
+    const float AimMoved = 0.07f; // radians (4°): more than hand jitter, so it means "I pointed somewhere else"
     double _hoverTime,
         _flashTime,
         _settled,
@@ -213,6 +219,15 @@ public partial class Main : Node3D
         State = LobbyState.Load(_statePath);
         ApplyHeight(); // the lobby restarts after every table, so this is where the saved height comes back
         Library = LobbyLibrary.Load(Settings);
+        try
+        {
+            _cabinet = CabinetButtons.Load(Settings);
+            GD.Print("Cabinet buttons: " + _cabinet.Describe());
+        }
+        catch (Exception e)
+        {
+            GD.Print("Cabinet buttons not read: " + e.Message);
+        }
         // --record-audio=<table id>: record that table's ROM sound (see RomRecorder), then quit.
         if (args.GetValueOrDefault("record-audio") is { Length: > 0 } recordId)
         {
@@ -363,6 +378,9 @@ public partial class Main : Node3D
             _xr = xr;
             GetViewport().UseXR = true;
             DisplayServer.WindowSetVsyncMode(DisplayServer.VSyncMode.Disabled); // the headset paces frames
+            // Cabinet boards that act as a keyboard (PinOne, Pinscape…) only reach the focused window, and the
+            // lobby is started again in the background after every table.
+            DisplayServer.WindowMoveToForeground();
             xr!.SessionStopping += () =>
                 Leave(
                     "the headset ended the VR session (Quest Link disconnected, or the app was closed from the Quest menu)"
@@ -601,7 +619,8 @@ public partial class Main : Node3D
         _hint.Rotation = new Vector3(RailTilt, 0, 0);
         _hint.Text = _vr
             ? "Stick ← → browse  ·  ↑ ↓ jump A–Z  ·  Trigger or A: play  ·  Y: random  ·  B: filter  ·  Right grip: favourite  ·  Menu: quit\n"
-                + "Height: hold left grip + left stick ↑ ↓  ·  left grip + click left stick: reset"
+                + "Height: hold left grip + left stick ↑ ↓  ·  left grip + click left stick: reset\n"
+                + "Cabinet: flippers browse  ·  magna-saves jump A–Z  ·  Start or Launch: play  ·  Coin: filter  ·  Extra ball: random  ·  hold Exit: quit"
             : "← → browse  ·  ↑ ↓ / PgUp PgDn / type a letter: jump  ·  Enter: play  ·  Ctrl+R or ?: random  ·  Tab: filter  ·  F: favourite  ·  Esc: quit\n"
                 + "Height: + / −  ·  Home: reset";
         _flash.Font = _dmdFont;
@@ -1055,6 +1074,7 @@ public partial class Main : Node3D
         if (
             _left?.IsButtonPressed("menu_button") != true
             && _right?.IsButtonPressed("menu_button") != true
+            && !_cabinetHeld.Contains(CabinetAction.Leave)
         )
         {
             _menuHeld = -1;
@@ -1279,6 +1299,10 @@ public partial class Main : Node3D
         }
 
         UpdateSelection();
+        if (_ray != null)
+        {
+            _aimAtSelect = -_ray.GlobalBasis.Z;
+        }
         _left?.TriggerHapticPulse("haptic", 0.0, 0.3, 0.05, 0.0);
         _right?.TriggerHapticPulse("haptic", 0.0, 0.3, 0.05, 0.0);
     }
@@ -1641,8 +1665,17 @@ public partial class Main : Node3D
             );
         }
 
-        if (!_vr || _launching || _left == null || _right == null || _ray == null)
+        // Held flippers / magna-saves act like a stick pushed all the way (so they repeat and speed up too).
+        var cabX = Held(CabinetAction.NextTable) - Held(CabinetAction.PrevTable);
+        var cabY = Held(CabinetAction.PrevLetter) - Held(CabinetAction.NextLetter); // up = earlier letter
+        if (_launching)
         {
+            return;
+        }
+
+        if (!_vr || _left == null || _right == null || _ray == null)
+        {
+            Steer(cabX, cabY, delta);
             return;
         }
 
@@ -1670,22 +1703,12 @@ public partial class Main : Node3D
             SaveHeight();
         }
 
-        // Either stick ← → turns the ring (faster while held); ↑ ↓ jumps between rail groups.
-        var step = Stick("x", Strongest(lv.X, rv.X), delta);
-        if (step != 0)
-        {
-            Select(Selected + step);
-            if (_held["x"] > 0.6)
-            {
-                ShowFlash(); // moving fast: show which letter we're passing
-            }
-        }
-        var j = Stick("jump", Strongest(lv.Y, rv.Y), delta);
-        if (j != 0)
-        {
-            Select(LobbyNav.Jump(Groups, Selected, -j)); // stick up = earlier letter
-            ShowFlash();
-        }
+        // Either stick, or the cabinet buttons.
+        Steer(
+            Strongest(Strongest(lv.X, rv.X), cabX),
+            Strongest(Strongest(lv.Y, rv.Y), cabY),
+            delta
+        );
 
         // Pointing: at a cabinet for a moment selects it; at the rail highlights a group.
         int slot = -1,
@@ -1714,10 +1737,114 @@ public partial class Main : Node3D
         else if (slot != -1 && _pool[slot].Index is var idx && idx >= 0 && idx != Selected)
         {
             _hoverTime += delta;
-            if (_hoverTime > 0.25)
+            // Only when the hand has moved since the last selection. Otherwise a laser resting on a side
+            // cabinet keeps selecting: each turn of the ring slides the next cabinet under it, and the ring
+            // runs through table after table from one stick tap.
+            if (
+                _hoverTime > 0.25
+                && (
+                    _aimAtSelect == Vector3.Zero
+                    || (-_ray.GlobalBasis.Z).AngleTo(_aimAtSelect) > AimMoved
+                )
+            )
             {
                 Select(idx);
             }
+        }
+    }
+
+    float Held(CabinetAction a) => _cabinetHeld.Contains(a) ? 1f : 0f;
+
+    /// <summary>A step was just taken by hand: the next one comes after the first repeat pause (see <see cref="Stick"/>).</summary>
+    void PrimeRepeat(string channel)
+    {
+        _held[channel] = 0;
+        _cool[channel] = LobbyNav.RepeatInterval(0);
+    }
+
+    public override void _Notification(int what)
+    {
+        // A key let go while another window had focus never arrives here: don't keep scrolling.
+        if (what == NotificationApplicationFocusOut)
+        {
+            _cabinetHeld.Clear();
+        }
+    }
+
+    /// <summary>← → turns the ring (faster while held); ↑ ↓ jumps between rail groups.</summary>
+    void Steer(float x, float y, double delta)
+    {
+        var step = Stick("x", x, delta);
+        if (step != 0)
+        {
+            Select(Selected + step);
+            if (_held["x"] > 0.6)
+            {
+                ShowFlash(); // moving fast: show which letter we're passing
+            }
+        }
+        var j = Stick("jump", y, delta);
+        if (j != 0)
+        {
+            Select(LobbyNav.Jump(Groups, Selected, -j)); // stick up = earlier letter
+            ShowFlash();
+        }
+    }
+
+    /// <summary>A cabinet button went down or up. Moving happens in _Process while it's held.</summary>
+    void OnCabinet(CabinetAction action, bool pressed)
+    {
+        if (!pressed)
+        {
+            _cabinetHeld.Remove(action);
+            return;
+        }
+        // While a table is played with the lobby waiting behind it, joystick boards still reach us (SDL reads
+        // them in the background): the cabinet's buttons belong to the table then, Exit above all.
+        if (_playing || !_cabinetHeld.Add(action))
+        {
+            return; // or already down
+        }
+
+        if (_launching)
+        {
+            // As with Menu: holding Exit while a table loads still closes the lobby.
+            if (action == CabinetAction.Leave && _loading != null)
+            {
+                _menuHeld = 0;
+                ShowFlash("HOLD TO LEAVE");
+            }
+            return;
+        }
+        switch (action)
+        {
+            // The first step happens on the press, so a quick tap during a slow frame (pressed and let go
+            // before _Process sees it held) still moves. _Process repeats it while held, after the usual pause.
+            case CabinetAction.PrevTable or CabinetAction.NextTable:
+                Select(Selected + (action == CabinetAction.NextTable ? 1 : -1));
+                PrimeRepeat("x");
+                break;
+            case CabinetAction.PrevLetter or CabinetAction.NextLetter:
+                Select(
+                    LobbyNav.Jump(Groups, Selected, action == CabinetAction.NextLetter ? 1 : -1)
+                );
+                ShowFlash();
+                PrimeRepeat("jump");
+                break;
+            case CabinetAction.Play:
+                _ = LaunchAsync();
+                break;
+            case CabinetAction.Filter:
+                CycleFilter();
+                break;
+            case CabinetAction.Random:
+                SelectRandom();
+                break;
+            // Like Menu, Exit has to be held: it's the button you just used to leave a table.
+            case CabinetAction.Leave:
+                _menuHeld = 0;
+                ShowFlash("HOLD TO LEAVE");
+                break;
         }
     }
 
@@ -1799,6 +1926,38 @@ public partial class Main : Node3D
 
     public override void _UnhandledInput(InputEvent @event)
     {
+        if (@event is InputEventJoypadButton jb)
+        {
+            if (jb.Pressed)
+            {
+                GD.Print($"Joystick {jb.Device} button {(int)jb.ButtonIndex}"); // to check a board's numbering
+            }
+
+            if (_cabinet.ForJoyButton((int)jb.ButtonIndex) is var ja and not CabinetAction.None)
+            {
+                OnCabinet(ja, jb.Pressed);
+            }
+
+            return;
+        }
+
+        // Keys a cabinet board sends count in VR, where no one is typing. On the desktop the keyboard keeps
+        // its own keys (Ctrl+R, letters), which the cabinet defaults (Ctrl, 1, 5…) would take over.
+        if (
+            _vr
+            && @event is InputEventKey ck
+            && CabinetKeys.ToSdl(ck) is { } sdl
+            && _cabinet.ForKey(sdl) is var ka and not CabinetAction.None
+        )
+        {
+            if (!ck.Echo)
+            {
+                OnCabinet(ka, ck.Pressed);
+            }
+
+            return;
+        }
+
         if (@event is not InputEventKey { Pressed: true } k)
         {
             return;
@@ -2153,6 +2312,7 @@ public partial class Main : Node3D
     void StartPlaying(LobbyTable t)
     {
         _playing = true;
+        _cabinetHeld.Clear(); // a held Exit (or flipper) stops counting: those buttons are the table's now
         _loadingPoll = 0.5;
         _hidden.Clear();
         foreach (var child in GetChildren())
@@ -2199,6 +2359,9 @@ public partial class Main : Node3D
 
         _hidden.Clear();
         _playing = false;
+        _cabinetHeld.Clear();
+        // VPX's window closing hands focus to whatever is next; keyboard-type cabinet boards need it here.
+        DisplayServer.WindowMoveToForeground();
         StopLoading(); // the ring, rail and the table's stats again
         RefreshFromStats();
         _returning = 0;

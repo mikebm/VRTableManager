@@ -2219,6 +2219,11 @@ foreach (var (ok, name) in UserArtworkChecks.Run(root))
     Check(ok, name);
 }
 
+foreach (var (ok, name) in CabinetButtonsChecks.Run())
+{
+    Check(ok, name);
+}
+
 foreach (var (ok, name) in TableFileMatchChecks.Run())
 {
     Check(ok, name);
