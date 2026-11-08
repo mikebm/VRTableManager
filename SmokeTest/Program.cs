@@ -14,6 +14,26 @@ void Check(bool ok, string what)
     }
 }
 
+// Live checks call GitHub's API, which allows 60 unauthenticated calls an hour per address: they run only with
+// VRTM_LIVE=1, and GitHub being unreachable or rate-limited skips them. The parsing they rely on is checked offline.
+var live = Environment.GetEnvironmentVariable("VRTM_LIVE") == "1";
+async Task Live(string what, Func<Task> check)
+{
+    if (!live)
+    {
+        Console.WriteLine($"SKIP  {what} (live GitHub check; set VRTM_LIVE=1 to run it)");
+        return;
+    }
+    try
+    {
+        await check();
+    }
+    catch (Exception e) when (e is HttpRequestException or TaskCanceledException)
+    {
+        Console.WriteLine($"SKIP  {what} (GitHub unavailable: {e.Message})");
+    }
+}
+
 // 1. Catalog
 var games = await VpsCatalog.LoadAsync(forceRefresh: false);
 var vrGames = games
@@ -400,15 +420,21 @@ Check(
     "VPU page goes through browser"
 );
 
-// 6. Latest VPX release
-var vpxReleases = await VpxSetup.FindReleasesAsync(CancellationToken.None);
-var rel = vpxReleases.Latest;
-Console.WriteLine(
-    $"latest VPX: {rel?.Tag} {rel?.AssetName} {rel?.Size / 1_048_576} MB; newest marked DO NOT USE: {vpxReleases.Withdrawn?.Tag}"
-);
-Check(
-    (rel ?? vpxReleases.Withdrawn)?.AssetName.StartsWith("VPinballX_BGFX-") == true,
-    "finds the BGFX Windows build (usable or marked DO NOT USE)"
+// 6. Latest VPX release (live: GitHub's releases API; the parsing is checked offline below)
+await Live(
+    "finds the BGFX Windows build (usable or marked DO NOT USE)",
+    async () =>
+    {
+        var vpxReleases = await VpxSetup.FindReleasesAsync(CancellationToken.None);
+        var rel = vpxReleases.Latest;
+        Console.WriteLine(
+            $"latest VPX: {rel?.Tag} {rel?.AssetName} {rel?.Size / 1_048_576} MB; newest marked DO NOT USE: {vpxReleases.Withdrawn?.Tag}"
+        );
+        Check(
+            (rel ?? vpxReleases.Withdrawn)?.AssetName.StartsWith("VPinballX_BGFX-") == true,
+            "finds the BGFX Windows build (usable or marked DO NOT USE)"
+        );
+    }
 );
 {
     static string Rel(string tag, string name) =>
@@ -493,17 +519,21 @@ Check(
     );
 }
 
-// 6b. Live nightly lookup
-{
-    var nightly = await VpxSetup.FindNightlyAsync(CancellationToken.None);
-    Console.WriteLine(
-        $"newest VPX nightly: {nightly?.Tag} {nightly?.Url} {nightly?.Size / 1_048_576} MB"
-    );
-    Check(
-        nightly?.AssetName.StartsWith("VPinballX_BGFX-") == true,
-        "finds the newest nightly BGFX build"
-    );
-}
+// 6b. Live nightly lookup (GitHub's API; ParseNightlyRuns/ParseNightlyArtifacts are checked offline)
+await Live(
+    "finds the newest nightly BGFX build",
+    async () =>
+    {
+        var nightly = await VpxSetup.FindNightlyAsync(CancellationToken.None);
+        Console.WriteLine(
+            $"newest VPX nightly: {nightly?.Tag} {nightly?.Url} {nightly?.Size / 1_048_576} MB"
+        );
+        Check(
+            nightly?.AssetName.StartsWith("VPinballX_BGFX-") == true,
+            "finds the newest nightly BGFX build"
+        );
+    }
+);
 
 // 6a. VR Table Manager's own updates
 {
@@ -1543,9 +1573,38 @@ Check(
 var bamLive = await BamCheck.LatestAsync(CancellationToken.None);
 Console.WriteLine($"latest BAM (ravarcade.pl): {bamLive}");
 Check(bamLive != null, "reads the live BAM version");
-var uevrRel = await UevrSetup.FindLatestAsync(CancellationToken.None);
-Console.WriteLine($"latest UEVR: {uevrRel?.Tag} {uevrRel?.Size / 1_048_576} MB");
-Check(uevrRel?.Url.EndsWith("/UEVR.zip") == true, "finds the latest UEVR release");
+
+// UEVR's releases, in the shape GitHub's API returns them (newest first; nightlies are pre-releases).
+{
+    const string uevrJson = """
+        [
+          {"tag_name":"nightly-01090","draft":false,"prerelease":true,
+           "assets":[{"name":"UEVR.zip","browser_download_url":"https://github.com/praydog/UEVR-nightly/releases/download/nightly-01090/UEVR.zip","size":9100000}]},
+          {"tag_name":"1.06","draft":true,"prerelease":false,
+           "assets":[{"name":"UEVR.zip","browser_download_url":"https://github.com/praydog/UEVR/releases/download/1.06/UEVR.zip","size":9000000}]},
+          {"tag_name":"1.05","draft":false,"prerelease":false,
+           "assets":[{"name":"UEVR-src.zip","browser_download_url":"https://github.com/praydog/UEVR/releases/download/1.05/UEVR-src.zip","size":1},
+                     {"name":"UEVR.zip","browser_download_url":"https://github.com/praydog/UEVR/releases/download/1.05/UEVR.zip","size":8800000}]}
+        ]
+        """;
+    var uevrParsed = UevrSetup.ParseLatest(uevrJson);
+    Check(
+        uevrParsed is { Tag: "1.05", Size: 8800000 }
+            && uevrParsed.Url.EndsWith("/1.05/UEVR.zip")
+            && UevrSetup.ParseLatest("[]") == null,
+        "UEVR: the newest stable release's UEVR.zip; pre-releases and drafts skipped"
+    );
+}
+
+await Live(
+    "finds the latest UEVR release",
+    async () =>
+    {
+        var uevrRel = await UevrSetup.FindLatestAsync(CancellationToken.None);
+        Console.WriteLine($"latest UEVR: {uevrRel?.Tag} {uevrRel?.Size / 1_048_576} MB");
+        Check(uevrRel?.Url.EndsWith("/UEVR.zip") == true, "finds the latest UEVR release");
+    }
+);
 
 // ---- ROMs ----
 {

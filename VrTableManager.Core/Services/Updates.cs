@@ -74,9 +74,16 @@ public static class UevrSetup
             "UEVR"
         );
 
-    public static async Task<ToolRelease?> FindLatestAsync(CancellationToken ct)
+    public static async Task<ToolRelease?> FindLatestAsync(CancellationToken ct) =>
+        ParseLatest(await Http.Client.GetStringAsync(ReleasesApi, ct));
+
+    /// <summary>
+    /// The newest stable release with a UEVR.zip, from GitHub's releases list (newest first); drafts and
+    /// pre-releases are skipped.
+    /// </summary>
+    public static ToolRelease? ParseLatest(string json)
     {
-        using var doc = JsonDocument.Parse(await Http.Client.GetStringAsync(ReleasesApi, ct));
+        using var doc = JsonDocument.Parse(json);
         foreach (var rel in doc.RootElement.EnumerateArray())
         {
             if (rel.GetProperty("draft").GetBoolean() || rel.GetProperty("prerelease").GetBoolean())
