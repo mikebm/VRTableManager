@@ -152,6 +152,7 @@ public sealed partial class MainViewModel : ObservableObject, IAsyncDisposable
             _assisted.KnownGames = _allGames.Select(g => g.Name);
             ApplyFilter();
             ApplyTableUpdates();
+            _ = LinkImportedTablesAsync();
             _ = CheckUpdatesAsync(); // VPX / UEVR / BAM, in the background
             _ = LoadRuleSheetsAsync();
             _ = RefreshHighScoreMapsAsync();
@@ -1332,6 +1333,55 @@ public sealed partial class MainViewModel : ObservableObject, IAsyncDisposable
         }
         ShowInstalled();
         _ = RefreshSizesAsync();
+        _ = LinkImportedTablesAsync();
+    }
+
+    /// <summary>
+    /// Tables copied in by Import tables have no catalog entry, so no picture, backglass, add-ons or rules:
+    /// link the ones that can be matched surely (CatalogLink), once per table. Needs the catalog loaded.
+    /// </summary>
+    async Task LinkImportedTablesAsync()
+    {
+        if (_allGames.Count == 0)
+        {
+            return;
+        }
+
+        var games = _allGames;
+        var tables = _allInstalled.Select(i => i.Table).ToList();
+        var linked = await Task.Run(() =>
+        {
+            var changed = new List<InstalledTable>();
+            foreach (var t in tables)
+            {
+                try
+                {
+                    if (CatalogLink.TryLink(t, games))
+                    {
+                        TableInstaller.SaveManifest(t);
+                        if (t.Manifest.GameId != "")
+                        {
+                            changed.Add(t);
+                        }
+                    }
+                }
+                catch (Exception e) when (e is IOException or UnauthorizedAccessException)
+                {
+                    // Read-only folder or the file's in use: try again next time.
+                }
+            }
+            return changed;
+        });
+        if (linked.Count == 0)
+        {
+            return;
+        }
+
+        foreach (var item in _allInstalled.Where(i => linked.Contains(i.Table)))
+        {
+            item.RefreshUserArtwork(); // re-reads ImgUrl
+        }
+        ApplyTableUpdates(); // add-ons and rules now know the game
     }
 
     public string[] InstalledEngines { get; } =

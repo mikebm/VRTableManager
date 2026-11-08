@@ -41,6 +41,12 @@ public sealed class TableManifest
 
     /// <summary>Which version of the ROM check last ran on this table (see RomRequirements.Version); 0 = never.</summary>
     public int RomCheck { get; set; }
+
+    /// <summary>
+    /// Which version of the catalog matching last tried this table (see CatalogLink.Version); 0 = never.
+    /// Only tables that didn't come from the catalog (Import tables) are tried.
+    /// </summary>
+    public int CatalogLink { get; set; }
     public DateTime InstalledAt { get; set; }
 
     /// <summary>VPS UpdatedAt (epoch ms) of the table file when it was installed; used for update checks.</summary>

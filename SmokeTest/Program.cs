@@ -2224,6 +2224,11 @@ foreach (var (ok, name) in TableFileMatchChecks.Run())
     Check(ok, name);
 }
 
+foreach (var (ok, name) in CatalogLinkChecks.Run(root, games))
+{
+    Check(ok, name);
+}
+
 foreach (var (ok, name) in await VpxInstallChecks.RunAsync(root))
 {
     Check(ok, name);
