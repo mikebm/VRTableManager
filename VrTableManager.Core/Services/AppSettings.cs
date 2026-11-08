@@ -47,6 +47,12 @@ public sealed class AppSettings
     /// </summary>
     public bool VpxUseNightlyBuilds { get; set; }
 
+    /// <summary>
+    /// The VPX build the player picked from the Setup tab's build list (often an older one, when a newer build broke
+    /// something). While it's installed, newer builds aren't offered as updates; INSTALL / UPDATE VPX clears it.
+    /// </summary>
+    public string? VpxKeptBuild { get; set; }
+
     /// <summary>0 = runtime default, otherwise 72/80/90/120.</summary>
     public int VrRefreshRate { get; set; }
 

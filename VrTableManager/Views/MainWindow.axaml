@@ -823,7 +823,16 @@
                   <StackPanel Orientation="Horizontal" Spacing="8">
                     <Button Classes="primary" Content="INSTALL / UPDATE VPX" Command="{Binding InstallVpxCommand}" IsEnabled="{Binding !IsInstallingVpx}" />
                     <Button Content="CHECK FOR UPDATES" Command="{Binding CheckVpxUpdateCommand}" />
+                    <Button Content="CHOOSE A BUILD…" Command="{Binding LoadVpxBuildsCommand}" IsEnabled="{Binding !IsInstallingVpx}"
+                            ToolTip.Tip="Lists VPX's releases (and, with nightly builds on, the last week or so of nightlies) so you can install a particular one, such as an older build when a newer one broke something." />
                   </StackPanel>
+                  <WrapPanel IsVisible="{Binding HasVpxBuilds}">
+                    <ComboBox ItemsSource="{Binding VpxBuilds}" SelectedItem="{Binding ChosenVpxBuild}" MinWidth="380" MaxDropDownHeight="420"
+                              Margin="0,0,8,0" VerticalAlignment="Center" />
+                    <Button Classes="small" Content="{Binding ChosenVpxButtonText}" Command="{Binding InstallChosenVpxCommand}" IsEnabled="{Binding !IsInstallingVpx}"
+                            VerticalAlignment="Center"
+                            ToolTip.Tip="Installs the picked build over the one you have, older or newer, and keeps it: newer builds aren't offered as updates until you click INSTALL / UPDATE VPX. Your settings files stay as they are. On the installed build it reinstalls it, which repairs a damaged VPX folder." />
+                  </WrapPanel>
                   <Grid ColumnDefinitions="*,Auto" ColumnSpacing="8" IsVisible="{Binding IsInstallingVpx}">
                     <ProgressBar Value="{Binding VpxProgress}" IsIndeterminate="{Binding VpxProgressUnknown}" VerticalAlignment="Center" />
                     <Button Grid.Column="1" Classes="small" Content="CANCEL" Command="{Binding CancelVpxInstallCommand}" />

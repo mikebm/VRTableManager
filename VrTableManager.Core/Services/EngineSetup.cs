@@ -18,6 +18,25 @@ public sealed record VpxRelease(
 /// <param name="Withdrawn">Newest BGFX build renamed "DO NOT USE", when it's newer than <paramref name="Latest"/>.</param>
 public sealed record VpxReleases(VpxRelease? Latest, VpxRelease? Withdrawn);
 
+/// <summary>
+/// A build the Setup tab's build list offers, so a player can go back to an older one (a nightly that broke
+/// something, say). A release knows its download; a nightly only its run, whose download is looked up when it's
+/// installed (<see cref="VpxSetup.ResolveAsync"/>), so listing them costs one GitHub call, not one per build.
+/// </summary>
+public sealed record VpxBuildChoice(
+    string Label,
+    DateTimeOffset Date,
+    VpxRelease? Release = null,
+    string? ArtifactsUrl = null,
+    string? Sha = null
+)
+{
+    /// <summary>The build VPX's folder has now (shown in the list).</summary>
+    public bool Installed { get; init; }
+
+    public override string ToString() => Installed ? Label + " · installed" : Label;
+}
+
 /// <summary>Installs Visual Pinball X (BGFX build, which does VR through OpenXR) and prepares a VR settings file.</summary>
 public static class VpxSetup
 {
@@ -76,21 +95,125 @@ public static class VpxSetup
     // workflow artifacts to signed-in users; nightly.link serves the same files publicly.
     const string NightlyRunsApi =
         "https://api.github.com/repos/vpinball/vpinball/actions/workflows/vpinball.yml/runs?branch=master&event=push&status=success&per_page=1";
+
+    // The build list's nightlies: VPX's master branch builds several times a day, so this reaches back about a week.
+    const string NightlyRunsListApi =
+        "https://api.github.com/repos/vpinball/vpinball/actions/workflows/vpinball.yml/runs?branch=master&event=push&status=success&per_page=60";
     const string NightlyDownload = "https://nightly.link/vpinball/vpinball/actions/artifacts/";
 
     /// <summary>The BGFX build from the newest successful master-branch run, or null.</summary>
-    public static async Task<VpxRelease?> FindNightlyAsync(CancellationToken ct)
-    {
-        using var runs = JsonDocument.Parse(await Http.Client.GetStringAsync(NightlyRunsApi, ct));
-        var run = runs.RootElement.GetProperty("workflow_runs").EnumerateArray().FirstOrDefault();
-        if (run.ValueKind != JsonValueKind.Object)
-        {
-            return null;
-        }
+    public static async Task<VpxRelease?> FindNightlyAsync(CancellationToken ct) =>
+        ParseNightlyRuns(await Http.Client.GetStringAsync(NightlyRunsApi, ct)).FirstOrDefault()
+            is { } run
+            ? await ResolveAsync(run, ct)
+            : null;
 
-        var artifactsUrl = run.GetProperty("artifacts_url").GetString() + "?per_page=100";
-        return ParseNightlyArtifacts(await Http.Client.GetStringAsync(artifactsUrl, ct));
+    /// <summary>
+    /// Every build the build list offers, releases first, each newest first: the releases (those marked "DO NOT USE" only with
+    /// <paramref name="useDoNotUse"/>), and with <paramref name="nightly"/> the recent nightlies too.
+    /// </summary>
+    public static async Task<List<VpxBuildChoice>> FindBuildsAsync(
+        CancellationToken ct,
+        bool useDoNotUse,
+        bool nightly
+    )
+    {
+        var releases = Http.Client.GetStringAsync(ReleasesApi, ct);
+        var runs = nightly ? Http.Client.GetStringAsync(NightlyRunsListApi, ct) : null;
+        var builds = ParseReleaseList(await releases, useDoNotUse);
+        if (runs != null)
+        {
+            builds.AddRange(ParseNightlyRuns(await runs));
+        }
+        // Releases first (a handful, easy to find by version), then the nightlies: by date alone a week of nightlies
+        // would bury every release.
+        return [.. builds.OrderBy(b => b.Release == null).ThenByDescending(b => b.Date)];
     }
+
+    /// <summary>Every release with a BGFX build for this OS (not drafts; "DO NOT USE" ones only when allowed).</summary>
+    public static List<VpxBuildChoice> ParseReleaseList(string json, bool useDoNotUse)
+    {
+        using var doc = JsonDocument.Parse(json);
+        var list = new List<VpxBuildChoice>();
+        foreach (var rel in doc.RootElement.EnumerateArray())
+        {
+            var name = rel.TryGetProperty("name", out var n) ? n.GetString() ?? "" : "";
+            var doNotUse = name.StartsWith("DO NOT USE", StringComparison.OrdinalIgnoreCase);
+            if (
+                rel.GetProperty("draft").GetBoolean()
+                || (doNotUse && !useDoNotUse)
+                || BgfxAsset(rel) is not { } asset
+            )
+            {
+                continue;
+            }
+
+            var date = DateOf(rel, "published_at");
+            list.Add(
+                new VpxBuildChoice(
+                    $"{asset.Tag} · {date:yyyy-MM-dd}" + (doNotUse ? " · marked DO NOT USE" : ""),
+                    date,
+                    Release: asset
+                )
+            );
+        }
+        return list;
+    }
+
+    /// <summary>Successful master-branch runs (one nightly build each), newest first.</summary>
+    public static List<VpxBuildChoice> ParseNightlyRuns(string json)
+    {
+        using var doc = JsonDocument.Parse(json);
+        var list = new List<VpxBuildChoice>();
+        foreach (var run in doc.RootElement.GetProperty("workflow_runs").EnumerateArray())
+        {
+            var sha = run.GetProperty("head_sha").GetString() ?? "";
+            var date = DateOf(run, "created_at");
+            list.Add(
+                new VpxBuildChoice(
+                    $"Nightly · {date:yyyy-MM-dd HH:mm} UTC · {sha[..Math.Min(9, sha.Length)]}",
+                    date,
+                    ArtifactsUrl: run.GetProperty("artifacts_url").GetString() + "?per_page=100",
+                    Sha: sha
+                )
+            );
+        }
+        return list;
+    }
+
+    static DateTimeOffset DateOf(JsonElement e, string property) =>
+        e.TryGetProperty(property, out var d)
+        && d.ValueKind == JsonValueKind.String
+        && DateTimeOffset.TryParse(d.GetString(), out var date)
+            ? date
+            : DateTimeOffset.MinValue;
+
+    /// <summary>
+    /// The download for a build in the list: a release's own, or a nightly run's BGFX artifact (null when GitHub
+    /// no longer has it: workflow artifacts expire).
+    /// </summary>
+    public static async Task<VpxRelease?> ResolveAsync(
+        VpxBuildChoice build,
+        CancellationToken ct
+    ) =>
+        build.Release
+        ?? (
+            build.ArtifactsUrl is { } url
+                ? ParseNightlyArtifacts(await Http.Client.GetStringAsync(url, ct))
+                : null
+        );
+
+    /// <summary>Whether <paramref name="installed"/> (a tag like "v10.8.1-6625-2ad1916b2") is this build.</summary>
+    public static bool IsInstalled(VpxBuildChoice build, string? installed) =>
+        installed != null
+        && (
+            build.Release is { } r
+                ? installed == r.Tag || SameBuild(installed, r.Tag)
+                : build.Sha is { Length: >= 7 } sha
+                    && installed.Split('-') is [_, _, var hash, ..]
+                    && hash.Length >= 7
+                    && sha.StartsWith(hash, StringComparison.OrdinalIgnoreCase)
+        );
 
     public static VpxRelease? ParseNightlyArtifacts(string json)
     {
@@ -165,8 +288,16 @@ public static class VpxSetup
         return null;
     }
 
-    /// <summary>The Setup tab's line about VPX updates, and whether to offer one.</summary>
-    public static (string Text, bool HasUpdate) DescribeUpdate(VpxReleases r, string? installed)
+    /// <summary>
+    /// The Setup tab's line about VPX updates, and whether to offer one. <paramref name="kept"/> is a build the
+    /// player picked from the build list (<see cref="AppSettings.VpxKeptBuild"/>): while it's installed, newer
+    /// builds are mentioned but not offered, so going back to an older build doesn't get undone by an update.
+    /// </summary>
+    public static (string Text, bool HasUpdate) DescribeUpdate(
+        VpxReleases r,
+        string? installed,
+        string? kept = null
+    )
     {
         var note = r.Withdrawn is { } w
             ? $" The VPX team has marked newer builds (up to {w.Tag}) \"DO NOT USE\" on GitHub, so they aren't offered."
@@ -191,6 +322,13 @@ public static class VpxSetup
         if (installed == r.Latest.Tag || SameBuild(installed, r.Latest.Tag))
         {
             return ($"Up to date ({installed}).{note}", false);
+        }
+        if (kept != null && (installed == kept || SameBuild(installed, kept)))
+        {
+            return (
+                $"Keeping {installed}, the build you picked. Newest is {latest}: INSTALL / UPDATE VPX goes back to it.",
+                false
+            );
         }
         // Installed something newer than the newest usable build (e.g. a build later marked DO NOT USE): keep it.
         if (installed == r.Withdrawn?.Tag || IsNewer(installed, r.Latest.Tag))

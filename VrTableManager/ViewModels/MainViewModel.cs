@@ -2152,7 +2152,8 @@ public sealed partial class MainViewModel : ObservableObject, IAsyncDisposable
             );
             var (text, hasUpdate) = VpxSetup.DescribeUpdate(
                 releases,
-                VpxSetup.InstalledVersion(Settings)
+                VpxSetup.InstalledVersion(Settings),
+                Settings.VpxKeptBuild
             );
             LatestVpx = hasUpdate ? $"{text} ({releases.Latest!.Size / 1_048_576} MB)" : text;
         }
@@ -2171,18 +2172,113 @@ public sealed partial class MainViewModel : ObservableObject, IAsyncDisposable
     [RelayCommand]
     void CancelVpxInstall() => _vpxInstallCts?.Cancel();
 
+    /// <summary>The build list: releases and (with nightly builds on) recent nightlies, to go back to an older one.</summary>
+    public ObservableCollection<VpxBuildChoice> VpxBuilds { get; } = [];
+
+    [ObservableProperty]
+    [NotifyCanExecuteChangedFor(nameof(InstallChosenVpxCommand))]
+    public partial VpxBuildChoice? ChosenVpxBuild { get; set; }
+
+    [ObservableProperty]
+    public partial bool HasVpxBuilds { get; set; }
+
     [RelayCommand]
-    async Task InstallVpxAsync()
+    async Task LoadVpxBuildsAsync()
     {
-        IsInstallingVpx = true;
-        VpxProgress = 0;
-        VpxProgressUnknown = true;
-        using var cts = _vpxInstallCts = new CancellationTokenSource();
+        LatestVpx = "Getting the list of VPX builds from GitHub…";
         try
         {
+            var builds = await VpxSetup.FindBuildsAsync(
+                CancellationToken.None,
+                Settings.VpxUseDoNotUseBuilds,
+                UseNightlyVpx
+            );
+            VpxBuilds.Clear();
+            foreach (var b in builds)
+            {
+                VpxBuilds.Add(b);
+            }
+            HasVpxBuilds = VpxBuilds.Count > 0;
+            MarkInstalledVpxBuild();
+            ChosenVpxBuild =
+                VpxBuilds.FirstOrDefault(b => b.Installed) ?? VpxBuilds.FirstOrDefault();
+            LatestVpx = HasVpxBuilds
+                ? $"{VpxBuilds.Count} builds. Pick one and click INSTALL THIS BUILD."
+                    + (UseNightlyVpx ? "" : " Turn on nightly builds below to list those too.")
+                : "No VPX builds found for this OS.";
+        }
+        catch (Exception e)
+        {
+            LatestVpx = "Couldn't check GitHub: " + e.Message;
+        }
+    }
+
+    /// <summary>Marks which build in the list is the installed one (after the list loads, and after an install).</summary>
+    void MarkInstalledVpxBuild()
+    {
+        var installed = VpxSetup.InstalledVersion(Settings);
+        var chosen = ChosenVpxBuild;
+        for (var i = 0; i < VpxBuilds.Count; i++)
+        {
+            var b = VpxBuilds[i];
+            var now = VpxSetup.IsInstalled(b, installed);
+            if (b.Installed != now)
+            {
+                VpxBuilds[i] = b with { Installed = now };
+                if (ReferenceEquals(b, chosen))
+                {
+                    ChosenVpxBuild = VpxBuilds[i];
+                }
+            }
+        }
+    }
+
+    bool CanInstallChosenVpx() => ChosenVpxBuild != null;
+
+    /// <summary>The installed build can be picked too: installing it again repairs a damaged VPX folder.</summary>
+    public string ChosenVpxButtonText =>
+        ChosenVpxBuild is { Installed: true } ? "REINSTALL THIS BUILD" : "INSTALL THIS BUILD";
+
+    partial void OnChosenVpxBuildChanged(VpxBuildChoice? value) =>
+        OnPropertyChanged(nameof(ChosenVpxButtonText));
+
+    /// <summary>
+    /// Installs the build picked from the list, older or newer, and keeps it: newer builds aren't offered as
+    /// updates until INSTALL / UPDATE VPX is clicked.
+    /// </summary>
+    [RelayCommand(CanExecute = nameof(CanInstallChosenVpx))]
+    Task InstallChosenVpxAsync() =>
+        RunVpxInstallAsync(async ct =>
+        {
+            if (ChosenVpxBuild is not { } build)
+            {
+                return null;
+            }
+            LatestVpx = $"Finding the download for {build.Label}…";
+            if (await VpxSetup.ResolveAsync(build, ct) is not { } rel)
+            {
+                LatestVpx =
+                    "GitHub no longer has that nightly's download (they expire after a while). Pick a newer one.";
+                return null;
+            }
+            Settings.VpxKeptBuild = rel.Tag;
+            Settings.Save();
+            return rel;
+        });
+
+    [RelayCommand]
+    Task InstallVpxAsync() =>
+        RunVpxInstallAsync(async ct =>
+        {
+            // The newest build again: a build picked from the list stops being kept.
+            if (Settings.VpxKeptBuild != null)
+            {
+                Settings.VpxKeptBuild = null;
+                Settings.Save();
+            }
             LatestVpx = "Checking GitHub for the newest VPX build…";
             var releases = await VpxSetup.FindReleasesAsync(
-                cts.Token,
+                ct,
                 Settings.VpxUseDoNotUseBuilds,
                 UseNightlyVpx
             );
@@ -2192,6 +2288,22 @@ public sealed partial class MainViewModel : ObservableObject, IAsyncDisposable
             if (releases.Latest is not { } rel || (installed != null && !hasUpdate))
             {
                 LatestVpx = text;
+                return null;
+            }
+            return rel;
+        });
+
+    /// <summary>Installs the build <paramref name="pick"/> chooses (null: nothing to install; it says why).</summary>
+    async Task RunVpxInstallAsync(Func<CancellationToken, Task<VpxRelease?>> pick)
+    {
+        IsInstallingVpx = true;
+        VpxProgress = 0;
+        VpxProgressUnknown = true;
+        using var cts = _vpxInstallCts = new CancellationTokenSource();
+        try
+        {
+            if (await pick(cts.Token) is not { } rel)
+            {
                 return;
             }
             var progress = new Progress<double>(p =>
@@ -2214,7 +2326,13 @@ public sealed partial class MainViewModel : ObservableObject, IAsyncDisposable
                     }),
                 cts.Token
             );
-            LatestVpx = $"Installed {rel.Tag}.";
+            LatestVpx =
+                $"Installed {rel.Tag}."
+                + (
+                    Settings.VpxKeptBuild == rel.Tag
+                        ? " Newer builds won't be offered as updates until you click INSTALL / UPDATE VPX."
+                        : ""
+                );
         }
         catch (OperationCanceledException) when (cts.IsCancellationRequested)
         {
@@ -2244,6 +2362,7 @@ public sealed partial class MainViewModel : ObservableObject, IAsyncDisposable
             _vpxInstallCts = null;
             VpxProgressUnknown = false;
             IsInstallingVpx = false;
+            MarkInstalledVpxBuild();
             RefreshSetupStatus();
             await CheckUpdatesAsync();
         }
@@ -2523,7 +2642,11 @@ public sealed partial class MainViewModel : ObservableObject, IAsyncDisposable
             var (vpxText, vpxUpdate) =
                 vpx == null
                     ? ("", false)
-                    : VpxSetup.DescribeUpdate(vpx, VpxSetup.InstalledVersion(Settings));
+                    : VpxSetup.DescribeUpdate(
+                        vpx,
+                        VpxSetup.InstalledVersion(Settings),
+                        Settings.VpxKeptBuild
+                    );
             HasVpxUpdate = vpxUpdate;
             VpxUpdateText = vpxErr != null ? "Couldn't check GitHub: " + vpxErr : vpxText;
 
