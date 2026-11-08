@@ -14,6 +14,7 @@ public enum CabinetAction
     Filter,
     Random,
     Leave,
+    Favourite,
 }
 
 /// <summary>
@@ -65,6 +66,27 @@ public sealed class CabinetButtons
 
     /// <summary>The action for a joystick button (from 0), or <see cref="CabinetAction.None"/>.</summary>
     public CabinetAction ForJoyButton(int button) => _joy.GetValueOrDefault(button);
+
+    /// <summary>
+    /// A game controller (Xbox, PlayStation, Switch…) in the lobby, whatever VPX has: Godot numbers its buttons in
+    /// one standard layout (SDL's), which a VPX joystick mapping may not use, and most players never map one in VPX.
+    /// Face buttons follow the Quest controllers (A play, B filter, Y random); the shoulders are the flippers.
+    /// PlayStation: Cross = A, Circle = B, Square = X, Triangle = Y, Options = Start, Share = Back.
+    /// </summary>
+    public static CabinetAction ForGamepadButton(int button) =>
+        button switch
+        {
+            0 or 6 => CabinetAction.Play, // A, Start
+            1 => CabinetAction.Filter, // B
+            2 => CabinetAction.Favourite, // X
+            3 => CabinetAction.Random, // Y
+            4 => CabinetAction.Leave, // Back (held)
+            9 or 13 => CabinetAction.PrevTable, // left shoulder, d-pad left
+            10 or 14 => CabinetAction.NextTable, // right shoulder, d-pad right
+            11 => CabinetAction.PrevLetter, // d-pad up
+            12 => CabinetAction.NextLetter, // d-pad down
+            _ => CabinetAction.None,
+        };
 
     /// <summary>The cabinet controls VR play would use with these settings.</summary>
     public static CabinetButtons Load(AppSettings s) => From(VpxIniLayers.Effective(s, vr: true));

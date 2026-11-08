@@ -58,6 +58,7 @@ public partial class Main : Node3D
     // Cabinet buttons (flippers, magna-saves, Start…), mapped like the player's VPX controls (CabinetButtons).
     CabinetButtons _cabinet = CabinetButtons.None;
     readonly HashSet<CabinetAction> _cabinetHeld = [];
+    Vector2 _padStick; // a game controller's left stick (up = +Y)
     readonly AudioStreamPlayer3D _attract = new() { VolumeDb = -12f, UnitSize = 3f };
     readonly Dictionary<string, string?> _attractFiles = [];
     readonly PlayfieldVideo _video = new();
@@ -223,6 +224,12 @@ public partial class Main : Node3D
         {
             _cabinet = CabinetButtons.Load(Settings);
             GD.Print("Cabinet buttons: " + _cabinet.Describe());
+            foreach (var id in Input.GetConnectedJoypads())
+            {
+                LogJoypad(id, true);
+            }
+
+            Input.JoyConnectionChanged += (id, connected) => LogJoypad((int)id, connected);
         }
         catch (Exception e)
         {
@@ -1666,8 +1673,14 @@ public partial class Main : Node3D
         }
 
         // Held flippers / magna-saves act like a stick pushed all the way (so they repeat and speed up too).
-        var cabX = Held(CabinetAction.NextTable) - Held(CabinetAction.PrevTable);
-        var cabY = Held(CabinetAction.PrevLetter) - Held(CabinetAction.NextLetter); // up = earlier letter
+        var cabX = Strongest(
+            Held(CabinetAction.NextTable) - Held(CabinetAction.PrevTable),
+            _padStick.X
+        );
+        var cabY = Strongest(
+            Held(CabinetAction.PrevLetter) - Held(CabinetAction.NextLetter), // up = earlier letter
+            _padStick.Y
+        );
         if (_launching)
         {
             return;
@@ -1755,6 +1768,14 @@ public partial class Main : Node3D
 
     float Held(CabinetAction a) => _cabinetHeld.Contains(a) ? 1f : 0f;
 
+    /// <summary>"Joystick 0: PS4 Controller (game controller)", so the log shows what the lobby can see.</summary>
+    static void LogJoypad(int id, bool connected) =>
+        GD.Print(
+            connected
+                ? $"Joystick {id}: {Input.GetJoyName(id)}{(Input.IsJoyKnown(id) ? " (game controller)" : " (uses the VPX joystick mapping)")}"
+                : $"Joystick {id} disconnected"
+        );
+
     /// <summary>A step was just taken by hand: the next one comes after the first repeat pause (see <see cref="Stick"/>).</summary>
     void PrimeRepeat(string channel)
     {
@@ -1768,6 +1789,7 @@ public partial class Main : Node3D
         if (what == NotificationApplicationFocusOut)
         {
             _cabinetHeld.Clear();
+            _padStick = Vector2.Zero;
         }
     }
 
@@ -1836,6 +1858,9 @@ public partial class Main : Node3D
                 break;
             case CabinetAction.Filter:
                 CycleFilter();
+                break;
+            case CabinetAction.Favourite:
+                ToggleFavourite();
                 break;
             case CabinetAction.Random:
                 SelectRandom();
@@ -1928,14 +1953,37 @@ public partial class Main : Node3D
     {
         if (@event is InputEventJoypadButton jb)
         {
+            // Game controllers Godot knows (Xbox, PlayStation…) have a fixed layout; anything else (a cabinet
+            // board) uses the buttons the player mapped in VPX.
+            var pad = Input.IsJoyKnown(jb.Device);
             if (jb.Pressed)
             {
-                GD.Print($"Joystick {jb.Device} button {(int)jb.ButtonIndex}"); // to check a board's numbering
+                GD.Print(
+                    $"Joystick {jb.Device} button {(int)jb.ButtonIndex}{(pad ? " (game controller)" : "")}"
+                ); // to check a board's numbering
             }
 
-            if (_cabinet.ForJoyButton((int)jb.ButtonIndex) is var ja and not CabinetAction.None)
+            var ja = pad
+                ? CabinetButtons.ForGamepadButton((int)jb.ButtonIndex)
+                : _cabinet.ForJoyButton((int)jb.ButtonIndex);
+            if (ja != CabinetAction.None)
             {
                 OnCabinet(ja, jb.Pressed);
+            }
+
+            return;
+        }
+
+        // A game controller's left stick works like a Quest stick.
+        if (@event is InputEventJoypadMotion jm && Input.IsJoyKnown(jm.Device))
+        {
+            if (jm.Axis == JoyAxis.LeftX)
+            {
+                _padStick.X = jm.AxisValue;
+            }
+            else if (jm.Axis == JoyAxis.LeftY)
+            {
+                _padStick.Y = -jm.AxisValue; // Godot's stick Y is down-positive; up = earlier letter
             }
 
             return;
@@ -2312,7 +2360,9 @@ public partial class Main : Node3D
     void StartPlaying(LobbyTable t)
     {
         _playing = true;
-        _cabinetHeld.Clear(); // a held Exit (or flipper) stops counting: those buttons are the table's now
+        // A held Exit (or flipper) stops counting: those buttons are the table's now.
+        _cabinetHeld.Clear();
+        _padStick = Vector2.Zero;
         _loadingPoll = 0.5;
         _hidden.Clear();
         foreach (var child in GetChildren())
@@ -2360,6 +2410,7 @@ public partial class Main : Node3D
         _hidden.Clear();
         _playing = false;
         _cabinetHeld.Clear();
+        _padStick = Vector2.Zero;
         // VPX's window closing hands focus to whatever is next; keyboard-type cabinet boards need it here.
         DisplayServer.WindowMoveToForeground();
         StopLoading(); // the ring, rail and the table's stats again

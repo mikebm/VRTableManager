@@ -45,20 +45,24 @@ godot --path VrLobby
 | Hold left grip + click left stick | Home | Reset height |
 | Hold Menu (1 s) | Esc | Quit the lobby (a short press only shows "HOLD TO LEAVE"). Every close is written to the lobby's log with its reason. |
 
-### Cabinet buttons
+### Cabinet buttons and game controllers
 
-On a cabinet controller (PinOne, Pinscape, Zeb's and the like) you don't need the Quest controllers. The lobby uses the buttons you set up in VPX, read from the settings VR play uses (VPX 10.8.1's `[Input]` mappings, or the older `[Player]` keys and joystick buttons; VPX's default keys where nothing is set), so a board that works in VPX works here with nothing to set up:
+On a cabinet controller (PinOne, Pinscape, Zeb's and the like) or a game controller (Xbox, PlayStation) you don't need the Quest controllers. Full guide, with troubleshooting: [Cabinet buttons and game controllers](../docs/cabinet-buttons.md).
 
-| Cabinet button | Default key | Action |
-|---|---|---|
-| Left / right flipper | Left / Right Shift | Previous / next table (hold to keep going) |
-| Left / right magna-save | Left / Right Ctrl | Previous / next letter |
-| Start, Launch ball, Lockbar fire | 1, Enter, Left Alt | Play |
-| Coin | 5 | Next filter |
-| Extra ball | B | Random table |
-| Exit | Q | Hold 1 s to quit the lobby |
+| Cabinet button | Default key | Game controller | Action |
+|---|---|---|---|
+| Left / right flipper | Left / Right Shift | LB / RB, stick or d-pad ← → | Previous / next table (hold to keep going) |
+| Left / right magna-save | Left / Right Ctrl | Stick or d-pad ↑ ↓ | Previous / next letter |
+| Start, Launch ball, Lockbar fire | 1, Enter, Left Alt | A, Start | Play |
+| Coin | 5 | B | Next filter |
+| Extra ball | B | Y | Random table |
+| – | – | X | Favourite |
+| Exit | Q | Back | Hold 1 s to quit the lobby |
 
-Keys count only in VR, so the desktop window keeps its own keyboard controls. Boards in joystick mode work in both. Every joystick button press is written to the lobby's log (`Joystick 0 button 3`), to check a board's numbering against VPX's.
+- **Cabinet buttons** are the player's own VPX controls, read from the settings VR play uses (VPX 10.8.1's `[Input]` mappings, or the older `[Player]` keys and joystick buttons; VPX's default keys where nothing is set). Joysticks Godot doesn't know as game controllers (cabinet boards) use the VPX joystick mapping.
+- **Game controllers** Godot knows (`Input.IsJoyKnown`) use the fixed layout above, since Godot renumbers their buttons to SDL's gamepad layout.
+- **Where they count:** keys count only in VR, so the desktop window keeps its own keyboard controls. Joysticks work in both, and also while the lobby window isn't focused (`ignore_joypad_on_unfocused_application = false`), but not while a table plays with the lobby waiting behind it.
+- **Log:** every controller is written to the lobby's log when it connects, and every button press too (`Joystick 0 button 3`).
 
 The old flat "wall" view is gone: the cabinet ring replaces it, and the thumbstick click no longer switches views.
 

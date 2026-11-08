@@ -66,6 +66,14 @@ static class CabinetButtonsChecks
             "cabinet buttons: older VPX keys and joystick buttons"
         );
         yield return (
+            CabinetButtons.ForGamepadButton(0) == CabinetAction.Play // A / Cross
+                && CabinetButtons.ForGamepadButton(9) == CabinetAction.PrevTable // L1
+                && CabinetButtons.ForGamepadButton(14) == CabinetAction.NextTable // d-pad right
+                && CabinetButtons.ForGamepadButton(4) == CabinetAction.Leave // Back / Share
+                && CabinetButtons.ForGamepadButton(5) == CabinetAction.None, // Guide / PS button
+            "cabinet buttons: game controllers have their own layout"
+        );
+        yield return (
             CabinetButtons.Sdl.FromDirectInput(0x10) == 4 + ('Q' - 'A')
                 && CabinetButtons.Sdl.FromDirectInput(0x02) == CabinetButtons.Sdl.Digit1
                 && CabinetButtons.Sdl.FromDirectInput(0x9D) == CabinetButtons.Sdl.RCtrl,

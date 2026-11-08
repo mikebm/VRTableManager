@@ -30,6 +30,12 @@ anti_aliasing/quality/msaa_3d=2
 ; 16x anisotropic filtering: playfields stay sharp when seen at a low angle.
 textures/default_filters/anisotropic_filtering_level=4
 
+[input_devices]
+
+; In VR the lobby's desktop window usually isn't the focused one, and cabinet boards in joystick mode and
+; game controllers still have to work.
+joypads/ignore_joypad_on_unfocused_application=false
+
 [xr]
 
 openxr/enabled=true
