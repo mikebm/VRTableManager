@@ -114,102 +114,196 @@ public static partial class PupPackOptions
     public const string DefaultBackup = ".default-layout";
 
     /// <summary>
-    /// While a pack is on its desktop layout for a desktop launch: the files that switch added (one per line), so
-    /// the VR launch after takes them out again. The VR layout itself is the one named in <see cref="Marker"/>.
+    /// While a pack is on its desktop layout for a desktop launch: that layout's name on the first line
+    /// (<c>layout: …</c>), then the files the switch added, one per line. The files it replaced or set aside are in
+    /// <see cref="DesktopBackup"/>, so the VR launch after puts the pack back exactly as it was.
     /// </summary>
     public const string DesktopMarker = ".vrtm-desktop";
 
+    /// <summary>The pack's files the desktop switch replaced or set aside, kept until the next VR launch.</summary>
+    public const string DesktopBackup = ".vrtm-desktop-backup";
+
+    const string LayoutLine = "layout: ";
+
     /// <summary>
-    /// Puts each pack in a table's pupvideos\ on the layout for this launch. Only packs whose layout this app
-    /// chose (named in <see cref="Marker"/>) are switched, so a layout picked by hand stays. Desktop: the pack's
-    /// one layout named Desktop and not VR, when there is one and it isn't the VR layout. VR: the VR layout
-    /// back, without the files the desktop one added. Returns "pack: layout" for each one switched.
+    /// Puts each pack in a table's pupvideos\ on the layout for this launch. Only a pack still on the layout this
+    /// app chose (named in <see cref="Marker"/>, its files unchanged) is switched, so a layout picked or edited by
+    /// hand stays. Desktop: the pack's one layout named Desktop and not VR, when there is one. VR: the pack as it
+    /// was before the desktop switch. Returns "pack: layout" for each one switched. Never throws for a folder
+    /// it can't read: the launch goes on with the pack as it is.
     /// </summary>
     public static List<string> SwitchFor(string pupDir, bool vr)
     {
         var switched = new List<string>();
-        if (!Directory.Exists(pupDir))
+        List<string> packs;
+        try
+        {
+            packs = Directory.Exists(pupDir) ? PupPacks.PackRoots(pupDir) : [];
+        }
+        catch (Exception e) when (e is IOException or UnauthorizedAccessException)
         {
             return switched;
         }
 
-        foreach (var pack in PupPacks.PackRoots(pupDir))
+        foreach (var pack in packs)
         {
             try
             {
-                var markerFile = Path.Combine(pack, Marker);
-                var chosen = File.Exists(markerFile) ? File.ReadAllText(markerFile).Trim() : "";
-                if (chosen.Length == 0 || chosen == NoLayout)
+                if ((vr ? BackToVr(pack) : ToDesktop(pack)) is { } name)
                 {
-                    continue;
+                    switched.Add($"{Path.GetFileName(pack)}: {name}");
                 }
-
-                var options = FindOptions(pack);
-                var vrLayout = options.FirstOrDefault(o => o.Source != null && o.Name == chosen);
-                var desktopFile = Path.Combine(pack, DesktopMarker);
-                if (vrLayout == null)
-                {
-                    continue;
-                }
-
-                if (vr)
-                {
-                    if (!File.Exists(desktopFile))
-                    {
-                        continue;
-                    }
-
-                    foreach (var rel in File.ReadAllLines(desktopFile))
-                    {
-                        var added = Path.GetFullPath(Path.Combine(pack, rel));
-                        if (
-                            rel.Length > 0
-                            && added.StartsWith(
-                                Path.GetFullPath(pack).TrimEnd('\\') + "\\",
-                                StringComparison.OrdinalIgnoreCase
-                            )
-                            && File.Exists(added)
-                        )
-                        {
-                            File.Delete(added);
-                        }
-                    }
-                    CopyLayout(vrLayout.Source!, pack);
-                    File.Delete(desktopFile);
-                    switched.Add($"{Path.GetFileName(pack)}: {vrLayout.Name}");
-                    continue;
-                }
-
-                if (File.Exists(desktopFile))
-                {
-                    continue;
-                }
-
-                var desktop = options
-                    .Where(o =>
-                        o.Source != null
-                        && DesktopNameRegex().IsMatch(o.Name)
-                        && !VrNameRegex().IsMatch(o.Name)
-                    )
-                    .ToList();
-                if (desktop.Count != 1 || desktop[0].Name == vrLayout.Name)
-                {
-                    continue;
-                }
-
-                var added2 = LayoutFiles(desktop[0].Source!)
-                    .Where(rel => !File.Exists(Path.Combine(pack, rel)))
-                    .ToList();
-                // Written first: if the copy stops halfway, the next VR launch still puts the VR layout back.
-                File.WriteAllLines(desktopFile, added2);
-                CopyLayout(desktop[0].Source!, pack);
-                switched.Add($"{Path.GetFileName(pack)}: {desktop[0].Name}");
             }
             catch (Exception e) when (e is IOException or UnauthorizedAccessException)
             { /* leave it as it is; tried again next launch */
             }
         }
         return switched;
+    }
+
+    /// <summary>The layout this app put the pack on, when the pack's files still match it.</summary>
+    static Option? ChosenLayoutInPlace(string pack, List<Option> options)
+    {
+        var markerFile = Path.Combine(pack, Marker);
+        var chosen = File.Exists(markerFile) ? File.ReadAllText(markerFile).Trim() : "";
+        if (chosen.Length == 0 || chosen == NoLayout)
+        {
+            return null;
+        }
+
+        var layout = options.FirstOrDefault(o => o.Source != null && o.Name == chosen);
+        return layout != null && IsInPlace(layout.Source!, pack) ? layout : null;
+    }
+
+    /// <summary>Every file of the layout is in the pack, unchanged.</summary>
+    static bool IsInPlace(string source, string pack) =>
+        LayoutFiles(source)
+            .All(rel =>
+                File.Exists(Path.Combine(pack, rel))
+                && SameContent(Path.Combine(pack, rel), Path.Combine(source, rel))
+            );
+
+    static string? ToDesktop(string pack)
+    {
+        if (File.Exists(Path.Combine(pack, DesktopMarker)))
+        {
+            return null;
+        }
+
+        var options = FindOptions(pack);
+        var vrLayout = ChosenLayoutInPlace(pack, options);
+        if (vrLayout == null)
+        {
+            return null;
+        }
+
+        var desktop = options
+            .Where(o =>
+                o.Source != null
+                && DesktopNameRegex().IsMatch(o.Name)
+                && !VrNameRegex().IsMatch(o.Name)
+            )
+            .ToList();
+        if (desktop.Count != 1 || desktop[0].Name == vrLayout.Name)
+        {
+            return null;
+        }
+
+        var source = desktop[0].Source!;
+        var desktopFiles = LayoutFiles(source).ToList();
+        var vrOnly = LayoutFiles(vrLayout.Source!)
+            .Except(desktopFiles, StringComparer.OrdinalIgnoreCase)
+            .Where(rel => File.Exists(Path.Combine(pack, rel)))
+            .ToList();
+        var added = desktopFiles.Where(rel => !File.Exists(Path.Combine(pack, rel))).ToList();
+        // Written first: if what follows stops halfway, the next VR launch still puts back what it can.
+        File.WriteAllLines(
+            Path.Combine(pack, DesktopMarker),
+            [LayoutLine + desktop[0].Name, .. added]
+        );
+        var backup = Path.Combine(pack, DesktopBackup);
+        foreach (var rel in desktopFiles.Except(added, StringComparer.OrdinalIgnoreCase))
+        {
+            CopyInto(Path.Combine(pack, rel), Path.Combine(backup, rel));
+        }
+        // The VR layout's files the desktop one doesn't have (its PinUpPlayer.ini and the like) are set aside.
+        foreach (var rel in vrOnly)
+        {
+            CopyInto(Path.Combine(pack, rel), Path.Combine(backup, rel));
+            File.Delete(Path.Combine(pack, rel));
+        }
+        foreach (var rel in desktopFiles)
+        {
+            CopyInto(Path.Combine(source, rel), Path.Combine(pack, rel));
+        }
+        return desktop[0].Name;
+    }
+
+    static string? BackToVr(string pack)
+    {
+        var markerFile = Path.Combine(pack, DesktopMarker);
+        if (!File.Exists(markerFile))
+        {
+            return null;
+        }
+
+        var lines = File.ReadAllLines(markerFile).ToList();
+        var desktopName =
+            lines.Count > 0 && lines[0].StartsWith(LayoutLine, StringComparison.Ordinal)
+                ? lines[0][LayoutLine.Length..]
+                : null;
+        // The first version wrote only the added files, with no layout line and no backup.
+        var added = desktopName != null ? lines.Skip(1).ToList() : lines;
+        var backup = Path.Combine(pack, DesktopBackup);
+        var options = FindOptions(pack);
+
+        // Changed by hand while on the desktop layout: that's the user's layout now, kept as it is.
+        var desktop = options.FirstOrDefault(o => o.Source != null && o.Name == desktopName);
+        if (desktop != null && !IsInPlace(desktop.Source!, pack))
+        {
+            File.WriteAllText(Path.Combine(pack, Marker), NoLayout);
+            Addons.DeleteFolder(backup);
+            File.Delete(markerFile);
+            return null;
+        }
+
+        var root = Path.GetFullPath(pack).TrimEnd('\\') + "\\";
+        foreach (var rel in added)
+        {
+            var path = Path.GetFullPath(Path.Combine(pack, rel));
+            if (
+                rel.Length > 0
+                && path.StartsWith(root, StringComparison.OrdinalIgnoreCase)
+                && File.Exists(path)
+            )
+            {
+                File.Delete(path);
+            }
+        }
+
+        var vrName = File.Exists(Path.Combine(pack, Marker))
+            ? File.ReadAllText(Path.Combine(pack, Marker)).Trim()
+            : "";
+        if (Directory.Exists(backup))
+        {
+            foreach (var file in Directory.EnumerateFiles(backup, "*", SearchOption.AllDirectories))
+            {
+                CopyInto(file, Path.Combine(pack, Path.GetRelativePath(backup, file)));
+            }
+            Addons.DeleteFolder(backup);
+        }
+        else if (options.FirstOrDefault(o => o.Source != null && o.Name == vrName) is { } vrLayout)
+        {
+            CopyLayout(vrLayout.Source!, pack);
+        }
+        File.Delete(markerFile);
+        return vrName.Length > 0 ? vrName : "its layout before desktop play";
+    }
+
+    static void CopyInto(string from, string to)
+    {
+        Directory.CreateDirectory(Path.GetDirectoryName(to)!);
+        File.Copy(from, to, overwrite: true);
     }
 
     /// <summary>
@@ -219,12 +313,17 @@ public static partial class PupPackOptions
     public static List<string> SetUpOnce(string pupDir)
     {
         var switched = new List<string>();
-        if (!Directory.Exists(pupDir))
+        List<string> packs;
+        try
         {
-            return switched;
+            packs = Directory.Exists(pupDir) ? PupPacks.PackRoots(pupDir) : [];
+        }
+        catch (Exception e) when (e is IOException or UnauthorizedAccessException)
+        {
+            return switched; // a folder it can't read doesn't stop the launch
         }
 
-        foreach (var pack in PupPacks.PackRoots(pupDir))
+        foreach (var pack in packs)
         {
             if (File.Exists(Path.Combine(pack, Marker)) && !NeedsRecheck(pack))
             {
@@ -291,11 +390,13 @@ public static partial class PupPackOptions
     /// With no layout named for VR: the one layout whose FullDMD (screen 5, what the VR cabinet's DMD shows) is a
     /// display of its own. Desktop and two-screen layouts draw it onto the backglass instead
     /// (<c>5,FullDMD,…,"2,0,0,100,100"</c>), which leaves the cabinet DMD dark. Null when the pack's current
-    /// layout already has its own FullDMD, or when no layout or several do.
+    /// layout already has its own FullDMD (or has no FullDMD at all), or when no layout or several do. A pack with
+    /// no screens.pup of its own (its .pup files only in its layouts, as Futurama ships) needs one either way.
     /// </summary>
     static Option? OwnFullDmdLayout(string pack, List<Option> options)
     {
-        if (FullDmd(pack) is not false)
+        var current = FullDmd(pack);
+        if (current == true || (current == null && File.Exists(Path.Combine(pack, "screens.pup"))))
         {
             return null;
         }
@@ -321,18 +422,19 @@ public static partial class PupPackOptions
             foreach (var line in File.ReadLines(file).Take(200))
             {
                 // ScreenNum,ScreenDes,PlayList,PlayFile,Loopit,Active,Priority,CustomPos (quoted, with commas)
-                var cols = line.Split(',', 8);
-                if (cols.Length < 6 || cols[0].Trim() != "5")
+                var cols = CsvFields(line);
+                if (cols.Count < 6 || cols[0].Trim() != "5")
                 {
                     continue;
                 }
 
-                if (cols[5].Trim().Equals("off", StringComparison.OrdinalIgnoreCase))
+                // "off" and the audio-only modes show nothing.
+                if (cols[5].Trim().ToLowerInvariant() is "off" or "musiconly")
                 {
                     return false;
                 }
 
-                var pos = cols.Length > 7 ? cols[7].Trim().Trim('"').Trim() : "";
+                var pos = cols.Count > 7 ? cols[7].Trim() : "";
                 var on = pos.Split(',')[0].Trim();
                 return on.Length == 0 || on == "5";
             }
@@ -446,6 +548,32 @@ public static partial class PupPackOptions
             Directory.CreateDirectory(Path.GetDirectoryName(dest)!);
             File.Copy(file, dest, overwrite: true);
         }
+    }
+
+    /// <summary>A line of a .pup file split into fields: commas inside double quotes don't split, quotes come off.</summary>
+    public static List<string> CsvFields(string line)
+    {
+        var fields = new List<string>();
+        var field = new System.Text.StringBuilder();
+        var quoted = false;
+        foreach (var c in line)
+        {
+            if (c == '"')
+            {
+                quoted = !quoted;
+            }
+            else if (c == ',' && !quoted)
+            {
+                fields.Add(field.ToString());
+                field.Clear();
+            }
+            else
+            {
+                field.Append(c);
+            }
+        }
+        fields.Add(field.ToString());
+        return fields;
     }
 
     static bool SameContent(string a, string b) =>

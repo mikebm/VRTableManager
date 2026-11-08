@@ -134,7 +134,7 @@ public static class PupPacks
             }
 
             var column = Array.FindIndex(
-                lines[0].Split(','),
+                PupPackOptions.CsvFields(lines[0]).ToArray(),
                 h => h.Trim().Equals("Folder", StringComparison.OrdinalIgnoreCase)
             );
             if (column < 0)
@@ -144,9 +144,9 @@ public static class PupPacks
 
             var named = lines
                 .Skip(1)
-                .Select(l => l.Split(','))
-                .Where(c => c.Length > column)
-                .Select(c => c[column].Trim().Trim('"'))
+                .Select(l => PupPackOptions.CsvFields(l))
+                .Where(c => c.Count > column)
+                .Select(c => c[column].Trim())
                 .Where(n => n.Length > 0)
                 .Distinct(StringComparer.OrdinalIgnoreCase)
                 .ToList();
@@ -305,12 +305,17 @@ public static class PupPacks
     /// </summary>
     static bool IsPackFolder(string dir) =>
         HasPackFiles(dir)
+        // The .bat files that switch layouts sit beside the options folder. Without them it's just a folder
+        // named Options (in an archive, or in pupvideos\ beside other packs), not a pack's layouts.
         || Directory
-            .EnumerateDirectories(dir)
-            .Any(d =>
-                PupPackOptions.IsOptionsFolder(Path.GetFileName(d))
-                && Directory.EnumerateDirectories(d).Any(HasPackFiles)
-            );
+            .EnumerateFiles(dir)
+            .Any(f => Path.GetExtension(f).ToLowerInvariant() is ".bat" or ".cmd")
+            && Directory
+                .EnumerateDirectories(dir)
+                .Any(d =>
+                    PupPackOptions.IsOptionsFolder(Path.GetFileName(d))
+                    && Directory.EnumerateDirectories(d).Any(HasPackFiles)
+                );
 
     static bool HasPackFiles(string dir) =>
         Directory
