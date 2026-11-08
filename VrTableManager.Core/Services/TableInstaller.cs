@@ -433,7 +433,8 @@ public static class TableInstaller
     {
         Directory.CreateDirectory(destDir);
         var root = Path.GetFullPath(destDir) + Path.DirectorySeparatorChar;
-        if (Path.GetExtension(archivePath).ToLowerInvariant() is ".7z" or ".rar" && TryNative7Zip(archivePath, destDir, root)) return;
+        // 7-Zip unpacks a .tar.gz only to the inner .tar, so gzip stays with SharpCompress, which reads through both.
+        if (!Path.GetExtension(archivePath).Equals(".gz", StringComparison.OrdinalIgnoreCase) && TryNative7Zip(archivePath, destDir, root)) return;
         using var archive = ArchiveFactory.OpenArchive(archivePath);
         // 7z (and solid RAR) packs many files into one compressed stream. Opening entries one by one
         // makes each restart that stream from the top, so a big table pack takes hours; read it once, in order.
