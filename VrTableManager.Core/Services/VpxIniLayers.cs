@@ -109,13 +109,27 @@ public static class VpxIniLayers
         }
 
         foreach (
-            var section in (extra ?? []).GroupBy(e => e.Section, StringComparer.OrdinalIgnoreCase)
+            var section in Forced(s, vr)
+                .Concat(extra ?? [])
+                .GroupBy(e => e.Section, StringComparer.OrdinalIgnoreCase)
         )
         {
             IniFile.SetMany(path, section.Key, section.Select(e => (e.Key, e.Value)));
         }
 
         return new Play(path, OverridePath(s, vr), IniFile.Read(path));
+    }
+
+    /// <summary>
+    /// Settings the manager's own options put on top for every launch in this mode. They're kept out of the override
+    /// file, so turning an option off leaves the setting to VPX again. VR play's bloom is in the VR graphics panel.
+    /// </summary>
+    static IEnumerable<(string Section, string Key, string Value)> Forced(AppSettings s, bool vr)
+    {
+        if (!vr && s.DesktopBloomOff)
+        {
+            yield return ("Player", "ForceBloomOff", "1");
+        }
     }
 
     /// <summary>One launch's play file and what it held when VPX started.</summary>

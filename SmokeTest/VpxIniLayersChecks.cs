@@ -79,6 +79,31 @@ static class VpxIniLayersChecks
                 )
             );
 
+            // Bloom off for desktop play: written into each desktop launch, never into VR's or an override file.
+            var bloomBefore = d.GetValueOrDefault(("Player", "ForceBloomOff"));
+            s.DesktopBloomOff = true;
+            var bloomOff = VpxIniLayers.Build(s, vr: false);
+            var bloomForced = IniFile
+                .Read(bloomOff.Path)
+                .GetValueOrDefault(("Player", "ForceBloomOff"));
+            var bloomVr = IniFile.Read(VpxIniLayers.Build(s, vr: true).Path);
+            var bloomKept = bloomOff.SaveBack();
+            s.DesktopBloomOff = false;
+            var bloomLeft = IniFile.Read(VpxIniLayers.Build(s, vr: false).Path);
+            results.Add(
+                (
+                    bloomBefore is null or ""
+                        && bloomForced == "1"
+                        && bloomVr.GetValueOrDefault(("Player", "ForceBloomOff")) is null or ""
+                        && bloomKept == 0
+                        && !IniFile
+                            .Read(VpxSetup.DesktopIniPath(s))
+                            .ContainsKey(("Player", "ForceBloomOff"))
+                        && bloomLeft.GetValueOrDefault(("Player", "ForceBloomOff")) is null or "",
+                    "layers: 'bloom off in desktop play' sets [Player] ForceBloomOff = 1 for desktop launches only, and turning it off leaves bloom to VPX"
+                )
+            );
+
             // VPX rewrites the play file when the table closes: keep real changes as VR overrides.
             var ownBefore = File.ReadAllBytes(own);
             var play = VpxIniLayers.Build(s, vr: true);

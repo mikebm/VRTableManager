@@ -28,6 +28,10 @@ public sealed partial class MainViewModel
     [ObservableProperty]
     public partial bool VrAutoBackglass { get; set; }
 
+    /// <summary>Desktop play turns off VPX's bloom.</summary>
+    [ObservableProperty]
+    public partial bool DesktopBloomOff { get; set; }
+
     /// <summary>A table's hand-set VR room switch is turned on for VR play and off for desktop play.</summary>
     [ObservableProperty]
     public partial bool AutoVrRoom { get; set; }

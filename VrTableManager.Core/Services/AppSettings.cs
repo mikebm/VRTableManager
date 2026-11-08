@@ -82,6 +82,13 @@ public sealed class AppSettings
     public bool VrAutoBackglass { get; set; } = true;
 
     /// <summary>
+    /// Desktop play turns off VPX's bloom ([Player] ForceBloomOff = 1) for each launch, on top of the player's own
+    /// settings (<see cref="VpxIniLayers.Build"/>). Off: VPX's own setting decides. VR play has its own bloom setting
+    /// in the VR graphics panel (<see cref="VpxGraphics.Bloom"/>).
+    /// </summary>
+    public bool DesktopBloomOff { get; set; }
+
+    /// <summary>
     /// Tables with a hand-set VR room switch in their script (VRRoom = 0 / 1) get it set for the mode being
     /// played: on in VR, off on the desktop (<see cref="VrRoomSwitch"/>). Off: every table plays as it came.
     /// </summary>

@@ -99,6 +99,7 @@ public sealed partial class MainViewModel : ObservableObject, IAsyncDisposable
         UsePupPlugin = Settings.UsePupPlugin;
         UseDisplayPlugins = Settings.UseDisplayPlugins;
         VrAutoBackglass = Settings.VrAutoBackglass;
+        DesktopBloomOff = Settings.DesktopBloomOff;
         AutoVrRoom = Settings.AutoVrRoom;
         LobbyRecordsRomAudio = Settings.LobbyRecordsRomAudio;
         LobbyWaitsForTable = Settings.LobbyWaitsForTable;
@@ -1825,6 +1826,12 @@ public sealed partial class MainViewModel : ObservableObject, IAsyncDisposable
     [ObservableProperty]
     public partial bool VpxUseNightlyBuilds { get; set; }
 
+    /// <summary>
+    /// Nightlies only with DO NOT USE builds allowed too: they're newer and less tested than those, so a player who
+    /// turned DO NOT USE builds off shouldn't get one through the nightly setting (or an old saved one).
+    /// </summary>
+    bool UseNightlyVpx => Settings.VpxUseNightlyBuilds && Settings.VpxUseDoNotUseBuilds;
+
     [ObservableProperty]
     public partial bool FpRunAsAdmin { get; set; }
 
@@ -1921,6 +1928,9 @@ public sealed partial class MainViewModel : ObservableObject, IAsyncDisposable
                 break;
             case nameof(VrAutoBackglass):
                 Settings.VrAutoBackglass = VrAutoBackglass;
+                break;
+            case nameof(DesktopBloomOff):
+                Settings.DesktopBloomOff = DesktopBloomOff;
                 break;
             case nameof(AutoVrRoom):
                 Settings.AutoVrRoom = AutoVrRoom;
@@ -2088,7 +2098,7 @@ public sealed partial class MainViewModel : ObservableObject, IAsyncDisposable
             var releases = await VpxSetup.FindReleasesAsync(
                 CancellationToken.None,
                 Settings.VpxUseDoNotUseBuilds,
-                Settings.VpxUseNightlyBuilds
+                UseNightlyVpx
             );
             var (text, hasUpdate) = VpxSetup.DescribeUpdate(
                 releases,
@@ -2124,7 +2134,7 @@ public sealed partial class MainViewModel : ObservableObject, IAsyncDisposable
             var releases = await VpxSetup.FindReleasesAsync(
                 cts.Token,
                 Settings.VpxUseDoNotUseBuilds,
-                Settings.VpxUseNightlyBuilds
+                UseNightlyVpx
             );
             var installed = VpxSetup.InstalledVersion(Settings);
             var (text, hasUpdate) = VpxSetup.DescribeUpdate(releases, installed);
@@ -2451,11 +2461,7 @@ public sealed partial class MainViewModel : ObservableObject, IAsyncDisposable
         {
             var ct = CancellationToken.None;
             var vpxTask = Try<VpxReleases>(async () =>
-                await VpxSetup.FindReleasesAsync(
-                    ct,
-                    Settings.VpxUseDoNotUseBuilds,
-                    Settings.VpxUseNightlyBuilds
-                )
+                await VpxSetup.FindReleasesAsync(ct, Settings.VpxUseDoNotUseBuilds, UseNightlyVpx)
             );
             var uevrTask = Try(() => UevrSetup.FindLatestAsync(ct));
             var bamTask = Try(() => BamCheck.LatestAsync(ct));
