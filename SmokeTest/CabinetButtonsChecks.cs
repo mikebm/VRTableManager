@@ -9,8 +9,10 @@ static class CabinetButtonsChecks
 
     public static IEnumerable<(bool, string)> Run()
     {
-        // Nothing set: VPX's default keys.
-        var d = CabinetButtons.From(Ini(("Input", "Mapping.LeftFlipper", "")));
+        // Nothing set: VPX's default keys (10.8.1 writes [Input] Devices even then; Exit Game is Escape there).
+        var d = CabinetButtons.From(
+            Ini(("Input", "Devices", "Key"), ("Input", "Mapping.LeftFlipper", ""))
+        );
         yield return (
             d.ForKey(CabinetButtons.Sdl.LShift) == CabinetAction.PrevTable
                 && d.ForKey(CabinetButtons.Sdl.RShift) == CabinetAction.NextTable
@@ -19,16 +21,28 @@ static class CabinetButtonsChecks
                 && d.ForKey(CabinetButtons.Sdl.Digit1) == CabinetAction.Play
                 && d.ForKey(CabinetButtons.Sdl.Enter) == CabinetAction.Play
                 && d.ForKey(CabinetButtons.Sdl.Digit5) == CabinetAction.Filter
-                && d.ForKey(CabinetButtons.Sdl.Q) == CabinetAction.Leave
+                && d.ForKey(CabinetButtons.Sdl.Escape) == CabinetAction.Leave
+                && d.ForKey(CabinetButtons.Sdl.Q) == CabinetAction.None
                 && d.JoyButtons.Count == 0,
-            "cabinet buttons: VPX's default keys when nothing is set"
+            "cabinet buttons: VPX 10.8.1's default keys when nothing is set"
+        );
+        yield return (
+            CabinetButtons.From(Ini(("Player", "LFlipKey", ""))).ForKey(CabinetButtons.Sdl.Q)
+                == CabinetAction.Leave,
+            "cabinet buttons: older VPX's Exit Game default is Q"
         );
 
-        // VPX 10.8.1: keys and joystick buttons, VR controller and combination bindings left out.
+        // VPX 10.8.1, as it writes them: a Pinscape board's buttons (SDLJoy_<GUID>_<n>;button), a d-pad direction,
+        // an axis, the VR controllers and a combination; only keys, buttons and the d-pad count.
+        const string pinscape = "SDLJoy_03008a6d091200004aea000000000000_1";
+        const string guid = "03008a6d091200004aea000000000000";
         var n = CabinetButtons.From(
             Ini(
-                ("Input", "Mapping.LeftFlipper", "Key;4 | SDL.PinOne;0 | OpenXR;16;o;0.300000"),
-                ("Input", "Mapping.RightFlipper", "SDL.PinOne;1"),
+                ("Input", "Devices", $"Key;{pinscape}"),
+                ("Input", "Mapping.LeftFlipper", $"Key;4 | {pinscape};0 | OpenXR;16;o;0.300000"),
+                ("Input", "Mapping.RightFlipper", $"{pinscape};1"),
+                ("Input", "Mapping.LeftMagna", $"{pinscape};259"), // hat 0 down
+                ("Input", "Mapping.RightMagna", $"{pinscape};513;o;0.5"), // axis 1
                 ("Input", "Mapping.Start", "Key;30 & Key;225")
             )
         );
@@ -39,7 +53,18 @@ static class CabinetButtonsChecks
                 && n.ForJoyButton(1) == CabinetAction.NextTable
                 && n.ForJoyButton(16) == CabinetAction.None
                 && n.ForKey(CabinetButtons.Sdl.RShift) == CabinetAction.None,
-            "cabinet buttons: 10.8.1 key and joystick mappings replace the defaults"
+            "cabinet buttons: 10.8.1 key and SDLJoy joystick mappings replace the defaults"
+        );
+        yield return (
+            n.ForJoyButton(guid.ToUpperInvariant(), 1) == CabinetAction.NextTable
+                && n.ForJoyButton("030000005e0400008e02000000000000", 1) == CabinetAction.None
+                && n.JoyDevices.SetEquals([guid]),
+            "cabinet buttons: a joystick binding belongs to the board VPX names (by SDL GUID)"
+        );
+        yield return (
+            n.ForJoyButton(12) == CabinetAction.PrevLetter
+                && !n.JoyButtons.Values.Contains(CabinetAction.NextLetter),
+            "cabinet buttons: a d-pad direction is Godot's d-pad button; an axis isn't a button"
         );
         yield return (
             n.ForKey(30) == CabinetAction.None

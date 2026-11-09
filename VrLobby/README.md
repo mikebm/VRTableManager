@@ -57,9 +57,9 @@ On a cabinet controller (PinOne, Pinscape, Zeb's and the like) or a game control
 | Coin | 5 | B | Next filter |
 | Extra ball | B | Y | Random table |
 | – | – | X | Favourite |
-| Exit | Q | Back | Hold 1 s to quit the lobby |
+| Exit Game | Esc (Q before 10.8.1) | Back | Hold 1 s to quit the lobby |
 
-- **Cabinet buttons** are the player's own VPX controls, read from the settings VR play uses (VPX 10.8.1's `[Input]` mappings, or the older `[Player]` keys and joystick buttons; VPX's default keys where nothing is set). Joysticks Godot doesn't know as game controllers (cabinet boards) use the VPX joystick mapping.
+- **Cabinet buttons** are the player's own VPX controls, read from the settings VR play uses (VPX 10.8.1's `[Input]` mappings, or the older `[Player]` keys and joystick buttons; VPX's default keys where nothing is set). Joysticks Godot doesn't know as game controllers (cabinet boards) use the VPX joystick mapping: 10.8.1 names a joystick `SDLJoy_<SDL GUID>_<n>` and maps SDL's raw button numbers (d-pad directions as `0x100 + hat × 4 + direction`), which match Godot's for such joysticks; its bindings count only on the board with that GUID (`Input.GetJoyGuid`), unless no connected joystick has one.
 - **Game controllers** Godot knows (`Input.IsJoyKnown`) use the fixed layout above, since Godot renumbers their buttons to SDL's gamepad layout.
 - **Where they count:** keys count only in VR, so the desktop window keeps its own keyboard controls. Joysticks work in both, and also while the lobby window isn't focused (`ignore_joypad_on_unfocused_application = false`), but not while a table plays with the lobby waiting behind it.
 - **Log:** every controller is written to the lobby's log when it connects, and every button press too (`Joystick 0 button 3`).

@@ -23,53 +23,73 @@ public enum CabinetAction
 /// VPX, read from the settings VR play uses (<see cref="VpxIniLayers.Effective"/>), so a board that works in VPX
 /// works here with nothing to set up:
 /// <list type="bullet">
-/// <item>VPX 10.8.1+: <c>[Input] Mapping.*</c>, e.g. <c>Key;225 | SDL.Pad;4</c>. Keys are SDL scancodes,
-/// joystick buttons SDL's button numbers (from 0).</item>
-/// <item>Older VPX: <c>[Player] LFlipKey</c> etc. (DirectInput scancodes) and <c>JoyLFlipKey</c> etc. (buttons from 1).</item>
-/// <item>Anything left empty means VPX's default key (Left Shift for the left flipper, and so on).</item>
+/// <item>VPX 10.8.1+: <c>[Input] Mapping.*</c>, e.g. <c>Key;225 | SDLJoy_0300f…_1;4</c>. Keys are SDL scancodes;
+/// a joystick is <c>SDLJoy_&lt;SDL GUID&gt;_&lt;n-th of that GUID&gt;</c> and its buttons SDL's raw joystick
+/// button numbers (from 0), d-pad (hat) directions <c>0x100 + hat × 4 + direction</c>, axes <c>0x200 + axis</c>.
+/// Empty means VPX's default key.</item>
+/// <item>Older VPX: <c>[Player] LFlipKey</c> etc. (DirectInput scancodes, empty = VPX's default key) and
+/// <c>JoyLFlipKey</c> etc. (buttons from 1).</item>
 /// </list>
-/// Keys are kept as SDL scancodes; joystick buttons from 0, as Godot numbers them.
+/// Keys are kept as SDL scancodes; joystick buttons from 0, as Godot numbers a joystick it doesn't know as a game
+/// controller (its d-pad as Godot's d-pad buttons, 11–14).
 /// </summary>
 public sealed class CabinetButtons
 {
-    /// <summary>The VPX control behind each lobby action: its 10.8.1 mapping, its older key / joystick setting, and VPX's default key (SDL).</summary>
+    /// <summary>
+    /// The VPX control behind each lobby action: its 10.8.1 mapping, its older key / joystick setting, and VPX's
+    /// default key (SDL) in 10.8.1 and before it.
+    /// </summary>
     static readonly (
         CabinetAction Action,
         string Mapping,
         string? LegacyKey,
         string? LegacyJoy,
-        int DefaultKey
+        int DefaultKey,
+        int LegacyDefaultKey
     )[] Controls =
     [
-        (CabinetAction.PrevTable, "LeftFlipper", "LFlipKey", "JoyLFlipKey", Sdl.LShift),
-        (CabinetAction.NextTable, "RightFlipper", "RFlipKey", "JoyRFlipKey", Sdl.RShift),
-        (CabinetAction.PrevLetter, "LeftMagna", "LMagnaSave", "JoyLMagnaSave", Sdl.LCtrl),
-        (CabinetAction.NextLetter, "RightMagna", "RMagnaSave", "JoyRMagnaSave", Sdl.RCtrl),
-        (CabinetAction.Play, "Start", "StartGameKey", "JoyStartGameKey", Sdl.Digit1),
-        (CabinetAction.Play, "LaunchBall", "PlungerKey", "JoyPlungerKey", Sdl.Enter),
-        (CabinetAction.Play, "Lockbar", "LockbarKey", "JoyLockbarKey", Sdl.LAlt),
-        (CabinetAction.Filter, "Credit1", "AddCreditKey", "JoyAddCreditKey", Sdl.Digit5),
-        (CabinetAction.Random, "ExtraBall", null, null, Sdl.B),
-        (CabinetAction.Leave, "ExitGame", "ExitGameKey", "JoyExitGameKey", Sdl.Q),
+        (CabinetAction.PrevTable, "LeftFlipper", "LFlipKey", "JoyLFlipKey", Sdl.LShift, Sdl.LShift),
+        (CabinetAction.NextTable, "RightFlipper", "RFlipKey", "JoyRFlipKey", Sdl.RShift, Sdl.RShift),
+        (CabinetAction.PrevLetter, "LeftMagna", "LMagnaSave", "JoyLMagnaSave", Sdl.LCtrl, Sdl.LCtrl),
+        (CabinetAction.NextLetter, "RightMagna", "RMagnaSave", "JoyRMagnaSave", Sdl.RCtrl, Sdl.RCtrl),
+        (CabinetAction.Play, "Start", "StartGameKey", "JoyStartGameKey", Sdl.Digit1, Sdl.Digit1),
+        (CabinetAction.Play, "LaunchBall", "PlungerKey", "JoyPlungerKey", Sdl.Enter, Sdl.Enter),
+        (CabinetAction.Play, "Lockbar", "LockbarKey", "JoyLockbarKey", Sdl.LAlt, Sdl.LAlt),
+        (CabinetAction.Filter, "Credit1", "AddCreditKey", "JoyAddCreditKey", Sdl.Digit5, Sdl.Digit5),
+        (CabinetAction.Random, "ExtraBall", null, null, Sdl.B, Sdl.B),
+        (CabinetAction.Leave, "ExitGame", "ExitGameKey", "JoyExitGameKey", Sdl.Escape, Sdl.Q),
     ];
+
+    /// <summary>Godot's d-pad buttons, which a joystick's first hat arrives as.</summary>
+    static readonly int[] GodotDpad = [13, 14, 11, 12]; // VPX's hat directions: left, right, up, down
 
     readonly Dictionary<int, CabinetAction> _keys = [];
     readonly Dictionary<int, CabinetAction> _joy = [];
+    readonly Dictionary<(string Guid, int Button), CabinetAction> _joyByDevice = [];
 
     public static readonly CabinetButtons None = new();
 
     public IReadOnlyDictionary<int, CabinetAction> Keys => _keys;
+
+    /// <summary>Every joystick binding, whichever joystick it's on.</summary>
     public IReadOnlyDictionary<int, CabinetAction> JoyButtons => _joy;
+
+    /// <summary>The SDL GUIDs (lower case) of the joysticks VPX 10.8.1 has bindings for.</summary>
+    public IReadOnlySet<string> JoyDevices => _joyByDevice.Keys.Select(k => k.Guid).ToHashSet();
 
     /// <summary>The action for a key (SDL scancode), or <see cref="CabinetAction.None"/>.</summary>
     public CabinetAction ForKey(int sdlScancode) => _keys.GetValueOrDefault(sdlScancode);
 
-    /// <summary>The action for a joystick button (from 0), or <see cref="CabinetAction.None"/>.</summary>
+    /// <summary>The action for a button (from 0) on any joystick, or <see cref="CabinetAction.None"/>.</summary>
     public CabinetAction ForJoyButton(int button) => _joy.GetValueOrDefault(button);
+
+    /// <summary>The action for a button (from 0) on the joystick with this SDL GUID, or <see cref="CabinetAction.None"/>.</summary>
+    public CabinetAction ForJoyButton(string guid, int button) =>
+        _joyByDevice.GetValueOrDefault((guid.ToLowerInvariant(), button));
 
     /// <summary>
     /// A game controller (Xbox, PlayStation, Switch…) in the lobby, whatever VPX has: Godot numbers its buttons in
-    /// one standard layout (SDL's), which a VPX joystick mapping may not use, and most players never map one in VPX.
+    /// SDL's game controller layout, not the raw joystick numbers VPX maps, and most players never map one in VPX.
     /// Face buttons follow the Quest controllers (A play, B filter, Y random); the shoulders are the flippers.
     /// PlayStation: Cross = A, Circle = B, Square = X, Triangle = Y, Options = Start, Share = Back.
     /// </summary>
@@ -94,7 +114,12 @@ public sealed class CabinetButtons
     public static CabinetButtons From(IReadOnlyDictionary<(string Section, string Key), string> ini)
     {
         var b = new CabinetButtons();
-        foreach (var (action, mapping, legacyKey, legacyJoy, defaultKey) in Controls)
+        // 10.8.1 writes its [Input] section (Devices = Key…) even when nothing is remapped; older VPX never does.
+        var v1081 = ini.Keys.Any(k =>
+            k.Section.Equals(VpxInput.Section, StringComparison.OrdinalIgnoreCase)
+            && k.Key.Equals("Devices", StringComparison.OrdinalIgnoreCase)
+        );
+        foreach (var (action, mapping, legacyKey, legacyJoy, defaultKey, legacyDefault) in Controls)
         {
             var mapped = ini.GetValueOrDefault((VpxInput.Section, "Mapping." + mapping)) ?? "";
             if (mapped.Trim() != "")
@@ -107,13 +132,19 @@ public sealed class CabinetButtons
                 continue;
             }
 
+            if (v1081)
+            {
+                b._keys.TryAdd(defaultKey, action);
+                continue;
+            }
+
             // Older VPX: a DirectInput key, and a joystick button (from 1; 0 = none).
             var key =
                 legacyKey != null
                 && int.TryParse(ini.GetValueOrDefault(("Player", legacyKey)), out var dik)
                 && Sdl.FromDirectInput(dik) is { } sdl
                     ? sdl
-                    : defaultKey;
+                    : legacyDefault;
             b._keys.TryAdd(key, action);
             if (
                 legacyJoy != null
@@ -127,7 +158,10 @@ public sealed class CabinetButtons
         return b;
     }
 
-    /// <summary>One 10.8.1 binding: <c>Key;225</c> or <c>SDL.Pad;4</c>. Combinations (<c>&amp;</c>), axes and the VR controllers are left out.</summary>
+    /// <summary>
+    /// One 10.8.1 binding: <c>Key;225</c> or <c>SDLJoy_&lt;guid&gt;_1;4</c>. Combinations (<c>&amp;</c>), axes,
+    /// the mouse and the VR controllers are left out.
+    /// </summary>
     void AddBinding(CabinetAction action, string binding)
     {
         if (binding.Contains('&'))
@@ -136,6 +170,7 @@ public sealed class CabinetButtons
         }
 
         var parts = binding.Split(';').Select(p => p.Trim()).ToArray();
+        // A third part is an axis's direction and threshold.
         if (parts.Length != 2 || !int.TryParse(parts[1], out var id) || id < 0)
         {
             return;
@@ -144,10 +179,35 @@ public sealed class CabinetButtons
         if (parts[0].Equals("Key", StringComparison.OrdinalIgnoreCase))
         {
             _keys.TryAdd(id, action);
+            return;
         }
-        else if (parts[0].StartsWith("SDL.", StringComparison.OrdinalIgnoreCase))
+
+        if (!parts[0].StartsWith("SDLJoy_", StringComparison.OrdinalIgnoreCase))
         {
-            _joy.TryAdd(id, action);
+            return;
+        }
+
+        int button;
+        if (id < 0x100)
+        {
+            button = id;
+        }
+        else if (id < 0x104)
+        {
+            button = GodotDpad[id - 0x100]; // the first hat; Godot has no others
+        }
+        else
+        {
+            return;
+        }
+
+        _joy.TryAdd(button, action);
+        // SDLJoy_<GUID>_<n>: the GUID picks out the board; n tells identical boards apart, which Godot can't.
+        var device = parts[0]["SDLJoy_".Length..];
+        var cut = device.LastIndexOf('_');
+        if (cut > 0)
+        {
+            _joyByDevice.TryAdd((device[..cut].ToLowerInvariant(), button), action);
         }
     }
 
@@ -169,6 +229,11 @@ public sealed class CabinetButtons
                             )
                     )
                 )
+        )
+        + (
+            _joyByDevice.Count > 0
+                ? "; joysticks: " + string.Join(", ", JoyDevices)
+                : ""
         );
 
     /// <summary>SDL scancodes (what VPX 10.8.1 stores for keys), and the DirectInput ones older VPX used.</summary>
@@ -176,6 +241,7 @@ public sealed class CabinetButtons
     {
         public const int B = 5;
         public const int Q = 20;
+        public const int Escape = 41;
         public const int Digit1 = 30;
         public const int Digit5 = 34;
         public const int Enter = 40;

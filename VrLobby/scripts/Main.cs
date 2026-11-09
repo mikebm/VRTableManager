@@ -1768,13 +1768,43 @@ public partial class Main : Node3D
 
     float Held(CabinetAction a) => _cabinetHeld.Contains(a) ? 1f : 0f;
 
-    /// <summary>"Joystick 0: PS4 Controller (game controller)", so the log shows what the lobby can see.</summary>
+    /// <summary>
+    /// "Joystick 0: PS4 Controller (game controller)", so the log shows what the lobby can see. The GUID is SDL's,
+    /// which VPX 10.8.1 names the joystick by in its mappings (SDLJoy_&lt;GUID&gt;_1).
+    /// </summary>
     static void LogJoypad(int id, bool connected) =>
         GD.Print(
             connected
-                ? $"Joystick {id}: {Input.GetJoyName(id)}{(Input.IsJoyKnown(id) ? " (game controller)" : " (uses the VPX joystick mapping)")}"
+                ? $"Joystick {id}: {Input.GetJoyName(id)}, GUID {Input.GetJoyGuid(id)}{(Input.IsJoyKnown(id) ? " (game controller)" : " (uses the VPX joystick mapping)")}"
                 : $"Joystick {id} disconnected"
         );
+
+    /// <summary>
+    /// A cabinet board's button: what VPX mapped it to on this board. Only when no connected joystick is one VPX
+    /// names (older VPX, which doesn't, or a GUID Godot spells differently), any joystick's button counts.
+    /// </summary>
+    CabinetAction BoardAction(int device, int button)
+    {
+        var mapped = _cabinet.JoyDevices;
+        if (mapped.Count > 0)
+        {
+            var guid = Input.GetJoyGuid(device).ToLowerInvariant();
+            if (mapped.Contains(guid))
+            {
+                return _cabinet.ForJoyButton(guid, button);
+            }
+
+            if (
+                Input
+                    .GetConnectedJoypads()
+                    .Any(id => mapped.Contains(Input.GetJoyGuid(id).ToLowerInvariant()))
+            )
+            {
+                return CabinetAction.None; // another joystick: the cabinet's buttons are on the board VPX names
+            }
+        }
+        return _cabinet.ForJoyButton(button);
+    }
 
     /// <summary>A step was just taken by hand: the next one comes after the first repeat pause (see <see cref="Stick"/>).</summary>
     void PrimeRepeat(string channel)
@@ -1965,7 +1995,7 @@ public partial class Main : Node3D
 
             var ja = pad
                 ? CabinetButtons.ForGamepadButton((int)jb.ButtonIndex)
-                : _cabinet.ForJoyButton((int)jb.ButtonIndex);
+                : BoardAction(jb.Device, (int)jb.ButtonIndex);
             if (ja != CabinetAction.None)
             {
                 OnCabinet(ja, jb.Pressed);
