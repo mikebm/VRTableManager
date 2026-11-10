@@ -1688,6 +1688,20 @@ public sealed partial class MainViewModel : ObservableObject, IAsyncDisposable
             PlayStatus = "Couldn't find the VrLobby project next to this app.";
             return;
         }
+        if (!LobbyRunner.HasLobbyRuntime(LobbyRunner.DotnetRoots()))
+        {
+            // Without it Godot opens a black, empty lobby with no error to go on.
+            var missing = new JobItem("VR lobby");
+            Jobs.Insert(0, missing);
+            missing.Finish(
+                "The VR lobby needs the .NET 10 Runtime (this app doesn't, so everything else works). Install \".NET Runtime 10\" for Windows x64 from "
+                    + LobbyRunner.RuntimeUrl
+                    + ", then start the lobby again.",
+                error: true
+            );
+            PlayStatus = "";
+            return;
+        }
         if (!await EnsureHeadsetAsync())
         {
             PlayStatus = "";

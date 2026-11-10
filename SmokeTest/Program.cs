@@ -2293,6 +2293,16 @@ foreach (var (ok, name) in TableFileMatchChecks.Run())
     Check(ok, name);
 }
 
+foreach (var (ok, name) in LobbyRuntimeChecks.Run(root))
+{
+    Check(ok, name);
+}
+
+Check(
+    LobbyRunner.HasLobbyRuntime(LobbyRunner.DotnetRoots()),
+    "lobby runtime: found on this PC (the SDK that builds this test includes it)"
+);
+
 foreach (var (ok, name) in CatalogLinkChecks.Run(root, games))
 {
     Check(ok, name);

@@ -91,6 +91,60 @@ public static class LobbyRunner
             ?? throw new FileNotFoundException("Godot's exe wasn't in the download.");
     }
 
+    public const string RuntimeUrl = "https://dotnet.microsoft.com/download/dotnet/10.0";
+
+    /// <summary>
+    /// The places Godot looks for an installed .NET (DOTNET_ROOT, dotnet.exe on PATH, the default install folder).
+    /// This app is self-contained, so it runs without one, but the lobby's C# runs on the installed .NET: without
+    /// it Godot opens an empty scene, black on the desktop and in the headset.
+    /// </summary>
+    public static IEnumerable<string> DotnetRoots()
+    {
+        if (NullIfEmpty(Environment.GetEnvironmentVariable("DOTNET_ROOT")) is { } env)
+        {
+            yield return env;
+        }
+
+        foreach (
+            var dir in (Environment.GetEnvironmentVariable("PATH") ?? "").Split(
+                Path.PathSeparator,
+                StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries
+            )
+        )
+        {
+            if (
+                File.Exists(
+                    Path.Combine(dir, OperatingSystem.IsWindows() ? "dotnet.exe" : "dotnet")
+                )
+            )
+            {
+                yield return dir;
+            }
+        }
+
+        yield return Path.Combine(
+            Environment.GetFolderPath(Environment.SpecialFolder.ProgramFiles),
+            "dotnet"
+        );
+    }
+
+    /// <summary>
+    /// True when one of <paramref name="roots"/> has a .NET 10 runtime and its host. The lobby's runtimeconfig
+    /// rolls forward to the latest 10.x only (LatestMinor), so .NET 11 alone doesn't run it.
+    /// </summary>
+    public static bool HasLobbyRuntime(IEnumerable<string> roots) =>
+        roots.Any(root =>
+        {
+            var shared = Path.Combine(root, "shared", "Microsoft.NETCore.App");
+            return Directory.Exists(Path.Combine(root, "host", "fxr"))
+                && Directory.Exists(shared)
+                && Directory
+                    .EnumerateDirectories(shared, "10.*")
+                    .Any(d => File.Exists(Path.Combine(d, "System.Private.CoreLib.dll")));
+        });
+
+    static string? NullIfEmpty(string? s) => string.IsNullOrWhiteSpace(s) ? null : s;
+
     static string LobbyDll(string lobbyDir) =>
         Path.Combine(lobbyDir, ".godot", "mono", "temp", "bin", "Debug", "VrLobby.dll");
 
