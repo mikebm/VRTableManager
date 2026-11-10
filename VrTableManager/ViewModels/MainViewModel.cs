@@ -156,7 +156,7 @@ public sealed partial class MainViewModel : ObservableObject, IAsyncDisposable
             _allGames = await Task.Run(() => VpsCatalog.LoadAsync(force));
             _assisted.KnownGames = _allGames.Select(g => g.Name);
             ApplyFilter();
-            ApplyTableUpdates();
+            ShowInstalled(); // My Tables' type and theme filters come from the catalog; also runs ApplyTableUpdates
             _ = LinkImportedTablesAsync();
             _ = CheckUpdatesAsync(); // VPX / UEVR / BAM, in the background
             _ = LoadRuleSheetsAsync();
@@ -222,7 +222,7 @@ public sealed partial class MainViewModel : ObservableObject, IAsyncDisposable
                     _allGames = games;
                     _assisted.KnownGames = _allGames.Select(g => g.Name);
                     ApplyFilter();
-                    ApplyTableUpdates();
+                    ShowInstalled(); // My Tables' type and theme filters come from the catalog; also runs ApplyTableUpdates
                 }
             }
         }
@@ -266,25 +266,21 @@ public sealed partial class MainViewModel : ObservableObject, IAsyncDisposable
     void ApplyFilter()
     {
         _installedIds = _allInstalled.Select(i => i.Table.Manifest.GameId).ToHashSet();
-        var q = SearchText.Trim();
-        var matches = _allGames
+        var search = TableSearch.Parse(SearchText);
+        var scored = _allGames
             .Where(g => g.TableFiles!.Any(IsVisible))
-            .Where(g =>
-                q == ""
-                || g.Name.Contains(q, StringComparison.OrdinalIgnoreCase)
-                || (g.Manufacturer?.Contains(q, StringComparison.OrdinalIgnoreCase) ?? false)
-                || (
-                    g.TableFiles?.Any(t =>
-                        t.Authors?.Any(a => a.Contains(q, StringComparison.OrdinalIgnoreCase))
-                        == true
-                    )
-                    ?? false
-                )
-            )
-            .Where(MatchesCatalogFilters);
+            .Where(MatchesCatalogFilters)
+            .Select(g => (Game: g, Score: search?.Score(_gameIndex.GetValue(g, IndexGame)) ?? 1))
+            .Where(x => x.Score > 0)
+            .ToList();
+        var matches = scored.Select(x => x.Game);
         _filtered = (
             CatalogSort switch
             {
+                // Searching: best matches first (the other orders still apply as chosen).
+                "A–Z" when search != null => scored
+                    .OrderByDescending(x => x.Score)
+                    .Select(x => x.Game),
                 "Recently updated" => matches.OrderByDescending(g =>
                     g.TableFiles!.Where(IsVisible).Max(t => t.UpdatedAt ?? 0)
                 ),
@@ -314,14 +310,14 @@ public sealed partial class MainViewModel : ObservableObject, IAsyncDisposable
 
     // ---- Catalog filters: maker, era, type, order ----
 
-    const string AnyMaker = "Any maker",
-        AnyEra = "Any era",
-        AnyType = "Any type";
+    const string AnyMaker = TableFilters.AnyMaker,
+        AnyEra = TableFilters.AnyEra,
+        AnyType = TableFilters.AnyType,
+        AnyTheme = TableFilters.AnyTheme;
     public ObservableCollection<string> Manufacturers { get; } = [AnyMaker];
-    public string[] Eras { get; } =
-    [AnyEra, "1930s–50s", "1960s", "1970s", "1980s", "1990s", "2000s", "2010s", "2020s"];
-    public string[] MachineTypes { get; } =
-    [AnyType, "Solid state", "Electro-mechanical", "Pure mechanical", "Originals"];
+    public ObservableCollection<string> Themes { get; } = [AnyTheme];
+    public string[] Eras { get; } = TableFilters.Eras;
+    public string[] MachineTypes { get; } = TableFilters.Types;
     public string[] CatalogSorts { get; } =
     ["A–Z", "Recently updated", "Newest machines", "Oldest machines"];
 
@@ -333,6 +329,9 @@ public sealed partial class MainViewModel : ObservableObject, IAsyncDisposable
 
     [ObservableProperty]
     public partial string TypeFilter { get; set; } = AnyType;
+
+    [ObservableProperty]
+    public partial string ThemeFilter { get; set; } = AnyTheme;
 
     [ObservableProperty]
     public partial string CatalogSort { get; set; } = "A–Z";
@@ -350,68 +349,65 @@ public sealed partial class MainViewModel : ObservableObject, IAsyncDisposable
 
     partial void OnTypeFilterChanged(string value) => ApplyFilter();
 
-    partial void OnCatalogSortChanged(string value) => ApplyFilter();
-
-    bool MatchesCatalogFilters(VpsGame g)
+    partial void OnThemeFilterChanged(string value)
     {
-        if (
-            ManufacturerFilter is { } m
-            && m != AnyMaker
-            && !string.Equals(g.Manufacturer, m, StringComparison.OrdinalIgnoreCase)
-        )
-        {
-            return false;
-        }
-
-        if (EraFilter != AnyEra)
-        {
-            if (g.Year is not > 0)
-            {
-                return false;
-            }
-
-            var decade = g.Year.Value / 10 * 10;
-            var ok =
-                EraFilter == "1930s–50s" ? decade <= 1950 : EraFilter.StartsWith(decade.ToString());
-            if (!ok)
-            {
-                return false;
-            }
-        }
-        return TypeFilter switch
-        {
-            "Solid state" => g.Type == "SS",
-            "Electro-mechanical" => g.Type == "EM",
-            "Pure mechanical" => g.Type == "PM",
-            "Originals" => string.Equals(
-                g.Manufacturer,
-                "Original",
-                StringComparison.OrdinalIgnoreCase
-            ),
-            _ => true,
-        };
+        if (value != null)
+            ApplyFilter();
     }
 
-    /// <summary>Makers with at least 3 machines, most first (built once the catalog has loaded).</summary>
+    partial void OnCatalogSortChanged(string value) => ApplyFilter();
+
+    static TableFacts FactsOf(VpsGame g) => new(g.Manufacturer, g.Year, g.Type, g.Theme);
+
+    bool MatchesCatalogFilters(VpsGame g) =>
+        TableFilters.Matches(FactsOf(g), ManufacturerFilter, EraFilter, TypeFilter, ThemeFilter);
+
+    /// <summary>Search fields for a catalog machine, cleaned up once per machine (a refresh brings new ones).</summary>
+    readonly System.Runtime.CompilerServices.ConditionalWeakTable<VpsGame, SearchEntry> _gameIndex =
+        new();
+
+    static SearchEntry IndexGame(VpsGame g) =>
+        TableSearch.Index(
+            new SearchFields(
+                g.Name,
+                g.Manufacturer,
+                g.Year,
+                g.TableFiles?.SelectMany(t => t.Authors ?? [])
+                    .Distinct(StringComparer.OrdinalIgnoreCase),
+                g.Theme,
+                g.Designers
+            )
+        );
+
+    /// <summary>Makers with at least 3 machines and themes with at least 20, most first (built once the catalog has loaded).</summary>
     void UpdateManufacturers()
     {
         HasCatalogFilters =
-            ManufacturerFilter != AnyMaker || EraFilter != AnyEra || TypeFilter != AnyType;
+            ManufacturerFilter != AnyMaker
+            || EraFilter != AnyEra
+            || TypeFilter != AnyType
+            || ThemeFilter != AnyTheme;
         if (Manufacturers.Count > 1 || _allGames.Count == 0)
         {
             return;
         }
 
         foreach (
-            var m in _allGames
-                .Where(g => !string.IsNullOrWhiteSpace(g.Manufacturer))
-                .GroupBy(g => g.Manufacturer!.Trim(), StringComparer.OrdinalIgnoreCase)
-                .Where(g => g.Count() >= 3)
-                .OrderByDescending(g => g.Count())
-                .Select(g => g.Key)
+            var m in TableFilters
+                .Choices(AnyMaker, _allGames.Select(g => g.Manufacturer), 3)
+                .Skip(1)
         )
         {
             Manufacturers.Add(m);
+        }
+
+        foreach (
+            var t in TableFilters
+                .Choices(AnyTheme, _allGames.SelectMany(g => g.Theme ?? []), 20)
+                .Skip(1)
+        )
+        {
+            Themes.Add(t);
         }
     }
 
@@ -421,6 +417,7 @@ public sealed partial class MainViewModel : ObservableObject, IAsyncDisposable
         ManufacturerFilter = AnyMaker;
         EraFilter = AnyEra;
         TypeFilter = AnyType;
+        ThemeFilter = AnyTheme;
     }
 
     void AddPage()
@@ -1385,7 +1382,7 @@ public sealed partial class MainViewModel : ObservableObject, IAsyncDisposable
     [ObservableProperty]
     public partial int InstalledTotal { get; set; }
 
-    partial void OnInstalledFilterChanged(string value) => ShowInstalled();
+    partial void OnInstalledFilterChanged(string value) => FilterInstalled();
 
     List<InstalledItem> _allInstalled = [];
     PlayStats _stats = new();
@@ -1475,7 +1472,7 @@ public sealed partial class MainViewModel : ObservableObject, IAsyncDisposable
         {
             item.RefreshUserArtwork(); // re-reads ImgUrl
         }
-        ApplyTableUpdates(); // add-ons and rules now know the game
+        ShowInstalled(); // add-ons, rules and the type / theme filters now know the game
     }
 
     public string[] InstalledEngines { get; } =
@@ -1491,11 +1488,11 @@ public sealed partial class MainViewModel : ObservableObject, IAsyncDisposable
     [ObservableProperty]
     public partial string InstalledSort { get; set; } = "A–Z";
 
-    partial void OnInstalledSearchChanged(string value) => ShowInstalled();
+    partial void OnInstalledSearchChanged(string value) => FilterInstalled();
 
-    partial void OnInstalledEngineChanged(string value) => ShowInstalled();
+    partial void OnInstalledEngineChanged(string value) => FilterInstalled();
 
-    partial void OnInstalledSortChanged(string value) => ShowInstalled();
+    partial void OnInstalledSortChanged(string value) => FilterInstalled();
 
     bool MatchesInstalledEngine(InstalledItem i) =>
         InstalledEngine switch
@@ -1507,25 +1504,36 @@ public sealed partial class MainViewModel : ObservableObject, IAsyncDisposable
             _ => true,
         };
 
-    /// <summary>Fills the My Tables grid from the scan, using the chosen filter and order.</summary>
+    /// <summary>Fills the My Tables grid from the scan, and refreshes what each table has waiting (updates, add-ons, rules).</summary>
     void ShowInstalled()
     {
-        var q0 = InstalledSearch.Trim();
+        FilterInstalled();
+        ApplyTableUpdates();
+    }
+
+    /// <summary>
+    /// Fills the My Tables grid using the chosen search, filters and order. Typing in the search box runs this on
+    /// every keystroke, so it leaves the update check alone, and the cards alone when the list hasn't changed.
+    /// </summary>
+    void FilterInstalled()
+    {
+        UpdateInstalledChoices();
+        HasInstalledFilters =
+            InstalledMakerFilter != TableFilters.AnyMaker
+            || InstalledEraFilter != TableFilters.AnyEra
+            || InstalledTypeFilter != TableFilters.AnyType
+            || InstalledThemeFilter != TableFilters.AnyTheme;
+        var search = TableSearch.Parse(InstalledSearch);
+        var scores = new Dictionary<InstalledItem, double>();
         var pool = _allInstalled
             .Where(MatchesInstalledEngine)
-            .Where(i =>
-                q0 == ""
-                || i.Title.Contains(q0, StringComparison.OrdinalIgnoreCase)
-                || (
-                    i.Table.Manifest.Manufacturer?.Contains(q0, StringComparison.OrdinalIgnoreCase)
-                    ?? false
-                )
-                || i.Table.Manifest.Authors.Any(a =>
-                    a.Contains(q0, StringComparison.OrdinalIgnoreCase)
-                )
-            );
+            .Where(MatchesInstalledFilters)
+            .Where(i => search == null || (scores[i] = search.Score(SearchEntryOf(i))) > 0)
+            .ToList();
         IEnumerable<InstalledItem> q = InstalledFilter switch
         {
+            "Favourites" when search != null => pool.Where(i => i.IsFavourite)
+                .OrderByDescending(i => scores[i]),
             "Favourites" => pool.Where(i => i.IsFavourite),
             "Most played" => pool.Where(i => i.Plays > 0)
                 .OrderByDescending(i => i.Plays)
@@ -1536,22 +1544,29 @@ public sealed partial class MainViewModel : ObservableObject, IAsyncDisposable
             {
                 "Recently installed" => pool.OrderByDescending(i => i.Table.Manifest.InstalledAt),
                 "Largest first" => pool.OrderByDescending(i => i.SizeBytes),
+                // Searching: best matches first.
+                _ when search != null => pool.OrderByDescending(i => scores[i])
+                    .ThenBy(i => i.Title, StringComparer.OrdinalIgnoreCase),
                 // Favourites first, then A–Z.
                 _ => pool.OrderByDescending(i => i.IsFavourite)
                     .ThenBy(i => i.Title, StringComparer.OrdinalIgnoreCase),
             },
         };
-        Installed.Clear();
-        foreach (var i in q)
+        var shown = q.ToList();
+        if (!Installed.SequenceEqual(shown))
         {
-            Installed.Add(i);
+            Installed.Clear();
+            foreach (var i in shown)
+            {
+                Installed.Add(i);
+            }
         }
 
         InstalledTotal = _allInstalled.Count;
         InstalledEmptyText =
             Installed.Count > 0 || _allInstalled.Count == 0 ? ""
-            : q0 != "" || InstalledEngine != InstalledEngines[0]
-                ? "No installed tables match the search."
+            : search != null || HasInstalledFilters || InstalledEngine != InstalledEngines[0]
+                ? "No installed tables match the search and filters."
             : InstalledFilter switch
             {
                 "Favourites" =>
@@ -1559,7 +1574,6 @@ public sealed partial class MainViewModel : ObservableObject, IAsyncDisposable
                 _ =>
                     "Nothing played yet. Your plays from here and from the VR lobby show up in this list.",
             };
-        ApplyTableUpdates();
     }
 
     [RelayCommand]
@@ -1578,7 +1592,7 @@ public sealed partial class MainViewModel : ObservableObject, IAsyncDisposable
         item.ApplyStats(_stats);
         if (InstalledFilter != "Most played" && InstalledFilter != "Recently played")
         {
-            ShowInstalled();
+            FilterInstalled();
         }
     }
 

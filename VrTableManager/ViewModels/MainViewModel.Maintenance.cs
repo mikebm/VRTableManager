@@ -233,7 +233,7 @@ public sealed partial class MainViewModel
         InstalledSizeText = DiskUsage.Format(sizes.Sum());
         if (InstalledSort == "Largest first")
         {
-            ShowInstalled();
+            FilterInstalled();
         }
     }
 

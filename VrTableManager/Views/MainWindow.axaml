@@ -216,13 +216,19 @@
             </Border>
 
             <WrapPanel IsVisible="{Binding InstalledTotal, Converter={x:Static v:Converters.NonZero}}">
-              <TextBox Text="{Binding InstalledSearch}" PlaceholderText="Search your tables" Width="260" Margin="0,0,12,8">
+              <TextBox Text="{Binding InstalledSearch}" PlaceholderText="Search your tables" Width="260" ToolTip.Tip="Name, maker, author, theme, year or ROM. Typos are fine, words can be in any order, and initials work: afm, tz, mm" Margin="0,0,12,8">
                 <TextBox.InnerLeftContent>
                   <PathIcon Classes="search" Margin="12,0,0,0" />
                 </TextBox.InnerLeftContent>
               </TextBox>
               <ListBox Classes="segmented" ItemsSource="{Binding InstalledFilters}" SelectedItem="{Binding InstalledFilter}" Margin="0,0,12,8" />
               <ComboBox ItemsSource="{Binding InstalledEngines}" SelectedItem="{Binding InstalledEngine}" MinWidth="150" Margin="0,0,12,8" VerticalAlignment="Center" />
+              <ComboBox ItemsSource="{Binding InstalledMakers}" SelectedItem="{Binding InstalledMakerFilter}" MinWidth="150" MaxDropDownHeight="420" Margin="0,0,12,8" VerticalAlignment="Center" ToolTip.Tip="Manufacturer" />
+              <ComboBox ItemsSource="{Binding Eras}" SelectedItem="{Binding InstalledEraFilter}" MinWidth="130" Margin="0,0,12,8" VerticalAlignment="Center" ToolTip.Tip="When the real machine came out" />
+              <ComboBox ItemsSource="{Binding MachineTypes}" SelectedItem="{Binding InstalledTypeFilter}" MinWidth="150" Margin="0,0,12,8" VerticalAlignment="Center" ToolTip.Tip="Solid state (1977 on), electro-mechanical, or original designs. From the catalog, so tables not linked to it only show under Any type" />
+              <ComboBox ItemsSource="{Binding InstalledThemes}" SelectedItem="{Binding InstalledThemeFilter}" MinWidth="150" MaxDropDownHeight="420" Margin="0,0,12,8" VerticalAlignment="Center" ToolTip.Tip="What the machine is about, from the catalog" />
+              <Button Classes="small" Content="CLEAR FILTERS" Margin="0,0,12,8" VerticalAlignment="Center"
+                      IsVisible="{Binding HasInstalledFilters}" Command="{Binding ClearInstalledFiltersCommand}" />
               <StackPanel Orientation="Horizontal" Spacing="8" Margin="0,0,16,8" VerticalAlignment="Center">
                 <TextBlock Classes="eyebrow" Foreground="{StaticResource Muted}" Text="SORT" VerticalAlignment="Center" />
                 <ComboBox ItemsSource="{Binding InstalledSorts}" SelectedItem="{Binding InstalledSort}" MinWidth="170"
@@ -658,7 +664,7 @@
                     <Setter Property="VerticalAlignment" Value="Center" />
                   </Style>
                 </WrapPanel.Styles>
-                <TextBox Text="{Binding SearchText}" PlaceholderText="Search name, manufacturer or author" Width="300" Margin="0,0,12,8">
+                <TextBox Text="{Binding SearchText}" PlaceholderText="Search name, maker, author, theme, year" Width="300" ToolTip.Tip="Typos are fine, words can be in any order, and initials work: afm, tz, mm" Margin="0,0,12,8">
                   <TextBox.InnerLeftContent>
                     <PathIcon Classes="search" Margin="12,0,0,0" />
                   </TextBox.InnerLeftContent>
@@ -670,6 +676,7 @@
                 <ComboBox ItemsSource="{Binding Manufacturers}" SelectedItem="{Binding ManufacturerFilter}" MaxDropDownHeight="420" ToolTip.Tip="Manufacturer" />
                 <ComboBox ItemsSource="{Binding Eras}" SelectedItem="{Binding EraFilter}" ToolTip.Tip="When the real machine came out" />
                 <ComboBox ItemsSource="{Binding MachineTypes}" SelectedItem="{Binding TypeFilter}" ToolTip.Tip="Solid state (1977 on), electro-mechanical, or original designs" />
+                <ComboBox ItemsSource="{Binding Themes}" SelectedItem="{Binding ThemeFilter}" MaxDropDownHeight="420" ToolTip.Tip="What the machine is about (Movie, Sci-Fi, Horror …)" />
                 <StackPanel Orientation="Horizontal" Spacing="8" Margin="4,0,10,8" VerticalAlignment="Center">
                   <TextBlock Classes="eyebrow" Foreground="{StaticResource Muted}" Text="SORT" VerticalAlignment="Center" />
                   <ComboBox ItemsSource="{Binding CatalogSorts}" SelectedItem="{Binding CatalogSort}" Margin="0" />

@@ -2356,6 +2356,11 @@ foreach (var (ok, name) in LobbyLayoutChecks.Run())
     Check(ok, name);
 }
 
+foreach (var (ok, name) in TableSearchChecks.Run(games))
+{
+    Check(ok, name);
+}
+
 Check(
     LobbyDotnet.HasLobbyRuntime(LobbyDotnet.DotnetRoots()),
     "lobby runtime: found on this PC (the SDK that builds this test includes it)"
