@@ -352,12 +352,31 @@ public static class SelfTest
             lobby.VideoFramesShown > 6 && (headless || seen.IsSupersetOf(["r", "g", "b"])),
             $"its frames advance and loop ({lobby.VideoFramesShown} shown{(headless ? "" : ", colours " + string.Join("", seen.Order()))})"
         );
+        // Launching freezes the video on its picture (keeping any playfield depth) instead of going flat.
+        lobby.FreezeVideoForTest();
+        var frozenAt = lobby.VideoFramesShown;
+        await Seconds(lobby, 0.3);
+        Check(
+            lobby.VideoPlaying == null
+                && mmCab.ShowsPlayfieldVideo
+                && lobby.VideoFramesShown == frozenAt,
+            "launching freezes the video on its last picture, not the flat still playfield"
+        );
         lobby.Select(mmIndex + 1);
         Check(lobby.AttractPlaying == null, "and stops when you move on");
         Check(
             lobby.VideoPlaying == null && !mmCab.ShowsPlayfieldVideo,
             "the video stops too, and the cabinet shows its still playfield again"
         );
+        // Back on the table (as after a table closes: the ring comes back through the same selection update).
+        lobby.Select(mmIndex);
+        await Seconds(lobby, 1.5);
+        Check(
+            lobby.VideoPlaying?.EndsWith("lobby-video") == true
+                && lobby.SelectedCabinet?.ShowsPlayfieldVideo == true,
+            $"coming back to a frozen table plays its video again (playing: {lobby.VideoPlaying ?? "nothing"})"
+        );
+        lobby.Select(mmIndex + 1);
         await Seconds(lobby, 0.5);
         Check(lobby.ScoresText == "", "no high scores shown for a table without an .nv file");
 

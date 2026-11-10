@@ -2175,7 +2175,7 @@ public partial class Main : Node3D
         }
         _launching = true;
         StopAttract();
-        _video.Stop();
+        _video.Freeze(); // keeps the playfield's depth: dropping to flat as the table starts is a jarring change
         _recorder.StopAll();
         var wait = Settings.LobbyWaitsForTable;
         if (wait)
@@ -2193,6 +2193,9 @@ public partial class Main : Node3D
         {
             StopLoading();
             _launching = false;
+            // Unfreeze: without a loading screen StopLoading does nothing, so start the video again here.
+            _video.Stop();
+            _videoCheckedFor = null;
             ShowError(error);
             return;
         }
@@ -2265,6 +2268,9 @@ public partial class Main : Node3D
     }
 
     /// <summary>Self-test: the loading screen for the selected table, reading <paramref name="statusFile"/>, without launching anything.</summary>
+    /// <summary>What a launch does to the playfield video (LaunchAsync), without launching anything.</summary>
+    public void FreezeVideoForTest() => _video.Freeze();
+
     public void StartLoadingForTest(string statusFile)
     {
         _launching = true;

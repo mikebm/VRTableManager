@@ -90,6 +90,31 @@ public partial class PlayfieldVideo : Node
         }
     }
 
+    /// <summary>
+    /// Stops decoding but leaves the picture showing now, and its depth, on the cabinet: for the launch, so the
+    /// table doesn't drop from 3D to flat as it starts. <see cref="Stop"/> (the next selection) clears it as usual.
+    /// </summary>
+    public void Freeze()
+    {
+        _cts?.Cancel();
+        _cts = null;
+        _ready.Clear();
+        // Depth that arrived after the first frame but before this frame's _Process: put it on now, or never.
+        if (
+            _cab != null
+            && FramesShown > 0
+            && Interlocked.Exchange(ref _heights, null) is { } heights
+        )
+        {
+            _cab.SetPlayfieldDepth(
+                ImageTexture.CreateFromImage(heights),
+                PlayfieldDepth.DepthOf(heights)
+            );
+        }
+        _heights = null;
+        Playing = null; // _Process does nothing more; _cab stays so Stop can put the flat playfield back
+    }
+
     public void Stop()
     {
         _cts?.Cancel();
