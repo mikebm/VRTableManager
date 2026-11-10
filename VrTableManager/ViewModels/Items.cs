@@ -250,6 +250,37 @@ public sealed partial class InstalledItem : ObservableObject
         Engines.For(Table.Manifest.Engine).SupportsDesktopMode && !Table.IsIncomplete;
     public bool CanRemove => Engines.For(Table.Manifest.Engine).ManagesFiles;
 
+    /// <summary>The page the table was installed from (the author's post), when it was a web page.</summary>
+    public string? SourcePage =>
+        Uri.TryCreate(Table.Manifest.SourceUrl, UriKind.Absolute, out var u)
+        && (u.Scheme == Uri.UriSchemeHttps || u.Scheme == Uri.UriSchemeHttp)
+            ? u.ToString()
+            : null;
+    public bool HasSourcePage => SourcePage != null;
+
+    /// <summary>"Open its page on VPUniverse": names the site, since only some of them take ratings.</summary>
+    public string SourcePageMenuHeader => $"Open its page on {SiteName(SourcePage)}";
+
+    static string SiteName(string? url)
+    {
+        if (!Uri.TryCreate(url, UriKind.Absolute, out var u))
+        {
+            return "the web";
+        }
+
+        var host = u.Host.StartsWith("www.", StringComparison.OrdinalIgnoreCase)
+            ? u.Host[4..]
+            : u.Host;
+        return host.ToLowerInvariant() switch
+        {
+            "vpuniverse.com" => "VPUniverse",
+            "vpforums.org" => "VPForums",
+            "pinballnirvana.com" => "Pinball Nirvana",
+            "github.com" => "GitHub",
+            _ => host,
+        };
+    }
+
     public string Subtitle
     {
         get

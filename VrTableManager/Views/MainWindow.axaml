@@ -414,6 +414,9 @@
                                 </MenuItem.IsVisible>
                                 </MenuItem>
                                 <Separator IsVisible="{Binding Compact}" />
+                                <MenuItem Header="{Binding SourcePageMenuHeader}" IsVisible="{Binding HasSourcePage}"
+                                          ToolTip.Tip="The page the author posted this table on: rate it, leave a comment, report a problem or say thanks"
+                                          Command="{Binding Owner.OpenPageCommand}" CommandParameter="{Binding SourcePage}" />
                                 <MenuItem Header="Open ROM folder" IsVisible="{Binding IsVpx}" Command="{Binding Owner.OpenRomFolderCommand}" CommandParameter="{Binding}" />
                                 <MenuItem Header="Open high score (NVRAM) folder" IsVisible="{Binding IsVpx}" Command="{Binding Owner.OpenNvramFolderCommand}" CommandParameter="{Binding}" />
                                 <MenuItem Header="Edit this table's VPX settings (.ini)" IsVisible="{Binding IsVpx}" Command="{Binding Owner.OpenTableIniCommand}" CommandParameter="{Binding}" />
