@@ -1912,12 +1912,6 @@ public sealed partial class MainViewModel : ObservableObject, IAsyncDisposable
     [ObservableProperty]
     public partial bool VpxUseNightlyBuilds { get; set; }
 
-    /// <summary>
-    /// Nightlies only with DO NOT USE builds allowed too: they're newer and less tested than those, so a player who
-    /// turned DO NOT USE builds off shouldn't get one through the nightly setting (or an old saved one).
-    /// </summary>
-    bool UseNightlyVpx => Settings.VpxUseNightlyBuilds && Settings.VpxUseDoNotUseBuilds;
-
     [ObservableProperty]
     public partial bool FpRunAsAdmin { get; set; }
 
@@ -2184,7 +2178,7 @@ public sealed partial class MainViewModel : ObservableObject, IAsyncDisposable
             var releases = await VpxSetup.FindReleasesAsync(
                 CancellationToken.None,
                 Settings.VpxUseDoNotUseBuilds,
-                UseNightlyVpx
+                Settings.VpxUseNightlyBuilds
             );
             var (text, hasUpdate) = VpxSetup.DescribeUpdate(
                 releases,
@@ -2227,7 +2221,7 @@ public sealed partial class MainViewModel : ObservableObject, IAsyncDisposable
             var builds = await VpxSetup.FindBuildsAsync(
                 CancellationToken.None,
                 Settings.VpxUseDoNotUseBuilds,
-                UseNightlyVpx
+                Settings.VpxUseNightlyBuilds
             );
             VpxBuilds.Clear();
             foreach (var b in builds)
@@ -2240,7 +2234,7 @@ public sealed partial class MainViewModel : ObservableObject, IAsyncDisposable
                 VpxBuilds.FirstOrDefault(b => b.Installed) ?? VpxBuilds.FirstOrDefault();
             LatestVpx = HasVpxBuilds
                 ? $"{VpxBuilds.Count} builds. Pick one and click INSTALL THIS BUILD."
-                    + (UseNightlyVpx ? "" : " Turn on nightly builds below to list those too.")
+                    + (Settings.VpxUseNightlyBuilds ? "" : " Turn on nightly builds below to list those too.")
                 : "No VPX builds found for this OS.";
         }
         catch (Exception e)
@@ -2316,7 +2310,7 @@ public sealed partial class MainViewModel : ObservableObject, IAsyncDisposable
             var releases = await VpxSetup.FindReleasesAsync(
                 ct,
                 Settings.VpxUseDoNotUseBuilds,
-                UseNightlyVpx
+                Settings.VpxUseNightlyBuilds
             );
             var installed = VpxSetup.InstalledVersion(Settings);
             var (text, hasUpdate) = VpxSetup.DescribeUpdate(releases, installed);
@@ -2666,7 +2660,7 @@ public sealed partial class MainViewModel : ObservableObject, IAsyncDisposable
         {
             var ct = CancellationToken.None;
             var vpxTask = Try<VpxReleases>(async () =>
-                await VpxSetup.FindReleasesAsync(ct, Settings.VpxUseDoNotUseBuilds, UseNightlyVpx)
+                await VpxSetup.FindReleasesAsync(ct, Settings.VpxUseDoNotUseBuilds, Settings.VpxUseNightlyBuilds)
             );
             var uevrTask = Try(() => UevrSetup.FindLatestAsync(ct));
             var bamTask = Try(() => BamCheck.LatestAsync(ct));
