@@ -46,8 +46,26 @@ public static class LobbyDotnet
     /// bundled runtime to share (running from source, or a release without the deps file) or the junction can't
     /// be made (a drive without junctions). Folders left by other versions or app locations are removed; only
     /// links are ever deleted under <c>shared</c>, never what they point to.
+    /// <para>
+    /// Never throws: any failure (cmd.exe not starting, a bad path) means the installed .NET is used instead, and
+    /// play mode still brings the lobby back after a table. It starts a process and copies a file, so call it off
+    /// the UI thread.
+    /// </para>
     /// </summary>
     public static string? Prepare(string appDir, string root, string version, out string why)
+    {
+        try
+        {
+            return PrepareCore(appDir, root, version, out why);
+        }
+        catch (Exception e)
+        {
+            why = e.Message;
+            return null;
+        }
+    }
+
+    static string? PrepareCore(string appDir, string root, string version, out string why)
     {
         // Full paths with backslashes: mklink reads a forward slash as a switch.
         appDir = Path.TrimEndingDirectorySeparator(Path.GetFullPath(appDir));

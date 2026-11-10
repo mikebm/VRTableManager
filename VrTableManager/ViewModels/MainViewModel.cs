@@ -1689,12 +1689,17 @@ public sealed partial class MainViewModel : ObservableObject, IAsyncDisposable
             return;
         }
         // The lobby runs on this app's own .NET; from source (or where that can't be set up), on the installed one.
-        var dotnetRoot = LobbyDotnet.Prepare(
-            AppContext.BaseDirectory,
-            LobbyDotnet.DefaultRoot,
-            Environment.Version.ToString(),
-            out var noBundled
-        );
+        // Off the UI thread: it runs mklink and copies hostfxr.dll.
+        var (dotnetRoot, noBundled) = await Task.Run(() =>
+        {
+            var r = LobbyDotnet.Prepare(
+                AppContext.BaseDirectory,
+                LobbyDotnet.DefaultRoot,
+                Environment.Version.ToString(),
+                out var why
+            );
+            return (r, why);
+        });
         if (dotnetRoot == null && !LobbyDotnet.HasLobbyRuntime(LobbyDotnet.DotnetRoots()))
         {
             // Without one Godot opens a black, empty lobby with no error to go on.

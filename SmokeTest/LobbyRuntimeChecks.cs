@@ -35,7 +35,46 @@ static class LobbyRuntimeChecks
             ? Path.TrimEndingDirectorySeparator(t.StartsWith(@"\??\") ? t[4..] : t)
             : null;
 
+    /// <summary>
+    /// Removes the junctions under <paramref name="dir"/> one by one (the link only), without walking into them:
+    /// the smoke test's final recursive delete of its temp folder fails with access denied on a junction.
+    /// </summary>
+    static void DeleteLinks(string dir)
+    {
+        if (!Directory.Exists(dir))
+        {
+            return;
+        }
+        foreach (var d in Directory.GetDirectories(dir))
+        {
+            if (new DirectoryInfo(d).Attributes.HasFlag(FileAttributes.ReparsePoint))
+            {
+                Directory.Delete(d);
+            }
+            else
+            {
+                DeleteLinks(d);
+            }
+        }
+    }
+
     public static IEnumerable<(bool, string)> Run(string root)
+    {
+        try
+        {
+            foreach (var r in Checks(root))
+            {
+                yield return r;
+            }
+        }
+        finally
+        {
+            DeleteLinks(Path.Combine(root, "lobby-dotnet"));
+            DeleteLinks(Path.Combine(root, "slashed-dotnet"));
+        }
+    }
+
+    static IEnumerable<(bool, string)> Checks(string root)
     {
         // ---- An installed .NET ----
         var none = Path.Combine(root, "dotnet-none");
