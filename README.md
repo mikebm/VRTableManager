@@ -35,6 +35,7 @@ Add-ons are matched to the table's ROM, installed where VPX's plugins look, and 
 - **The VR lobby:** your tables stand around you as 3D cabinets with real backglass art. Browse with an alphabet wheel, play a table's attract music, and launch it without taking the headset off.
 - **Favourites, play history and high scores:** shared between the manager and the lobby. Grand champion scores are read straight from each table's saved memory. Updating a table keeps its star and plays, even when the new version has a new file name.
 - **Your own collections:** group tables however you like ("Party night", "Learning the rules"). A table's ⋯ menu → Collections puts it in one or starts a new one, and the Collection filter in My Tables shows one, with Rename and Delete beside it. In the VR lobby each collection is another filter (B / Tab).
+- **Smart collections:** lists that fill themselves, in their own section of the Collection filter. Ready-made ones: Never played, New this month, Not played in 3 months, Forgotten favourites (starred, not played in 2 months) and Needs a ROM. Or set the search and filters you want (say 1990s + Movie, or "williams" in your Party collection) and press **SAVE AS SMART**: it stays up to date as you install and play. They're filters in the VR lobby too.
 - **Pinball FX and Pinball M:** launched through UEVR, with pinball-tuned VR settings applied automatically.
 
 ### Setup made easy

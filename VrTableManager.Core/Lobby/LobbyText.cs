@@ -124,13 +124,20 @@ public static class LobbyText
     }
 
     /// <summary>What to say when a filter has nothing in it.</summary>
-    public static string Empty(string filter, int libraryCount, bool isCollection = false) =>
+    public static string Empty(
+        string filter,
+        int libraryCount,
+        bool isCollection = false,
+        bool isSmart = false
+    ) =>
         libraryCount == 0
             ? "Install tables with VR Table Manager, then open the lobby again."
             : filter switch
             {
                 _ when isCollection =>
                     $"Nothing in “{filter}” yet. Add tables to it from a table's ⋯ menu → Collections in VR Table Manager.",
+                _ when isSmart =>
+                    $"Nothing in “{filter}” right now. It fills itself as your tables and plays change.",
                 "Favourites" =>
                     "No favourites yet. Right grip (F on the keyboard) on a table, or ★ in VR Table Manager.",
                 "Recently played" => "Nothing played yet. Tables you launch show up here.",

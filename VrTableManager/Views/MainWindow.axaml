@@ -227,13 +227,28 @@
               <ComboBox ItemsSource="{Binding Eras}" SelectedItem="{Binding InstalledEraFilter}" MinWidth="130" Margin="0,0,12,8" VerticalAlignment="Center" ToolTip.Tip="When the real machine came out" />
               <ComboBox ItemsSource="{Binding MachineTypes}" SelectedItem="{Binding InstalledTypeFilter}" MinWidth="150" Margin="0,0,12,8" VerticalAlignment="Center" ToolTip.Tip="Solid state (1977 on), electro-mechanical, or original designs. From the catalog, so tables not linked to it only show under Any type" />
               <ComboBox ItemsSource="{Binding InstalledThemes}" SelectedItem="{Binding InstalledThemeFilter}" MinWidth="150" MaxDropDownHeight="420" Margin="0,0,12,8" VerticalAlignment="Center" ToolTip.Tip="What the machine is about, from the catalog" />
-              <ComboBox ItemsSource="{Binding InstalledCollections}" SelectedItem="{Binding InstalledCollectionFilter}" MinWidth="170" MaxDropDownHeight="420" Margin="0,0,8,8" VerticalAlignment="Center"
-                        ToolTip.Tip="Your own collections, also filters in the VR lobby (B / Tab). Add a table to one from its ⋯ menu → Collections" />
+              <ComboBox ItemsSource="{Binding InstalledCollections}" SelectedItem="{Binding InstalledCollectionChoice}" MinWidth="190" MaxDropDownHeight="520" Margin="0,0,8,8" VerticalAlignment="Center"
+                        ToolTip.Tip="Your own collections, then smart ones that fill themselves (Never played, New this month … and ones you save). All are filters in the VR lobby too (B / Tab)">
+                <ComboBox.ItemTemplate>
+                  <DataTemplate x:DataType="vm:CollectionOption">
+                    <TextBlock Text="{Binding Name}" Classes.eyebrow="{Binding IsHeader}" />
+                  </DataTemplate>
+                </ComboBox.ItemTemplate>
+                <ComboBox.Styles>
+                  <Style Selector="ComboBoxItem" x:DataType="vm:CollectionOption">
+                    <Setter Property="IsEnabled" Value="{Binding IsSelectable}" />
+                    <Setter Property="ToolTip.Tip" Value="{Binding Tip}" />
+                  </Style>
+                </ComboBox.Styles>
+              </ComboBox>
               <Button Classes="small" Content="RENAME" Margin="0,0,8,8" VerticalAlignment="Center"
-                      IsVisible="{Binding IsCollectionChosen}" Command="{Binding RenameCollectionCommand}" />
+                      IsVisible="{Binding CanEditCollection}" Command="{Binding RenameCollectionCommand}" />
               <Button Classes="small" Content="DELETE" Margin="0,0,12,8" VerticalAlignment="Center"
-                      ToolTip.Tip="Deletes the collection only; its tables stay installed"
-                      IsVisible="{Binding IsCollectionChosen}" Command="{Binding DeleteCollectionCommand}" />
+                      ToolTip.Tip="Deletes the collection only; your tables stay installed"
+                      IsVisible="{Binding CanEditCollection}" Command="{Binding DeleteCollectionCommand}" />
+              <Button Classes="small" Content="SAVE AS SMART" Margin="0,0,12,8" VerticalAlignment="Center"
+                      ToolTip.Tip="Keeps this search and these filters as a smart collection, which stays up to date as your tables change"
+                      IsVisible="{Binding CanSaveSmart}" Command="{Binding SaveSmartCollectionCommand}" />
               <Button Classes="small" Content="CLEAR FILTERS" Margin="0,0,12,8" VerticalAlignment="Center"
                       IsVisible="{Binding HasInstalledFilters}" Command="{Binding ClearInstalledFiltersCommand}" />
               <StackPanel Orientation="Horizontal" Spacing="8" Margin="0,0,16,8" VerticalAlignment="Center">

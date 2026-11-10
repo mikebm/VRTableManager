@@ -386,13 +386,33 @@ public partial class Main : Node3D
     /// <summary>Backglass pictures come from the manager's cached VPS catalog (no network); ~8 MB, so it's read in the background.</summary>
     void LoadBackglassIndex()
     {
-        Task.Run(() => LobbyArt.BackglassIndex(VpsCatalog.LoadCached() ?? []))
+        Task.Run(() =>
+            {
+                var games = VpsCatalog.LoadCached() ?? [];
+                // Also what smart collections need to know a table's type and themes.
+                // Entries without an id are skipped, so one bad entry can't cost the backglass pictures too.
+                var byId = games
+                    .Where(g => !string.IsNullOrEmpty(g.Id))
+                    .GroupBy(g => g.Id)
+                    .ToDictionary(g => g.Key, g => g.First(), StringComparer.Ordinal);
+                return (Backglass: LobbyArt.BackglassIndex(games), ById: byId);
+            })
             .ContinueWith(t =>
             {
-                var index = t.IsCompletedSuccessfully ? t.Result : new Dictionary<string, string>();
+                var index = t.IsCompletedSuccessfully
+                    ? t.Result.Backglass
+                    : new Dictionary<string, string>();
                 Callable
                     .From(() =>
                     {
+                        if (t.IsCompletedSuccessfully)
+                        {
+                            State.Catalog = t.Result.ById;
+                            if (State.IsSmart(State.Filter))
+                            {
+                                Rebuild(Shown.Count > 0 ? Shown[Selected].Id : "");
+                            }
+                        }
                         _backglass = index;
                         foreach (var cab in _pool)
                         {
@@ -1176,7 +1196,8 @@ public partial class Main : Node3D
             _status.Text = LobbyText.Empty(
                 State.Filter,
                 Library.Count,
-                State.IsCollection(State.Filter)
+                State.IsCollection(State.Filter),
+                State.IsSmart(State.Filter)
             );
             _status.Modulate = Palette.Text;
             _scores.Text = "";
@@ -1454,10 +1475,9 @@ public partial class Main : Node3D
     public void CycleFilter()
     {
         var current = Shown.Count > 0 ? Shown[Selected].Id : "";
-        // The built-in filters, then your collections from the manager.
+        // The built-in filters, then your collections and smart ones from the manager.
         State.RefreshCollections();
-        var filters = LobbyNav.FiltersFor(State);
-        State.Filter = filters[(Array.IndexOf(filters, State.Filter) + 1) % filters.Length];
+        State.Filter = LobbyNav.NextFilter(State, Library);
         State.Save();
         Rebuild(current);
         ShowFlash(State.Filter);
@@ -1466,8 +1486,9 @@ public partial class Main : Node3D
     public string HeaderText => _header.Text;
     public string StatusText => _status.Text;
 
-    static bool IsStatsFilter(string filter) =>
-        filter is "Favourites" or "Recently played" or "Most played";
+    /// <summary>Filters whose tables depend on favourites and plays (smart collections can too).</summary>
+    bool IsStatsFilter(string filter) =>
+        filter is "Favourites" or "Recently played" or "Most played" || State.IsSmart(filter);
 
     /// <summary>
     /// Picks up favourites / plays changed by the manager (or the --play launcher) while the lobby is open.
@@ -1484,7 +1505,7 @@ public partial class Main : Node3D
                 State.Save();
                 ShowFlash(State.Filter);
             }
-            if (gone || State.IsCollection(State.Filter))
+            if (gone || State.IsCollection(State.Filter) || State.IsSmart(State.Filter))
             {
                 State.RefreshStats();
                 Rebuild(Shown.Count > 0 ? Shown[Selected].Id : "");
@@ -1530,6 +1551,11 @@ public partial class Main : Node3D
         if (State.Filter == "Favourites" && !on)
         {
             Rebuild(Shown[Math.Min(Selected + 1, Shown.Count - 1)].Id);
+        }
+        else if (State.IsSmart(State.Filter))
+        {
+            // Forgotten favourites (or a saved one) may now take this table in or leave it out.
+            Rebuild(t.Id);
         }
         else
         {

@@ -1,4 +1,5 @@
 using VrTableManager.Models;
+using VrTableManager.Services;
 
 namespace VrTableManager.Lobby;
 
@@ -25,19 +26,61 @@ public static class LobbyNav
     ];
     public const string Letters = "#ABCDEFGHIJKLMNOPQRSTUVWXYZ";
 
-    /// <summary>What B / Tab cycles through: the built-in filters, then your collections from the manager.</summary>
-    public static string[] FiltersFor(LobbyState state) =>
-        [
-            .. Filters,
-            .. state.Collections.Names.Where(n =>
-                !Filters.Contains(n, StringComparer.OrdinalIgnoreCase)
-            ),
-        ];
+    /// <summary>
+    /// What B / Tab cycles through: the built-in filters, then your collections from the manager, then the smart
+    /// ones (ready-made, then yours). Given the <paramref name="tables"/>, ready-made smart ones with nothing in
+    /// them are left out, to keep the cycle short.
+    /// </summary>
+    public static string[] FiltersFor(LobbyState state, IReadOnlyList<LobbyTable>? tables = null)
+    {
+        var seen = new HashSet<string>(Filters, StringComparer.OrdinalIgnoreCase);
+        var list = new List<string>(Filters);
+        list.AddRange(state.Collections.Names.Where(seen.Add));
+        var now = DateTime.Now;
+        list.AddRange(
+            SmartCollections.BuiltInNames.Where(n =>
+                !seen.Contains(n)
+                && (tables == null || tables.Any(t => state.InSmart(n, t, now)))
+                && seen.Add(n)
+            )
+        );
+        list.AddRange(state.Collections.SmartNames.Where(seen.Add));
+        return [.. list];
+    }
+
+    /// <summary>
+    /// The filter B / Tab moves to: the next one after the current filter that's in the cycle. A ready-made smart one
+    /// that has just emptied (and so dropped out of the cycle) still moves on from where it was, not back to All.
+    /// </summary>
+    public static string NextFilter(LobbyState state, IReadOnlyList<LobbyTable> tables)
+    {
+        var all = FiltersFor(state);
+        var cycle = new HashSet<string>(
+            FiltersFor(state, tables),
+            StringComparer.OrdinalIgnoreCase
+        );
+        var at = Array.FindIndex(
+            all,
+            f => string.Equals(f, state.Filter, StringComparison.OrdinalIgnoreCase)
+        );
+        for (var i = 1; i <= all.Length; i++)
+        {
+            var f = all[(at + i + all.Length) % all.Length];
+            if (cycle.Contains(f))
+            {
+                return f;
+            }
+        }
+        return "All";
+    }
 
     public static LobbyView Apply(IReadOnlyList<LobbyTable> tables, string filter, LobbyState state)
     {
+        var now = DateTime.Now;
         IEnumerable<LobbyTable> q = filter switch
         {
+            // A smart collection: worked out from the tables' facts, A–Z with the letter rail.
+            _ when state.IsSmart(filter) => tables.Where(t => state.InSmart(filter, t, now)),
             // A collection: its tables, A–Z with the letter rail like All.
             _ when state.IsCollection(filter) => tables.Where(t =>
                 state.Collections.Contains(filter, t.Id)

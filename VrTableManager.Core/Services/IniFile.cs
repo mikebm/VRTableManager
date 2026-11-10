@@ -30,7 +30,7 @@ public static class IniFile
         return result;
     }
 
-    sealed class SectionKeyComparer : IEqualityComparer<(string, string)>
+    internal sealed class SectionKeyComparer : IEqualityComparer<(string, string)>
     {
         public static readonly SectionKeyComparer Instance = new();
 

@@ -1240,7 +1240,10 @@ Check(
     );
     var cs = LobbyState.Load(statePath);
     Check(
-        LobbyNav.FiltersFor(cs).SequenceEqual([.. LobbyNav.Filters, "Party", "Empty one"]),
+        LobbyNav
+            .FiltersFor(cs)
+            .Take(LobbyNav.Filters.Length + 2)
+            .SequenceEqual([.. LobbyNav.Filters, "Party", "Empty one"]),
         "lobby: collections are filters after the built-in ones"
     );
     var party = LobbyNav.Apply(lib, "Party", cs);
@@ -1271,6 +1274,62 @@ Check(
     Check(
         LobbyState.Load(statePath).Filter == "All",
         "lobby: a saved filter for a deleted collection loads as All"
+    );
+    File.Delete(colPath);
+    // Smart collections in the lobby: a saved one, and ready-made ones only when they have something.
+    TableCollections.Mutate(
+        c => c.SaveSmart(new SmartRule { Name = "Bally only", Maker = "Bally" }),
+        colPath
+    );
+    var ss = LobbyState.Load(statePath);
+    var lobbyFilters = LobbyNav.FiltersFor(ss, lib);
+    Check(
+        lobbyFilters[^1] == "Bally only"
+            && lobbyFilters.Contains("Needs a ROM")
+            && LobbyNav.FiltersFor(ss).Length >= lobbyFilters.Length,
+        "lobby: smart collections come last; ready-made ones are left out when empty"
+    );
+    var bally = LobbyNav.Apply(lib, "Bally only", ss);
+    Check(
+        ss.IsSmart("Bally only")
+            && bally.List.Count > 0
+            && bally.List.All(t => t.Manufacturer == "Bally")
+            && bally.List.Count == lib.Count(t => t.Manufacturer == "Bally"),
+        $"lobby: a saved smart collection shows the tables it matches ({bally.List.Count})"
+    );
+    Check(
+        LobbyNav.Apply(lib, "Needs a ROM", ss).List.All(t => t.MissingRoms.Count > 0)
+            && LobbyNav.Apply(lib, "Needs a ROM", ss).List.Any(t => t.Title == mmT.Title),
+        "lobby: the ready-made Needs a ROM shows tables missing their ROM"
+    );
+    Check(
+        LobbyText.Empty("Never played", lib.Count, false, true).Contains("fills itself"),
+        "lobby: an empty smart collection says it fills itself"
+    );
+    // B from a ready-made smart one that's just emptied moves on to the next filter, not back to All.
+    var allFilters = LobbyNav.FiltersFor(ss);
+    var emptied = SmartCollections.BuiltInNames.FirstOrDefault(n => !lobbyFilters.Contains(n));
+    if (emptied != null)
+    {
+        ss.Filter = emptied;
+        var next = LobbyNav.NextFilter(ss, lib);
+        Check(
+            next != "All"
+                && lobbyFilters.Contains(next)
+                && Array.IndexOf(allFilters, next) > Array.IndexOf(allFilters, emptied),
+            $"lobby: B from an emptied smart collection ({emptied}) moves on to {next}"
+        );
+    }
+    else
+    {
+        Console.WriteLine(
+            "SKIP  lobby: B from an emptied smart collection (none empty in the fixture)"
+        );
+    }
+    ss.Filter = "Decade";
+    Check(
+        LobbyNav.NextFilter(ss, lib) == lobbyFilters[Array.IndexOf(lobbyFilters, "Decade") + 1],
+        "lobby: B from Decade goes on to what comes after it (collections, then smart ones)"
     );
     File.Delete(colPath);
     reloaded.Save(); // put back the state the checks below expect
@@ -1612,6 +1671,12 @@ Check(
         updCollections
     );
 
+    // Its own VPX settings (VR height, render scale) and "don't ask again" for the PuP DMD fix, both by file name.
+    VrFit.WriteTableHeight(old.TablePath, 12);
+    VpxGraphics.WriteTableScale(old.TablePath, 0.8);
+    us.DmdFixDeclined.Add(old.TablePath);
+    us.Save();
+
     var p11 = Path.Combine(root, "upd11.zip");
     using (var z = ZipFile.Open(p11, ZipArchiveMode.Create))
     {
@@ -1644,6 +1709,50 @@ Check(
         afterCollections.Contains("Practice", upd.TablePath)
             && !afterCollections.Contains("Practice", old.TablePath),
         "update keeps the table in its collections under its new file name"
+    );
+    Check(
+        VrFit.ReadTableHeight(upd.TablePath) == 12
+            && VpxGraphics.ReadTableScale(upd.TablePath) == 0.8
+            && !File.Exists(VpxGraphics.TableIniPath(old.TablePath)),
+        "update keeps the table's own VPX settings (VR height, render scale) under its new file name"
+    );
+    Check(
+        us.DmdFixDeclined.SequenceEqual([upd.TablePath])
+            && AppSettings.LoadFrom(us.SourcePath!).DmdFixDeclined.SequenceEqual([upd.TablePath]),
+        "update keeps \"don't ask again\" for the PuP DMD fix, and saves it"
+    );
+
+    // The new download brought an .ini of its own: the author's settings stay, except your render scale and where
+    // you put the table in VR; your other settings fill in what it doesn't set; nothing outside a [section] is copied.
+    var iniDir = Path.Combine(root, "ini-merge");
+    Directory.CreateDirectory(iniDir);
+    var iniOld = Path.Combine(iniDir, "T v1.vpx");
+    var iniNew = Path.Combine(iniDir, "T v2.vpx");
+    File.WriteAllText(VpxGraphics.TableIniPath(iniOld), "Stray = 1\n");
+    VrFit.WriteTableHeight(iniOld, 5);
+    VpxGraphics.WriteTableScale(iniOld, 1.0);
+    IniFile.Set(VpxGraphics.TableIniPath(iniOld), "TableOverride", "Difficulty", "70");
+    IniFile.Set(VpxGraphics.TableIniPath(iniOld), "TableOverride", "MusicVolume", "40");
+    VpxGraphics.WriteTableScale(iniNew, 0.5);
+    VrFit.WriteTableHeight(iniNew, 20);
+    IniFile.Set(VpxGraphics.TableIniPath(iniNew), "TableOverride", "Difficulty", "30");
+    TableInstaller.KeepTableSettings(iniOld, iniNew, us);
+    var merged = IniFile.Read(VpxGraphics.TableIniPath(iniNew));
+    Check(
+        VpxGraphics.ReadTableScale(iniNew) == 1.0
+            && VrFit.ReadTableHeight(iniNew) == 5
+            && !File.Exists(VpxGraphics.TableIniPath(iniOld)),
+        "update with the table's own .ini: your render scale and VR height win"
+    );
+    Check(
+        merged.GetValueOrDefault(("TableOverride", "Difficulty")) == "30"
+            && merged.GetValueOrDefault(("TableOverride", "MusicVolume")) == "40",
+        "update with the table's own .ini: the author's settings stay, yours fill in the rest"
+    );
+    Check(
+        !File.ReadAllText(VpxGraphics.TableIniPath(iniNew)).Contains("[]")
+            && !merged.ContainsKey(("", "Stray")),
+        "update with the table's own .ini: nothing outside a [section] is copied"
     );
     Check(
         TableUpdates.Find(TableInstaller.Scan(us).Where(t => t.IsVpx), [ug]).Count == 0,
@@ -2447,6 +2556,11 @@ foreach (var (ok, name) in TableSearchChecks.Run(games))
 }
 
 foreach (var (ok, name) in CollectionsChecks.Run(root))
+{
+    Check(ok, name);
+}
+
+foreach (var (ok, name) in SmartChecks.Run(root))
 {
     Check(ok, name);
 }

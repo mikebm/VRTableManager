@@ -64,6 +64,23 @@ public sealed class TableSearch
         return words.Length == 0 ? null : new TableSearch(words);
     }
 
+    /// <summary>What an installed table is found by: its own record, plus its catalog entry's themes and designers.</summary>
+    public static SearchEntry Index(Models.TableManifest m, Models.VpsGame? game)
+    {
+        var f = TableFilters.FactsOf(m, game);
+        return Index(
+            new SearchFields(
+                m.GameName,
+                f.Manufacturer,
+                f.Year,
+                m.Authors,
+                f.Themes,
+                game?.Designers,
+                m.RomNames
+            )
+        );
+    }
+
     public static SearchEntry Index(SearchFields f)
     {
         var e = new SearchEntry { Year = f.Year is > 0 ? f.Year : null };

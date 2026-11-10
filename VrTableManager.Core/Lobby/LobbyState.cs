@@ -46,6 +46,48 @@ public sealed class LobbyState
         !LobbyNav.Filters.Contains(filter, StringComparer.OrdinalIgnoreCase)
         && Collections.Find(filter) != null;
 
+    /// <summary>
+    /// A smart collection's filter (ready-made or saved in the manager). Built-in filters and your own collections
+    /// win over a smart one with the same name.
+    /// </summary>
+    public bool IsSmart(string filter) =>
+        !LobbyNav.Filters.Contains(filter, StringComparer.OrdinalIgnoreCase)
+        && Collections.Find(filter) == null
+        && SmartCollections.Exists(filter, Collections);
+
+    /// <summary>
+    /// The manager's cached catalog by game id, for smart collections that look at a table's type or themes. Empty
+    /// until the lobby has read it (in the background); those tables then only match when it's there.
+    /// </summary>
+    [JsonIgnore]
+    public IReadOnlyDictionary<string, Models.VpsGame> Catalog
+    {
+        get => _catalog;
+        set
+        {
+            _catalog = value;
+            _smartSearch.Clear(); // themes and designers are searchable now
+        }
+    }
+    IReadOnlyDictionary<string, Models.VpsGame> _catalog = new Dictionary<string, Models.VpsGame>();
+    readonly Dictionary<string, SearchEntry> _smartSearch = new(StringComparer.OrdinalIgnoreCase);
+
+    /// <summary>Whether a table is in the smart collection called <paramref name="name"/>.</summary>
+    public bool InSmart(string name, LobbyTable t, DateTime now)
+    {
+        var game = _catalog.GetValueOrDefault(t.Source.Manifest.GameId);
+        if (!_smartSearch.TryGetValue(t.Id, out var search))
+        {
+            _smartSearch[t.Id] = search = TableSearch.Index(t.Source.Manifest, game);
+        }
+        return SmartCollections.Matches(
+            name,
+            SmartTable.From(t.Source, game, Stats, search),
+            Collections,
+            now
+        );
+    }
+
     /// <summary>Latest shared stats (refreshed on load and after every change here).</summary>
     [JsonIgnore]
     public PlayStats Stats { get; private set; } = new();

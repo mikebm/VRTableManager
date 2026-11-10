@@ -26,6 +26,9 @@ public sealed class TableCollections
 
     public List<TableCollection> Collections { get; set; } = [];
 
+    /// <summary>Smart collections you saved (<see cref="SmartRule"/>); the ready-made ones aren't stored.</summary>
+    public List<SmartRule> Smart { get; set; } = [];
+
     public static string DefaultPath => Path.Combine(AppSettings.DataDir, "collections.json");
 
     /// <summary>The collections file next to another settings file (keeps tests and custom setups self-contained).</summary>
@@ -90,6 +93,35 @@ public sealed class TableCollections
                     .ToList(),
             })
             .ToList();
+
+        // Saved smart collections: one per name, and never the name of a collection or a ready-made one. A clash
+        // (a hand edit, or a ready-made one added later with a name you'd used) gets " (2)", " (3)" … rather than
+        // losing the rule.
+        var taken = new HashSet<string>(
+            Collections.Select(c => c.Name).Concat(SmartCollections.BuiltInNames),
+            StringComparer.OrdinalIgnoreCase
+        );
+        Smart = (Smart ?? []).Where(r => r != null && CleanName(r.Name) != null).ToList();
+        foreach (var r in Smart)
+        {
+            var cleaned = CleanName(r.Name)!;
+            var name = cleaned;
+            for (var i = 2; !taken.Add(name); i++)
+            {
+                var suffix = $" ({i})";
+                name =
+                    cleaned[..Math.Min(cleaned.Length, MaxNameLength - suffix.Length)].TrimEnd()
+                    + suffix;
+            }
+            r.Name = name;
+            r.Search ??= "";
+            r.Engine ??= "";
+            r.Maker ??= "";
+            r.Era ??= "";
+            r.Type ??= "";
+            r.Theme ??= "";
+            r.Collection ??= "";
+        }
     }
 
     /// <summary>A name as it's stored: trimmed, inner runs of spaces made one, at most 40 letters. Null when blank.</summary>
@@ -117,11 +149,27 @@ public sealed class TableCollections
 
     public bool Contains(string name, string tablePath) => Find(name)?.Contains(tablePath) == true;
 
+    [System.Text.Json.Serialization.JsonIgnore]
+    public IEnumerable<string> SmartNames => Smart.Select(r => r.Name);
+
+    public SmartRule? FindSmart(string? name) =>
+        Smart.FirstOrDefault(r => string.Equals(r.Name, name, StringComparison.OrdinalIgnoreCase));
+
+    /// <summary>
+    /// Whether a name is in use by a collection, a saved smart collection or a ready-made one (other than
+    /// <paramref name="except"/>, the one being renamed), or is one of the <paramref name="reserved"/> names.
+    /// </summary>
+    public bool IsTaken(string name, IEnumerable<string>? reserved = null, object? except = null) =>
+        IsReserved(name, reserved)
+        || SmartCollections.FindBuiltIn(name) != null
+        || (Find(name) is { } c && c != except)
+        || (FindSmart(name) is { } r && r != except);
+
     /// <summary>Adds an empty collection. Returns its stored name, or null if the name is blank or taken.</summary>
     public string? Create(string? name, IEnumerable<string>? reserved = null)
     {
         var n = CleanName(name);
-        if (n == null || Find(n) != null || IsReserved(n, reserved))
+        if (n == null || IsTaken(n, reserved))
         {
             return null;
         }
@@ -130,26 +178,64 @@ public sealed class TableCollections
         return n;
     }
 
-    /// <summary>Renames a collection. False if it doesn't exist or the new name is blank or taken by another one.</summary>
+    /// <summary>Saves a smart collection under its name. Returns the stored name, or null if blank or taken.</summary>
+    public string? SaveSmart(SmartRule rule, IEnumerable<string>? reserved = null)
+    {
+        var n = CleanName(rule.Name);
+        if (n == null || IsTaken(n, reserved))
+        {
+            return null;
+        }
+
+        rule.Name = n;
+        Smart.Add(rule);
+        return n;
+    }
+
+    /// <summary>
+    /// Renames a collection or a saved smart collection (smart ones that use a renamed collection keep up). False if
+    /// there's no such one, or the new name is blank or taken by another.
+    /// </summary>
     public bool Rename(string name, string? newName, IEnumerable<string>? reserved = null)
     {
-        var c = Find(name);
+        object? which = (object?)Find(name) ?? FindSmart(name);
         var n = CleanName(newName);
-        if (c == null || n == null || IsReserved(n, reserved))
+        // Only the capitals changing is always fine, even for an older collection that has a name now reserved.
+        if (
+            which == null
+            || n == null
+            || (
+                !string.Equals(n, name, StringComparison.OrdinalIgnoreCase)
+                && IsTaken(n, reserved, which)
+            )
+        )
         {
             return false;
         }
 
-        if (Find(n) is { } other && other != c)
+        if (which is TableCollection c)
         {
-            return false;
+            foreach (
+                var r in Smart.Where(r =>
+                    string.Equals(r.Collection, c.Name, StringComparison.OrdinalIgnoreCase)
+                )
+            )
+            {
+                r.Collection = n;
+            }
+            c.Name = n;
+        }
+        else
+        {
+            ((SmartRule)which).Name = n;
         }
 
-        c.Name = n;
         return true;
     }
 
-    public bool Delete(string name) => Find(name) is { } c && Collections.Remove(c);
+    /// <summary>Deletes a collection or a saved smart collection.</summary>
+    public bool Delete(string name) =>
+        Find(name) is { } c ? Collections.Remove(c) : FindSmart(name) is { } r && Smart.Remove(r);
 
     /// <summary>Puts a table in a collection or takes it out. False if there's no such collection.</summary>
     public bool Set(string name, string tablePath, bool on)

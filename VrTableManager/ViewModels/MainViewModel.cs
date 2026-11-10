@@ -1385,7 +1385,7 @@ public sealed partial class MainViewModel : ObservableObject, IAsyncDisposable
     [ObservableProperty]
     public partial int InstalledTotal { get; set; }
 
-    partial void OnInstalledFilterChanged(string value) => FilterInstalled();
+    partial void OnInstalledFilterChanged(string value) => InstalledFilterChanged(value);
 
     List<InstalledItem> _allInstalled = [];
     PlayStats _stats = new();
@@ -1492,9 +1492,9 @@ public sealed partial class MainViewModel : ObservableObject, IAsyncDisposable
     [ObservableProperty]
     public partial string InstalledSort { get; set; } = "A–Z";
 
-    partial void OnInstalledSearchChanged(string value) => FilterInstalled();
+    partial void OnInstalledSearchChanged(string value) => InstalledFilterChanged(value);
 
-    partial void OnInstalledEngineChanged(string value) => FilterInstalled();
+    partial void OnInstalledEngineChanged(string value) => InstalledFilterChanged(value);
 
     partial void OnInstalledSortChanged(string value) => FilterInstalled();
 
@@ -1571,11 +1571,15 @@ public sealed partial class MainViewModel : ObservableObject, IAsyncDisposable
         InstalledTotal = _allInstalled.Count;
         InstalledEmptyText =
             Installed.Count > 0 || _allInstalled.Count == 0 ? ""
-            : IsCollectionChosen
-            && !_allInstalled.Any(i =>
-                _collections.Contains(InstalledCollectionFilter, i.Table.TablePath)
-            )
-                ? $"Nothing in “{InstalledCollectionFilter}” yet. Add tables from a card's ⋯ menu → Collections."
+            : !_allInstalled.Any(MatchesInstalledCollection)
+                ? InstalledCollectionChoice switch
+                {
+                    { IsSmart: true } c =>
+                        $"Nothing in “{c.Name}” right now. It fills itself as your tables and plays change.",
+                    { } c =>
+                        $"Nothing in “{c.Name}” yet. Add tables from a card's ⋯ menu → Collections.",
+                    _ => "",
+                }
             : search != null || HasInstalledFilters || InstalledEngine != InstalledEngines[0]
                 ? "No installed tables match the search and filters."
             : InstalledFilter switch
@@ -1585,6 +1589,7 @@ public sealed partial class MainViewModel : ObservableObject, IAsyncDisposable
                 _ =>
                     "Nothing played yet. Your plays from here and from the VR lobby show up in this list.",
             };
+        OnPropertyChanged(nameof(CanSaveSmart)); // follows the search and every filter
     }
 
     [RelayCommand]

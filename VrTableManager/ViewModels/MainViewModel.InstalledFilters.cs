@@ -58,7 +58,7 @@ public sealed partial class MainViewModel
         InstalledEraFilter = TableFilters.AnyEra;
         InstalledTypeFilter = TableFilters.AnyType;
         InstalledThemeFilter = TableFilters.AnyTheme;
-        InstalledCollectionFilter = AnyCollection;
+        InstalledCollectionChoice = AnyOption;
         _refillingChoices = false;
         FilterInstalled();
     }
@@ -79,17 +79,7 @@ public sealed partial class MainViewModel
         return id != "" && _gamesById.TryGetValue(id, out var g) ? g : null;
     }
 
-    TableFacts FactsOf(InstalledItem i)
-    {
-        var m = i.Table.Manifest;
-        var game = CatalogGameOf(i);
-        return new TableFacts(
-            string.IsNullOrWhiteSpace(m.Manufacturer) ? game?.Manufacturer : m.Manufacturer,
-            m.Year ?? game?.Year,
-            game?.Type,
-            game?.Theme
-        );
-    }
+    TableFacts FactsOf(InstalledItem i) => TableFilters.FactsOf(i.Table.Manifest, CatalogGameOf(i));
 
     bool MatchesInstalledFilters(InstalledItem i) =>
         TableFilters.Matches(
@@ -140,20 +130,7 @@ public sealed partial class MainViewModel
             return c.Entry;
         }
 
-        var m = i.Table.Manifest;
-        var game = CatalogGameOf(i);
-        var f = FactsOf(i);
-        var entry = TableSearch.Index(
-            new SearchFields(
-                i.Title,
-                f.Manufacturer,
-                f.Year,
-                m.Authors,
-                f.Themes,
-                game?.Designers,
-                m.RomNames
-            )
-        );
+        var entry = TableSearch.Index(i.Table.Manifest, CatalogGameOf(i));
         _installedIndex[i] = (key, _allGames, entry);
         return entry;
     }

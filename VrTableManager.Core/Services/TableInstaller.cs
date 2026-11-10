@@ -257,6 +257,10 @@ public static class TableInstaller
                     installed.tablePath,
                     settings.SourcePath
                 );
+                if (!isFp)
+                {
+                    KeepTableSettings(replacing.TablePath, installed.tablePath, settings);
+                }
             }
             return table;
         }
@@ -294,6 +298,92 @@ public static class TableInstaller
         catch (Exception e) when (e is IOException or UnauthorizedAccessException)
         {
             // The table is updated either way; at worst its star and plays start again.
+        }
+    }
+
+    /// <summary>
+    /// What else is tied to a VPX table's file name, kept when an update brings a new one:
+    /// <list type="bullet">
+    /// <item>VPX's own settings for the table (<c>&lt;table&gt;.ini</c>: its VR height and render scale, and anything
+    /// else set for it). Renamed to go with the new file; when the download brought an .ini of its own, that one
+    /// stays and only gets the settings it doesn't have.</item>
+    /// <item>"Don't ask again" for the PuP DMD fix (<see cref="AppSettings.DmdFixDeclined"/>).</item>
+    /// </list>
+    /// Never fails the install.
+    /// </summary>
+    /// <summary>
+    /// A table's own settings that are yours, not the author's: its render scale (VR Table Manager's per-table scale)
+    /// and where you placed it in VR (VR Table Manager's per-table height, and VPX's own saved table position).
+    /// </summary>
+    static readonly HashSet<(string Section, string Key)> YourTableSettings = new(
+        [
+            ("Player", "AAFactor"),
+            ("PlayerVR", "TableX"),
+            ("PlayerVR", "TableY"),
+            ("PlayerVR", "TableZ"),
+            ("PlayerVR", "Orientation"),
+        ],
+        IniFile.SectionKeyComparer.Instance
+    );
+
+    public static void KeepTableSettings(string oldPath, string newPath, AppSettings settings)
+    {
+        try
+        {
+            var oldIni = VpxGraphics.TableIniPath(oldPath);
+            var newIni = VpxGraphics.TableIniPath(newPath);
+            if (File.Exists(oldIni) && !SamePath(oldIni, newIni))
+            {
+                if (!File.Exists(newIni))
+                {
+                    File.Move(oldIni, newIni);
+                }
+                else
+                {
+                    // Theirs stays, except your render scale and where you put the table in VR, which you set
+                    // for this PC; settings before any [section] heading aren't VPX's and are left out.
+                    var theirs = IniFile.Read(newIni);
+                    foreach (
+                        var section in IniFile
+                            .Read(oldIni)
+                            .Where(kv =>
+                                kv.Key.Section != ""
+                                && kv.Value != ""
+                                && (
+                                    YourTableSettings.Contains(kv.Key)
+                                    || string.IsNullOrEmpty(theirs.GetValueOrDefault(kv.Key))
+                                )
+                            )
+                            .GroupBy(kv => kv.Key.Section, StringComparer.OrdinalIgnoreCase)
+                    )
+                    {
+                        IniFile.SetMany(
+                            newIni,
+                            section.Key,
+                            section.Select(kv => (kv.Key.Key, kv.Value))
+                        );
+                    }
+                    File.Delete(oldIni);
+                }
+            }
+        }
+        catch (Exception e) when (e is IOException or UnauthorizedAccessException)
+        {
+            // The table is updated either way; at worst its VR height and render scale need setting again.
+        }
+
+        var declined = settings.DmdFixDeclined.FindIndex(p => SamePath(p, oldPath));
+        if (declined >= 0)
+        {
+            settings.DmdFixDeclined[declined] = newPath;
+            try
+            {
+                settings.Save();
+            }
+            catch (Exception e) when (e is IOException or UnauthorizedAccessException)
+            {
+                // Kept for this session; the question may come back after a restart.
+            }
         }
     }
 

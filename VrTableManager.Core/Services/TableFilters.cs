@@ -41,6 +41,18 @@ public static class TableFilters
         "Originals",
     ];
 
+    /// <summary>
+    /// An installed table's facts: maker and year from its own record (else the catalog's), type and themes from its
+    /// catalog entry (<paramref name="game"/>, null when it isn't linked to one).
+    /// </summary>
+    public static TableFacts FactsOf(Models.TableManifest m, Models.VpsGame? game) =>
+        new(
+            string.IsNullOrWhiteSpace(m.Manufacturer) ? game?.Manufacturer : m.Manufacturer,
+            m.Year ?? game?.Year,
+            game?.Type,
+            game?.Theme
+        );
+
     public static bool Matches(
         TableFacts f,
         string? maker,
