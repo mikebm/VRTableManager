@@ -34,6 +34,18 @@ public sealed class LobbyState
     [JsonIgnore]
     public string StatsPath => PlayStats.PathBeside(Path);
 
+    [JsonIgnore]
+    public string CollectionsPath => TableCollections.PathBeside(Path);
+
+    /// <summary>Your collections from the manager (collections.json beside this file), refreshed with the stats.</summary>
+    [JsonIgnore]
+    public TableCollections Collections { get; private set; } = new();
+
+    /// <summary>A collection's filter. A built-in filter always wins, whatever the capitals (a hand-edited "decade" is ignored).</summary>
+    public bool IsCollection(string filter) =>
+        !LobbyNav.Filters.Contains(filter, StringComparer.OrdinalIgnoreCase)
+        && Collections.Find(filter) != null;
+
     /// <summary>Latest shared stats (refreshed on load and after every change here).</summary>
     [JsonIgnore]
     public PlayStats Stats { get; private set; } = new();
@@ -69,11 +81,6 @@ public sealed class LobbyState
         catch
         { /* corrupt: start fresh */
         }
-        if (!LobbyNav.Filters.Contains(s.Filter))
-        {
-            s.Filter = "All";
-        }
-
         if (s.View is not ("ring" or "wall"))
         {
             s.View = "ring";
@@ -112,7 +119,58 @@ public sealed class LobbyState
         {
             s.RefreshStats();
         }
+        // A filter that's gone (a collection deleted or renamed in the manager) falls back to All.
+        s.RefreshCollections();
+        s.KeepFilterValid();
         return s;
+    }
+
+    /// <summary>Falls back to All when the chosen filter no longer exists. True when it changed.</summary>
+    public bool KeepFilterValid()
+    {
+        // The filter's own spelling, built-in ones first: "favourites" is Favourites even if a collection is
+        // called that, and a collection whose capitals changed keeps up with them.
+        if (
+            LobbyNav
+                .FiltersFor(this)
+                .FirstOrDefault(f =>
+                    string.Equals(f, Filter, StringComparison.OrdinalIgnoreCase)
+                ) is
+            { } match
+        )
+        {
+            Filter = match;
+            return false;
+        }
+
+        Filter = "All";
+        return true;
+    }
+
+    DateTime _collectionsStamp;
+
+    /// <summary>Re-reads collections.json if the manager changed it; like <see cref="RefreshStats"/>, cheap to call often.</summary>
+    public bool RefreshCollections()
+    {
+        DateTime stamp;
+        try
+        {
+            stamp = File.Exists(CollectionsPath)
+                ? File.GetLastWriteTimeUtc(CollectionsPath)
+                : default;
+        }
+        catch
+        {
+            return false;
+        }
+        if (stamp == _collectionsStamp)
+        {
+            return false;
+        }
+
+        _collectionsStamp = stamp;
+        Collections = TableCollections.Load(CollectionsPath);
+        return true;
     }
 
     public void Save()

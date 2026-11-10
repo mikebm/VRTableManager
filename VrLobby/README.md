@@ -97,11 +97,12 @@ Each table stands in **its own VR cabinet**, the 3D cabinet its author built int
 
 ### Filters (B / Tab)
 
-All → VPX → Future Pinball → Pinball FX → Pinball M → Recently played → Most played → Favourites → Manufacturer → Decade.
+All → VPX → Future Pinball → Pinball FX → Pinball M → Recently played → Most played → Favourites → Manufacturer → Decade, then your own collections from VR Table Manager.
 
 - **Manufacturer** and **Decade** sort the tables into groups, and the rail shows those groups (Bally, Gottlieb, Stern … / 1970s, 1980s …) instead of letters.
 - **Recently played** shows the last 30 tables you launched, newest first. **Most played** shows the 30 with the most plays.
 - **Pinball FX** and **Pinball M** each appear as one cabinet when the game is installed. You pick the table inside the game.
+- **Your collections** (made in VR Table Manager: a table's ⋯ menu → Collections) come after Decade, one filter each, A–Z with the letter rail. They're kept in `%APPDATA%VrTableManagerllections.json`. A collection added, changed or deleted in the manager should show up while the lobby is open, the same way favourites do; if the one you're looking at is deleted, the lobby goes back to All.
 - An empty filter says why, for example "No plays counted yet" or "Pinball M isn't installed".
 
 ### Favourites and play history (shared with the manager)

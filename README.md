@@ -33,7 +33,8 @@ Add-ons are matched to the table's ROM, installed where VPX's plugins look, and 
 ### Play in VR
 - **One button:** **Play in VR** launches the table in your headset. The manager gets out of the way and comes back when you quit, ready for the next game.
 - **The VR lobby:** your tables stand around you as 3D cabinets with real backglass art. Browse with an alphabet wheel, play a table's attract music, and launch it without taking the headset off.
-- **Favourites, play history and high scores:** shared between the manager and the lobby. Grand champion scores are read straight from each table's saved memory.
+- **Favourites, play history and high scores:** shared between the manager and the lobby. Grand champion scores are read straight from each table's saved memory. Updating a table keeps its star and plays, even when the new version has a new file name.
+- **Your own collections:** group tables however you like ("Party night", "Learning the rules"). A table's ⋯ menu → Collections puts it in one or starts a new one, and the Collection filter in My Tables shows one, with Rename and Delete beside it. In the VR lobby each collection is another filter (B / Tab).
 - **Pinball FX and Pinball M:** launched through UEVR, with pinball-tuned VR settings applied automatically.
 
 ### Setup made easy

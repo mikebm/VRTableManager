@@ -227,6 +227,13 @@
               <ComboBox ItemsSource="{Binding Eras}" SelectedItem="{Binding InstalledEraFilter}" MinWidth="130" Margin="0,0,12,8" VerticalAlignment="Center" ToolTip.Tip="When the real machine came out" />
               <ComboBox ItemsSource="{Binding MachineTypes}" SelectedItem="{Binding InstalledTypeFilter}" MinWidth="150" Margin="0,0,12,8" VerticalAlignment="Center" ToolTip.Tip="Solid state (1977 on), electro-mechanical, or original designs. From the catalog, so tables not linked to it only show under Any type" />
               <ComboBox ItemsSource="{Binding InstalledThemes}" SelectedItem="{Binding InstalledThemeFilter}" MinWidth="150" MaxDropDownHeight="420" Margin="0,0,12,8" VerticalAlignment="Center" ToolTip.Tip="What the machine is about, from the catalog" />
+              <ComboBox ItemsSource="{Binding InstalledCollections}" SelectedItem="{Binding InstalledCollectionFilter}" MinWidth="170" MaxDropDownHeight="420" Margin="0,0,8,8" VerticalAlignment="Center"
+                        ToolTip.Tip="Your own collections, also filters in the VR lobby (B / Tab). Add a table to one from its ⋯ menu → Collections" />
+              <Button Classes="small" Content="RENAME" Margin="0,0,8,8" VerticalAlignment="Center"
+                      IsVisible="{Binding IsCollectionChosen}" Command="{Binding RenameCollectionCommand}" />
+              <Button Classes="small" Content="DELETE" Margin="0,0,12,8" VerticalAlignment="Center"
+                      ToolTip.Tip="Deletes the collection only; its tables stay installed"
+                      IsVisible="{Binding IsCollectionChosen}" Command="{Binding DeleteCollectionCommand}" />
               <Button Classes="small" Content="CLEAR FILTERS" Margin="0,0,12,8" VerticalAlignment="Center"
                       IsVisible="{Binding HasInstalledFilters}" Command="{Binding ClearInstalledFiltersCommand}" />
               <StackPanel Orientation="Horizontal" Spacing="8" Margin="0,0,16,8" VerticalAlignment="Center">
@@ -537,6 +544,20 @@
                                 <MenuItem Header="{Binding WheelArtMenuHeader}" IsVisible="{Binding CanGetWheelArt}"
                                           ToolTip.Tip="The game's logo, shown over the cabinet in the VR lobby when you pick it: from the catalog's wheel art, or its media pack's Wheel folder"
                                           IsEnabled="{Binding !IsBusy}" Command="{Binding Owner.GetWheelArtCommand}" CommandParameter="{Binding}" />
+                                <MenuItem Header="Collections" ItemsSource="{Binding CollectionChoices}"
+                                          ToolTip.Tip="Your own groups of tables: tick one to put this table in it. Each is a filter in My Tables and in the VR lobby (B / Tab)">
+                                  <MenuItem.ItemTemplate>
+                                    <DataTemplate x:DataType="vm:CollectionChoice"><TextBlock Text="{Binding Header}" /></DataTemplate>
+                                  </MenuItem.ItemTemplate>
+                                  <MenuItem.Styles>
+                                    <Style Selector="MenuItem > MenuItem" x:DataType="vm:CollectionChoice">
+                                      <Setter Property="ToggleType" Value="{Binding ToggleType}" />
+                                      <Setter Property="IsChecked" Value="{Binding IsIn, Mode=OneWay}" />
+                                      <Setter Property="Command" Value="{Binding Item.Owner.ChooseCollectionCommand}" />
+                                      <Setter Property="CommandParameter" Value="{Binding}" />
+                                    </Style>
+                                  </MenuItem.Styles>
+                                </MenuItem>
                                 <MenuItem Header="My artwork"
                                           ToolTip.Tip="Your own pictures win over the catalog's and the table's. They're kept in the table's artwork folder (card, playfield, backglass, wheel .png/.jpg), where you can also put them by hand">
                                   <MenuItem Header="Card picture in My Tables…" Command="{Binding Owner.ChooseCardArtCommand}" CommandParameter="{Binding}" />

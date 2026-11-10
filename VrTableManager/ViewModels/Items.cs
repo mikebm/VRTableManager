@@ -212,6 +212,10 @@ public sealed partial class InstalledItem : ObservableObject
         );
     public string Title => Table.Manifest.GameName;
 
+    /// <summary>The ⋯ menu's Collections submenu: one tick per collection, then New collection….</summary>
+    [ObservableProperty]
+    public partial IReadOnlyList<CollectionChoice> CollectionChoices { get; set; } = [];
+
     /// <summary>The card picture: yours (<see cref="UserArtwork"/>) when you chose one, else the catalog's.</summary>
     public string? ImgUrl => UserCard ?? Table.Manifest.ImgUrl;
     public bool HasImage => !string.IsNullOrEmpty(ImgUrl);

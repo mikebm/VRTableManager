@@ -26,9 +26,57 @@ public static class SelfTest
     /// <summary>Cycles B / Tab until the filter is reached (also proves it's in the cycle).</summary>
     static void SetFilter(Main lobby, string filter)
     {
-        for (var i = 0; i < LobbyNav.Filters.Length && lobby.State.Filter != filter; i++)
+        for (
+            var i = 0;
+            i < LobbyNav.FiltersFor(lobby.State).Length && lobby.State.Filter != filter;
+            i++
+        )
         {
             lobby.CycleFilter();
+        }
+    }
+
+    /// <summary>
+    /// A collection made while the lobby is open, as the manager would: picked up, cycled to, and gone again when
+    /// deleted. Only ever adds and removes its own collection, and only removes the file if it made it.
+    /// </summary>
+    static void CollectionsCheck(Main lobby, string collections)
+    {
+        const string name = "Self-test picks";
+        var existed = File.Exists(collections);
+        var picks = lobby.Shown.Take(2).Select(t => t.Id).ToList();
+        TableCollections.Mutate(
+            c =>
+            {
+                c.Delete(name); // left over from a run that stopped half-way
+                c.Create(name);
+                foreach (var id in picks)
+                {
+                    c.Set(name, id, true);
+                }
+            },
+            collections
+        );
+        lobby.RefreshFromStats();
+        SetFilter(lobby, name);
+        Check(
+            lobby.State.Filter == name
+                && lobby
+                    .Shown.Select(t => t.Id)
+                    .OrderBy(x => x)
+                    .SequenceEqual(picks.OrderBy(x => x))
+                && lobby.StatusText.Contains(name),
+            $"a collection made in the manager is a filter after the built-in ones ({lobby.Shown.Count} shown)"
+        );
+        TableCollections.Mutate(c => c.Delete(name), collections);
+        lobby.RefreshFromStats();
+        Check(
+            lobby.State.Filter == "All" && lobby.Shown.Count > picks.Count,
+            "deleting the shown collection in the manager goes back to All"
+        );
+        if (!existed && TableCollections.Load(collections).Collections.Count == 0)
+        {
+            File.Delete(collections);
         }
     }
 
@@ -401,6 +449,25 @@ public static class SelfTest
             "manufacturer rail shows maker groups"
         );
         SetFilter(lobby, "All");
+
+        // ---- Collections from the manager ----------------------------------------------
+        // Made while the lobby is open, as the manager would: picked up, cycled to, and gone again when deleted.
+        // Only in the self-test's own fixture: run against your settings (--settings without --state), the
+        // collections file beside the state is your real one, and this mustn't touch it.
+        var collections = lobby.State.CollectionsPath;
+        var fixture =
+            Path.GetFullPath(Path.Combine(OS.GetUserDataDir(), "selftest-fixture"))
+            + Path.DirectorySeparatorChar;
+        if (!Path.GetFullPath(collections).StartsWith(fixture, StringComparison.OrdinalIgnoreCase))
+        {
+            GD.Print(
+                $"SKIP  collections (the lobby state isn't the self-test's own: {collections})"
+            );
+        }
+        else
+        {
+            CollectionsCheck(lobby, collections);
+        }
 
         // ---- Height --------------------------------------------------------------------
         Check(Mathf.IsZeroApprox(lobby.RigHeight), "rig starts at the saved height (default 0)");

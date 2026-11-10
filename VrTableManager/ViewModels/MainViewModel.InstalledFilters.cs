@@ -58,6 +58,7 @@ public sealed partial class MainViewModel
         InstalledEraFilter = TableFilters.AnyEra;
         InstalledTypeFilter = TableFilters.AnyType;
         InstalledThemeFilter = TableFilters.AnyTheme;
+        InstalledCollectionFilter = AnyCollection;
         _refillingChoices = false;
         FilterInstalled();
     }

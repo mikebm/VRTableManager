@@ -1223,6 +1223,58 @@ Check(
         && reloaded.View == "wall",
     "lobby state survives a restart"
 );
+
+// Your collections from the manager, as lobby filters after the built-in ones.
+{
+    var statePath = Path.Combine(root, "lobby-state.json");
+    var colPath = TableCollections.PathBeside(statePath);
+    TableCollections.Mutate(
+        c =>
+        {
+            c.Create("Party");
+            c.Set("Party", all.List[7].Id, true);
+            c.Set("Party", all.List[2].Id, true);
+            c.Create("Empty one");
+        },
+        colPath
+    );
+    var cs = LobbyState.Load(statePath);
+    Check(
+        LobbyNav.FiltersFor(cs).SequenceEqual([.. LobbyNav.Filters, "Party", "Empty one"]),
+        "lobby: collections are filters after the built-in ones"
+    );
+    var party = LobbyNav.Apply(lib, "Party", cs);
+    Check(
+        party.List.Select(t => t.Id).SequenceEqual([all.List[2].Id, all.List[7].Id])
+            && party.Groups.Count == 27,
+        "lobby: a collection shows its tables A–Z, with the letter rail"
+    );
+    Check(
+        LobbyNav.Apply(lib, "Empty one", cs).List.Count == 0
+            && LobbyText
+                .Empty("Empty one", lib.Count, cs.IsCollection("Empty one"))
+                .Contains("Collections")
+            && !cs.IsCollection("Favourites"),
+        "lobby: an empty collection says how to fill it"
+    );
+    cs.Filter = "party";
+    Check(
+        !cs.KeepFilterValid() && cs.Filter == "Party",
+        "lobby: a collection filter keeps the collection's spelling"
+    );
+    cs.Save();
+    TableCollections.Mutate(c => c.Delete("Party"), colPath);
+    Check(
+        cs.RefreshCollections() && cs.KeepFilterValid() && cs.Filter == "All",
+        "lobby: a collection deleted in the manager falls back to All"
+    );
+    Check(
+        LobbyState.Load(statePath).Filter == "All",
+        "lobby: a saved filter for a deleted collection loads as All"
+    );
+    File.Delete(colPath);
+    reloaded.Save(); // put back the state the checks below expect
+}
 Check(
     LobbyNav.RepeatInterval(0) == 0.3 && LobbyNav.RepeatInterval(3) == 0.05,
     "stick repeat speeds up from 0.3 s to 0.05 s"
@@ -1481,11 +1533,11 @@ Check(
 
 // Updates: detect a newer table version, update in place, keep NVRAM, drop the old .vpx.
 {
-    var us = new AppSettings
-    {
-        TablesDir = Path.Combine(root, "upd-tables"),
-        VpxDir = Path.Combine(root, "vpx"),
-    };
+    // Loaded from a file of its own, so the play stats and collections beside it are this test's, not yours.
+    Directory.CreateDirectory(Path.Combine(root, "upd-settings"));
+    var us = AppSettings.LoadFrom(Path.Combine(root, "upd-settings", "settings.json"));
+    us.TablesDir = Path.Combine(root, "upd-tables");
+    us.VpxDir = Path.Combine(root, "vpx");
     var ug = new VpsGame
     {
         Id = "g2",
@@ -1540,6 +1592,26 @@ Check(
         "newer VPS version is flagged as an update"
     );
 
+    // Starred, played and in a collection before the update (which brings a new file name).
+    var updStats = PlayStats.PathBeside(us.SourcePath);
+    var updCollections = TableCollections.PathBeside(us.SourcePath);
+    PlayStats.Mutate(
+        st =>
+        {
+            st.SetFavourite(old.TablePath, true);
+            st.RecordPlay(old.TablePath, DateTime.Now, TimeSpan.FromMinutes(5));
+        },
+        updStats
+    );
+    TableCollections.Mutate(
+        c =>
+        {
+            c.Create("Practice");
+            c.Set("Practice", old.TablePath, true);
+        },
+        updCollections
+    );
+
     var p11 = Path.Combine(root, "upd11.zip");
     using (var z = ZipFile.Open(p11, ZipArchiveMode.Create))
     {
@@ -1560,6 +1632,19 @@ Check(
         "update replaces the old .vpx"
     );
     Check(File.Exists(nvram), "update keeps NVRAM (high scores)");
+    var afterStats = PlayStats.Load(updStats);
+    Check(
+        afterStats.IsFavourite(upd.TablePath)
+            && afterStats.PlaysOf(upd.TablePath) == 1
+            && !afterStats.Tables.ContainsKey(PlayStats.Key(old.TablePath)),
+        "update keeps the table's favourite and plays under its new file name"
+    );
+    var afterCollections = TableCollections.Load(updCollections);
+    Check(
+        afterCollections.Contains("Practice", upd.TablePath)
+            && !afterCollections.Contains("Practice", old.TablePath),
+        "update keeps the table in its collections under its new file name"
+    );
     Check(
         TableUpdates.Find(TableInstaller.Scan(us).Where(t => t.IsVpx), [ug]).Count == 0,
         "no update left after updating"
@@ -2357,6 +2442,11 @@ foreach (var (ok, name) in LobbyLayoutChecks.Run())
 }
 
 foreach (var (ok, name) in TableSearchChecks.Run(games))
+{
+    Check(ok, name);
+}
+
+foreach (var (ok, name) in CollectionsChecks.Run(root))
 {
     Check(ok, name);
 }

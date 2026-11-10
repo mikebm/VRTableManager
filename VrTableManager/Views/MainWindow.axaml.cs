@@ -125,6 +125,69 @@ public partial class MainWindow : Window, IUiHost
         return result;
     }
 
+    public async Task<string?> AskTextAsync(
+        string title,
+        string message,
+        string initial,
+        string okLabel
+    )
+    {
+        string? result = null;
+        var dialog = new Window
+        {
+            Title = title,
+            Width = 520,
+            SizeToContent = SizeToContent.Height,
+            CanResize = false,
+            WindowStartupLocation = WindowStartupLocation.CenterOwner,
+            Icon = Icon,
+        };
+        var box = new TextBox { Text = initial, MaxLength = 80 };
+        var ok = new Button
+        {
+            Content = okLabel,
+            Classes = { "primary" },
+            IsDefault = true,
+        };
+        var cancel = new Button { Content = "CANCEL", IsCancel = true };
+        ok.Click += (_, _) =>
+        {
+            result = box.Text ?? "";
+            dialog.Close();
+        };
+        cancel.Click += (_, _) => dialog.Close();
+        dialog.Content = new StackPanel
+        {
+            Margin = new(24),
+            Spacing = 14,
+            Children =
+            {
+                new TextBlock { Text = title, Classes = { "h2" } },
+                new TextBlock
+                {
+                    Text = message,
+                    TextWrapping = TextWrapping.Wrap,
+                    Classes = { "body" },
+                },
+                box,
+                new StackPanel
+                {
+                    Orientation = Orientation.Horizontal,
+                    Spacing = 8,
+                    HorizontalAlignment = HorizontalAlignment.Right,
+                    Children = { cancel, ok },
+                },
+            },
+        };
+        dialog.Opened += (_, _) =>
+        {
+            box.Focus();
+            box.SelectAll();
+        };
+        await dialog.ShowDialog(this);
+        return result;
+    }
+
     public async Task<string?> PickSaveFileAsync(
         string title,
         string suggestedName,

@@ -250,6 +250,14 @@ public static class TableInstaller
                     File.Delete(ManifestPathFor(replacing.TablePath, true));
                 }
             }
+            if (replacing != null && !SamePath(replacing.TablePath, installed.tablePath))
+            {
+                KeepStatsAndCollections(
+                    replacing.TablePath,
+                    installed.tablePath,
+                    settings.SourcePath
+                );
+            }
             return table;
         }
         finally
@@ -259,6 +267,33 @@ public static class TableInstaller
                 Directory.Delete(staging, true);
             }
             catch { }
+        }
+    }
+
+    /// <summary>
+    /// Favourites, plays and collections are kept by table path, and an update usually brings a new file name
+    /// ("… v1.2.vpx"): move them to the new path so the update doesn't lose them. Files are only written when the
+    /// old path is in them. Never fails the install.
+    /// </summary>
+    public static void KeepStatsAndCollections(string oldPath, string newPath, string? settingsPath)
+    {
+        try
+        {
+            var stats = PlayStats.PathBeside(settingsPath);
+            if (PlayStats.Load(stats).Tables.ContainsKey(PlayStats.Key(oldPath)))
+            {
+                PlayStats.Mutate(st => st.MoveTable(oldPath, newPath), stats);
+            }
+
+            var collections = TableCollections.PathBeside(settingsPath);
+            if (TableCollections.Load(collections).Collections.Any(c => c.Contains(oldPath)))
+            {
+                TableCollections.Mutate(c => c.MoveTable(oldPath, newPath), collections);
+            }
+        }
+        catch (Exception e) when (e is IOException or UnauthorizedAccessException)
+        {
+            // The table is updated either way; at worst its star and plays start again.
         }
     }
 

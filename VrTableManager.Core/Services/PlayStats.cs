@@ -86,7 +86,7 @@ public sealed class PlayStats
         return stats;
     }
 
-    static FileStream? AcquireLock(string lockPath)
+    internal static FileStream? AcquireLock(string lockPath)
     {
         for (var i = 0; i < 50; i++)
         {
@@ -154,6 +154,40 @@ public sealed class PlayStats
 
     /// <summary>Marks a table as just picked without counting a play (the lobby, before handing over).</summary>
     public void Touch(string tablePath, DateTime when) => GetOrAdd(tablePath).LastPlayed = when;
+
+    /// <summary>
+    /// A table's file moved (an update with a new file name): its favourite, plays and time go with it. If the new
+    /// path already has stats, the two are added together. False when the old path had none.
+    /// </summary>
+    public bool MoveTable(string oldPath, string newPath)
+    {
+        var from = Key(oldPath);
+        var to = Key(newPath);
+        if (
+            string.Equals(from, to, StringComparison.OrdinalIgnoreCase)
+            || !Tables.Remove(from, out var old)
+        )
+        {
+            return false;
+        }
+
+        if (Tables.TryGetValue(to, out var cur))
+        {
+            cur.Favourite |= old.Favourite;
+            cur.Plays += old.Plays;
+            cur.MinutesPlayed += old.MinutesPlayed;
+            if (old.LastPlayed > cur.LastPlayed || cur.LastPlayed == null)
+            {
+                cur.LastPlayed = old.LastPlayed;
+            }
+        }
+        else
+        {
+            Tables[to] = old;
+        }
+
+        return true;
+    }
 
     public List<string> Favourites() =>
         Tables.Where(kv => kv.Value.Favourite).Select(kv => kv.Key).ToList();

@@ -1173,7 +1173,11 @@ public partial class Main : Node3D
         if (Shown.Count == 0)
         {
             _header.Text = "No tables here";
-            _status.Text = LobbyText.Empty(State.Filter, Library.Count);
+            _status.Text = LobbyText.Empty(
+                State.Filter,
+                Library.Count,
+                State.IsCollection(State.Filter)
+            );
             _status.Modulate = Palette.Text;
             _scores.Text = "";
             _scoresPanel.Visible = false;
@@ -1450,9 +1454,10 @@ public partial class Main : Node3D
     public void CycleFilter()
     {
         var current = Shown.Count > 0 ? Shown[Selected].Id : "";
-        State.Filter = LobbyNav.Filters[
-            (Array.IndexOf(LobbyNav.Filters, State.Filter) + 1) % LobbyNav.Filters.Length
-        ];
+        // The built-in filters, then your collections from the manager.
+        State.RefreshCollections();
+        var filters = LobbyNav.FiltersFor(State);
+        State.Filter = filters[(Array.IndexOf(filters, State.Filter) + 1) % filters.Length];
         State.Save();
         Rebuild(current);
         ShowFlash(State.Filter);
@@ -1470,6 +1475,23 @@ public partial class Main : Node3D
     /// </summary>
     public bool RefreshFromStats()
     {
+        // Collections changed in the manager: the list changes when one is showing, or it's gone.
+        if (State.RefreshCollections())
+        {
+            var gone = State.KeepFilterValid();
+            if (gone)
+            {
+                State.Save();
+                ShowFlash(State.Filter);
+            }
+            if (gone || State.IsCollection(State.Filter))
+            {
+                State.RefreshStats();
+                Rebuild(Shown.Count > 0 ? Shown[Selected].Id : "");
+                return true;
+            }
+        }
+
         if (!State.RefreshStats())
         {
             return false;

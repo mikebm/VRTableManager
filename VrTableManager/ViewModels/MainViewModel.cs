@@ -22,6 +22,9 @@ public interface IUiHost
     );
     Task<bool> ConfirmAsync(string title, string message);
 
+    /// <summary>Asks for a line of text; null when cancelled.</summary>
+    Task<string?> AskTextAsync(string title, string message, string initial, string okLabel);
+
     /// <summary>Shows a message with several buttons; returns the index pressed, or -1 if the window was closed.</summary>
     /// <param name="details">Optional monospaced text (e.g. log lines) shown in a scrolling box under the message.</param>
     Task<int> ChoiceAsync(string title, string message, string[] buttons, string? details = null);
@@ -1396,6 +1399,7 @@ public sealed partial class MainViewModel : ObservableObject, IAsyncDisposable
             .Scan(Settings)
             .Select(t => new InstalledItem(t, this))
             .ToList();
+        LoadCollections();
         foreach (var item in _allInstalled)
         {
             item.ApplyStats(_stats);
@@ -1522,12 +1526,14 @@ public sealed partial class MainViewModel : ObservableObject, IAsyncDisposable
             InstalledMakerFilter != TableFilters.AnyMaker
             || InstalledEraFilter != TableFilters.AnyEra
             || InstalledTypeFilter != TableFilters.AnyType
-            || InstalledThemeFilter != TableFilters.AnyTheme;
+            || InstalledThemeFilter != TableFilters.AnyTheme
+            || IsCollectionChosen;
         var search = TableSearch.Parse(InstalledSearch);
         var scores = new Dictionary<InstalledItem, double>();
         var pool = _allInstalled
             .Where(MatchesInstalledEngine)
             .Where(MatchesInstalledFilters)
+            .Where(MatchesInstalledCollection)
             .Where(i => search == null || (scores[i] = search.Score(SearchEntryOf(i))) > 0)
             .ToList();
         IEnumerable<InstalledItem> q = InstalledFilter switch
@@ -1565,6 +1571,11 @@ public sealed partial class MainViewModel : ObservableObject, IAsyncDisposable
         InstalledTotal = _allInstalled.Count;
         InstalledEmptyText =
             Installed.Count > 0 || _allInstalled.Count == 0 ? ""
+            : IsCollectionChosen
+            && !_allInstalled.Any(i =>
+                _collections.Contains(InstalledCollectionFilter, i.Table.TablePath)
+            )
+                ? $"Nothing in “{InstalledCollectionFilter}” yet. Add tables from a card's ⋯ menu → Collections."
             : search != null || HasInstalledFilters || InstalledEngine != InstalledEngines[0]
                 ? "No installed tables match the search and filters."
             : InstalledFilter switch

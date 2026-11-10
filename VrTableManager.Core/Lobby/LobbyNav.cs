@@ -25,10 +25,23 @@ public static class LobbyNav
     ];
     public const string Letters = "#ABCDEFGHIJKLMNOPQRSTUVWXYZ";
 
+    /// <summary>What B / Tab cycles through: the built-in filters, then your collections from the manager.</summary>
+    public static string[] FiltersFor(LobbyState state) =>
+        [
+            .. Filters,
+            .. state.Collections.Names.Where(n =>
+                !Filters.Contains(n, StringComparer.OrdinalIgnoreCase)
+            ),
+        ];
+
     public static LobbyView Apply(IReadOnlyList<LobbyTable> tables, string filter, LobbyState state)
     {
         IEnumerable<LobbyTable> q = filter switch
         {
+            // A collection: its tables, A–Z with the letter rail like All.
+            _ when state.IsCollection(filter) => tables.Where(t =>
+                state.Collections.Contains(filter, t.Id)
+            ),
             "VPX" => tables.Where(t => t.Engine == TableManifest.Vpx),
             "Future Pinball" => tables.Where(t => t.Engine == TableManifest.FuturePinball),
             "Pinball FX" => tables.Where(t => t.Engine == TableManifest.PinballFx),
