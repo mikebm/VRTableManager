@@ -15,94 +15,28 @@ public sealed partial class MainViewModel
             ? MediaPackAudio.SourcesFor(game)
             : [];
 
+    /// <summary>The table's sound file, or else a media pack's audio (and its wheel when the table has none).</summary>
     [RelayCommand(AllowConcurrentExecutions = true)]
     async Task GetAttractAudio(InstalledItem item)
     {
         var table = item.Table;
-        if (!TryBeginBusy(table.TablePath))
+        if (!item.CanGetAttractAudio || !TryBeginBusy(table.TablePath))
         {
             return;
         }
 
         try
         {
-            await GetAttractAudioCoreAsync(table, item.AttractAudioSources);
+            await GetLobbyMediaCoreAsync(
+                table,
+                new() { Audio = true },
+                LobbyMedia.Needs.Of(table).And(new() { Wheel = true }),
+                "Or drop your own attract.mp3 into the table's music folder."
+            );
         }
         finally
         {
             EndBusy(table.TablePath);
-        }
-    }
-
-    async Task GetAttractAudioCoreAsync(
-        InstalledTable table,
-        IReadOnlyList<MediaPackAudio.Source> sources
-    )
-    {
-        var job = new JobItem($"Attract audio for {table.Manifest.GameName}")
-        {
-            FileNames = [table.Manifest.GameName],
-        };
-        Jobs.Insert(0, job);
-        var problems = new List<string>();
-        try
-        {
-            // Sound files first (one small .mp3, no sign-in), then each media pack until one has audio.
-            foreach (var src in sources)
-            {
-                job.Report($"Getting the {src.Label}…");
-                try
-                {
-                    var file = await DownloadAttractSourceAsync(job, src);
-                    job.Report("Taking the audio out…");
-                    if (!src.IsDirect)
-                    {
-                        await KeepWheelFromAsync(file, table, job.Cts.Token);
-                    }
-
-                    var saved = await Task.Run(() =>
-                        MediaPackAudio.Save(
-                            file,
-                            table.Folder,
-                            table.Manifest.GameName,
-                            CompressedAudio.Converter
-                        )
-                    );
-                    CleanJobDownloads(job); // the pack's videos aren't kept
-                    if (saved != null)
-                    {
-                        job.Finish(
-                            $"✓ Saved music\\{Path.GetFileName(saved)} ({DiskUsage.Format(new FileInfo(saved).Length)}) from the {src.Label}. The VR lobby plays it when you pick this table."
-                        );
-                        SetHasAttractAudio(table.TablePath, true);
-                        return;
-                    }
-                    problems.Add($"the {src.Label} has no usable audio");
-                }
-                catch (OperationCanceledException)
-                {
-                    throw;
-                }
-                catch (Exception e)
-                {
-                    CleanJobDownloads(job);
-                    problems.Add($"the {src.Label} failed ({e.Message})");
-                }
-            }
-            job.Finish(
-                sources.Count == 0
-                    ? "The catalog has no sound file or media pack for this table."
-                    : "No attract audio found: " + string.Join("; ", problems) + ".",
-                error: true
-            );
-        }
-        catch (OperationCanceledException)
-        {
-            job.Finish("Cancelled", error: true);
-        }
-        finally
-        {
-            CleanJobDownloads(job);
         }
     }
 

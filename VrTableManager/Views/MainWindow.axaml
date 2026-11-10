@@ -194,7 +194,7 @@
                 <Button Content="◆  GET LOBBY MEDIA" Command="{Binding GetAllLobbyMediaCommand}" IsVisible="{Binding !IsBatchRecording}"
                         ToolTip.Tip="For every table shown: fills in what's missing of its playfield video, loading video, attract audio and wheel art from the catalog's media packs, then can record playfield videos in VPX for the rest. Search or filter first to do only some tables." />
                 <Button Content="{Binding BatchRecordingText}" Command="{Binding StopBatchRecordingCommand}" IsVisible="{Binding IsBatchRecording}"
-                        ToolTip.Tip="Stops the recording that's running and skips the rest" />
+                        ToolTip.Tip="Stops the table that's being done (its download or VPX recording) and skips the rest" />
                 <Button Classes="primary" Content="◉  LAUNCH VR LOBBY" Command="{Binding LaunchLobbyCommand}"
                         IsEnabled="{Binding !IsLobbyRunning}"
                         ToolTip.Tip="Pick and play tables inside the headset. First time: downloads Godot (117 MB) and builds the lobby." />

@@ -2,14 +2,14 @@ namespace VrTableManager.Services;
 
 /// <summary>
 /// Everything the VR lobby can show for a table: its playfield video, loading video, attract audio and wheel art.
-/// A media pack has all four, so one download fills every missing piece (<see cref="TakeFrom"/>); the catalog's
-/// wheel art and sound files fill what the pack lacks. Only gaps are filled: nothing already there is replaced.
+/// A media pack usually has all four, so one download can fill every missing piece (<see cref="TakeFrom"/>); the
+/// catalog's wheel art and sound files fill what packs lack. The manager's Get… commands all go through this.
 /// </summary>
 public static class LobbyMedia
 {
     public enum Kind
     {
-        /// <summary>A media pack: all four.</summary>
+        /// <summary>A media pack: any of the four.</summary>
         Pack,
 
         /// <summary>The catalog's wheel art download: only the wheel.</summary>
@@ -24,7 +24,7 @@ public static class LobbyMedia
         AudioName = "attract audio",
         WheelName = "wheel art";
 
-    /// <summary>What a table's lobby media still lacks.</summary>
+    /// <summary>A set of the four pieces: what a table lacks, or what to get.</summary>
     public sealed class Needs
     {
         public bool Video,
@@ -34,16 +34,36 @@ public static class LobbyMedia
 
         public bool Any => Video || Loading || Audio || Wheel;
 
+        /// <summary>What a table with a folder of its own lacks (a loose table lacks nothing: it can't keep any).</summary>
         public static Needs Of(InstalledTable t) =>
+            t.HasOwnFolder
+                ? new()
+                {
+                    Video = LobbyVideo.Existing(t.Folder) == null,
+                    Loading = LoadingVideo.Own(t) == null,
+                    Audio = MediaPackAudio.Existing(t.Folder) == null,
+                    Wheel = WheelArt.Find(t) == null, // your own picture counts
+                }
+                : new();
+
+        /// <summary>Only the pieces that are in both.</summary>
+        public Needs And(Needs o) =>
             new()
             {
-                Video = t.HasOwnFolder && LobbyVideo.Existing(t.Folder) == null,
-                Loading = t.HasOwnFolder && LoadingVideo.Own(t) == null,
-                Audio = t.IsVpx && MediaPackAudio.Existing(t.Folder) == null,
-                Wheel = t.HasOwnFolder && WheelArt.Find(t) == null, // your own picture counts
+                Video = Video && o.Video,
+                Loading = Loading && o.Loading,
+                Audio = Audio && o.Audio,
+                Wheel = Wheel && o.Wheel,
             };
 
-        public Needs Copy() => (Needs)MemberwiseClone();
+        public Needs Or(Needs o) =>
+            new()
+            {
+                Video = Video || o.Video,
+                Loading = Loading || o.Loading,
+                Audio = Audio || o.Audio,
+                Wheel = Wheel || o.Wheel,
+            };
 
         public bool SameAs(Needs o) =>
             Video == o.Video && Loading == o.Loading && Audio == o.Audio && Wheel == o.Wheel;
@@ -71,52 +91,67 @@ public static class LobbyMedia
         }
     }
 
-    /// <summary>
-    /// The order worth downloading in. A pack is needed anyway for the videos, so it goes first and may make the
-    /// small downloads unnecessary; otherwise the small ones go first and the big pack only for what they lacked.
-    /// </summary>
-    public static List<(MediaPackAudio.Source Source, Kind Kind)> Order(
-        IEnumerable<MediaPackAudio.Source> packs,
-        IEnumerable<MediaPackAudio.Source> wheelFiles,
-        IEnumerable<MediaPackAudio.Source> soundFiles,
-        Needs needs
-    )
-    {
-        var p = packs.Select(s => (s, Kind.Pack));
-        var w = wheelFiles.Select(s => (s, Kind.WheelFiles));
-        var s = soundFiles.Select(x => (x, Kind.Sound));
-        return needs.Video || needs.Loading ? [.. p, .. w, .. s] : [.. s, .. w, .. p];
-    }
+    /// <summary>Something that went wrong, and which piece it cost (null: a whole download).</summary>
+    public sealed record Problem(string? Piece, string Text);
 
-    /// <summary>A download of this kind can still fill something.</summary>
-    public static bool Helps(Kind kind, Needs needs) =>
+    /// <summary>A download of this kind can fill something still wanted.</summary>
+    public static bool Helps(Kind kind, Needs wanted) =>
         kind switch
         {
-            Kind.Pack => needs.Any,
-            Kind.WheelFiles => needs.Wheel,
-            _ => needs.Audio,
+            Kind.Pack => wanted.Any,
+            Kind.WheelFiles => wanted.Wheel,
+            _ => wanted.Audio,
         };
 
     /// <summary>
-    /// Takes each piece the table still needs out of one downloaded file, saving it in the table folder and clearing
-    /// it in <paramref name="needs"/>. Returns the names of the pieces saved; a piece that fails is added to
+    /// The next download worth making, of those not tried yet, or null when none can fill anything wanted. While a
+    /// video is wanted the media packs go first (they may make the small downloads unnecessary); otherwise the small
+    /// wheel art and sound files go first, and a big pack only for what they lacked. Asked again after each download,
+    /// so a pack that filled the videos but not the wheel is followed by the small wheel download, not another pack.
+    /// </summary>
+    public static (MediaPackAudio.Source Source, Kind Kind)? Next(
+        IEnumerable<(MediaPackAudio.Source Source, Kind Kind)> left,
+        Needs wanted
+    ) =>
+        left.Where(s => Helps(s.Kind, wanted))
+            .OrderBy(s => Rank(s.Kind, wanted))
+            .Select(s => ((MediaPackAudio.Source, Kind)?)s)
+            .FirstOrDefault();
+
+    static int Rank(Kind kind, Needs wanted) =>
+        (wanted.Video || wanted.Loading, kind) switch
+        {
+            (true, Kind.Pack) => 0,
+            (true, Kind.WheelFiles) => 1,
+            (true, _) => 2,
+            (false, Kind.Sound) => 0,
+            (false, Kind.WheelFiles) => 1,
+            _ => 2,
+        };
+
+    /// <summary>
+    /// Takes each piece in <paramref name="take"/> out of one downloaded file, saving it in the table folder (replacing
+    /// one already there) and clearing it in <paramref name="take"/>. Pieces saved are added to <paramref name="got"/>
+    /// as they're saved, so they're known even when this is cancelled part way. A piece that fails goes into
     /// <paramref name="problems"/> and doesn't cost the others. Slow (it decodes videos): run it off the UI thread.
     /// </summary>
-    public static List<string> TakeFrom(
+    /// <param name="from">The download, for problems: "media pack", "wheel art by …".</param>
+    public static void TakeFrom(
         string downloaded,
         Kind kind,
+        string from,
         InstalledTable table,
-        Needs needs,
-        List<string> problems,
+        Needs take,
+        List<string> got,
+        List<Problem> problems,
         Func<byte[]?> playfieldPicture,
         Action<string>? report = null,
         CancellationToken ct = default
     )
     {
-        var got = new List<string>();
         var name = table.Manifest.GameName;
 
-        // Each piece on its own: one that fails doesn't cost the others. save() is true when it saved one.
+        // save() is true when it saved the piece; it may add its own problem when it found one that won't work.
         bool Take(string what, Func<bool> save)
         {
             ct.ThrowIfCancellationRequested();
@@ -134,74 +169,136 @@ public static class LobbyMedia
             }
             catch (Exception e)
             {
-                problems.Add($"the {what} failed ({e.Message})");
+                problems.Add(new(what, $"the {from}'s {what} failed ({e.Message})"));
             }
             return false;
         }
 
-        if (needs.Wheel && kind != Kind.Sound)
+        // A video was found but Windows couldn't decode it: say so, rather than "there's none".
+        bool Unplayable(string what, string file)
+        {
+            problems.Add(
+                new(what, $"Windows couldn't play the {from}'s {what} ({Path.GetExtension(file)})")
+            );
+            return false;
+        }
+
+        if (take.Wheel && kind != Kind.Sound)
         {
             report?.Invoke("Taking the wheel out…");
             var game = WheelArt.Game.Of(table.Manifest);
             var wheelPack = kind == Kind.WheelFiles;
-            if (Take(WheelName, () => WheelArt.Save(downloaded, table.Folder, game, wheelPack, ct) != null))
-            {
-                needs.Wheel = false;
-            }
+            take.Wheel = !Take(
+                WheelName,
+                () => WheelArt.Save(downloaded, table.Folder, game, wheelPack, ct) != null
+            );
         }
 
-        if (needs.Audio && kind != Kind.WheelFiles)
+        if (take.Audio && kind != Kind.WheelFiles)
         {
             report?.Invoke("Taking the audio out…");
-            if (
-                Take(
-                    AudioName,
-                    () =>
-                        MediaPackAudio.Save(downloaded, table.Folder, name, CompressedAudio.Converter)
-                        != null
-                )
-            )
-            {
-                needs.Audio = false;
-            }
+            take.Audio = !Take(
+                AudioName,
+                () =>
+                    MediaPackAudio.Save(downloaded, table.Folder, name, CompressedAudio.Converter)
+                    != null
+            );
         }
 
-        if (needs.Loading && kind == Kind.Pack)
+        if (take.Loading && kind == Kind.Pack)
         {
             report?.Invoke("Making the loading screen's frames…");
-            if (
-                Take(
-                    LoadingName,
-                    () =>
+            take.Loading = !Take(
+                LoadingName,
+                () =>
+                {
+                    using var video = LoadingVideo.FromPack(downloaded, name, ct);
+                    if (video == null)
                     {
-                        using var video = LoadingVideo.FromPack(downloaded, name, ct);
-                        var dest = LoadingVideo.TableFolder(table.Folder);
-                        return video != null && VideoFrames.LoadingFromVideo(video.Path, dest, ct) != null;
+                        return false;
                     }
-                )
-            )
-            {
-                needs.Loading = false;
-            }
+                    var dest = LoadingVideo.TableFolder(table.Folder);
+                    return VideoFrames.LoadingFromVideo(video.Path, dest, ct) != null
+                        || Unplayable(LoadingName, video.Entry);
+                }
+            );
         }
 
-        if (needs.Video && kind == Kind.Pack)
+        if (take.Video && kind == Kind.Pack)
         {
             report?.Invoke("Making the lobby frames…");
-            if (
-                Take(
-                    VideoName,
-                    () =>
-                        LobbyVideo.SavePlayfieldVideo(downloaded, table.Folder, name) is { } video
-                        && VideoFrames.FromVideo(video, table.Folder, playfieldPicture(), ct) != null
-                )
-            )
-            {
-                needs.Video = false;
-            }
+            take.Video = !Take(
+                VideoName,
+                () =>
+                {
+                    if (
+                        LobbyVideo.SavePlayfieldVideo(downloaded, table.Folder, name)
+                        is not { } video
+                    )
+                    {
+                        return false;
+                    }
+                    return VideoFrames.FromVideo(video, table.Folder, playfieldPicture(), ct)
+                            != null
+                        || Unplayable(VideoName, video);
+                }
+            );
         }
+    }
 
-        return got;
+    /// <summary>Why a table still has no playfield video after the catalog's downloads: said before offering to record one.</summary>
+    public static string WhyNoVideo(IEnumerable<Problem> problems, bool hadPack)
+    {
+        var why = problems.Where(p => p.Piece is null or VideoName).Select(p => p.Text).ToList();
+        return why.Count > 0 ? "No playfield video: " + string.Join("; ", why) + "."
+            : hadPack ? "The media pack has no playfield video for this table."
+            : "The catalog has no media pack for this table.";
+    }
+
+    /// <summary>What GET LOBBY MEDIA says when it's done.</summary>
+    /// <param name="filled">Tables that got at least one piece.</param>
+    /// <param name="stillMissing">Tables still missing at least one piece.</param>
+    /// <param name="needRom">Of those, tables without a playfield video that VPX couldn't record (no ROM yet).</param>
+    /// <param name="notRecorded">Of those, tables without a playfield video you chose not to record.</param>
+    /// <param name="skipped">Tables whose job you cancelled (or that were busy), skipped.</param>
+    public static string BatchSummary(
+        int filled,
+        int recorded,
+        int stillMissing,
+        int needRom,
+        int notRecorded,
+        int skipped,
+        bool stopped
+    )
+    {
+        static string Tables(int n) => $"{n} table{(n == 1 ? "" : "s")}";
+        var s = $"Added VR lobby media to {Tables(filled)}";
+        s += recorded > 0 ? $" ({recorded} recorded in VPX)." : ".";
+        if (stillMissing > 0)
+        {
+            var why = new List<string>();
+            if (needRom > 0)
+            {
+                why.Add($"{needRom} need a ROM before VPX can record them");
+            }
+            if (notRecorded > 0)
+            {
+                why.Add($"{notRecorded} weren't recorded");
+            }
+            s +=
+                $" {Tables(stillMissing)} still miss something"
+                + (why.Count > 0 ? " (" + string.Join(", ", why) + ")" : "")
+                + ": their MORE menu has the single Get and Use my own… items.";
+        }
+        if (skipped > 0)
+        {
+            s += $" Skipped {Tables(skipped)}.";
+        }
+        if (stopped)
+        {
+            s += " Stopped before the end.";
+        }
+        return s;
     }
 
     public static string JoinAnd(IReadOnlyList<string> parts) => Join(parts, "and");

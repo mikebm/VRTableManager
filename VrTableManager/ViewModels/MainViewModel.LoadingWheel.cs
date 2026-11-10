@@ -12,7 +12,7 @@ public sealed partial class MainViewModel
 
     // ---- Loading video: one table ----
 
-    /// <summary>Takes the loading video out of the catalog's media pack (Popper's Loading\ video).</summary>
+    /// <summary>Takes the loading video out of the catalog's media pack (Popper's Loading\ video), and its wheel when the table has none.</summary>
     [RelayCommand(AllowConcurrentExecutions = true)]
     async Task GetLoadingVideo(InstalledItem item)
     {
@@ -22,77 +22,17 @@ public sealed partial class MainViewModel
             return;
         }
 
-        var job = new JobItem($"Loading video for {table.Manifest.GameName}")
-        {
-            FileNames = [table.Manifest.GameName],
-        };
-        Jobs.Insert(0, job);
-        var problems = new List<string>();
         try
         {
-            foreach (var src in AttractAudioSourcesFor(table).Where(s => !s.IsDirect))
-            {
-                job.Report($"Getting the {src.Label}…");
-                try
-                {
-                    var file = await DownloadAttractSourceAsync(job, src);
-                    job.Report("Taking the loading video out…");
-                    await KeepWheelFromAsync(file, table, job.Cts.Token);
-                    using var video = await Task.Run(() =>
-                        LoadingVideo.FromPack(file, table.Manifest.GameName, job.Cts.Token)
-                    );
-                    if (video == null)
-                    {
-                        CleanJobDownloads(job);
-                        problems.Add($"the {src.Label} has no loading video");
-                        continue;
-                    }
-                    job.Report("Making the loading screen's frames…");
-                    var info = await Task.Run(() =>
-                        VideoFrames.LoadingFromVideo(
-                            video.Path,
-                            LoadingVideo.TableFolder(table.Folder),
-                            job.Cts.Token
-                        )
-                    );
-                    CleanJobDownloads(job);
-                    if (info == null)
-                    {
-                        problems.Add(
-                            $"Windows couldn't play the {src.Label}'s loading video ({video.Ext})"
-                        );
-                        continue;
-                    }
-                    job.Finish(
-                        $"✓ Saved a {info.Frames / (double)info.Fps:0.#} s loading video from the {src.Label}. The VR lobby plays it while this table starts."
-                    );
-                    SetHasLoadingVideo(table.TablePath, true);
-                    return;
-                }
-                catch (OperationCanceledException)
-                {
-                    throw;
-                }
-                catch (Exception e)
-                {
-                    CleanJobDownloads(job);
-                    problems.Add($"the {src.Label} failed ({e.Message})");
-                }
-            }
-            job.Finish(
-                "No loading video: "
-                    + string.Join("; ", problems)
-                    + ". Use my own loading video… turns any video you have into one.",
-                error: true
+            await GetLobbyMediaCoreAsync(
+                table,
+                new() { Loading = true },
+                LobbyMedia.Needs.Of(table).And(new() { Wheel = true }),
+                "Use my own loading video… turns any video you have into one."
             );
-        }
-        catch (OperationCanceledException)
-        {
-            job.Finish("Cancelled", error: true);
         }
         finally
         {
-            CleanJobDownloads(job);
             EndBusy(table.TablePath);
         }
     }
@@ -287,69 +227,16 @@ public sealed partial class MainViewModel
             return;
         }
 
-        var job = new JobItem($"Wheel art for {table.Manifest.GameName}")
-        {
-            FileNames = [table.Manifest.GameName],
-        };
-        Jobs.Insert(0, job);
-        var problems = new List<string>();
         try
         {
-            foreach (var (src, wheelPack) in item.WheelArtSources)
-            {
-                job.Report($"Getting the {src.Label}…");
-                try
-                {
-                    var file = await DownloadAttractSourceAsync(job, src);
-                    job.Report("Taking the wheel out…");
-                    var saved = await Task.Run(() =>
-                        WheelArt.Save(
-                            file,
-                            table.Folder,
-                            WheelArt.Game.Of(table.Manifest),
-                            wheelPack,
-                            job.Cts.Token
-                        )
-                    );
-                    CleanJobDownloads(job);
-                    if (saved != null)
-                    {
-                        job.Finish(
-                            $"✓ Saved medias\\{Path.GetFileName(saved)} from the {src.Label}. The VR lobby shows it over the cabinet when you pick this table."
-                        );
-                        SetHasWheelArt(table.TablePath, true);
-                        return;
-                    }
-                    problems.Add(
-                        wheelPack
-                            ? $"the {src.Label} has no wheel named after this game"
-                            : $"the {src.Label} has no wheel"
-                    );
-                }
-                catch (OperationCanceledException)
-                {
-                    throw;
-                }
-                catch (Exception e)
-                {
-                    CleanJobDownloads(job);
-                    problems.Add($"the {src.Label} failed ({e.Message})");
-                }
-            }
-            job.Finish(
-                "No wheel art: "
-                    + string.Join("; ", problems)
-                    + ". MORE → My artwork → VR lobby wheel art… uses a picture you have.",
-                error: true
+            await GetLobbyMediaCoreAsync(
+                table,
+                new() { Wheel = true },
+                hint: "MORE → My artwork → VR lobby wheel art… uses a picture you have."
             );
-        }
-        catch (OperationCanceledException)
-        {
-            job.Finish("Cancelled", error: true);
         }
         finally
         {
-            CleanJobDownloads(job);
             EndBusy(table.TablePath);
         }
     }
@@ -373,40 +260,6 @@ public sealed partial class MainViewModel
         }
         SetHasWheelArt(item.Table.TablePath, false);
         PlayStatus = $"Removed {item.Title}'s wheel art.";
-    }
-
-    /// <summary>
-    /// While a media pack is downloaded anyway (for the lobby video, attract audio or loading video), keeps its
-    /// wheel when the table has none yet: it reads the pack's file list and one small picture, and saves a second
-    /// download later. Cancelling the job stops it too.
-    /// </summary>
-    async Task KeepWheelFromAsync(string downloaded, InstalledTable table, CancellationToken ct)
-    {
-        if (!table.HasOwnFolder || WheelArt.Saved(table.Folder) != null)
-        {
-            return;
-        }
-
-        try
-        {
-            if (
-                await Task.Run(() =>
-                    WheelArt.Save(
-                        downloaded,
-                        table.Folder,
-                        WheelArt.Game.Of(table.Manifest),
-                        wheelPack: false,
-                        ct
-                    )
-                ) != null
-            )
-            {
-                SetHasWheelArt(table.TablePath, true);
-            }
-        }
-        catch (Exception e) when (e is not OperationCanceledException)
-        { /* the wheel is a bonus; the download was for something else */
-        }
     }
 
     void SetHasWheelArt(string tablePath, bool on)

@@ -57,12 +57,12 @@ The app copies your file into the table's `artwork` folder, so you can delete or
 
 ## All the VR lobby media at once
 
-A table's media pack in the catalog has its playfield video, loading video, music and wheel art. You can get all of them in one go instead of one menu item at a time. Only what's missing is added: nothing the table already has, or that you chose yourself, is replaced.
+A table's media pack in the catalog usually has its playfield video, loading video, music and wheel art. You can get all of them in one go instead of one menu item at a time. Only what's missing is added: nothing the table already has, or that you chose yourself, is replaced.
 
-- **One table:** its **⋯** menu → **Get all VR lobby media**. It downloads the media pack once and keeps each missing piece. Then, for what the pack lacked, it tries the catalog's wheel art and sound files. If there's still no playfield video, it offers to record one in VPX.
-- **Many tables:** **◆ GET LOBBY MEDIA** at the top of **My Tables** does this for every table shown, one after another. To do only some tables, search or filter first. You choose whether tables still without a playfield video are then recorded in VPX (about half a minute each, in a small window). The button turns into **■ STOP** while it runs.
+- **One table:** its **⋯** menu → **Get all VR lobby media**. When a video is missing, it starts with the media pack and keeps every missing piece from that one download. For what the pack lacked, it tries the catalog's small wheel art and sound files next, and another media pack only if those didn't help. When only the wheel or music is missing, the small downloads go first, and often no pack is needed at all. If there's still no playfield video at the end, it offers to record one in VPX (once the table has its ROM).
+- **Many tables:** **◆ GET LOBBY MEDIA** at the top of **My Tables** does this for every table shown, one after another. To do only some tables, search or filter first. You choose whether tables still without a playfield video are then recorded in VPX (about half a minute each, in a small window; tables still missing their ROM are skipped). The button turns into **■ STOP** while it runs. Cancelling one table's job in the Downloads list skips that table; **STOP** ends the run. The VR lobby can't be launched while tables are being recorded.
 
-Media packs download in your own browser: each table's download page opens, and you click **Download** there. Some sites make you wait on a timer first. The app keeps what it needs from each pack and deletes the rest.
+Downloads from the table sites happen in your own browser: each download page opens, and you click **Download** there. Some sites make you wait on a timer first. The app keeps what it needs from each download and deletes the rest.
 
 ## Playfield videos (VR lobby)
 

@@ -70,149 +70,25 @@ public sealed partial class MainViewModel
             return;
         }
 
-        var record = false;
+        LobbyMediaResult? r;
         try
         {
-            var packs = AttractAudioSourcesFor(table).Where(s => !s.IsDirect).ToList();
-            string? problem;
-            try
-            {
-                problem =
-                    packs.Count == 0
-                        ? "The catalog has no media pack for this table."
-                        : await LobbyVideoFromPacksAsync(table, packs);
-            }
-            catch (OperationCanceledException)
-            {
-                return;
-            } // you cancelled it: don't offer to record instead
-            if (problem == null)
-            {
-                return;
-            }
-
-            record =
-                await _ui.ChoiceAsync(
-                    $"Record {item.Title}'s attract mode?",
-                    problem
-                        + "\n\nVPX can record the table's attract mode instead: a small VPX window opens for about half a minute "
-                        + "(sound off) and closes by itself. Don't use the PC for anything else meanwhile.",
-                    ["RECORD IN VPX", "CANCEL"]
-                ) == 0;
+            // The pack has the table's music and wheel too: kept when the table has none (saves another download).
+            r = await GetLobbyMediaCoreAsync(
+                table,
+                new() { Video = true },
+                LobbyMedia.Needs.Of(table).And(new() { Audio = true, Wheel = true })
+            );
         }
         finally
         {
             EndBusy(table.TablePath);
         }
-        if (record)
-        {
-            await RecordLobbyVideo(item);
-        }
-    }
 
-    /// <summary>
-    /// Tries each media pack until one has a playfield video. Null when it worked, else what went wrong;
-    /// throws <see cref="OperationCanceledException"/> when the job was cancelled.
-    /// </summary>
-    async Task<string?> LobbyVideoFromPacksAsync(
-        InstalledTable table,
-        IReadOnlyList<MediaPackAudio.Source> packs
-    )
-    {
-        var job = new JobItem($"Lobby video for {table.Manifest.GameName}")
+        if (r is { Left.Video: true })
         {
-            FileNames = [table.Manifest.GameName],
-        };
-        Jobs.Insert(0, job);
-        var problems = new List<string>();
-        try
-        {
-            foreach (var src in packs)
-            {
-                job.Report($"Getting the {src.Label}…");
-                try
-                {
-                    var file = await DownloadAttractSourceAsync(job, src);
-                    job.Report("Taking the playfield video out…");
-                    await KeepWheelFromAsync(file, table, job.Cts.Token);
-                    var video = await Task.Run(() =>
-                        LobbyVideo.SavePlayfieldVideo(file, table.Folder, table.Manifest.GameName)
-                    );
-                    // The same pack has the table's music: keep it too when there's none yet (saves a second download).
-                    if (MediaPackAudio.Existing(table.Folder) == null)
-                    {
-                        try
-                        {
-                            if (
-                                await Task.Run(() =>
-                                    MediaPackAudio.Save(
-                                        file,
-                                        table.Folder,
-                                        table.Manifest.GameName,
-                                        CompressedAudio.Converter
-                                    )
-                                ) != null
-                            )
-                            {
-                                SetHasAttractAudio(table.TablePath, true);
-                            }
-                        }
-                        catch (Exception)
-                        { /* the video is what was asked for */
-                        }
-                    }
-
-                    CleanJobDownloads(job);
-                    if (video == null)
-                    {
-                        problems.Add($"the {src.Label} has no playfield video");
-                        continue;
-                    }
-                    job.Report("Making the lobby frames…");
-                    var info = await Task.Run(() =>
-                        VideoFrames.FromVideo(
-                            video,
-                            table.Folder,
-                            PlayfieldPicture(table),
-                            job.Cts.Token
-                        )
-                    );
-                    if (info == null)
-                    {
-                        problems.Add(
-                            $"Windows couldn't play the {src.Label}'s playfield video ({Path.GetExtension(video)})"
-                        );
-                        continue;
-                    }
-                    job.Finish(
-                        $"✓ Saved a {info.Frames / (double)info.Fps:0.#} s playfield loop from the {src.Label}. The VR lobby plays it on the cabinet when you pick this table."
-                    );
-                    SetHasLobbyVideo(table.TablePath, true);
-                    return null;
-                }
-                catch (OperationCanceledException)
-                {
-                    throw;
-                }
-                catch (Exception e)
-                {
-                    CleanJobDownloads(job);
-                    problems.Add($"the {src.Label} failed ({e.Message})");
-                }
-            }
-            var why = "No playfield video: " + string.Join("; ", problems) + ".";
-            job.Finish(why, error: true);
-            return why;
-        }
-        catch (OperationCanceledException)
-        {
-            job.Finish("Cancelled", error: true);
-            throw;
-        }
-        finally
-        {
-            CleanJobDownloads(job);
-        }
+            await OfferRecordingAsync(item, LobbyMedia.WhyNoVideo(r.Problems, r.HadPack));
+        } // null: you cancelled it, so no offer to record instead
     }
 
     /// <summary>The table's own playfield picture, to tell which way a sideways video is turned.</summary>
@@ -332,6 +208,9 @@ public sealed partial class MainViewModel
     JobItem? _batchJob;
     bool _batchStop;
 
+    /// <summary>The running batch records tables in VPX: the VR lobby can't start until it's done.</summary>
+    bool _batchUsesVpx;
+
     /// <summary>
     /// Records a lobby video in VPX for every VPX table that has none, one after another, so their cabinets get
     /// a moving playfield with real depth (ramps and toys stand up only over a video). No downloads: recording
@@ -388,6 +267,7 @@ public sealed partial class MainViewModel
         }
 
         IsBatchRecording = true;
+        _batchUsesVpx = true;
         _batchStop = false;
         int recorded = 0,
             failed = 0;
@@ -421,6 +301,7 @@ public sealed partial class MainViewModel
         finally
         {
             IsBatchRecording = false;
+            _batchUsesVpx = false;
             _batchJob = null;
         }
         PlayStatus =

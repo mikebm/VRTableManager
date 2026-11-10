@@ -3,85 +3,94 @@ using VrTableManager.Services;
 
 namespace VrTableManager.ViewModels;
 
-// Everything the VR lobby can show for a table, in one go: the playfield video, loading video, attract audio and
-// wheel art. One media pack has all four, so it's downloaded once and each missing piece is taken out of it; the
-// catalog's wheel art and sound files fill what the pack lacks, and VPX can record a playfield video at the end.
-// Only fills gaps: nothing the table already has (or that you chose yourself) is replaced.
-// My Tables → MORE → Get all VR lobby media for one table, GET LOBBY MEDIA for the tables shown.
+// Everything the VR lobby can show for a table, from the catalog: the playfield video, loading video, attract audio
+// and wheel art (LobbyMedia). Every Get… command in My Tables → MORE goes through GetLobbyMediaCoreAsync, asking for
+// one piece (plus what it can take for free from the same download) or, for Get all VR lobby media, every missing one.
+// GET LOBBY MEDIA does the tables shown, one after another.
 public sealed partial class MainViewModel
 {
-    /// <summary>Where this table's missing media can come from, in the order worth downloading.</summary>
-    List<(MediaPackAudio.Source Source, LobbyMedia.Kind Kind)> LobbyMediaSources(
-        InstalledTable t,
-        LobbyMedia.Needs needs
-    )
+    /// <summary>Every catalog download this table's lobby media can come from (LobbyMedia.Next picks the order).</summary>
+    List<(MediaPackAudio.Source Source, LobbyMedia.Kind Kind)> LobbyMediaSources(InstalledTable t)
     {
         var audio = AttractAudioSourcesFor(t);
-        return LobbyMedia.Order(
-            audio.Where(s => !s.IsDirect),
-            WheelArtSourcesFor(t).Where(w => w.WheelPack).Select(w => w.Source),
-            audio.Where(s => s.IsDirect),
-            needs
-        );
+        return
+        [
+            .. audio.Where(s => !s.IsDirect).Select(s => (s, LobbyMedia.Kind.Pack)),
+            .. WheelArtSourcesFor(t)
+                .Where(w => w.WheelPack)
+                .Select(w => (w.Source, LobbyMedia.Kind.WheelFiles)),
+            .. audio.Where(s => s.IsDirect).Select(s => (s, LobbyMedia.Kind.Sound)),
+        ];
     }
 
+    /// <param name="Left">What was wanted and is still missing.</param>
+    /// <param name="Ran">A job ran (false: the catalog has nothing that could help).</param>
+    /// <param name="HadPack">A media pack was downloaded.</param>
+    sealed record LobbyMediaResult(
+        LobbyMedia.Needs Left,
+        IReadOnlyList<LobbyMedia.Problem> Problems,
+        bool Ran,
+        bool HadPack
+    );
+
     /// <summary>
-    /// Downloads what this table's missing lobby media can come from, as one job, and keeps each missing piece.
-    /// Returns what's still missing afterwards (null when the job was cancelled). The caller holds the table busy.
+    /// Downloads what can fill <paramref name="wanted"/>, as one job, and keeps each piece (replacing one already
+    /// there). <paramref name="bonus"/> is taken too when a download made anyway has it, but never causes a download.
+    /// Returns what's still wanted afterwards, or null when the job was cancelled. The caller holds the table busy.
     /// </summary>
+    /// <param name="hint">Added when something wanted wasn't found: what else you can do.</param>
     /// <param name="started">Gets the job as soon as it exists (the batch uses it to stop the running one).</param>
-    async Task<LobbyMedia.Needs?> GetLobbyMediaCoreAsync(
+    async Task<LobbyMediaResult?> GetLobbyMediaCoreAsync(
         InstalledTable table,
+        LobbyMedia.Needs wanted,
+        LobbyMedia.Needs? bonus = null,
+        string? hint = null,
         Action<JobItem>? started = null
     )
     {
-        var needs = LobbyMedia.Needs.Of(table);
-        var sources = LobbyMediaSources(table, needs);
-        if (!needs.Any || sources.Count == 0)
+        var left = LobbyMediaSources(table);
+        if (LobbyMedia.Next(left, wanted) == null)
         {
-            return needs;
+            return new(wanted, [], false, false);
         }
 
-        var job = new JobItem($"VR lobby media for {table.Manifest.GameName}")
+        var what = wanted.Names();
+        var title = what.Count == 1 ? char.ToUpper(what[0][0]) + what[0][1..] : "VR lobby media";
+        var job = new JobItem($"{title} for {table.Manifest.GameName}")
         {
             FileNames = [table.Manifest.GameName],
         };
         Jobs.Insert(0, job);
         started?.Invoke(job);
+        var take = wanted.Or(bonus ?? new());
         var got = new List<string>();
-        var problems = new List<string>();
+        var problems = new List<LobbyMedia.Problem>();
+        var hadPack = false;
         try
         {
-            foreach (var (src, kind) in sources)
+            while (LobbyMedia.Next(left, take.And(wanted)) is { } next)
             {
-                if (!LobbyMedia.Helps(kind, needs))
-                {
-                    continue;
-                }
-
+                left.Remove(next);
+                var (src, kind) = next;
                 job.Report($"Getting the {src.Label}…");
                 try
                 {
                     var file = await DownloadAttractSourceAsync(job, src);
-                    var before = problems.Count;
-                    got.AddRange(
-                        await Task.Run(() =>
-                            LobbyMedia.TakeFrom(
-                                file,
-                                kind,
-                                table,
-                                needs,
-                                problems,
-                                () => PlayfieldPicture(table),
-                                job.Report,
-                                job.Cts.Token
-                            )
+                    hadPack |= kind == LobbyMedia.Kind.Pack;
+                    await Task.Run(() =>
+                        LobbyMedia.TakeFrom(
+                            file,
+                            kind,
+                            src.Label,
+                            table,
+                            take,
+                            got,
+                            problems,
+                            () => PlayfieldPicture(table),
+                            job.Report,
+                            job.Cts.Token
                         )
                     );
-                    for (var i = before; i < problems.Count; i++)
-                    {
-                        problems[i] += $" in the {src.Label}";
-                    }
                 }
                 catch (OperationCanceledException)
                 {
@@ -89,105 +98,68 @@ public sealed partial class MainViewModel
                 }
                 catch (Exception e)
                 {
-                    problems.Add($"the {src.Label} failed ({e.Message})");
+                    problems.Add(new(null, $"the {src.Label} failed ({e.Message})"));
                 }
                 finally
                 {
                     CleanJobDownloads(job); // the pack's other files aren't kept
                 }
-
-                ShowLobbyMedia(table, needs);
-                if (!needs.Any)
-                {
-                    break;
-                }
             }
 
-            var missing = needs.Names();
+            var stillWanted = take.And(wanted);
+            var missing = stillWanted.Names();
+            var detail =
+                problems.Count > 0
+                    ? " (" + string.Join("; ", problems.Select(p => p.Text)) + ")"
+                    : "";
             job.Finish(
-                (got.Count > 0 ? "✓ Got the " + LobbyMedia.JoinAnd(got) + "." : "Got nothing new.")
+                (got.Count > 0 ? "✓ Got the " + LobbyMedia.JoinAnd(got) + "." : "Got nothing.")
                     + (
                         missing.Count > 0
-                            ? $" No {LobbyMedia.JoinOr(missing)} in the catalog's downloads"
-                                + (problems.Count > 0 ? " (" + string.Join("; ", problems) + ")" : "")
-                                + "."
-                            : ""
+                            ? $" No {LobbyMedia.JoinOr(missing)} in the catalog's downloads{detail}."
+                                + (hint != null ? " " + hint : "")
+                        : got.Count > 0 ? " The VR lobby uses it from now on."
+                        : ""
                     ),
-                error: got.Count == 0
+                error: stillWanted.SameAs(wanted)
             );
-            return needs;
+            return new(stillWanted, problems, true, hadPack);
         }
         catch (OperationCanceledException)
         {
-            job.Finish("Cancelled", error: true);
+            job.Finish(
+                "Cancelled" + (got.Count > 0 ? $"; kept the {LobbyMedia.JoinAnd(got)}." : ""),
+                error: true
+            );
             return null;
         }
         finally
         {
             CleanJobDownloads(job);
+            ShowLobbyMedia(table); // also after a cancel: what was saved before it stays
         }
     }
 
-    /// <summary>Updates the cards for what the table has now.</summary>
-    void ShowLobbyMedia(InstalledTable t, LobbyMedia.Needs needs)
+    /// <summary>Updates the table's cards for the lobby media on disk.</summary>
+    void ShowLobbyMedia(InstalledTable t)
     {
-        SetHasLobbyVideo(t.TablePath, !needs.Video && t.HasOwnFolder);
-        SetHasLoadingVideo(t.TablePath, !needs.Loading && t.HasOwnFolder);
-        SetHasAttractAudio(t.TablePath, !needs.Audio);
-        SetHasWheelArt(t.TablePath, WheelArt.Saved(t.Folder) != null);
+        SetHasLobbyVideo(t.TablePath, t.HasOwnFolder && LobbyVideo.Existing(t.Folder) != null);
+        SetHasLoadingVideo(t.TablePath, LoadingVideo.Own(t) != null);
+        SetHasAttractAudio(t.TablePath, t.IsVpx && MediaPackAudio.Existing(t.Folder) != null);
+        SetHasWheelArt(t.TablePath, t.HasOwnFolder && WheelArt.Saved(t.Folder) != null);
     }
 
-    // ---- One table (MORE → Get all VR lobby media) ----
-
-    [RelayCommand(AllowConcurrentExecutions = true)]
-    async Task GetLobbyMedia(InstalledItem item)
+    /// <summary>The playfield video wasn't in the catalog's downloads: offers to record the attract mode in VPX.</summary>
+    async Task OfferRecordingAsync(InstalledItem item, string why)
     {
-        var table = item.Table;
-        if (!item.CanGetLobbyMedia)
-        {
-            return;
-        }
-
-        var before = LobbyMedia.Needs.Of(table);
-        if (!before.Any)
+        if (item.NeedsRom)
         {
             PlayStatus =
-                $"{item.Title} already has all its VR lobby media. MORE has Replace items to swap one.";
+                why
+                + $" VPX could record {item.Title}'s attract mode instead, once the table has its ROM.";
             return;
         }
 
-        if (!TryBeginBusy(table.TablePath))
-        {
-            return;
-        }
-
-        LobbyMedia.Needs? after;
-        try
-        {
-            after = await GetLobbyMediaCoreAsync(table);
-        }
-        finally
-        {
-            EndBusy(table.TablePath);
-        }
-
-        var fromCatalog = LobbyMediaSources(table, before).Count > 0;
-        if (!fromCatalog && after is { } a && !(a.Video && item.CanHaveLobbyVideo))
-        {
-            PlayStatus =
-                $"The catalog has no media pack, wheel art or sound file for {item.Title}. "
-                + $"MORE → My artwork and Use my own… take files you have.";
-            return;
-        }
-
-        if (after is not { Video: true } || !item.CanHaveLobbyVideo)
-        {
-            return; // cancelled, or the playfield video is there
-        }
-
-        var why = LobbyMediaSources(table, before).Any(s => s.Kind == LobbyMedia.Kind.Pack)
-            ? "The media pack has no playfield video for this table."
-            : "The catalog has no media pack for this table.";
         if (
             await _ui.ChoiceAsync(
                 $"Record {item.Title}'s attract mode?",
@@ -202,12 +174,63 @@ public sealed partial class MainViewModel
         }
     }
 
+    // ---- One table (MORE → Get all VR lobby media) ----
+
+    [RelayCommand(AllowConcurrentExecutions = true)]
+    async Task GetLobbyMedia(InstalledItem item)
+    {
+        var table = item.Table;
+        if (!item.CanGetLobbyMedia)
+        {
+            return;
+        }
+
+        var needs = LobbyMedia.Needs.Of(table);
+        if (!needs.Any)
+        {
+            PlayStatus =
+                $"{item.Title} already has all its VR lobby media. MORE has Replace items to swap one.";
+            return;
+        }
+
+        if (!TryBeginBusy(table.TablePath))
+        {
+            return;
+        }
+
+        LobbyMediaResult? r;
+        try
+        {
+            r = await GetLobbyMediaCoreAsync(table, needs);
+        }
+        finally
+        {
+            EndBusy(table.TablePath);
+        }
+
+        if (r == null)
+        {
+            return; // cancelled
+        }
+
+        if (r.Left.Video && item.CanHaveLobbyVideo)
+        {
+            await OfferRecordingAsync(item, LobbyMedia.WhyNoVideo(r.Problems, r.HadPack));
+        }
+        else if (!r.Ran)
+        {
+            PlayStatus =
+                $"The catalog has no media pack, wheel art or sound file for {item.Title}. "
+                + "MORE → My artwork and the Use my own… items take files you have.";
+        }
+    }
+
     // ---- The tables shown (My Tables → GET LOBBY MEDIA) ----
 
     /// <summary>
     /// Fills the missing lobby media of every table shown in My Tables (so a search or filter picks which), one
-    /// table after another: their media packs first, then, if you choose, VPX recordings for those still without a
-    /// playfield video. STOP (or cancelling the running job) ends it.
+    /// table after another: from the catalog first, then, if you choose, VPX recordings for those still without a
+    /// playfield video. Cancelling one table's job skips that table; STOP ends the run.
     /// </summary>
     [RelayCommand]
     async Task GetAllLobbyMedia()
@@ -223,11 +246,11 @@ public sealed partial class MainViewModel
             .Select(i => (Item: i, Needs: LobbyMedia.Needs.Of(i.Table)))
             .Where(x => x.Needs.Any)
             .ToList();
-        var fromCatalog = shown
-            .Where(x => LobbyMediaSources(x.Item.Table, x.Needs).Count > 0)
-            .ToList();
+        var fromCatalog = shown.Count(x =>
+            LobbyMedia.Next(LobbyMediaSources(x.Item.Table), x.Needs) != null
+        );
         var recordable = shown.Count(x => x.Needs.Video && !x.Item.NeedsRom);
-        if (fromCatalog.Count == 0 && recordable == 0)
+        if (fromCatalog == 0 && recordable == 0)
         {
             PlayStatus =
                 shown.Count == 0
@@ -241,21 +264,22 @@ public sealed partial class MainViewModel
             $"{shown.Count} of the tables{filtered} are missing some VR lobby media: a playfield video, loading video, "
             + "attract audio or wheel art. Only what's missing is added; nothing you have is replaced.\n\n"
             + (
-                fromCatalog.Count > 0
-                    ? $"• {fromCatalog.Count} can get it from the catalog's media packs and wheel art. Each table's download page "
-                        + "opens in your browser, one after another: click Download there (some sites make you wait on a timer). "
-                        + "The app keeps what it needs and deletes the rest of each pack.\n\n"
+                fromCatalog > 0
+                    ? $"• {fromCatalog} can get some from the catalog's media packs, wheel art and sound files. Each download "
+                        + "page opens in your browser, one after another: click Download there (some sites make you wait on a "
+                        + "timer). The app keeps what it needs and deletes the rest of each download.\n\n"
                     : ""
             )
             + (
                 recordable > 0
                     ? $"• Tables still without a playfield video afterwards (up to {recordable}) can be recorded in VPX: a small "
-                        + "window for about half a minute each, sound off. Leave the PC alone meanwhile."
+                        + "window for about half a minute each, sound off. Leave the PC alone meanwhile.\n\n"
                     : ""
             )
-            + "\n\nTo do only some tables, search or filter My Tables first.";
+            + "Cancelling one table's job in the Downloads list skips that table; STOP ends the run. "
+            + "To do only some tables, search or filter My Tables first.";
         string[] buttons =
-            recordable > 0 && fromCatalog.Count > 0
+            recordable > 0 && fromCatalog > 0
                 ? ["GET ALL, RECORD THE REST", "GET ALL, DON'T RECORD", "CANCEL"]
             : recordable > 0 ? ["RECORD IN VPX", "CANCEL"]
             : ["GET ALL", "CANCEL"];
@@ -273,14 +297,18 @@ public sealed partial class MainViewModel
         }
 
         IsBatchRecording = true;
+        _batchUsesVpx = record;
         _batchStop = false;
         int filled = 0,
             recorded = 0,
-            stillMissing = 0;
+            stillMissing = 0,
+            needRom = 0,
+            notRecorded = 0,
+            skipped = 0;
         var stopped = false;
         try
         {
-            for (var n = 0; n < shown.Count && !stopped; n++)
+            for (var n = 0; n < shown.Count; n++)
             {
                 if (_batchStop)
                 {
@@ -288,63 +316,83 @@ public sealed partial class MainViewModel
                     break;
                 }
 
-                var (item, _) = shown[n];
+                var (item, before) = shown[n];
                 var table = item.Table;
                 BatchRecordingText = $"■  STOP ({n + 1}/{shown.Count})";
                 if (!TryBeginBusy(table.TablePath))
                 {
-                    continue; // something else is running for this table: skip it
+                    skipped++; // something else is running for this table
+                    continue;
                 }
 
-                LobbyMedia.Needs? left;
+                LobbyMediaResult? r;
                 try
                 {
-                    left = await GetLobbyMediaCoreAsync(table, j => _batchJob = j);
+                    r = await GetLobbyMediaCoreAsync(table, before, started: j => _batchJob = j);
                 }
                 finally
                 {
                     EndBusy(table.TablePath);
                 }
 
-                if (left == null)
+                if (r == null)
                 {
-                    stopped = true;
-                    break;
-                }
-
-                if (record && left.Video && !item.NeedsRom && !_batchStop)
-                {
-                    if (!await RecordLobbyVideoCoreAsync(item, j => _batchJob = j))
+                    if (_batchStop)
                     {
                         stopped = true;
                         break;
                     }
-                    if (LobbyVideo.Existing(table.Folder) != null)
+                    skipped++; // you cancelled this table's job
+                    continue;
+                }
+
+                var left = r.Left;
+                if (left.Video)
+                {
+                    if (!record)
+                    {
+                        notRecorded++;
+                    }
+                    else if (item.NeedsRom)
+                    {
+                        needRom++;
+                    }
+                    else if (!await RecordLobbyVideoCoreAsync(item, j => _batchJob = j))
+                    {
+                        if (_batchStop)
+                        {
+                            stopped = true;
+                            break;
+                        }
+                        skipped++; // you cancelled this table's recording
+                        continue;
+                    }
+                    else if (LobbyVideo.Existing(table.Folder) != null)
                     {
                         left.Video = false;
                         recorded++;
                     }
                 }
 
-                filled += shown[n].Needs.Any && !shown[n].Needs.SameAs(left) ? 1 : 0;
+                filled += left.SameAs(before) ? 0 : 1;
                 stillMissing += left.Any ? 1 : 0;
             }
         }
         finally
         {
             IsBatchRecording = false;
+            _batchUsesVpx = false;
             _batchJob = null;
         }
 
-        PlayStatus =
-            $"Added VR lobby media to {filled} table{(filled == 1 ? "" : "s")}"
-            + (recorded > 0 ? $" ({recorded} recorded in VPX)" : "")
-            + "."
-            + (
-                stillMissing > 0
-                    ? $" {stillMissing} still miss something the catalog doesn't have (the Downloads list says what)."
-                    : ""
-            )
-            + (stopped ? " Stopped before the end." : "");
+        PlayStatus = LobbyMedia.BatchSummary(
+            filled,
+            recorded,
+            stillMissing,
+            needRom,
+            notRecorded,
+            skipped,
+            stopped
+        );
     }
 }

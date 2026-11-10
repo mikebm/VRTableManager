@@ -1804,6 +1804,12 @@ public sealed partial class MainViewModel : ObservableObject, IAsyncDisposable
     [RelayCommand]
     async Task LaunchLobbyAsync()
     {
+        if (IsBatchRecording && _batchUsesVpx)
+        {
+            PlayStatus = "Tables are being recorded in VPX: wait for them, or press STOP, then launch the VR lobby.";
+            return;
+        }
+
         if (IsLobbyRunning || !await LobbyVideoTipAsync())
         {
             return;
