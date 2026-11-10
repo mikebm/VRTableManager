@@ -1,3 +1,5 @@
+using VrTableManager.Models;
+
 namespace VrTableManager.Services;
 
 /// <summary>
@@ -14,7 +16,17 @@ namespace VrTableManager.Services;
 public static class RomRequirements
 {
     /// <summary>Bump when the check learns something new, so installed tables are checked again.</summary>
-    public const int Version = 2;
+    public const int Version = 3;
+
+    /// <summary>The Virtual Pinball Spreadsheet's tag for a table file that runs without PinMAME.</summary>
+    public const string NoRomFeature = "no ROM";
+
+    /// <summary>
+    /// VPS says this table file needs no ROM. Its curators know: originals often keep a ROM table's script
+    /// (cGameName, LoadVPM) for high scores and PuP, which reading the script alone takes for a ROM.
+    /// </summary>
+    public static bool TaggedNoRom(TableManifest m) =>
+        m.Features.Contains(NoRomFeature, StringComparer.OrdinalIgnoreCase);
 
     /// <summary>Updates the table's manifest (RomNames, RomParents, RomAlias). Returns true when anything changed.</summary>
     public static bool Update(InstalledTable t, AppSettings s)
@@ -35,14 +47,14 @@ public static class RomRequirements
         AltPacks.FixLayout(t.Folder);
 
         var info = RomDetector.Inspect(t.TablePath);
-        if (info.NoRomNeeded)
+        if (info.NoRomNeeded || TaggedNoRom(m))
         {
             m.RomNames = [];
             m.RomParents = [];
             m.RomAlias = null;
             return Changed();
         }
-        if (info.GameName is not { } name)
+        if (info.RomName is not { } name)
         {
             return Changed();
         }

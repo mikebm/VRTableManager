@@ -419,6 +419,9 @@ public sealed partial class MainViewModel
         LobbyRecordsRomAudio = s.LobbyRecordsRomAudio;
         LobbyWaitsForTable = s.LobbyWaitsForTable;
         LobbyStaysOpen = s.LobbyStaysOpen;
+        LobbyLoadingVideos = s.LobbyLoadingVideos;
+        LobbyCabinetCount = s.LobbyCabinetCount;
+        LobbyCabinetScale = s.LobbyCabinetScalePercent;
         LoadGraphics();
         RefreshInstalled();
         RefreshSetupStatus();

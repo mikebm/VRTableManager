@@ -16,6 +16,12 @@ public sealed record InstalledTable(TableManifest Manifest, string TablePath, st
     public bool SharedFolder { get; init; }
 
     /// <summary>
+    /// A VPX table in a folder of its own: media kept per table folder (lobby video, loading video, wheel art) can be
+    /// its own.
+    /// </summary>
+    public bool HasOwnFolder => IsVpx && !SharedFolder;
+
+    /// <summary>
     /// The ROM(s) to add when none is in pinmame/roms yet. A table loads exactly one ROM: when the
     /// script's cGameName was found this is that one name; otherwise it's VPS's candidates, any of
     /// which will do.
@@ -159,10 +165,12 @@ public static class TableInstaller
                 .ToList();
             // The script names the one ROM this table loads; fall back to VPS's list if it can't be read.
             // Originals that don't use PinMAME need no ROM even if they set cGameName.
+            // VPS's "no ROM" tag on the table file settles it either way.
             var rom = isFp ? new VpxRomInfo(null, false) : RomDetector.Inspect(main);
+            var noRom = rom.NoRomNeeded || VpsCatalog.HasFeature(tf, RomRequirements.NoRomFeature);
             List<string> romNames =
-                rom.NoRomNeeded ? []
-                : rom.GameName != null ? [rom.GameName]
+                noRom ? []
+                : rom.RomName != null ? [rom.RomName]
                 : vpsRoms;
 
             status("Installing files…");
@@ -208,7 +216,7 @@ public static class TableInstaller
 
             var table = new InstalledTable(manifest, installed.tablePath, installed.folder);
             // Ask PinMAME what the ROM really is (aliases, parent sets) before the manifest is saved.
-            if (!isFp && !rom.NoRomNeeded)
+            if (!isFp && !noRom)
             {
                 await Task.Run(() => RomRequirements.Update(table, settings), ct);
             }

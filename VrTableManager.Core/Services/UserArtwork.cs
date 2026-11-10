@@ -8,7 +8,8 @@ namespace VrTableManager.Services;
 /// <list type="bullet">
 /// <item><b>card</b>: the table's tile in My Tables;</item>
 /// <item><b>playfield</b>: the VR lobby cabinet's playfield (a still; a lobby video still plays over it);</item>
-/// <item><b>backglass</b>: the VR lobby cabinet's backglass, even when the table's own VR cabinet has one.</item>
+/// <item><b>backglass</b>: the VR lobby cabinet's backglass, even when the table's own VR cabinet has one;</item>
+/// <item><b>wheel</b>: the game's logo over the selected cabinet in the VR lobby (<see cref="WheelArt"/>).</item>
 /// </list>
 /// They live in <c>&lt;table folder&gt;\artwork\</c> as card.png, playfield.jpg, … (any of png/jpg/jpeg/webp/bmp),
 /// so you can also drop files there by hand. Tables without a folder of their own (Future Pinball and store
@@ -21,6 +22,9 @@ public static class UserArtwork
         Card,
         Playfield,
         Backglass,
+
+        /// <summary>The game's logo (wheel art) the VR lobby shows over the selected cabinet.</summary>
+        Wheel,
     }
 
     public const string FolderName = "artwork";
@@ -81,7 +85,11 @@ public static class UserArtwork
 
     /// <summary>The art key for <see cref="Find"/>'s picture, for the app's and the lobby's image loaders; null when there's none.</summary>
     public static string? Key(InstalledTable t, Kind kind) =>
-        Find(t, kind) is { } f ? $"{LocalScheme}{f}|{File.GetLastWriteTimeUtc(f).Ticks}" : null;
+        Find(t, kind) is { } f ? LocalKey(f) : null;
+
+    /// <summary>The art key for a picture file on this PC (its date in it, so a replaced file is loaded again).</summary>
+    public static string LocalKey(string file) =>
+        $"{LocalScheme}{file}|{File.GetLastWriteTimeUtc(file).Ticks}";
 
     /// <summary>The file behind a <see cref="Key"/>, or null when <paramref name="key"/> isn't a local one.</summary>
     public static string? PathOf(string key)

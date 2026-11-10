@@ -12,25 +12,32 @@ public sealed class VideoFrames : LobbyVideo.IFrameSink
 {
     public static readonly VideoFrames Instance = new();
 
-    public void Write(int width, int height, byte[] rgba, int quarterTurns, string destJpg)
+    public void Write(int width, int height, byte[] rgba, int quarterTurns, string destJpg) =>
+        WriteFit(width, height, rgba, quarterTurns, destJpg, LobbyVideo.Width, LobbyVideo.Height);
+
+    /// <summary>One frame, turned, fitted inside <paramref name="outW"/>×<paramref name="outH"/> (padded with black), as JPEG.</summary>
+    static void WriteFit(
+        int width,
+        int height,
+        byte[] rgba,
+        int quarterTurns,
+        string destJpg,
+        int outW,
+        int outH
+    )
     {
         using var src = ToBitmap(width, height, rgba);
         quarterTurns = ((quarterTurns % 4) + 4) % 4;
         var (w, h) = quarterTurns % 2 == 1 ? (height, width) : (width, height);
-        // Fit inside the lobby frame, keeping the shape; pad with black.
-        var scale = Math.Min((float)LobbyVideo.Width / w, (float)LobbyVideo.Height / h);
+        // Fit inside the frame, keeping the shape; pad with black.
+        var scale = Math.Min((float)outW / w, (float)outH / h);
         using var dst = new SKBitmap(
-            new SKImageInfo(
-                LobbyVideo.Width,
-                LobbyVideo.Height,
-                SKColorType.Rgba8888,
-                SKAlphaType.Opaque
-            )
+            new SKImageInfo(outW, outH, SKColorType.Rgba8888, SKAlphaType.Opaque)
         );
         using (var canvas = new SKCanvas(dst))
         {
             canvas.Clear(SKColors.Black);
-            canvas.Translate(LobbyVideo.Width / 2f, LobbyVideo.Height / 2f);
+            canvas.Translate(outW / 2f, outH / 2f);
             canvas.Scale(scale);
             canvas.RotateDegrees(90 * quarterTurns);
             using var image = SKImage.FromBitmap(src);
@@ -173,14 +180,23 @@ public sealed class VideoFrames : LobbyVideo.IFrameSink
                     continue;
                 }
                 byte[]? rgba = null;
+                var copies = 0;
                 try
                 {
-                    if ((long)time + step / 2 < next)
+                    // One output frame every `step` from the start (time 0, where the sound starts too): a faster
+                    // source (30 or 60 fps) has frames dropped, a slower one has frames repeated, so the result
+                    // lasts as long as the source and its sound track stays in time with it.
+                    while (next <= (long)time + step / 4)
+                    {
+                        copies++;
+                        next += step;
+                    }
+
+                    if (copies == 0)
                     {
                         continue; // between the frames we keep
                     }
 
-                    next = (long)time + step;
                     sample.ConvertToContiguousBuffer(out var buffer);
                     try
                     {
@@ -208,8 +224,11 @@ public sealed class VideoFrames : LobbyVideo.IFrameSink
                     break;
                 }
 
-                count++;
-                yield return (width, height, rgba);
+                for (var c = 0; c < copies && count < maxFrames; c++)
+                {
+                    count++;
+                    yield return (width, height, rgba);
+                }
             }
         }
         finally
@@ -277,6 +296,62 @@ public sealed class VideoFrames : LobbyVideo.IFrameSink
             Instance.Write(w, h, rgba, turns.Value, builder.NextFramePath());
         }
         return builder.Count == 0 ? null : builder.Commit();
+    }
+
+    /// <summary>
+    /// Turns a video into a loading video in <paramref name="folder"/> (<see cref="LoadingVideo"/>): its first
+    /// <see cref="LoadingVideo.MaxSeconds"/> s at its own shape, plus its sound track from the very start (so it
+    /// stays in time with the pictures). Null when Windows can't decode the video.
+    /// </summary>
+    public static LobbyVideo.Info? LoadingFromVideo(
+        string video,
+        string folder,
+        CancellationToken ct
+    )
+    {
+        using var builder = new LobbyVideo.Builder(folder, "loading", LoadingVideo.Fps);
+        foreach (
+            var (w, h, rgba) in DecodeVideo(video, LoadingVideo.Fps, LoadingVideo.MaxFrames, ct)
+        )
+        {
+            if (builder.Count == 0)
+            {
+                (builder.FrameWidth, builder.FrameHeight) = LoadingVideo.FrameSize(w, h);
+            }
+
+            WriteFit(
+                w,
+                h,
+                rgba,
+                0,
+                builder.NextFramePath(),
+                builder.FrameWidth,
+                builder.FrameHeight
+            );
+        }
+        if (builder.Count == 0)
+        {
+            return null;
+        }
+
+        ct.ThrowIfCancellationRequested();
+        if (
+            CompressedAudio.ToLobbyAudio(
+                video,
+                builder.Staging,
+                TimeSpan.FromSeconds(LoadingVideo.MaxSeconds),
+                trimLeadIn: false
+            ) is
+            { } sound
+        )
+        {
+            File.Move(
+                sound,
+                Path.Combine(builder.Staging, LoadingVideo.AudioName + Path.GetExtension(sound))
+            );
+        }
+
+        return builder.Commit();
     }
 
     /// <summary>1 (clockwise) or 3 (anticlockwise): whichever makes the frame look more like the playfield picture.</summary>

@@ -12,7 +12,8 @@ namespace VrTableManager.Services;
 /// </summary>
 public static partial class RomDetector
 {
-    public static string? FromVpx(string vpxPath) => Inspect(vpxPath).GameName;
+    /// <summary>The ROM set the table loads (see <see cref="VpxRomInfo.RomName"/>).</summary>
+    public static string? FromVpx(string vpxPath) => Inspect(vpxPath).RomName;
 
     /// <summary>
     /// Reads the table script for the ROM name (cGameName) and whether it drives PinMAME at all
@@ -31,7 +32,8 @@ public static partial class RomDetector
         var buffer = new byte[Chunk + Overlap];
         var carry = 0;
         string? gameName = null,
-            pupName = null;
+            pupName = null,
+            controllerRom = null;
         var pinMame = false;
         var pup = false;
         bool? pupSwitch = null;
@@ -53,7 +55,8 @@ public static partial class RomDetector
             var total = carry + read;
             var text = Encoding.Latin1.GetString(buffer, 0, total);
             gameName ??= FromScript(text);
-            pinMame = pinMame || PinMameRegex().IsMatch(text);
+            pinMame = pinMame || UsesPinMame(text);
+            controllerRom ??= ControllerRomFromScript(text);
             pup = pup || UsesPup(text);
             pupName ??= PupNameFromScript(text, gameName);
             pupSwitch ??= PupSwitch(text);
@@ -73,6 +76,7 @@ public static partial class RomDetector
         }
         return new(gameName, pinMame)
         {
+            ControllerRom = controllerRom,
             AliasTargets = aliasTargets,
             UsesPup = pup,
             PupName = pupName,
@@ -217,7 +221,53 @@ public static partial class RomDetector
             .Distinct(StringComparer.OrdinalIgnoreCase)
             .ToList();
 
-    public static bool UsesPinMame(string script) => PinMameRegex().IsMatch(script);
+    /// <summary>
+    /// An uncommented line loads PinMAME. Originals built from a ROM table's script keep the old
+    /// <c>' LoadVPM "01560000", "S11.VBS", 3.26</c> line commented out; that doesn't need a ROM.
+    /// </summary>
+    public static bool UsesPinMame(string script) =>
+        CodeLinesWith(script, "LoadVPM").Any(l => PinMameRegex().IsMatch(l))
+        || CodeLinesWith(script, "VPinMAME.Controller").Any(l => PinMameRegex().IsMatch(l));
+
+    /// <summary>
+    /// The ROM the script hands PinMAME when it isn't cGameName: <c>.GameName = "swrds_l2"</c>, or
+    /// <c>.GameName = cRomName</c> with <c>Const cRomName = "swrds_l2"</c>. Rethemes keep their own cGameName
+    /// for the PuP pack and high scores and run another machine's ROM (Fallout runs Swords of Fury's).
+    /// Null when the script passes cGameName itself, or no name can be read.
+    /// </summary>
+    public static string? ControllerRomFromScript(string script)
+    {
+        foreach (var line in CodeLinesWith(script, ".GameName"))
+        {
+            if (ControllerGameNameRegex().Match(line) is not { Success: true } m)
+            {
+                continue;
+            }
+            if (m.Groups["rom"].Success)
+            {
+                return m.Groups["rom"].Value;
+            }
+
+            var variable = m.Groups["var"].Value;
+            if (variable.Equals("cGameName", StringComparison.OrdinalIgnoreCase))
+            {
+                return null;
+            }
+            var assign = new Regex(
+                $"\\b{Regex.Escape(variable)}[ \\t]*=[ \\t]*\"([A-Za-z0-9_]{{2,32}})\"",
+                RegexOptions.IgnoreCase
+            );
+            foreach (var l in CodeLinesWith(script, variable))
+            {
+                if (assign.Match(l) is { Success: true } a)
+                {
+                    return a.Groups[1].Value;
+                }
+            }
+        }
+
+        return null;
+    }
 
     /// <summary>
     /// The code part of each line containing <paramref name="word"/> (scripts end lines with \r\n or a
@@ -254,6 +304,13 @@ public static partial class RomDetector
 
     [GeneratedRegex("\\bcGameName[ \\t]*=[ \\t]*\"([A-Za-z0-9_]{2,32})\"", RegexOptions.IgnoreCase)]
     private static partial Regex GameNameRegex();
+
+    /// <summary><c>Controller.GameName = "rom"</c> or <c>.GameName = variable</c> (inside <c>With Controller</c>).</summary>
+    [GeneratedRegex(
+        "\\.GameName[ \\t]*=[ \\t]*(?:\"(?<rom>[A-Za-z0-9_]{2,32})\"|(?<var>[A-Za-z_][A-Za-z0-9_]*))",
+        RegexOptions.IgnoreCase
+    )]
+    private static partial Regex ControllerGameNameRegex();
 
     [GeneratedRegex("alias[^\"]*\"([a-z0-9_]{2,32})\"", RegexOptions.IgnoreCase)]
     private static partial Regex AliasRegex();
@@ -299,6 +356,12 @@ public sealed record VpxRomInfo(string? GameName, bool UsesPinMame)
     /// runs "afm_113b_me"), one of these is what it stands for; PinMAME learns that from alias.txt.
     /// </summary>
     public IReadOnlyList<string> AliasTargets { get; init; } = [];
+
+    /// <summary>The ROM the script gives PinMAME when it isn't cGameName (see <see cref="RomDetector.ControllerRomFromScript"/>).</summary>
+    public string? ControllerRom { get; init; }
+
+    /// <summary>The ROM set PinMAME is asked to load: the controller's own name when the script sets one, else cGameName.</summary>
+    public string? RomName => ControllerRom ?? GameName;
 
     /// <summary>The script creates PinUP Player (<c>PinUpPlayer.PinDisplay</c>), so it has a PuP pack.</summary>
     public bool UsesPup { get; init; }

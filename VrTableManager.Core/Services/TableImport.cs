@@ -179,7 +179,7 @@ public static class TableImport
         }
 
         var rom = RomDetector.Inspect(vpx);
-        var romName = rom.NoRomNeeded ? null : rom.GameName;
+        var romName = rom.NoRomNeeded ? null : rom.RomName;
         if (romName != null)
         {
             foreach (var pm in pinmameDirs)

@@ -262,6 +262,30 @@ public static class Converters
     public static readonly IValueConverter Star = new FuncValueConverter<bool, string>(on =>
         on ? "★" : "☆"
     );
+
+    /// <summary>
+    /// Setup's section rail and pages: true when the bound section is the parameter. Back from a rail button that
+    /// was switched on it picks that section; one switched off (because another was picked) changes nothing.
+    /// </summary>
+    public static readonly IValueConverter SectionIs = new SectionConverter();
+
+    sealed class SectionConverter : IValueConverter
+    {
+        public object? Convert(
+            object? value,
+            Type targetType,
+            object? parameter,
+            System.Globalization.CultureInfo culture
+        ) => value is string s && s == parameter as string;
+
+        public object? ConvertBack(
+            object? value,
+            Type targetType,
+            object? parameter,
+            System.Globalization.CultureInfo culture
+        ) => value is true ? parameter : Avalonia.Data.BindingOperations.DoNothing;
+    }
+
     public static readonly IValueConverter StarBrush = new FuncValueConverter<bool, IBrush>(on =>
         on
             ? new SolidColorBrush(Color.Parse("#FFB547"))

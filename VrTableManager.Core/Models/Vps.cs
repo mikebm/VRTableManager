@@ -35,6 +35,9 @@ public sealed class VpsGame
     /// <summary>Replacement sound packs for PinMAME (AltSound / G-Sound / legacy PinSound layout).</summary>
     public List<VpsFile>? AltSoundFiles { get; set; }
 
+    /// <summary>Wheel art (the game's logo for a front end's selection wheel), as download pages (mostly VPUniverse).</summary>
+    public List<VpsFile>? WheelArtFiles { get; set; }
+
     /// <summary>Instruction cards (images of the real machine's rule card), as VPUniverse pages.</summary>
     public List<VpsFile>? RuleFiles { get; set; }
 

@@ -46,7 +46,13 @@ public partial class ArtLoader : Node
     /// <param name="url">A web picture, or "vpx:&lt;table path&gt;" for the playfield inside a table file.</param>
     /// <param name="fallback">Used when <paramref name="url"/> gives nothing usable (delivered under <paramref name="url"/>).</param>
     /// <param name="maxSide">Longest side after shrinking: playfields get 2048 px, they fill your view.</param>
-    public void Request(string? url, string? fallback = null, int maxSide = MaxSide)
+    /// <param name="keepAlpha">Leave transparent parts transparent (a wheel logo) instead of filling them in.</param>
+    public void Request(
+        string? url,
+        string? fallback = null,
+        int maxSide = MaxSide,
+        bool keepAlpha = false
+    )
     {
         if (string.IsNullOrEmpty(url))
         {
@@ -85,7 +91,11 @@ public partial class ArtLoader : Node
                 }
 
                 Shrink(img, maxSide);
-                FillHoles(img);
+                if (!keepAlpha)
+                {
+                    FillHoles(img);
+                }
+
                 var avg = Average(img);
                 img.GenerateMipmaps();
                 _decoded.Enqueue((url, img, avg)); // the GPU upload happens on the main thread (_Process)

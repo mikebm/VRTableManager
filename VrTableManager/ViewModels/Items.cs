@@ -161,7 +161,7 @@ public sealed partial class InstalledItem : ObservableObject
     public bool IsVpx => Table.IsVpx;
 
     /// <summary>A VPX table in its own folder: a lobby video is kept per folder, and loose .vpx files share one.</summary>
-    public bool CanHaveLobbyVideo => Table.IsVpx && !Table.SharedFolder;
+    public bool CanHaveLobbyVideo => Table.HasOwnFolder;
 
     // ---- Disk use and per-table render scale ----
 
@@ -228,14 +228,18 @@ public sealed partial class InstalledItem : ObservableObject
 
     [ObservableProperty, NotifyPropertyChangedFor(nameof(HasUserArtwork))]
     public partial string? UserBackglass { get; set; }
+
+    [ObservableProperty, NotifyPropertyChangedFor(nameof(HasUserArtwork))]
+    public partial string? UserWheel { get; set; }
     public bool HasUserArtwork =>
-        UserCard != null || UserPlayfield != null || UserBackglass != null;
+        UserCard != null || UserPlayfield != null || UserBackglass != null || UserWheel != null;
 
     public void RefreshUserArtwork()
     {
         UserCard = UserArtwork.Key(Table, UserArtwork.Kind.Card);
         UserPlayfield = UserArtwork.Key(Table, UserArtwork.Kind.Playfield);
         UserBackglass = UserArtwork.Key(Table, UserArtwork.Kind.Backglass);
+        UserWheel = UserArtwork.Key(Table, UserArtwork.Kind.Wheel);
     }
 
     public string EngineBadge =>
@@ -365,8 +369,47 @@ public sealed partial class InstalledItem : ObservableObject
             : "Get attract audio for the VR lobby";
 
     /// <summary>The catalog has a media pack for this table (its playfield video is the lobby video's first choice).</summary>
-    [ObservableProperty, NotifyPropertyChangedFor(nameof(LobbyVideoMenuHeader))]
+    [
+        ObservableProperty,
+        NotifyPropertyChangedFor(nameof(LobbyVideoMenuHeader), nameof(CanGetLoadingVideo))
+    ]
     public partial bool HasMediaPack { get; set; }
+
+    /// <summary>A loading video can be kept in this table's own folder (VPX tables in a folder of their own).</summary>
+    public bool CanHaveLoadingVideo => Table.HasOwnFolder;
+
+    /// <summary>medias\loading-video is in the table folder (the VR lobby plays it while the table starts).</summary>
+    [
+        ObservableProperty,
+        NotifyPropertyChangedFor(nameof(LoadingVideoMenuHeader), nameof(OwnLoadingVideoMenuHeader))
+    ]
+    public partial bool HasLoadingVideo { get; set; }
+
+    public bool CanGetLoadingVideo => CanHaveLoadingVideo && HasMediaPack;
+
+    public string LoadingVideoMenuHeader =>
+        HasLoadingVideo
+            ? "Replace loading video (media pack)"
+            : "Get a loading video for the VR lobby (media pack)";
+
+    public string OwnLoadingVideoMenuHeader =>
+        HasLoadingVideo ? "Use my own loading video instead…" : "Use my own loading video…";
+
+    /// <summary>Where the catalog has wheel art for this table: its wheel art downloads, then its media packs (set by the view model).</summary>
+    [ObservableProperty, NotifyPropertyChangedFor(nameof(CanGetWheelArt))]
+    public partial IReadOnlyList<(
+        MediaPackAudio.Source Source,
+        bool WheelPack
+    )> WheelArtSources { get; set; } = [];
+
+    public bool CanGetWheelArt => Table.HasOwnFolder && WheelArtSources.Count > 0;
+
+    /// <summary>A medias\(Wheel) picture is in the table folder (the VR lobby shows it over the cabinet).</summary>
+    [ObservableProperty, NotifyPropertyChangedFor(nameof(WheelArtMenuHeader))]
+    public partial bool HasWheelArt { get; set; }
+
+    public string WheelArtMenuHeader =>
+        HasWheelArt ? "Replace wheel art (from the catalog)" : "Get wheel art for the VR lobby";
 
     /// <summary>medias\lobby-video is in the table folder (the VR lobby plays it on the selected cabinet's playfield).</summary>
     [ObservableProperty, NotifyPropertyChangedFor(nameof(LobbyVideoMenuHeader))]

@@ -48,6 +48,10 @@ public sealed partial class MainViewModel
     [ObservableProperty]
     public partial bool LobbyStaysOpen { get; set; }
 
+    /// <summary>The loading screen plays the table's loading video (or the one for every table) on a big screen.</summary>
+    [ObservableProperty]
+    public partial bool LobbyLoadingVideos { get; set; }
+
     public bool HasMetaLinkApp => File.Exists(MetaLinkApp);
     public bool HasOculusDebugTool => File.Exists(MetaAsw.DebugToolPath);
 
@@ -762,7 +766,7 @@ public sealed partial class MainViewModel
                             ? "Switching to Meta Quest Link needs administrator permission once. "
                             : ""
                     )
-                    + "You can change this any time on Setup → VR & graphics.",
+                    + "You can change this any time on Setup → Headset.",
                 [.. buttons]
             );
             switch (pick < 0 ? "CANCEL" : buttons[pick])

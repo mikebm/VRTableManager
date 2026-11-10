@@ -22,6 +22,9 @@ public sealed class AppSettings
     /// <summary>Write the pinball-tuned UEVR settings into Pinball FX / M's UEVR profile before each VR launch.</summary>
     public bool ApplyPinballUevrProfile { get; set; } = true;
 
+    /// <summary>On LAUNCH VR LOBBY, say how lobby videos bring the cabinets to life (while some tables have none).</summary>
+    public bool ShowLobbyVideoTip { get; set; } = true;
+
     /// <summary>Show the "before you start" checklist before Pinball FX / M VR launches.</summary>
     public bool ShowZenReminder { get; set; } = true;
 
@@ -140,8 +143,29 @@ public sealed class AppSettings
     /// </summary>
     public bool LobbyStaysOpen { get; set; } = true;
 
+    /// <summary>
+    /// With <see cref="LobbyWaitsForTable"/>: the loading screen plays the table's loading video (<see cref="LoadingVideo"/>),
+    /// or the one for every table, on a big screen with its sound. Off: only the table and its lamps.
+    /// </summary>
+    public bool LobbyLoadingVideos { get; set; } = true;
+
+    /// <summary>
+    /// How big the VR lobby's cabinets are, in percent of a real machine (75–125, see <see cref="Lobby.LobbyLayout"/>).
+    /// A bigger cabinet keeps the same gap to its neighbours, so the ring grows with it.
+    /// </summary>
+    public int LobbyCabinetScalePercent { get; set; } = Lobby.LobbyLayout.DefaultScalePercent;
+
+    /// <summary>
+    /// How many cabinets stand in the VR lobby's ring, the selected one included (odd, 5–21). Fewer than fit at the
+    /// default spacing may show when big cabinets would otherwise reach the wall (<see cref="Lobby.LobbyLayout.Ring"/>).
+    /// </summary>
+    public int LobbyCabinetCount { get; set; } = Lobby.LobbyLayout.DefaultCount;
+
     /// <summary>How big the cards in My Tables are: "Large", "Medium", "Small" or "Text" (no pictures).</summary>
     public string CardSize { get; set; } = "Large";
+
+    /// <summary>The Setup section that was showing last ("vpx", "headset", …), so Setup opens there again.</summary>
+    public string SetupSection { get; set; } = "vpx";
 
     /// <summary>Tables (by path) whose PuP DMD fix (<see cref="VrDmdFix"/>) the user said not to ask about again.</summary>
     public List<string> DmdFixDeclined { get; set; } = [];

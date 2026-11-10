@@ -1,4 +1,5 @@
 using System.Diagnostics;
+using System.Runtime.InteropServices;
 
 namespace VrTableManager.Services;
 
@@ -141,11 +142,13 @@ public static class PlaySession
                 PlayStats.Mutate(st => st.AddTime(table.TablePath, DateTime.Now - started), stats)
             );
             Log("table exited");
+            LetLobbyTakeKeyboard(req.LobbyPid);
             Status(PlayStatus.Exited);
         }
         catch (Exception e)
         {
             Log("failed: " + e.Message);
+            LetLobbyTakeKeyboard(req.LobbyPid);
             Status(PlayStatus.Failed, e.Message);
             code = 1;
         }
@@ -205,6 +208,32 @@ public static class PlaySession
             return false;
         } // gone already (or not ours to see)
     }
+
+    /// <summary>
+    /// Windows only lets a window in the background take the keyboard when a process it trusts says so. This one
+    /// was started by the lobby while the lobby was in front, so it may still be trusted; passing that on helps the
+    /// lobby (waiting behind the table) get keyboard-type cabinet boards back. Harmless when it isn't allowed: the
+    /// lobby keeps trying on its own.
+    /// </summary>
+    static void LetLobbyTakeKeyboard(int pid)
+    {
+        if (pid <= 0 || !OperatingSystem.IsWindows())
+        {
+            return;
+        }
+
+        try
+        {
+            AllowSetForegroundWindow(pid);
+        }
+        catch
+        { /* only a help */
+        }
+    }
+
+    [DllImport("user32.dll")]
+    [return: MarshalAs(UnmanagedType.Bool)]
+    static extern bool AllowSetForegroundWindow(int processId);
 
     /// <summary>Play counting must never stop a table from launching or the lobby from coming back.</summary>
     static void TryRecord(Action a)

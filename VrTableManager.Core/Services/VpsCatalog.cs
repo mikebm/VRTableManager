@@ -16,7 +16,16 @@ public static class VpsCatalog
         NumberHandling = JsonNumberHandling.AllowReadingFromString,
     };
 
+    static readonly TimeSpan FetchTimeout = TimeSpan.FromSeconds(45);
+
     static string CachePath => Path.Combine(AppSettings.DataDir, "vpsdb.json");
+
+    /// <summary>The last load couldn't reach the spreadsheet and used the copy saved on this PC.</summary>
+    public static bool UsingSavedCopy { get; private set; }
+
+    /// <summary>When the saved copy was downloaded (local time), or null when there's none.</summary>
+    public static DateTime? SavedAt =>
+        File.Exists(CachePath) ? File.GetLastWriteTime(CachePath) : null;
 
     /// <summary>
     /// Every game in the already-downloaded catalog, with no network access and no filtering
@@ -49,18 +58,28 @@ public static class VpsCatalog
         var cacheFresh =
             File.Exists(CachePath)
             && DateTime.UtcNow - File.GetLastWriteTimeUtc(CachePath) < MaxAge;
+        UsingSavedCopy = false;
         if (forceRefresh || !cacheFresh)
         {
             try
             {
-                var bytes = await Http.Client.GetByteArrayAsync(DbUrl, ct);
+                // The shared client allows 30 minutes for big downloads; offline, the catalog shouldn't wait that long.
+                using var timeout = CancellationTokenSource.CreateLinkedTokenSource(ct);
+                timeout.CancelAfter(FetchTimeout);
+                var bytes = await Http.Client.GetByteArrayAsync(DbUrl, timeout.Token);
+                // A captive portal or error page isn't the catalog: keep the saved copy.
+                if (JsonSerializer.Deserialize<List<VpsGame>>(bytes, Json) is not { Count: > 0 })
+                {
+                    throw new InvalidDataException("The catalog download wasn't the catalog.");
+                }
                 var tmp = CachePath + ".tmp";
                 await File.WriteAllBytesAsync(tmp, bytes, ct);
                 File.Move(tmp, CachePath, overwrite: true);
             }
-            catch when (File.Exists(CachePath))
+            catch when (File.Exists(CachePath) && !ct.IsCancellationRequested)
             {
-                // Offline or GitHub hiccup: use the stale cache rather than failing.
+                // Offline or GitHub hiccup: use the saved copy rather than failing, and say so.
+                UsingSavedCopy = true;
             }
         }
 

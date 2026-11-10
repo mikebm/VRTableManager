@@ -100,6 +100,13 @@ public static class LobbyArt
             ? (LobbyVideo.Folder(t.Source.Folder), info)
             : null;
 
+    /// <summary>The game's logo shown over the selected cabinet (<see cref="WheelArt"/>), as an art key, or null.</summary>
+    public static string? WheelFor(LobbyTable t) => WheelArt.Key(t.Source);
+
+    /// <summary>What the loading screen plays while <paramref name="t"/> starts, or null (none, or turned off).</summary>
+    public static LoadingVideo.Video? LoadingVideoFor(LobbyTable t, AppSettings s) =>
+        s.LobbyLoadingVideos ? LoadingVideo.For(t.Source) : null;
+
     public static string? AttractSound(LobbyTable t) =>
         LooseSound(t) ?? (t.Engine == TableManifest.Vpx ? RomAudio.Cached(t.Source) : null);
 

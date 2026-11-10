@@ -12,16 +12,30 @@ namespace VrLobby;
 /// </summary>
 public partial class Main : Node3D
 {
-    // Ring of cabinets (distances are to the cabinet's front edge, from the player standing at the origin)
-    static readonly float Step = Mathf.DegToRad(34f); // room for a 0.74 m cabinet plus a gap at the ring distance
-    const int Side = 5; // cabinets either side of the selected one
-    public const int PoolSize = Side * 2 + 1; // only these 11 cabinet nodes ever exist
+    // Ring of cabinets (distances are to the cabinet's front edge, from the player standing at the origin). How big
+    // the cabinets are and how many stand in the ring are Setup choices (LobbyLayout, read from the settings at
+    // start-up); the defaults are 11 cabinets 34° apart with their fronts 2.1 m away, as the ring always was.
+    LobbyRing _layout = LobbyRing.Default;
+    int Side => _layout.Side; // cabinets either side of the selected one
+    public int PoolSize => _layout.Count; // only this many cabinet nodes ever exist, however big the library
+    public float RingFront => (float)_layout.RingFront;
+    public float CabinetScale => (float)_layout.Scale;
+    float CabinetLength => CabinetKit.Length * CabinetScale;
+
+    /// <summary>
+    /// How much higher the selected cabinet's backbox top stands, and how much further back its front is, than at
+    /// 100 %: the title, stats and loading lamps that float in front of it move by this, so they never sink into it.
+    /// </summary>
+    Vector3 AboveCabinet =>
+        new(
+            0,
+            (CabinetScale - 1) * CabinetKit.Height,
+            -(CabinetScale - 1) * (CabinetKit.Length - CabinetKit.BoxDepth)
+        );
     const float SnapAt = 0.0005f; // the ring eases to within this much of a step, then stops
     const float VideoFrom = 0.98f; // the playfield video starts as soon as the ring turns towards the table (steps)
     const double AttractAfter = 0.5; // seconds on a table before its sound plays
-    public const float RingFront = 2.1f; // the ring
-    public const float SelectedFront = 0.9f; // the selected cabinet steps up to about arm's length
-    static readonly float AngleAway = Mathf.DegToRad(12f);
+    public const float SelectedFront = (float)LobbyLayout.SelectedFront; // the selected cabinet steps up to about arm's length
 
     // Jump rail: a curved console at knee height, just in front of the selected cabinet
     const float RailR = 0.8f;
@@ -62,6 +76,13 @@ public partial class Main : Node3D
     readonly AudioStreamPlayer3D _attract = new() { VolumeDb = -12f, UnitSize = 3f };
     readonly Dictionary<string, string?> _attractFiles = [];
     readonly PlayfieldVideo _video = new();
+    readonly LoadingScreenVideo _loadingVideo = new(); // the loading screen's big screen (LoadingVideo)
+
+    // Wheel art (WheelArt): the selected game's logo, floating over its title. Shown once its picture has loaded.
+    readonly Sprite3D _wheel = new();
+    string? _wheelKey;
+    const float WheelMaxWidth = 0.75f,
+        WheelMaxHeight = 0.28f;
 
     /// <summary>Folder of the lobby video playing on the selected cabinet, or null.</summary>
     public string? VideoPlaying => _video.Playing;
@@ -138,6 +159,10 @@ public partial class Main : Node3D
     double _returning = -1; // seconds since the table closed, until the runtime gives us focus back; -1 when not waiting
     const double ReturnGiveUp = 8; // then the lobby restarts itself, which gets a fresh session
     readonly List<(Node3D Node, bool Was)> _hidden = [];
+
+    // Taking the desktop window's keyboard back (TakeKeyboard): after every table, not just the first, and
+    // retried, because Windows turns down a single request from a window in the background.
+    readonly FocusRetry _keyboard = new();
     public bool IsPlaying => _playing;
     public bool IsLoading => _loading != null;
 
@@ -148,26 +173,6 @@ public partial class Main : Node3D
         _bodyFont = LoadFont("res://fonts/Archivo-SemiBold.ttf");
         SetWindowIcon();
         SetupView();
-        BuildRoom();
-        BuildChase();
-        AddChild(_art);
-        _art.Loaded += OnArtLoaded;
-        AddChild(_cabs);
-        _cabs.CabinetReady += OnCabinetReady;
-        AddChild(_ring);
-        AddChild(_rail);
-        AddChild(_attract);
-        AddChild(_video);
-        _video.FirstFrameShown += () => Trace("video first frame");
-        AddChild(_recorder);
-        _recorder.Recorded += id => _attractFiles.Remove(id); // look again: it plays if the table is still selected
-        for (var s = 0; s < PoolSize; s++)
-        {
-            var cab = new Cabinet();
-            _ring.AddChild(cab);
-            cab.Build(s, _displayFont, _dmdFont);
-            _pool.Add(cab);
-        }
 
         var args = UserArgs();
         // --dump-cabinet=<table.vpx>: write that table's VR cabinet as the default cabinet, then quit.
@@ -218,6 +223,33 @@ public partial class Main : Node3D
         }
         Settings = _settingsPath != null ? AppSettings.LoadFrom(_settingsPath) : AppSettings.Load();
         State = LobbyState.Load(_statePath);
+        // The room, its lamps and the cabinet pool are built after the settings are read: their size and
+        // number decide where the ring stands.
+        _layout = LobbyLayout.Ring(Settings.LobbyCabinetCount, Settings.LobbyCabinetScalePercent);
+        GD.Print(
+            $"Cabinets: {_layout.Count} at {CabinetScale * 100:0}%, ring {_layout.RingFront:0.00} m"
+        );
+        BuildRoom();
+        BuildChase();
+        AddChild(_art);
+        _art.Loaded += OnArtLoaded;
+        AddChild(_cabs);
+        _cabs.CabinetReady += OnCabinetReady;
+        AddChild(_ring);
+        AddChild(_rail);
+        AddChild(_attract);
+        AddChild(_video);
+        AddChild(_loadingVideo);
+        _video.FirstFrameShown += () => Trace("video first frame");
+        AddChild(_recorder);
+        _recorder.Recorded += id => _attractFiles.Remove(id); // look again: it plays if the table is still selected
+        for (var s = 0; s < PoolSize; s++)
+        {
+            var cab = new Cabinet { Scale = Vector3.One * CabinetScale };
+            _ring.AddChild(cab);
+            cab.Build(s, _displayFont, _dmdFont);
+            _pool.Add(cab);
+        }
         ApplyHeight(); // the lobby restarts after every table, so this is where the saved height comes back
         Library = LobbyLibrary.Load(Settings);
         try
@@ -387,7 +419,7 @@ public partial class Main : Node3D
             DisplayServer.WindowSetVsyncMode(DisplayServer.VSyncMode.Disabled); // the headset paces frames
             // Cabinet boards that act as a keyboard (PinOne, Pinscape…) only reach the focused window, and the
             // lobby is started again in the background after every table.
-            DisplayServer.WindowMoveToForeground();
+            TakeKeyboard();
             xr!.SessionStopping += () =>
                 Leave(
                     "the headset ended the VR session (Quest Link disconnected, or the app was closed from the Quest menu)"
@@ -509,7 +541,7 @@ public partial class Main : Node3D
         // Arcade carpet underfoot and a black drop ceiling with neon tubes overhead (ArcadeRoom); the far wall
         // stays neutral dark grey, so the lamps, the neon and the DMDs are the light in the room.
         AddChild(ArcadeRoom.Floor(15));
-        AddChild(ArcadeRoom.Ceiling(7.2f));
+        AddChild(ArcadeRoom.Ceiling(7.2f, RingFront));
         AddChild(
             new MeshInstance3D
             {
@@ -535,7 +567,7 @@ public partial class Main : Node3D
 
         // Trim: rows of small incandescent lamps (like a marquee or a playfield's GI string) and chrome
         // edges, kept dim so the cabinets stay the brightest things in the room. Each row is one draw call.
-        var ringOut = RingFront + CabinetKit.Length + 0.35f;
+        var ringOut = RingFront + CabinetLength + 0.35f;
         AddChild(LampRow(ringOut, 0.02f, 72, 0.018f, 1.2f)); // on the floor behind the cabinets
         AddChild(ChromeRing(ringOut + 0.06f, 0.006f, 0.008f)); // with a chrome edge
         AddChild(ChromeRing(0.5f, 0.004f, 0.006f)); // a chrome circle round your feet
@@ -559,13 +591,13 @@ public partial class Main : Node3D
             ShadowNormalBias = 0.3f,
         };
         AddChild(spot);
-        var cabCentre = -(SelectedFront + CabinetKit.Length / 2);
+        var cabCentre = -(SelectedFront + CabinetLength / 2);
         // High and a little in front of the cabinet, like a ceiling can light over your shoulder: from there it reaches
         // the playfield, the backglass and the cabinet's front. (A short-range key light just above the lockdown bar
         // used to help it, and blew the bar out: it was half a metre away, the rest of the cabinet two.)
         spot.LookAtFromPosition(
             new Vector3(0, 3.6f, cabCentre + 1.1f),
-            new Vector3(0, 0.85f, cabCentre),
+            new Vector3(0, 0.85f * CabinetScale, cabCentre),
             Vector3.Up
         );
         // Fill from behind you, so cabinet fronts and sides around the ring read; no shadows (one shadowed light is enough).
@@ -595,11 +627,17 @@ public partial class Main : Node3D
         _header.Modulate = Palette.Dmd;
         _header.OutlineModulate = Palette.DmdPanel;
         _header.VerticalAlignment = VerticalAlignment.Bottom;
-        _header.Position = new Vector3(0, 2.34f, -1.8f);
+        _header.Position = new Vector3(0, 2.34f, -1.8f) + AboveCabinet;
+        // The game's logo floats over the title, unlit (like the lit display text) and keeping its transparency.
+        _wheel.Shaded = false;
+        _wheel.TextureFilter = BaseMaterial3D.TextureFilterEnum.LinearWithMipmapsAnisotropic;
+        _wheel.CastShadow = GeometryInstance3D.ShadowCastingSetting.Off;
+        _wheel.Visible = false;
+        AddChild(_wheel);
         _status.Font = _bodyFont;
         _status.FontSize = 38;
         _status.VerticalAlignment = VerticalAlignment.Top;
-        _status.Position = new Vector3(0, 2.29f, -1.8f);
+        _status.Position = new Vector3(0, 2.29f, -1.8f) + AboveCabinet;
         _status.Modulate = Palette.Text;
         // High scores read from the table's PinMAME .nv file, in DMD orange dot-matrix under the stats; placed by ShowScores.
         _scores.Font = _dmdFont;
@@ -932,19 +970,12 @@ public partial class Main : Node3D
                 RequestArt(cab);
             }
 
-            var offset = i - _scroll;
-            var a = offset * Step;
-            var focus = Mathf.Clamp(1f - Mathf.Abs(offset), 0f, 1f); // 1 for the selected cabinet
-            var front = Mathf.Lerp(RingFront, SelectedFront, focus);
-            var dist = front + CabinetKit.Length / 2;
-            cab.Position = new Vector3(Mathf.Sin(a) * dist, 0, -Mathf.Cos(a) * dist);
-            // Face the player, then turn neighbours a little away so the selected one stands out.
-            cab.Rotation = new Vector3(
-                0,
-                -a + Mathf.Sign(offset) * Mathf.Min(Mathf.Abs(offset), 1f) * AngleAway,
-                0
-            );
-            cab.SetFocus(focus, i == Selected);
+            // Where on the ring (LobbyLayout.Place, shared with SmokeTest's overlap checks): facing you, neighbours
+            // turned a little away so the selected one stands out, which steps up to arm's length.
+            var spot = LobbyLayout.Place(_layout, i - _scroll);
+            cab.Position = new Vector3((float)spot.X, 0, (float)spot.Z);
+            cab.Rotation = new Vector3(0, (float)spot.Yaw, 0);
+            cab.SetFocus((float)spot.Focus, i == Selected);
         }
     }
 
@@ -1136,6 +1167,9 @@ public partial class Main : Node3D
         _video.Stop();
         _videoCheckedFor = null;
         _settled = 0;
+        _wheel.Visible = false;
+        _wheelKey = null;
+        _wheelCheckedFor = null;
         if (Shown.Count == 0)
         {
             _header.Text = "No tables here";
@@ -1184,6 +1218,92 @@ public partial class Main : Node3D
 
         ShowScores(t);
     }
+
+    // ---- Wheel art ------------------------------------------------------------------
+
+    /// <summary>Each table's wheel art key (null: none), looked up once per lobby run: no folder reads while scrolling.</summary>
+    readonly Dictionary<string, string?> _wheelKeys = [];
+    string? _wheelCheckedFor;
+
+    /// <summary>Looks each table's wheel art up again (it was added or removed in the manager).</summary>
+    public void ForgetWheelLookups()
+    {
+        _wheelKeys.Clear();
+        _wheelCheckedFor = null;
+    }
+
+    /// <summary>
+    /// Once the ring has (nearly) brought a table in, as for its playfield video, asks for its logo;
+    /// <see cref="ShowWheel"/> puts it up when it's loaded. Tables flown past are never looked up or decoded.
+    /// </summary>
+    void MaybeRequestWheel()
+    {
+        if (Shown.Count == 0 || Shown[Selected] is not { } t || _wheelCheckedFor == t.Id)
+        {
+            return;
+        }
+
+        _wheelCheckedFor = t.Id;
+        if (!_wheelKeys.TryGetValue(t.Id, out var key))
+        {
+            try
+            {
+                key = LobbyArt.WheelFor(t);
+            }
+            catch (Exception e)
+            {
+                GD.PushWarning($"Wheel art for {t.Title}: {e.Message}");
+                key = null;
+            }
+            _wheelKeys[t.Id] = key;
+        }
+        _wheelKey = key;
+        if (_wheelKey != null)
+        {
+            _art.Request(_wheelKey, maxSide: ArtLoader.MaxSide, keepAlpha: true);
+        }
+    }
+
+    void ShowWheel(Texture2D tex)
+    {
+        int w = tex.GetWidth(),
+            h = tex.GetHeight();
+        if (w <= 0 || h <= 0)
+        {
+            return;
+        }
+
+        _wheel.Texture = tex;
+        _wheel.PixelSize = Math.Min(WheelMaxWidth / w, WheelMaxHeight / h);
+        PlaceWheel();
+        _wheel.Visible = true;
+    }
+
+    /// <summary>Just over the title, however many lines it wrapped to.</summary>
+    void PlaceWheel()
+    {
+        if (_wheel.Texture is not { } tex)
+        {
+            return;
+        }
+
+        var title = (_header.Font ?? ThemeDB.FallbackFont).GetMultilineStringSize(
+            _header.Text,
+            HorizontalAlignment.Center,
+            _header.Width,
+            _header.FontSize
+        );
+        var height = tex.GetHeight() * _wheel.PixelSize;
+        _wheel.Position =
+            _header.Position + Vector3.Up * (title.Y * _header.PixelSize + 0.04f + height / 2);
+    }
+
+    public bool WheelShowing => _wheel.Visible;
+    public string? WheelKey => _wheelKey;
+    public bool WheelTransparent =>
+        _wheel.Texture?.GetImage() is { } img && img.DetectAlpha() != Image.AlphaMode.None;
+    public bool WheelAboveTitle =>
+        _wheel.Position.Y - _wheel.Texture!.GetHeight() * _wheel.PixelSize / 2 > _header.Position.Y;
 
     // ---- High scores ------------------------------------------------------------------
 
@@ -1470,8 +1590,8 @@ public partial class Main : Node3D
         _attract.Stream = stream;
         _attract.Position = new Vector3(
             0,
-            CabinetKit.BackglassCentreY,
-            -(SelectedFront + CabinetKit.Length) + CabinetKit.BoxDepth
+            CabinetKit.BackglassCentreY * CabinetScale,
+            -(SelectedFront + CabinetLength) + CabinetKit.BoxDepth * CabinetScale
         );
         _attract.VolumeDb = -12f;
         _attract.Play();
@@ -1595,6 +1715,8 @@ public partial class Main : Node3D
             WatchReturn(delta);
         }
 
+        KeepKeyboard(delta);
+
         var d = (float)delta;
         if (!Mathf.IsEqualApprox(_scroll, Selected))
         {
@@ -1616,6 +1738,7 @@ public partial class Main : Node3D
             if (away < VideoFrom)
             {
                 MaybePlayVideo();
+                MaybeRequestWheel();
             }
             // The sound waits until it has (nearly) arrived and you've stayed on it for a moment.
             if (away < 0.02f)
@@ -2141,6 +2264,11 @@ public partial class Main : Node3D
     void OnArtLoaded(string url, Texture2D tex, Color average)
     {
         Trace("art " + Path.GetFileName(url));
+        if (url == _wheelKey)
+        {
+            ShowWheel(tex);
+        }
+
         foreach (var cab in _pool)
         {
             if (cab.Table == null)
@@ -2174,6 +2302,7 @@ public partial class Main : Node3D
             return;
         }
         _launching = true;
+        _keyboard.Stop(); // the table must get the keyboard: don't take it back from under it
         StopAttract();
         _video.Freeze(); // keeps the playfield's depth: dropping to flat as the table starts is a jarring change
         _recorder.StopAll();
@@ -2186,6 +2315,7 @@ public partial class Main : Node3D
         else
         {
             _header.Text = "Starting " + t.Title;
+            PlaceWheel(); // a longer title may wrap to another line
             _status.Text = "";
             await ToSignal(GetTree().CreateTimer(0.8), SceneTreeTimer.SignalName.Timeout);
         }
@@ -2238,7 +2368,7 @@ public partial class Main : Node3D
                 }
             );
         }
-        _chase.Position = new Vector3(0, 2.1f, -1.8f);
+        _chase.Position = new Vector3(0, 2.1f, -1.8f) + AboveCabinet;
         _chase.Visible = false;
         AddChild(_chase);
     }
@@ -2262,10 +2392,59 @@ public partial class Main : Node3D
         _rail.Visible = _hint.Visible = _scores.Visible = _scoresPanel.Visible = false;
         _chase.Visible = true;
         _header.Text = t.Title;
+        PlaceWheel();
         _status.Modulate = Palette.Text;
         ShowLoadingText();
+        StartLoadingVideo(t);
         GD.Print($"Lobby waiting for {t.Title} to take over the headset");
     }
+
+    /// <summary>
+    /// The table's loading video (or the one for every table), on a big screen where the cabinet stood: the cabinet
+    /// steps aside for it, and its title, lamps and logo stay above the screen.
+    /// </summary>
+    void StartLoadingVideo(LobbyTable t)
+    {
+        LoadingVideo.Video? video;
+        try
+        {
+            video = LobbyArt.LoadingVideoFor(t, Settings);
+        }
+        catch (Exception e)
+        {
+            GD.PushWarning($"Loading video for {t.Title}: {e.Message}");
+            return;
+        }
+        if (video == null)
+        {
+            return;
+        }
+
+        foreach (var cab in _pool)
+        {
+            cab.Visible = false;
+        }
+
+        _loadingVideo.Play(video);
+        // Its top just under the lamps (which rise with bigger cabinets), so the screen sits a little below
+        // eye level, the comfortable way to watch, and nothing floats over the picture.
+        var top = Math.Min(LoadingScreenTop, _chase.Position.Y - 0.12f);
+        _loadingVideo.Position = new Vector3(
+            0,
+            top - _loadingVideo.Size.Y / 2,
+            LoadingScreenZ + AboveCabinet.Z
+        );
+        GD.Print(
+            $"Loading video: {video.Folder} ({video.Info.Frames} frames{(video.Audio != null ? ", with sound" : "")})"
+        );
+    }
+
+    const float LoadingScreenTop = 2.0f,
+        LoadingScreenZ = -2.7f;
+
+    public string? LoadingVideoPlaying => _loadingVideo.Playing;
+    public int LoadingVideoFrames => _loadingVideo.FramesShown;
+    public bool LoadingVideoSound => _loadingVideo.SoundPlaying;
 
     /// <summary>Self-test: the loading screen for the selected table, reading <paramref name="statusFile"/>, without launching anything.</summary>
     /// <summary>What a launch does to the playfield video (LaunchAsync), without launching anything.</summary>
@@ -2292,6 +2471,7 @@ public partial class Main : Node3D
         _loading = null;
         _statusFile = null;
         _launching = false;
+        _loadingVideo.Stop();
         foreach (var cab in _pool)
         {
             cab.Visible = cab.Index >= 0;
@@ -2347,6 +2527,16 @@ public partial class Main : Node3D
             return;
         }
         ShowLoadingText();
+        if (_loadingVideo.Failed)
+        {
+            // Not one of its frames could be read: the plain loading screen, with the table back in place.
+            _loadingVideo.Stop();
+            foreach (var cab in _pool)
+            {
+                cab.Visible = cab.Index == Selected && cab.Table == t;
+            }
+        }
+
         // The engine is running (or the manager can't write its status, and it's had time to start).
         var running = st?.State == PlayStatus.Running || (st == null && _loadingTime > 5);
         if (!_vr)
@@ -2396,10 +2586,12 @@ public partial class Main : Node3D
     void StartPlaying(LobbyTable t)
     {
         _playing = true;
+        _keyboard.Stop(); // the table has the keyboard now
         // A held Exit (or flipper) stops counting: those buttons are the table's now.
         _cabinetHeld.Clear();
         _padStick = Vector2.Zero;
         _loadingPoll = 0.5;
+        _loadingVideo.Stop(); // its sound would play on under the table: hiding doesn't stop sound
         _hidden.Clear();
         foreach (var child in GetChildren())
         {
@@ -2448,11 +2640,35 @@ public partial class Main : Node3D
         _cabinetHeld.Clear();
         _padStick = Vector2.Zero;
         // VPX's window closing hands focus to whatever is next; keyboard-type cabinet boards need it here.
-        DisplayServer.WindowMoveToForeground();
+        TakeKeyboard();
+        _wheelKeys.Clear(); // wheel art may have been added in the manager while the table played
         StopLoading(); // the ring, rail and the table's stats again
         RefreshFromStats();
         _returning = 0;
         GD.Print("Lobby back: " + why);
+    }
+
+    /// <summary>Starts taking the desktop window's keyboard back; KeepKeyboard does the trying, every frame.</summary>
+    void TakeKeyboard() => _keyboard.Start();
+
+    void KeepKeyboard(double delta)
+    {
+        if (!_keyboard.Active)
+        {
+            return;
+        }
+
+        var inFront = WindowFocus.IsInFront();
+        if (_keyboard.Tick(delta, inFront) && WindowFocus.BringToFront())
+        {
+            GD.Print($"Lobby has the keyboard (try {_keyboard.Attempts})");
+        }
+        else if (!_keyboard.Active && _keyboard.GaveUp)
+        {
+            GD.PushWarning(
+                $"Lobby couldn't get the keyboard back after {_keyboard.Attempts} tries; click its window on the desktop"
+            );
+        }
     }
 
     /// <summary>

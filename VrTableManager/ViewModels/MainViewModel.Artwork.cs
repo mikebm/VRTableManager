@@ -22,6 +22,10 @@ public sealed partial class MainViewModel
     Task ChooseBackglassArt(InstalledItem item) =>
         ChooseArtAsync(item, UserArtwork.Kind.Backglass, "the VR lobby backglass");
 
+    [RelayCommand]
+    Task ChooseWheelArt(InstalledItem item) =>
+        ChooseArtAsync(item, UserArtwork.Kind.Wheel, "the VR lobby wheel art (the game's logo)");
+
     async Task ChooseArtAsync(InstalledItem item, UserArtwork.Kind kind, string what)
     {
         if (

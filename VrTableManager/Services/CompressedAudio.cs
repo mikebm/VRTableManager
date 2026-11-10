@@ -35,7 +35,17 @@ public static class CompressedAudio
     /// written into <paramref name="workDir"/> as .mp3 (or .wav if the MP3 encoder refuses the format).
     /// Null when there's no audio track, it can't be decoded, or it's silent.
     /// </summary>
-    public static string? ToLobbyAudio(string input, string workDir)
+    public static string? ToLobbyAudio(string input, string workDir) =>
+        ToLobbyAudio(input, workDir, MaxLength, trimLeadIn: true);
+
+    /// <param name="maxLength">Longest clip kept.</param>
+    /// <param name="trimLeadIn">Start at the first sound (attract music); false keeps the start, so the sound stays in time with a video.</param>
+    public static string? ToLobbyAudio(
+        string input,
+        string workDir,
+        TimeSpan maxLength,
+        bool trimLeadIn
+    )
     {
         if (!OperatingSystem.IsWindows())
         {
@@ -60,7 +70,7 @@ public static class CompressedAudio
             MediaFoundationApi.Startup();
             using var reader = new MediaFoundationReader(copy ?? input);
             var source = reader.ToSampleProvider();
-            var (samples, rate, channels) = ReadClip(source);
+            var (samples, rate, channels) = ReadClip(source, maxLength, trimLeadIn);
             if (samples == null)
             {
                 return null;
@@ -89,6 +99,12 @@ public static class CompressedAudio
             catch (Exception)
             { /* no MP3 encoder for this rate/layout: WAV is still playable */
             }
+            try
+            {
+                File.Delete(name + ".mp3"); // an empty or half-written one, so it isn't left beside the WAV
+            }
+            catch (Exception e) when (e is IOException or UnauthorizedAccessException) { }
+
             using (var raw = new RawSourceWaveStream(new MemoryStream(pcm), format))
             {
                 WaveFileWriter.CreateWaveFile(name + ".wav", raw);
@@ -114,17 +130,21 @@ public static class CompressedAudio
     }
 
     /// <summary>Interleaved samples (at most stereo) from the first sound on, faded out; null when silent.</summary>
-    static (float[]? samples, int rate, int channels) ReadClip(ISampleProvider source)
+    static (float[]? samples, int rate, int channels) ReadClip(
+        ISampleProvider source,
+        TimeSpan maxLength,
+        bool trimLeadIn
+    )
     {
         var inChannels = source.WaveFormat.Channels;
         var channels = Math.Min(inChannels, 2);
         var rate = source.WaveFormat.SampleRate;
-        var frames = new List<float>((int)(MaxLength.TotalSeconds * rate * channels));
+        var frames = new List<float>((int)(maxLength.TotalSeconds * rate * channels));
         var buffer = new float[rate * inChannels]; // one second
         long leadIn = 0,
             maxLeadIn = (long)(MaxLeadIn.TotalSeconds * rate),
-            maxFrames = (long)(MaxLength.TotalSeconds * rate);
-        var started = false;
+            maxFrames = (long)(maxLength.TotalSeconds * rate);
+        var started = !trimLeadIn;
         int n;
         while (
             frames.Count / channels < maxFrames && (n = source.Read(buffer, 0, buffer.Length)) > 0

@@ -45,12 +45,15 @@ public static class SelfTest
         await lobby.ToSignal(lobby.GetTree().CreateTimer(s), SceneTreeTimer.SignalName.Timeout);
 
     static float FrontDistance(Cabinet c) =>
-        new Vector2(c.Position.X, c.Position.Z).Length() - CabinetKit.Length / 2;
+        new Vector2(c.Position.X, c.Position.Z).Length() - CabinetKit.Length * c.Scale.Z / 2;
 
     public static async Task RunAsync(Main lobby)
     {
         var tree = lobby.GetTree();
         await Frames(lobby, 3);
+        // A loading video for every table may be set on this PC (it lives in the real data folder): the loading
+        // screen checks below expect the plain one, until the loading video checks turn it on.
+        lobby.Settings.LobbyLoadingVideos = false;
 
         // A tiny attract sound next to Medieval Madness, written before anything can select that table
         // (the lobby remembers per table whether it has a sound).
@@ -79,8 +82,14 @@ public static class SelfTest
 
         // ---- Cabinet ring ------------------------------------------------------------
         Check(
-            lobby.Cabinets.Count == Main.PoolSize && lobby.Cabinets.Count == 11,
+            lobby.Cabinets.Count == lobby.PoolSize && lobby.Cabinets.Count == 11,
             "11 pooled cabinets, however big the library"
+        );
+        Check(
+            Mathf.IsEqualApprox(lobby.CabinetScale, 1f)
+                && Mathf.IsEqualApprox(lobby.RingFront, 2.1f)
+                && lobby.Cabinets.All(c => c.Scale.IsEqualApprox(Vector3.One)),
+            "default cabinet size and count: the ring is as it always was (real size, 2.1 m away)"
         );
         Check(
             lobby.Cabinets.Count(c => c.Visible) == 6,
@@ -566,6 +575,111 @@ public static class SelfTest
                 "back on the table you played, with no old error"
             );
             PlayStatus.Clear(statusFile);
+        }
+
+        // Wheel art and the loading video, on Medieval Madness.
+        {
+            var mmAt = lobby.Shown.FindIndex(t => t.Title == "Medieval Madness");
+            var mmDir = lobby.Shown[mmAt].Source.Folder;
+            // A wheel saved from a media pack: an orange bar on a transparent background.
+            var wheel = Image.CreateEmpty(200, 80, false, Image.Format.Rgba8);
+            wheel.Fill(new Color(1, 1, 1, 0));
+            wheel.FillRect(new Rect2I(20, 20, 160, 40), new Color(1, 0.5f, 0));
+            var wheelFile = Path.Combine(
+                Directory.CreateDirectory(Path.Combine(mmDir, "medias")).FullName,
+                WheelArt.Prefix + "Medieval Madness.png"
+            );
+            wheel.SavePng(wheelFile);
+            lobby.ForgetWheelLookups(); // it was looked up (none) when the tests above passed it
+            lobby.Select(mmAt == 0 ? 1 : 0);
+            lobby.Select(mmAt);
+            await Seconds(lobby, 1.0);
+            Check(
+                lobby.WheelKey?.Contains(WheelArt.Prefix) == true && lobby.WheelShowing,
+                "a saved wheel shows over the selected table's title"
+            );
+            Check(
+                lobby.WheelTransparent && lobby.WheelAboveTitle,
+                "the wheel keeps its transparency and sits above the title"
+            );
+            lobby.Select(mmAt + 1);
+            await Seconds(lobby, 0.3);
+            Check(!lobby.WheelShowing, "a table without wheel art shows only its title");
+            lobby.Select(mmAt);
+            await Seconds(lobby, 0.5);
+
+            // Its own loading video (three frames and a sound) plays on the loading screen's big screen.
+            var lv = LoadingVideo.TableFolder(mmDir);
+            Directory.CreateDirectory(lv);
+            Color[] colours = [new(1, 0, 0), new(0, 1, 0), new(0, 0, 1)];
+            for (var i = 0; i < colours.Length; i++)
+            {
+                var img = Image.CreateEmpty(64, 36, false, Image.Format.Rgb8);
+                img.Fill(colours[i]);
+                File.WriteAllBytes(LobbyVideo.FramePath(lv, i), img.SaveJpgToBuffer(0.9f));
+            }
+            File.WriteAllText(
+                Path.Combine(lv, LobbyVideo.InfoFile),
+                System.Text.Json.JsonSerializer.Serialize(
+                    new LobbyVideo.Info(LoadingVideo.Fps, colours.Length, 64, 36, "test")
+                )
+            );
+            File.WriteAllBytes(Path.Combine(lv, LoadingVideo.AudioName + ".wav"), TinyWav());
+
+            var statusFile = Path.Combine(OS.GetUserDataDir(), "selftest-play-status.json");
+            PlayStatus.Clear(statusFile);
+            var cabinetsBefore = lobby.VisibleCabinets;
+            lobby.Settings.LobbyLoadingVideos = true;
+            lobby.StartLoadingForTest(statusFile);
+            await Seconds(lobby, 0.8);
+            Check(
+                lobby.LoadingVideoPlaying == lv
+                    && lobby.LoadingVideoFrames > colours.Length
+                    && lobby.VisibleCabinets == 0
+                    && lobby.HeaderText == lobby.Shown[mmAt].Title,
+                $"the loading video plays, looping, on a screen where the cabinet stood ({lobby.LoadingVideoFrames} frames)"
+            );
+            Check(lobby.LoadingVideoSound, "with its sound");
+            Check(lobby.WheelShowing, "the wheel stays over the title while it loads");
+            PlayStatus.Write(statusFile, PlayStatus.Failed, "VPX wasn't found");
+            await Seconds(lobby, 0.6);
+            Check(
+                lobby.LoadingVideoPlaying == null
+                    && !lobby.LoadingVideoSound
+                    && lobby.VisibleCabinets == cabinetsBefore,
+                "the video and its sound stop when the loading screen ends"
+            );
+
+            PlayStatus.Clear(statusFile); // the failure above is still in it
+            lobby.Settings.LobbyLoadingVideos = false;
+            lobby.StartLoadingForTest(statusFile);
+            await Seconds(lobby, 0.4);
+            Check(
+                lobby.LoadingVideoPlaying == null && lobby.VisibleCabinets == 1,
+                "turned off: only the table and its lamps"
+            );
+            PlayStatus.Write(statusFile, PlayStatus.Failed, "VPX wasn't found");
+            await Seconds(lobby, 0.6);
+            PlayStatus.Clear(statusFile);
+
+            // A broken loading video (no frame decodes) gives up and puts the table back, instead of a black screen.
+            for (var i = 0; i < colours.Length; i++)
+            {
+                File.WriteAllText(LobbyVideo.FramePath(lv, i), "not a jpeg");
+            }
+            lobby.Settings.LobbyLoadingVideos = true;
+            lobby.StartLoadingForTest(statusFile);
+            await Seconds(lobby, 0.8);
+            Check(
+                lobby.LoadingVideoPlaying == null && lobby.VisibleCabinets == 1 && lobby.IsLoading,
+                "a loading video that won't decode gives way to the plain loading screen"
+            );
+            PlayStatus.Write(statusFile, PlayStatus.Failed, "VPX wasn't found");
+            await Seconds(lobby, 0.6);
+            PlayStatus.Clear(statusFile);
+            lobby.Settings.LobbyLoadingVideos = false;
+            LoadingVideo.Remove(lv);
+            File.Delete(wheelFile);
         }
 
         GD.Print(_failures == 0 ? "ALL PASSED" : $"{_failures} FAILED");

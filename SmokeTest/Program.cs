@@ -2049,6 +2049,44 @@ Console.WriteLine($"   gamepad connected: {Gamepad.IsConnected()?.ToString() ?? 
                 is { GameName: "mtl_180hc", UsesPinMame: true, NoRomNeeded: false },
         "tells PinMAME tables from originals that only set cGameName"
     );
+    Check(
+        !RomDetector.UsesPinMame(
+            "Const cGameName = \"dukes\"\r\n' LoadVPM \"01560000\", \"S11.VBS\", 3.26\r\n"
+                + "'Set Controller = CreateObject(\"VPinMAME.Controller\")\r\nSub Table1_Init\r\n"
+        )
+            && RomDetector.UsesPinMame(
+                "x = 1\r\n  LoadVPM \"01560000\", \"S11.VBS\", 3.26 ' load it\r\n"
+            ),
+        "a commented-out LoadVPM doesn't make an original need a ROM"
+    );
+    Check(
+        RomDetector.ControllerRomFromScript(
+            "Const cGameName = \"fallout\"\r\nConst cRomName = \"swrds_l2\"\r\nWith Controller\r\n"
+                + "  .GameName = cRomName\r\nEnd With\r\n"
+        ) == "swrds_l2"
+            && RomDetector.ControllerRomFromScript("Controller.GameName = \"nfl\" ' runs NFL's ROM")
+                == "nfl"
+            && RomDetector.ControllerRomFromScript(
+                "Const cGameName = \"mm_109c\"\r\n.GameName = cGameName\r\n"
+            ) == null,
+        "the ROM the script hands PinMAME beats cGameName (rethemes run another machine's ROM)"
+    );
+    var reVpx = Path.Combine(odir, "retheme.vpx");
+    File.WriteAllText(
+        reVpx,
+        "Const cGameName = \"fallout\"\r\nLoadVPM \"01560000\", \"S11.VBS\", 3.26\r\n"
+            + "Controller.GameName = \"swrds_l2\"\r\n"
+    );
+    Check(
+        RomDetector.Inspect(reVpx) is { GameName: "fallout", RomName: "swrds_l2" }
+            && RomDetector.FromVpx(reVpx) == "swrds_l2",
+        "a retheme keeps its cGameName for PuP but loads the controller's ROM"
+    );
+    Check(
+        RomRequirements.TaggedNoRom(new TableManifest { Features = ["VR", "no ROM"] })
+            && !RomRequirements.TaggedNoRom(new TableManifest { Features = ["VR", "incl. ROM"] }),
+        "VPS's \"no ROM\" tag is read from the table's features"
+    );
 
     var os = new AppSettings
     {
@@ -2258,6 +2296,11 @@ foreach (var (ok, name) in LobbyVideoChecks.Run(root))
     Check(ok, name);
 }
 
+foreach (var (ok, name) in LoadingWheelChecks.Run(root))
+{
+    Check(ok, name);
+}
+
 foreach (var (ok, name) in VrDmdFixChecks.Run(root))
 {
     Check(ok, name);
@@ -2293,12 +2336,22 @@ foreach (var (ok, name) in CabinetButtonsChecks.Run())
     Check(ok, name);
 }
 
+foreach (var (ok, name) in FocusRetryChecks.Run())
+{
+    Check(ok, name);
+}
+
 foreach (var (ok, name) in TableFileMatchChecks.Run())
 {
     Check(ok, name);
 }
 
 foreach (var (ok, name) in LobbyRuntimeChecks.Run(root))
+{
+    Check(ok, name);
+}
+
+foreach (var (ok, name) in LobbyLayoutChecks.Run())
 {
     Check(ok, name);
 }

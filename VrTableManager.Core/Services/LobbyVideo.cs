@@ -1,6 +1,5 @@
 using System.Diagnostics;
 using System.Text.Json;
-using SharpCompress.Archives;
 
 namespace VrTableManager.Services;
 
@@ -43,9 +42,11 @@ public static class LobbyVideo
     static readonly JsonSerializerOptions Json = new() { WriteIndented = true };
 
     /// <summary>The lobby video saved in this table folder, or null (none, or incomplete).</summary>
-    public static Info? Existing(string tableFolder)
+    public static Info? Existing(string tableFolder) => ExistingIn(Folder(tableFolder));
+
+    /// <summary>The frames and <see cref="InfoFile"/> in <paramref name="folder"/> itself, or null (none, or incomplete).</summary>
+    public static Info? ExistingIn(string folder)
     {
-        var folder = Folder(tableFolder);
         try
         {
             var path = Path.Combine(folder, InfoFile);
@@ -56,7 +57,9 @@ public static class LobbyVideo
 
             var info = JsonSerializer.Deserialize<Info>(File.ReadAllText(path));
             return
-                info is { Frames: > 0, Fps: > 0 } && File.Exists(FramePath(folder, info.Frames - 1))
+                info is { Frames: > 0, Fps: > 0 }
+                && File.Exists(FramePath(folder, 0))
+                && File.Exists(FramePath(folder, info.Frames - 1))
                 ? info
                 : null;
         }
@@ -89,16 +92,30 @@ public static class LobbyVideo
     /// </summary>
     public sealed class Builder : IDisposable
     {
-        readonly string _tableFolder,
+        readonly string _folder,
             _staging,
             _source;
+        readonly int _fps;
         public int Count { get; private set; }
 
+        /// <summary>Frame size written into <see cref="InfoFile"/> (the lobby's portrait size unless set).</summary>
+        public int FrameWidth { get; set; } = Width;
+        public int FrameHeight { get; set; } = Height;
+
+        /// <summary>The folder being filled: other files put here (a sound track) move in with the frames.</summary>
+        public string Staging => _staging;
+
+        /// <summary>A table's lobby video (<c>medias\lobby-video</c>).</summary>
         public Builder(string tableFolder, string source)
+            : this(Folder(tableFolder), source, Fps) { }
+
+        /// <summary>Frames for <paramref name="folder"/> itself (a loading video).</summary>
+        public Builder(string folder, string source, int fps)
         {
-            _tableFolder = tableFolder;
+            _folder = folder;
             _source = source;
-            _staging = Folder(tableFolder) + ".new";
+            _fps = fps;
+            _staging = folder + ".new";
             if (Directory.Exists(_staging))
             {
                 Directory.Delete(_staging, true);
@@ -116,13 +133,46 @@ public static class LobbyVideo
                 throw new InvalidDataException("No frames.");
             }
 
-            var info = new Info(Fps, Count, Width, Height, _source);
+            var info = new Info(_fps, Count, FrameWidth, FrameHeight, _source);
             File.WriteAllText(
                 Path.Combine(_staging, InfoFile),
                 JsonSerializer.Serialize(info, Json)
             );
-            Remove(_tableFolder);
-            Directory.Move(_staging, Folder(_tableFolder));
+            // Swapped by renaming, not by deleting the old frames first: a delete that stops halfway (a frame the
+            // lobby has open) would leave a folder that still looks complete but has holes in it. A rename either
+            // happens or doesn't, so the folder is always the old video or the new one.
+            Directory.CreateDirectory(Path.GetDirectoryName(Path.GetFullPath(_folder))!);
+            var old = _folder + ".old";
+            if (Directory.Exists(old))
+            {
+                Directory.Delete(old, true);
+            }
+
+            if (Directory.Exists(_folder))
+            {
+                Directory.Move(_folder, old);
+            }
+
+            try
+            {
+                Directory.Move(_staging, _folder);
+            }
+            catch
+            {
+                if (Directory.Exists(old) && !Directory.Exists(_folder))
+                {
+                    Directory.Move(old, _folder); // put the previous video back
+                }
+
+                throw;
+            }
+            try
+            {
+                Directory.Delete(old, true);
+            }
+            catch (Exception e) when (e is IOException or UnauthorizedAccessException)
+            { /* a frame still open: the next commit clears it */
+            }
             return info;
         }
 
@@ -141,8 +191,17 @@ public static class LobbyVideo
 
     // ---- From a media pack ---------------------------------------------------------------
 
-    static readonly string[] VideoExts = [".mp4", ".m4v", ".f4v", ".mov", ".wmv", ".avi", ".mkv"];
-    static readonly string[] ArchiveExts = [".zip", ".rar", ".7z"];
+    /// <summary>Video files Windows' decoder is asked to read (media packs, and videos you choose).</summary>
+    public static readonly string[] VideoExts =
+    [
+        ".mp4",
+        ".m4v",
+        ".f4v",
+        ".mov",
+        ".wmv",
+        ".avi",
+        ".mkv",
+    ];
 
     /// <summary>
     /// How good an archive entry is as the playfield video, or null when it isn't one. PinUP Popper keeps it in
@@ -156,13 +215,7 @@ public static class LobbyVideo
             return null;
         }
 
-        var parts = entryPath
-            .Replace('\\', '/')
-            .Split('/', StringSplitOptions.RemoveEmptyEntries)
-            .Select(Normalize)
-            .ToArray();
-        var folders = parts[..^1];
-        var file = Normalize(Path.GetFileNameWithoutExtension(entryPath));
+        var (folders, file) = MediaPackFiles.Parts(entryPath);
         string[] others =
         [
             "backglass",
@@ -207,7 +260,7 @@ public static class LobbyVideo
             score += 20;
         }
 
-        if (Normalize(gameName) is { Length: > 2 } name && file.Contains(name))
+        if (MediaPackFiles.Normalize(gameName) is { Length: > 2 } name && file.Contains(name))
         {
             score += 10;
         }
@@ -223,36 +276,25 @@ public static class LobbyVideo
     public static string? PickPlayfield(
         IEnumerable<(string path, long size)> entries,
         string gameName
-    ) =>
-        entries
-            .Select(e => (e.path, e.size, score: PlayfieldScore(e.path, e.size, gameName)))
-            .Where(e => e.score != null)
-            .OrderByDescending(e => e.score)
-            .ThenByDescending(e => e.size)
-            .ThenBy(e => e.path, StringComparer.OrdinalIgnoreCase)
-            .Select(e => e.path)
-            .FirstOrDefault();
-
-    static string Normalize(string s) =>
-        new(s.ToLowerInvariant().Where(char.IsLetterOrDigit).ToArray());
+    ) => MediaPackFiles.Pick(entries, (p, size) => PlayfieldScore(p, size, gameName));
 
     /// <summary>
     /// Saves a downloaded media pack's playfield video as <c>medias\(Playfield) &lt;folder name&gt;.&lt;ext&gt;</c>
     /// (looking one level into archives inside it), or uses a downloaded video as it is. Returns the saved
     /// path, or null when the pack has no playfield video.
     /// </summary>
-    public static string? SavePlayfieldVideo(string downloaded, string tableFolder, string gameName)
-    {
-        var ext = Path.GetExtension(downloaded).ToLowerInvariant();
-        if (VideoExts.Contains(ext))
-        {
-            using var src = File.OpenRead(downloaded);
-            return WriteVideo(src, ext, tableFolder);
-        }
-        return ArchiveExts.Contains(ext)
-            ? FromArchive(downloaded, tableFolder, gameName, nested: true)
-            : null;
-    }
+    public static string? SavePlayfieldVideo(
+        string downloaded,
+        string tableFolder,
+        string gameName
+    ) =>
+        MediaPackFiles.Open(
+            downloaded,
+            MediaPackFiles.Best((p, size) => PlayfieldScore(p, size, gameName)),
+            VideoExts,
+            (src, entry) =>
+                WriteVideo(src, Path.GetExtension(entry).ToLowerInvariant(), tableFolder)
+        );
 
     /// <summary>The playfield video saved in the table's medias folder, if any.</summary>
     public static string? ExistingPlayfieldVideo(string tableFolder)
@@ -263,57 +305,6 @@ public static class LobbyVideo
                 .EnumerateFiles(medias, "(Playfield) *")
                 .FirstOrDefault(f => VideoExts.Contains(Path.GetExtension(f).ToLowerInvariant()))
             : null;
-    }
-
-    static string? FromArchive(string archivePath, string tableFolder, string gameName, bool nested)
-    {
-        using var archive = ArchiveFactory.OpenArchive(archivePath);
-        var files = archive
-            .Entries.Where(e => !e.IsDirectory && !string.IsNullOrEmpty(e.Key))
-            .ToList();
-        if (PickPlayfield(files.Select(e => (e.Key!, e.Size)), gameName) is { } best)
-        {
-            using var src = files.First(e => e.Key == best).OpenEntryStream();
-            return WriteVideo(src, Path.GetExtension(best).ToLowerInvariant(), tableFolder);
-        }
-        if (!nested)
-        {
-            return null;
-        }
-
-        foreach (
-            var inner in files.Where(e =>
-                ArchiveExts.Contains(Path.GetExtension(e.Key!).ToLowerInvariant())
-            )
-        )
-        {
-            var tmp = Path.Combine(
-                Path.GetDirectoryName(Path.GetFullPath(archivePath))!,
-                "inner-" + Guid.NewGuid().ToString("N")[..8] + Path.GetExtension(inner.Key!)
-            );
-            try
-            {
-                using (var src = inner.OpenEntryStream())
-                using (var dst = File.Create(tmp))
-                {
-                    src.CopyTo(dst);
-                }
-
-                if (FromArchive(tmp, tableFolder, gameName, nested: false) is { } saved)
-                {
-                    return saved;
-                }
-            }
-            finally
-            {
-                try
-                {
-                    File.Delete(tmp);
-                }
-                catch { }
-            }
-        }
-        return null;
     }
 
     static string WriteVideo(Stream src, string ext, string tableFolder)

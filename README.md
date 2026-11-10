@@ -129,6 +129,7 @@ The smoke tests may access online catalogs or release/site endpoints, so some ch
 - [Custom artwork, videos and sounds: card pictures, lobby playfields, backglasses, videos and attract music](docs/custom-artwork.md)
 - [VPX settings for VR and desktop play: your own VPinballX.ini, with VR and desktop overrides on top](docs/vpx-settings.md)
 - [Cabinet buttons and game controllers in the VR lobby: PinOne, Pinscape, Xbox and PlayStation controllers](docs/cabinet-buttons.md)
+- [Launching a table from the command line: `VrTableManager.exe --play`, and returning to the VR lobby](docs/command-line.md)
 
 ## Releasing
 

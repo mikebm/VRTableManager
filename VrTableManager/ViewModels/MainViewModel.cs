@@ -94,6 +94,7 @@ public sealed partial class MainViewModel : ObservableObject, IAsyncDisposable
         AswMode = AswModes.Contains(Settings.MetaAswMode) ? Settings.MetaAswMode : AswModes[0];
         WarnSteamVrRuntime = Settings.WarnSteamVrRuntime;
         CardSize = Settings.CardSize;
+        SetupSection = Settings.SetupSection;
         ExplainFailedLaunches = Settings.ExplainFailedLaunches;
         UseBuiltInPinmame = Settings.UseBuiltInPinmame;
         UsePupPlugin = Settings.UsePupPlugin;
@@ -104,6 +105,10 @@ public sealed partial class MainViewModel : ObservableObject, IAsyncDisposable
         LobbyRecordsRomAudio = Settings.LobbyRecordsRomAudio;
         LobbyWaitsForTable = Settings.LobbyWaitsForTable;
         LobbyStaysOpen = Settings.LobbyStaysOpen;
+        LobbyLoadingVideos = Settings.LobbyLoadingVideos;
+        RefreshDefaultLoadingVideo();
+        LobbyCabinetCount = Settings.LobbyCabinetCount;
+        LobbyCabinetScale = Settings.LobbyCabinetScalePercent;
         LoadGraphics();
         RefreshInstalled();
         RefreshSetupStatus();
@@ -156,6 +161,10 @@ public sealed partial class MainViewModel : ObservableObject, IAsyncDisposable
             _ = CheckUpdatesAsync(); // VPX / UEVR / BAM, in the background
             _ = LoadRuleSheetsAsync();
             _ = RefreshHighScoreMapsAsync();
+            if (VpsCatalog.UsingSavedCopy)
+            {
+                _ = RetryCatalogAsync();
+            }
             if (!_offeredResume)
             {
                 _offeredResume = true;
@@ -174,6 +183,54 @@ public sealed partial class MainViewModel : ObservableObject, IAsyncDisposable
 
     [RelayCommand]
     Task RefreshCatalog() => LoadCatalogAsync(true);
+
+    bool _catalogRetrying;
+
+    /// <summary>
+    /// The spreadsheet couldn't be reached, so the saved copy is showing. Try again quietly every few minutes and
+    /// swap the new catalog in once it's back.
+    /// </summary>
+    async Task RetryCatalogAsync()
+    {
+        if (_catalogRetrying)
+        {
+            return;
+        }
+
+        _catalogRetrying = true;
+        try
+        {
+            while (VpsCatalog.UsingSavedCopy)
+            {
+                await Task.Delay(TimeSpan.FromMinutes(5));
+                if (IsLoading)
+                {
+                    continue;
+                }
+
+                List<VpsGame> games;
+                try
+                {
+                    games = await Task.Run(() => VpsCatalog.LoadAsync(true));
+                }
+                catch
+                {
+                    continue;
+                }
+                if (!VpsCatalog.UsingSavedCopy)
+                {
+                    _allGames = games;
+                    _assisted.KnownGames = _allGames.Select(g => g.Name);
+                    ApplyFilter();
+                    ApplyTableUpdates();
+                }
+            }
+        }
+        finally
+        {
+            _catalogRetrying = false;
+        }
+    }
 
     bool MatchesEngine(VpsTableFile t) =>
         EngineFilter switch
@@ -247,6 +304,10 @@ public sealed partial class MainViewModel : ObservableObject, IAsyncDisposable
         AddPage();
         SelectedGame = Games.FirstOrDefault(g => g.Game.Id == selectedId);
         CatalogStatus = $"{_filtered.Count} of {_allGames.Count} machines";
+        if (VpsCatalog.UsingSavedCopy && VpsCatalog.SavedAt is { } saved)
+        {
+            CatalogStatus += $" · spreadsheet offline, using the copy from {saved:d MMM HH:mm}";
+        }
         MatchCount = _filtered.Count;
         TotalCount = _allGames.Count;
     }
@@ -731,6 +792,34 @@ public sealed partial class MainViewModel : ObservableObject, IAsyncDisposable
     /// </summary>
     async Task RecheckRomNeedAsync(InstalledTable t)
     {
+        // VPS tags table files that run without a ROM. Tables installed before that was read, or linked to the
+        // catalog after an import, don't have the tag in their manifest yet; take it from the catalog.
+        if (
+            t.IsVpx
+            && t.Manifest.RomNames.Count > 0
+            && !RomRequirements.TaggedNoRom(t.Manifest)
+            && t.Manifest.TableFileId != ""
+            && _allGames
+                .FirstOrDefault(g => g.Id == t.Manifest.GameId)
+                ?.TableFiles?.FirstOrDefault(f => f.Id == t.Manifest.TableFileId)
+                is { } vpsFile
+            && VpsCatalog.HasFeature(vpsFile, RomRequirements.NoRomFeature)
+        )
+        {
+            t.Manifest.Features = [.. t.Manifest.Features, RomRequirements.NoRomFeature];
+            t.Manifest.RomNames = [];
+            t.Manifest.RomParents = [];
+            t.Manifest.RomAlias = null;
+            try
+            {
+                TableInstaller.SaveManifest(t);
+            }
+            catch
+            { /* still corrected for this session */
+            }
+            RefreshInstalled();
+            return;
+        }
         // A parent listed as missing may be out of date: it was noted before the table's own ROM was there, or the
         // ROM was copied in by hand since. Asking PinMAME again takes milliseconds.
         if (
@@ -1323,6 +1412,9 @@ public sealed partial class MainViewModel : ObservableObject, IAsyncDisposable
                 item.HasAttractAudio = MediaPackAudio.Existing(item.Table.Folder) != null;
                 item.HasLobbyVideo =
                     item.CanHaveLobbyVideo && LobbyVideo.Existing(item.Table.Folder) != null;
+                item.HasLoadingVideo = LoadingVideo.Own(item.Table) != null;
+                item.HasWheelArt =
+                    item.Table.HasOwnFolder && WheelArt.Saved(item.Table.Folder) != null;
                 item.HasDmdFix = VrDmdFix.HasBackup(item.Table.TablePath);
                 item.DmdFixDeclined = Settings.DmdFixDeclined.Contains(
                     item.Table.TablePath,
@@ -1330,6 +1422,7 @@ public sealed partial class MainViewModel : ObservableObject, IAsyncDisposable
                 );
                 RefreshAddonState(item);
                 item.AttractAudioSources = AttractAudioSourcesFor(item.Table);
+                item.WheelArtSources = WheelArtSourcesFor(item.Table);
             }
         }
         ShowInstalled();
@@ -1681,7 +1774,7 @@ public sealed partial class MainViewModel : ObservableObject, IAsyncDisposable
     [RelayCommand]
     async Task LaunchLobbyAsync()
     {
-        if (IsLobbyRunning)
+        if (IsLobbyRunning || !await LobbyVideoTipAsync())
         {
             return;
         }
@@ -2024,6 +2117,9 @@ public sealed partial class MainViewModel : ObservableObject, IAsyncDisposable
             case nameof(LobbyStaysOpen):
                 Settings.LobbyStaysOpen = LobbyStaysOpen;
                 break;
+            case nameof(LobbyLoadingVideos):
+                Settings.LobbyLoadingVideos = LobbyLoadingVideos;
+                break;
             default:
                 return;
         }
@@ -2234,7 +2330,11 @@ public sealed partial class MainViewModel : ObservableObject, IAsyncDisposable
                 VpxBuilds.FirstOrDefault(b => b.Installed) ?? VpxBuilds.FirstOrDefault();
             LatestVpx = HasVpxBuilds
                 ? $"{VpxBuilds.Count} builds. Pick one and click INSTALL THIS BUILD."
-                    + (Settings.VpxUseNightlyBuilds ? "" : " Turn on nightly builds below to list those too.")
+                    + (
+                        Settings.VpxUseNightlyBuilds
+                            ? ""
+                            : " Turn on nightly builds below to list those too."
+                    )
                 : "No VPX builds found for this OS.";
         }
         catch (Exception e)
@@ -2600,6 +2700,7 @@ public sealed partial class MainViewModel : ObservableObject, IAsyncDisposable
             item.RomSource = FindRomSource(item.Table);
             item.HasSternSource = IsSternTable(item.Table);
             item.AttractAudioSources = AttractAudioSourcesFor(item.Table);
+            item.WheelArtSources = WheelArtSourcesFor(item.Table);
             _ = RecheckRomNeedAsync(item.Table);
         }
         TableUpdateCount = updates.Count;
@@ -2660,7 +2761,11 @@ public sealed partial class MainViewModel : ObservableObject, IAsyncDisposable
         {
             var ct = CancellationToken.None;
             var vpxTask = Try<VpxReleases>(async () =>
-                await VpxSetup.FindReleasesAsync(ct, Settings.VpxUseDoNotUseBuilds, Settings.VpxUseNightlyBuilds)
+                await VpxSetup.FindReleasesAsync(
+                    ct,
+                    Settings.VpxUseDoNotUseBuilds,
+                    Settings.VpxUseNightlyBuilds
+                )
             );
             var uevrTask = Try(() => UevrSetup.FindLatestAsync(ct));
             var bamTask = Try(() => BamCheck.LatestAsync(ct));

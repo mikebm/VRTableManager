@@ -1,4 +1,3 @@
-using System.Collections.Concurrent;
 using Godot;
 using VrTableManager.Services;
 
@@ -11,12 +10,8 @@ namespace VrLobby;
 /// </summary>
 public partial class PlayfieldVideo : Node
 {
-    const int Ahead = 4;
-
-    readonly ConcurrentQueue<Image> _ready = new();
+    readonly FrameStream _frames = new();
     Image? _heights; // the table's height map, handed over from the worker (PlayfieldDepth)
-    CancellationTokenSource? _cts;
-    Task? _worker;
     ImageTexture? _tex;
     Cabinet? _cab;
     double _frameTime,
@@ -37,10 +32,11 @@ public partial class PlayfieldVideo : Node
         _frameTime = 1.0 / info.Fps;
         _untilNext = 0;
         FramesShown = 0;
-        var cts = _cts = new CancellationTokenSource();
-        var ct = cts.Token;
-        _worker = Task.Run(
-            () =>
+        _frames.Start(
+            folder,
+            info.Frames,
+            mipmaps: true, // the playfield material samples mipmaps (it's seen at a low angle)
+            before: ct =>
             {
                 if (
                     vpxPath != null
@@ -50,44 +46,8 @@ public partial class PlayfieldVideo : Node
                 {
                     Volatile.Write(ref _heights, h);
                 }
-
-                Decode(folder, info.Frames, ct);
-            },
-            ct
-        );
-    }
-
-    void Decode(string folder, int frames, CancellationToken ct)
-    {
-        try
-        {
-            for (var i = 0; !ct.IsCancellationRequested; i = (i + 1) % frames)
-            {
-                while (_ready.Count >= Ahead && !ct.IsCancellationRequested)
-                {
-                    Thread.Sleep(5);
-                }
-
-                var img = new Image();
-                if (
-                    img.LoadJpgFromBuffer(File.ReadAllBytes(LobbyVideo.FramePath(folder, i)))
-                    != Error.Ok
-                )
-                {
-                    continue;
-                }
-
-                img.GenerateMipmaps(); // the playfield material samples mipmaps (it's seen at a low angle)
-                if (!ct.IsCancellationRequested)
-                {
-                    _ready.Enqueue(img);
-                }
             }
-        }
-        catch (Exception e) when (e is IOException or UnauthorizedAccessException)
-        {
-            GD.PushWarning($"Lobby video {folder}: {e.Message}");
-        }
+        );
     }
 
     /// <summary>
@@ -96,9 +56,7 @@ public partial class PlayfieldVideo : Node
     /// </summary>
     public void Freeze()
     {
-        _cts?.Cancel();
-        _cts = null;
-        _ready.Clear();
+        _frames.Stop();
         // Depth that arrived after the first frame but before this frame's _Process: put it on now, or never.
         if (
             _cab != null
@@ -117,9 +75,7 @@ public partial class PlayfieldVideo : Node
 
     public void Stop()
     {
-        _cts?.Cancel();
-        _cts = null;
-        _ready.Clear();
+        _frames.Stop();
         _heights = null;
         _cab?.SetPlayfieldVideo(null);
         _cab?.SetPlayfieldDepth(null);
@@ -145,7 +101,7 @@ public partial class PlayfieldVideo : Node
         }
 
         _untilNext -= delta;
-        if (_untilNext > 0 || !_ready.TryDequeue(out var img))
+        if (_untilNext > 0 || !_frames.TryNext(out _, out var img))
         {
             return;
         }
@@ -179,12 +135,6 @@ public partial class PlayfieldVideo : Node
     public override void _ExitTree()
     {
         Stop();
-        // The worker uses Godot's Image: let it finish before the engine shuts down under it.
-        try
-        {
-            _worker?.Wait(1000);
-        }
-        catch (AggregateException) { }
-        _worker = null;
+        _frames.Shutdown(); // the worker uses Godot's Image: let it finish before the engine shuts down under it
     }
 }

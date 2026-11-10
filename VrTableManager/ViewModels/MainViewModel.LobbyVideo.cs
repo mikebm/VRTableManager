@@ -11,6 +11,54 @@ public sealed partial class MainViewModel
     /// <summary>One VPX recording at a time: each opens a window and runs the table.</summary>
     readonly SemaphoreSlim _recording = new(1, 1);
 
+    /// <summary>
+    /// On LAUNCH VR LOBBY, while some tables have no lobby video: says that videos bring the cabinets to life,
+    /// and how to get them. Only lobby users see it, every launch until they tick it off. Returns false to stop
+    /// the launch (they chose to record first, or closed the window).
+    /// </summary>
+    async Task<bool> LobbyVideoTipAsync()
+    {
+        if (!Settings.ShowLobbyVideoTip || IsBatchRecording)
+        {
+            return true;
+        }
+
+        var without = _allInstalled.Count(i =>
+            i.CanHaveLobbyVideo && !i.Table.IsIncomplete && !i.HasLobbyVideo
+        );
+        if (without == 0)
+        {
+            return true;
+        }
+
+        string[] buttons =
+        [
+            "LAUNCH VR LOBBY",
+            "LAUNCH, DON'T SHOW AGAIN",
+            "RECORD LOBBY VIDEOS FIRST",
+        ];
+        var pick = await _ui.ChoiceAsync(
+            "Bring the VR lobby to life",
+            $"{without} of your tables {(without == 1 ? "has" : "have")} no lobby video yet. With one, a table's cabinet "
+                + "shows its playfield moving, with ramps and toys standing up, instead of a still picture.\n\n"
+                + "• RECORD LOBBY VIDEOS on My Tables records every table that has none, one after another "
+                + "(about 40 s each, in a small VPX window).\n\n"
+                + "• Or one table at a time: its ⋯ menu → Get a playfield video for the VR lobby.",
+            buttons
+        );
+        if (pick == 1)
+        {
+            Settings.ShowLobbyVideoTip = false;
+            Settings.Save();
+        }
+        else if (pick == 2)
+        {
+            await RecordAllLobbyVideosCommand.ExecuteAsync(null);
+        }
+
+        return pick is 0 or 1;
+    }
+
     [RelayCommand(AllowConcurrentExecutions = true)]
     async Task GetLobbyVideo(InstalledItem item)
     {
@@ -84,6 +132,7 @@ public sealed partial class MainViewModel
                 {
                     var file = await DownloadAttractSourceAsync(job, src);
                     job.Report("Taking the playfield video out…");
+                    await KeepWheelFromAsync(file, table, job.Cts.Token);
                     var video = await Task.Run(() =>
                         LobbyVideo.SavePlayfieldVideo(file, table.Folder, table.Manifest.GameName)
                     );
@@ -388,6 +437,11 @@ public sealed partial class MainViewModel
     [RelayCommand]
     void RemoveLobbyVideo(InstalledItem item)
     {
+        if (item.IsBusy)
+        {
+            return; // a job for this table would put it back when it finishes
+        }
+
         try
         {
             LobbyVideo.Remove(item.Table.Folder);

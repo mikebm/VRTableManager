@@ -49,7 +49,8 @@ public static class ArcadeRoom
         };
     }
 
-    public static Node3D Ceiling(float radius)
+    /// <param name="ringFront">How far the cabinet ring's fronts are from you: the magenta tube hangs over the cabinets wherever the ring is.</param>
+    public static Node3D Ceiling(float radius, float ringFront)
     {
         var root = new Node3D { Name = "Ceiling" };
         var size = radius * 2;
@@ -69,8 +70,15 @@ public static class ArcadeRoom
             }
         );
         // Neon tubes: magenta over the cabinets, cyan further out. Glow (the environment's bloom) makes them halo.
-        root.AddChild(NeonRing(Main.RingFront + 0.9f, CeilingY - 0.12f, Neon[0]));
-        root.AddChild(NeonRing(5.6f, CeilingY - 0.12f, Neon[1]));
+        root.AddChild(NeonRing(ringFront + 0.9f, CeilingY - 0.12f, Neon[0]));
+        // The cyan one further out, unless a big ring has reached it: then it stays between the magenta and the wall.
+        root.AddChild(
+            NeonRing(
+                Mathf.Max(5.6f, Mathf.Min(ringFront + 2.2f, radius - 0.5f)),
+                CeilingY - 0.12f,
+                Neon[1]
+            )
+        );
         return root;
     }
 

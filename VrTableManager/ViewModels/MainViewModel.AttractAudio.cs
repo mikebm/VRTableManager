@@ -55,6 +55,11 @@ public sealed partial class MainViewModel
                 {
                     var file = await DownloadAttractSourceAsync(job, src);
                     job.Report("Taking the audio out…");
+                    if (!src.IsDirect)
+                    {
+                        await KeepWheelFromAsync(file, table, job.Cts.Token);
+                    }
+
                     var saved = await Task.Run(() =>
                         MediaPackAudio.Save(
                             file,
