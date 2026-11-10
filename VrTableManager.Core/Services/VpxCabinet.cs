@@ -435,6 +435,51 @@ public static class VpxCabinet
         public Dictionary<string, List<string>> Collections = new(StringComparer.OrdinalIgnoreCase);
     }
 
+    /// <summary>
+    /// The playfield's width in centimetres (GameData's LEFT and RGHT), reading nothing else of the table. Null when
+    /// the file can't be read or names no width.
+    /// </summary>
+    public static double? PlayfieldWidthCm(string vpxPath)
+    {
+        try
+        {
+            using var root = RootStorage.OpenRead(vpxPath);
+            if (!root.OpenStorage("GameStg").TryOpenStream("GameData", out var gd) || gd == null)
+            {
+                return null;
+            }
+
+            float? left = null,
+                right = null;
+            using (gd)
+            {
+                foreach (var (tag, d) in Records(ReadAll(gd), 0))
+                {
+                    if (tag == "LEFT")
+                    {
+                        left = F(d);
+                    }
+                    else if (tag == "RGHT")
+                    {
+                        right = F(d);
+                    }
+
+                    if (left != null && right != null)
+                    {
+                        break;
+                    }
+                }
+            }
+            return right is { } r && r - (left ?? 0) is var w and > 0
+                ? w * VpuToMetres * 100
+                : null;
+        }
+        catch (Exception)
+        {
+            return null;
+        }
+    }
+
     /// <summary>Every primitive in the table with its name, visibility and bounds (VPX units), for diagnostics and tests.</summary>
     public static List<VpxPrimitiveInfo> ListPrimitives(string vpxPath)
     {

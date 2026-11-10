@@ -768,7 +768,23 @@ public static class Launcher
         {
             extra.Add(("Plugin." + VpxSetup.PupPlugin, "PUPFolder", pupFolder));
         }
-        var play = VpxIniLayers.Build(s, vr, extra: extra);
+        // Fit VR to the player: a real cabinet's lockbar height and eye position until they pick their own, and in
+        // real-size mode this table's own lockbar width (never kept, or the next table would get it).
+        List<(string Section, string Key)> notKept = [];
+        if (vr)
+        {
+            var fit = VrFit.LaunchSettings(s, VpxIniLayers.Effective(s, vr: true), tablePath);
+            extra.AddRange(fit.Extra);
+            notKept.AddRange(fit.NotKept);
+            if (fit.Extra.Count > 0)
+            {
+                PlaySession.Log(
+                    $"{Path.GetFileName(tablePath)}: VR fit "
+                        + string.Join(", ", fit.Extra.Select(e => $"{e.Key} = {e.Value}"))
+                );
+            }
+        }
+        var play = VpxIniLayers.Build(s, vr, extra: extra, notKept: notKept);
         if (
             VrRoomSwitch.Prepare(tablePath, vr, s.AutoVrRoom, s.UsePupPlugin, cabinetBackglass) is
             { } changed

@@ -59,6 +59,24 @@ public sealed class AppSettings
     /// <summary>Meta Quest Link's spacewarp before VR launches: "Leave as is", "Off" or "Auto" (<see cref="MetaAsw"/>).</summary>
     public string MetaAswMode { get; set; } = "Leave as is";
 
+    /// <summary>Your height (cm), for the VR lockbar height (<see cref="VrFit"/>). Null until entered.</summary>
+    public double? VrPlayerHeightCm { get; set; }
+
+    /// <summary>How VR tables are sized: <see cref="VrFit.SizeReal"/>, <see cref="VrFit.SizeSame"/> or <see cref="VrFit.SizeVpx"/>. Real size until the player picks.</summary>
+    public string VrTableSizing { get; set; } = VrFit.SizeReal;
+
+    /// <summary>
+    /// The player saved a fit (FIT EVERY TABLE TO ME). Until then VR launches get a real cabinet's values for any not
+    /// set; after, an empty value means VPX's own default (<see cref="VrFit.LaunchSettings"/>). RESET TO DEFAULTS clears it.
+    /// </summary>
+    public bool VrFitSaved { get; set; }
+
+    /// <summary>The lockbar width every table gets in <see cref="VrFit.SizeSame"/> mode (cm); a WPC table's real one.</summary>
+    public double VrSameLockbarWidthCm { get; set; } = 57.1;
+
+    /// <summary>Show and type VR fit lengths in feet and inches.</summary>
+    public bool VrUseInches { get; set; }
+
     /// <summary>Before a VR launch, warn when the active OpenXR runtime is SteamVR (an extra layer for a Quest).</summary>
     public bool WarnSteamVrRuntime { get; set; } = true;
 

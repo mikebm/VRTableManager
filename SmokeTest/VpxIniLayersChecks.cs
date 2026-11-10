@@ -146,6 +146,24 @@ static class VpxIniLayersChecks
                 )
             );
 
+            // A real-size table's lockbar width is for that launch only, even if VPX writes it back changed.
+            var widthPlay = VpxIniLayers.Build(
+                s,
+                vr: true,
+                extra: [("Player", "LockbarWidth", "57.1")],
+                notKept: [("Player", "LockbarWidth")]
+            );
+            IniFile.SetMany(widthPlay.Path, "Player", [("LockbarWidth", "62.000000")]);
+            results.Add(
+                (
+                    widthPlay.SaveBack() == 0
+                        && IniFile
+                            .Read(VpxSetup.VrIniPath(s))
+                            .GetValueOrDefault(("Player", "LockbarWidth"), "") == "",
+                    "layers: a table's own lockbar width is never kept for later launches"
+                )
+            );
+
             // No VPinballX.ini in the preferences folder: VPX uses the one beside the exe.
             File.Delete(own);
             results.Add(

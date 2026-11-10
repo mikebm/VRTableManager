@@ -2248,6 +2248,11 @@ foreach (var (ok, name) in VrViewChecks.Run(root))
     Check(ok, name);
 }
 
+foreach (var (ok, name) in VrFitChecks.Run(root))
+{
+    Check(ok, name);
+}
+
 foreach (var (ok, name) in LobbyVideoChecks.Run(root))
 {
     Check(ok, name);

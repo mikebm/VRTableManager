@@ -81,11 +81,13 @@ public static class VpxIniLayers
 
     /// <summary>Writes the layered settings for this mode to <paramref name="path"/> (the play file by default).</summary>
     /// <param name="extra">Settings for this launch only, on top of the overrides; not saved back unless VPX changes them.</param>
+    /// <param name="notKept">Keys of <paramref name="extra"/> that are never saved back, even if VPX changes them (one table's own value).</param>
     public static Play Build(
         AppSettings s,
         bool vr,
         string? path = null,
-        IEnumerable<(string Section, string Key, string Value)>? extra = null
+        IEnumerable<(string Section, string Key, string Value)>? extra = null,
+        IEnumerable<(string Section, string Key)>? notKept = null
     )
     {
         path ??= PlayPath(s, vr);
@@ -117,7 +119,7 @@ public static class VpxIniLayers
             IniFile.SetMany(path, section.Key, section.Select(e => (e.Key, e.Value)));
         }
 
-        return new Play(path, OverridePath(s, vr), IniFile.Read(path));
+        return new Play(path, OverridePath(s, vr), IniFile.Read(path), [.. PerTableKeys, .. notKept ?? []]);
     }
 
     /// <summary>
@@ -142,7 +144,8 @@ public static class VpxIniLayers
     public sealed class Play(
         string path,
         string overridePath,
-        Dictionary<(string Section, string Key), string> before
+        Dictionary<(string Section, string Key), string> before,
+        (string Section, string Key)[] notKept
     )
     {
         public string Path { get; } = path;
@@ -161,7 +164,7 @@ public static class VpxIniLayers
 
             var changed = Changes(before, IniFile.Read(Path))
                 .Where(c =>
-                    !PerTableKeys.Any(k =>
+                    !notKept.Any(k =>
                         k.Section.Equals(c.Section, StringComparison.OrdinalIgnoreCase)
                         && k.Key.Equals(c.Key, StringComparison.OrdinalIgnoreCase)
                     )

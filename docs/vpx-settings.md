@@ -62,6 +62,31 @@ Before each launch the manager combines the layers into `VrTableManager-VR.play.
 
 The `.play.ini` files are rebuilt every launch, so editing them has no lasting effect.
 
+## Fit VR to me
+
+**Setup → VR & graphics → FIT VR TO ME** lines every VPX table up the same way, so you don't have to move each table in the headset. You don't need to do anything for this: until you set your own values, every VR launch uses a real cabinet's (lockbar 91 cm high, eyes 10 cm behind it, each table at its real size). Click **FIT EVERY TABLE TO ME** only to change them: changes in the panel count once you click it (until then it says "Not saved yet"). **RESET TO DEFAULTS** goes back to the real-cabinet values and puts the table straight ahead. It's saved once, for every table, including tables you add later. The values go into the VR file, so desktop play doesn't change.
+
+VPX 10.8.1 positions every table in VR using these settings:
+
+| Setting | VPX's default | What it does |
+|---|---|---|
+| `[Player] LockbarHeight` | 85 cm | Every table's lockbar is put this high above your floor. The manager uses a real cabinet's 91 cm (36") until you set your own; typing your height suggests 0.52 × it (175 cm → 91 cm). |
+| `[Player] LockbarWidth` | 70 cm | Every table is scaled so its lockbar is this wide. VPX counts the lockbar as the playfield width plus 2¼", so 70 cm shows a standard 20¼" table about 22% too big. |
+| `[Player] ScreenPlayerY` | -10 cm | Where your eyes are when VPX recenters the view (keypad 5): this far behind the lockbar. Higher moves you back; negative puts you over the glass, so VPX's own default leans you into the table. The manager uses 10 cm; the Setup tab's − and + move it 1 cm (1"), up to 100 cm back. It's only exact after you recenter: until then the saved table position counts from the headset's tracking origin, not your head. VPX lists -70 to 30, but that only limits its in-game slider; a larger value in the file is used as written. Moving VPX's slider brings it back within 30. |
+| `[PlayerVR] TableX/Y/Z`, `Orientation` | 0 | The offset VPX saves when you move or recenter the table. VPX always saves these for every table, never for one. |
+
+**Table size** has three choices:
+
+- **Real size** (the default): just before each VR launch, the manager reads the table's playfield width from its `.vpx` and gives that launch the table's own `LockbarWidth`, so VPX shows it at scale 1. It isn't saved anywhere, so a width you change in VPX's menu lasts only until that table closes. A table whose own `<table>.ini` sets a `LockbarWidth` keeps that one.
+- **The same width for every table**: one `LockbarWidth` for all of them, for example to match a controller stand.
+- **VPX's own sizing**: VPX's 70 cm, or whatever you set in VPX.
+
+**FIT EVERY TABLE TO ME** also clears `TableZ`, because a height offset would move every lockbar away from the height you chose. If you tick **Also put the table straight ahead**, it also resets where the table sits: straight ahead of the headset's centre point, with your eyes the distance you chose behind the lockbar. Afterwards, if the lockbar isn't where you stand, press keypad 5 once while standing where you play. VPX keeps that for every table.
+
+Lining the table up with your VR controllers (left thumbstick click) takes the lockbar height and width from the controllers until that table closes.
+
+The manager also writes `[PlayerVR] OverrideLockbarHeight` and `OverrideLockbarWidth`. VPX 10.8.1 ignores them, but newer VPX builds use them to decide whether your lockbar values apply. Future Pinball's BAM keeps its own VR position, which this doesn't change.
+
 ## Controls
 
 VR play uses the controls from your own `VPinballX.ini` until the VR file has mappings of its own. That happens when you remap a button during VR play, or when you click **USE MY DESKTOP VPX CONTROLS** on the Setup tab. That button merges your desktop mappings into the VR file and keeps the Quest controller buttons as alternatives.
