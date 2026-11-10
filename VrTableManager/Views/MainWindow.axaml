@@ -191,8 +191,8 @@
                 <Button Content="＋  ADD A TABLE FILE…" Command="{Binding AddTableFileCommand}"
                         ToolTip.Tip="Install a table zip (or .vpx / .fpt) you already downloaded yourself" />
                 <Button Content="⟳  RESCAN" Command="{Binding RefreshInstalledCommand}" />
-                <Button Content="●  RECORD LOBBY VIDEOS" Command="{Binding RecordAllLobbyVideosCommand}" IsVisible="{Binding !IsBatchRecording}"
-                        ToolTip.Tip="Records a moving playfield in VPX for every table that has none, one after another (about 40 s each). Ramps and toys stand up in the VR lobby only on tables with one." />
+                <Button Content="◆  GET LOBBY MEDIA" Command="{Binding GetAllLobbyMediaCommand}" IsVisible="{Binding !IsBatchRecording}"
+                        ToolTip.Tip="For every table shown: fills in what's missing of its playfield video, loading video, attract audio and wheel art from the catalog's media packs, then can record playfield videos in VPX for the rest. Search or filter first to do only some tables." />
                 <Button Content="{Binding BatchRecordingText}" Command="{Binding StopBatchRecordingCommand}" IsVisible="{Binding IsBatchRecording}"
                         ToolTip.Tip="Stops the recording that's running and skips the rest" />
                 <Button Classes="primary" Content="◉  LAUNCH VR LOBBY" Command="{Binding LaunchLobbyCommand}"
@@ -537,6 +537,9 @@
                                           ToolTip.Tip="You raised or lowered this table in the headset, and it keeps that height. Clear it to sit at the same height as every table."
                                           Command="{Binding Owner.ClearTableVrHeightCommand}" CommandParameter="{Binding}" />
                                 <Separator IsVisible="{Binding IsVpx}" />
+                                <MenuItem Header="Get all VR lobby media" IsVisible="{Binding CanGetLobbyMedia}"
+                                          ToolTip.Tip="Fills in what this table is missing for the VR lobby (playfield video, loading video, attract audio, wheel art) from one media pack download, then offers to record the playfield in VPX if the pack has none. Nothing it already has is replaced."
+                                          IsEnabled="{Binding !IsBusy}" Command="{Binding Owner.GetLobbyMediaCommand}" CommandParameter="{Binding}" />
                                 <MenuItem Header="{Binding AttractAudioMenuHeader}" IsVisible="{Binding CanGetAttractAudio}"
                                           ToolTip.Tip="Download this table's sound file or media pack and keep only its audio, as music\attract (the pack's videos are deleted)"
                                           IsEnabled="{Binding !IsBusy}" Command="{Binding Owner.GetAttractAudioCommand}" CommandParameter="{Binding}" />

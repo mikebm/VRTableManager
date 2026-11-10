@@ -41,9 +41,11 @@ public sealed partial class MainViewModel
             "Bring the VR lobby to life",
             $"{without} of your tables {(without == 1 ? "has" : "have")} no lobby video yet. With one, a table's cabinet "
                 + "shows its playfield moving, with ramps and toys standing up, instead of a still picture.\n\n"
-                + "• RECORD LOBBY VIDEOS on My Tables records every table that has none, one after another "
+                + "• RECORD LOBBY VIDEOS FIRST (below) records every table that has none, one after another "
                 + "(about 40 s each, in a small VPX window).\n\n"
-                + "• Or one table at a time: its ⋯ menu → Get a playfield video for the VR lobby.",
+                + "• GET LOBBY MEDIA on My Tables takes them from the catalog's media packs instead, with each table's "
+                + "loading video, music and logo, and records the rest.\n\n"
+                + "• Or one table at a time: its ⋯ menu → Get all VR lobby media.",
             buttons
         );
         if (pick == 1)
@@ -319,7 +321,7 @@ public sealed partial class MainViewModel
         return true;
     }
 
-    // ---- Record every table at once (My Tables → RECORD LOBBY VIDEOS) ----
+    // ---- Record every table at once (the lobby video tip's RECORD LOBBY VIDEOS FIRST) ----
 
     /// <summary>A batch of recordings is running; the toolbar shows its progress and a STOP button.</summary>
     [ObservableProperty]

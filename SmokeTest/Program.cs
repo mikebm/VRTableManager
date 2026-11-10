@@ -2495,6 +2495,11 @@ foreach (var (ok, name) in LoadingWheelChecks.Run(root))
     Check(ok, name);
 }
 
+foreach (var (ok, name) in LobbyMediaChecks.Run(root))
+{
+    Check(ok, name);
+}
+
 foreach (var (ok, name) in VrDmdFixChecks.Run(root))
 {
     Check(ok, name);

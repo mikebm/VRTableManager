@@ -55,6 +55,15 @@ The app copies your file into the table's `artwork` folder, so you can delete or
 - **Backglass:** the backglass picture, landscape, about 4:3 (for example 1280 × 1024). It also replaces the backglass a table's own VR cabinet brings, which helps when that one is blank or drawn by the table's script.
 - **Wheel art:** the game's logo on a transparent background (`.png`), landscape, like a front end's wheel image (for example 800 × 300). The lobby fits it into about 75 × 28 cm over the title.
 
+## All the VR lobby media at once
+
+A table's media pack in the catalog has its playfield video, loading video, music and wheel art. You can get all of them in one go instead of one menu item at a time. Only what's missing is added: nothing the table already has, or that you chose yourself, is replaced.
+
+- **One table:** its **⋯** menu → **Get all VR lobby media**. It downloads the media pack once and keeps each missing piece. Then, for what the pack lacked, it tries the catalog's wheel art and sound files. If there's still no playfield video, it offers to record one in VPX.
+- **Many tables:** **◆ GET LOBBY MEDIA** at the top of **My Tables** does this for every table shown, one after another. To do only some tables, search or filter first. You choose whether tables still without a playfield video are then recorded in VPX (about half a minute each, in a small window). The button turns into **■ STOP** while it runs.
+
+Media packs download in your own browser: each table's download page opens, and you click **Download** there. Some sites make you wait on a timer first. The app keeps what it needs from each pack and deletes the rest.
+
 ## Playfield videos (VR lobby)
 
 The selected cabinet in the VR lobby can play a moving playfield. VPX tables only. From the table's **⋯** menu:

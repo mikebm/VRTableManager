@@ -163,6 +163,9 @@ public sealed partial class InstalledItem : ObservableObject
     /// <summary>A VPX table in its own folder: a lobby video is kept per folder, and loose .vpx files share one.</summary>
     public bool CanHaveLobbyVideo => Table.HasOwnFolder;
 
+    /// <summary>MORE → Get all VR lobby media: the playfield video, loading video, attract audio and wheel in one go.</summary>
+    public bool CanGetLobbyMedia => Table.HasOwnFolder;
+
     // ---- Disk use and per-table render scale ----
 
     [ObservableProperty, NotifyPropertyChangedFor(nameof(DiskInfo))]
