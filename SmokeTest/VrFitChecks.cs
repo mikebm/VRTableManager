@@ -159,65 +159,122 @@ static class VrFitChecks
             "fit: a table's own .ini width is left to VPX"
         );
 
-        // A table override of the position (VPX's "Save as Table Override") isn't kept as everyone's position.
+        // Every table's height is 0 at launch (an old shared height is dropped), and never kept.
+        (extra, notKept) = VrFit.LaunchSettings(new AppSettings(), mine, wpc);
+        Check(
+            extra.Contains(("PlayerVR", "TableZ", ""))
+                && notKept.Contains(("PlayerVR", "TableZ"))
+                && !notKept.Contains(("PlayerVR", "TableY"))
+                && !notKept.Contains(("PlayerVR", "TableX")),
+            "fit: where you stand is saved for every table; height is 0 for every table and never kept"
+        );
+
+        // A position a table keeps for itself (VPX's "Save as Table Override"), read when it closes.
         var jaws = Table(tables, "jaws", 0, 952);
+        Check(
+            !VrFit.OwnPositionKeys(jaws).Any(),
+            "fit: a table without its own position keeps nothing to itself"
+        );
+
+        // Saved during this play: the .ini only has it once the table closes.
         File.WriteAllText(
             Path.ChangeExtension(jaws, ".ini"),
             "[PlayerVR]\nTableZ = 6.0\nTableY = 12\nTableX = \n"
         );
-        (_, notKept) = VrFit.LaunchSettings(new AppSettings(), mine, jaws);
+        var ownKeys = VrFit.OwnPositionKeys(jaws).ToList();
         Check(
-            notKept.Contains(("PlayerVR", "TableZ"))
-                && notKept.Contains(("PlayerVR", "TableY"))
-                && !notKept.Contains(("PlayerVR", "TableX"))
-                && !notKept.Contains(("PlayerVR", "Orientation")),
-            "fit: a position a table saves for itself isn't kept for every table (only the keys it sets)"
-        );
-        (_, notKept) = VrFit.LaunchSettings(new AppSettings(), mine, wpc);
-        Check(
-            !notKept.Contains(("PlayerVR", "TableY"))
-                && !notKept.Contains(("PlayerVR", "TableX"))
-                && notKept.Contains(("PlayerVR", "TableZ")),
-            "fit: where you stand is saved for every table, height never is"
+            ownKeys.Contains(("PlayerVR", "TableZ"))
+                && ownKeys.Contains(("PlayerVR", "TableY"))
+                && !ownKeys.Contains(("PlayerVR", "TableX"))
+                && !ownKeys.Contains(("PlayerVR", "Orientation")),
+            "fit: a position saved for a table during play isn't kept for every table (only the keys it sets)"
         );
 
-        // Height moved in the headset: kept for that table only.
+        // Height moved in the headset: kept for that table only. Every table's height is "" (0), as at launch.
         var afm = Table(tables, "afm", 0, 1025);
-        Dictionary<(string, string), string> Z(string v) => new() { [("PlayerVR", "TableZ")] = v };
-        var log = VrFit.KeepTableHeight(afm, Z(""), Z("6.000000"));
+        Dictionary<(string, string), string> P(string z, string y = "0.000000") =>
+            new()
+            {
+                [("PlayerVR", "TableZ")] = z,
+                [("PlayerVR", "TableX")] = "0.000000",
+                [("PlayerVR", "TableY")] = y,
+                [("PlayerVR", "Orientation")] = "0.000000",
+            };
+        var before = P("", "10");
+        var log = VrFit.KeepTableHeight(afm, before, P("6.000000", "10.000000"));
         Check(
             VrFit.ReadTableHeight(afm) == 6 && log != null,
             "fit: raising a table in the headset saves that height for it alone"
         );
         Check(
-            VrFit.KeepTableHeight(afm, Z(""), Z("6.0")) == null && VrFit.ReadTableHeight(afm) == 6,
+            VrFit.KeepTableHeight(afm, before, P("6.0", "10")) == null
+                && VrFit.ReadTableHeight(afm) == 6,
             "fit: playing it again without moving keeps its height"
         );
-        VrFit.KeepTableHeight(afm, Z(""), Z("0.0"));
+        VrFit.KeepTableHeight(afm, before, P("0.000000", "23.4"));
         Check(
             VrFit.ReadTableHeight(afm) == 6,
-            "fit: recentering (VPX resets the height to 0) doesn't lose a table's height"
+            "fit: recentering (height to 0, and where you stand moves) keeps a table's height"
         );
-        // VPX starts a table with its own height there, so not moving it ends there too, whatever every table's is.
-        VrFit.KeepTableHeight(afm, Z("2"), Z("6.000000"));
-        Check(
-            VrFit.ReadTableHeight(afm) == 6,
-            "fit: a table's height stays while you don't move it, whatever every table's is"
-        );
-        VrFit.KeepTableHeight(afm, Z("2"), Z("2.5"));
+        VrFit.KeepTableHeight(afm, before, P("2.5", "10"));
         Check(VrFit.ReadTableHeight(afm) == 2.5, "fit: moving it again saves the new height");
-        VrFit.KeepTableHeight(afm, Z("2"), Z("2"));
+        VrFit.KeepTableHeight(afm, before, P("0.000000", "10.000000"));
         Check(
             VrFit.ReadTableHeight(afm) == null,
-            "fit: moving it back to every table's height clears its own"
+            "fit: lowering it back to 0 in the headset (nothing else moved) clears its own height"
         );
         VrFit.WriteTableHeight(afm, 4);
         VrFit.WriteTableHeight(afm, null);
         Check(VrFit.ReadTableHeight(afm) == null, "fit: a table's VR height can be cleared");
         Check(
-            VrFit.KeepTableHeight(wpc, Z(""), Z("")) == null && VrFit.ReadTableHeight(wpc) == null,
+            VrFit.KeepTableHeight(wpc, before, P("", "10")) == null
+                && VrFit.ReadTableHeight(wpc) == null,
             "fit: a table nobody moved gets no height of its own"
         );
+
+        // Saving back: a failed table write doesn't lose the rest, and a second caller waits for the first.
+        var layersRoot = Path.Combine(root, "vr fit", "layers");
+        Directory.CreateDirectory(layersRoot);
+        var s2 = new AppSettings
+        {
+            VpxDir = Path.Combine(layersRoot, "vpx"),
+            TablesDir = Path.Combine(layersRoot, "tables"),
+        };
+        Directory.CreateDirectory(s2.VpxDir);
+        // Not your own VPinballX.ini: an empty preferences folder.
+        var oldPrefs = Environment.GetEnvironmentVariable("VRTM_VPX_PREFS");
+        Environment.SetEnvironmentVariable("VRTM_VPX_PREFS", Path.Combine(layersRoot, "prefs"));
+        VpxSetup.EnsureVrIni(s2);
+        var play = VpxIniLayers.Build(
+            s2,
+            vr: true,
+            path: Path.Combine(layersRoot, "play.ini"),
+            notKept: [("PlayerVR", "TableZ")],
+            afterPlay: new VpxIniLayers.AfterPlay(
+                NotKept: () => [("PlayerVR", "Orientation")],
+                After: (_, _) => throw new IOException("locked")
+            )
+        );
+        IniFile.SetMany(
+            play.Path,
+            "PlayerVR",
+            [("TableY", "14.5"), ("TableZ", "6"), ("Orientation", "12")]
+        );
+        var kept = play.SaveBack();
+        var vrIni = IniFile.Read(VpxSetup.VrIniPath(s2));
+        Check(
+            kept == 1
+                && vrIni.GetValueOrDefault(("PlayerVR", "TableY")) == "14.5"
+                && vrIni.GetValueOrDefault(("PlayerVR", "TableZ"), "") == ""
+                && vrIni.GetValueOrDefault(("PlayerVR", "Orientation"), "") == ""
+                && play.TakeNotes().Any(n => n.Contains("locked")),
+            "fit: a table's own settings failing to save doesn't lose where you stand, and is logged"
+        );
+        Check(
+            play.SaveBack() == 0 && play.TakeNotes().Count == 0,
+            "fit: saving back runs once, and its notes are logged once"
+        );
+        Environment.SetEnvironmentVariable("VRTM_VPX_PREFS", oldPrefs);
         (extra, _) = VrFit.LaunchSettings(
             new AppSettings { VrTableSizing = VrFit.SizeSame },
             mine,

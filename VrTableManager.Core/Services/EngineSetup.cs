@@ -789,15 +789,13 @@ public static class Launcher
             vr,
             extra: extra,
             notKept: notKept,
-            // A height change in the headset is this table's own (VrFit.KeepTableHeight), not every table's.
+            // A position the table keeps for itself isn't everyone's, and a height change in the headset is this
+            // table's own (VrFit.OwnPositionKeys, KeepTableHeight). Both read the table's .ini when it closes.
             afterPlay: vr && tablePath.EndsWith(".vpx", StringComparison.OrdinalIgnoreCase)
-                ? (before, after) =>
-                {
-                    if (VrFit.KeepTableHeight(tablePath, before, after) is { } kept)
-                    {
-                        PlaySession.Log(kept);
-                    }
-                }
+                ? new VpxIniLayers.AfterPlay(
+                    NotKept: () => VrFit.OwnPositionKeys(tablePath),
+                    After: (before, after) => VrFit.KeepTableHeight(tablePath, before, after)
+                )
                 : null
         );
         if (

@@ -79,20 +79,32 @@ public static class VpxIniLayers
                 && !NotSettings.Contains(kv.Key.Section, StringComparer.OrdinalIgnoreCase)
             );
 
+    /// <summary>
+    /// What a table does when its play is saved back (<see cref="Build"/>). <see cref="NotKept"/> runs first and
+    /// names more keys never to keep as overrides (read when the table closes, so it sees what VPX saved for the
+    /// table during play); <see cref="After"/> runs once the overrides are saved, with the play file as VPX started
+    /// and left it. Each may throw without stopping the other or the overrides being saved; the error is logged.
+    /// </summary>
+    public sealed record AfterPlay(
+        Func<IEnumerable<(string Section, string Key)>>? NotKept = null,
+        Func<
+            Dictionary<(string Section, string Key), string>,
+            Dictionary<(string Section, string Key), string>,
+            string?
+        >? After = null
+    );
+
     /// <summary>Writes the layered settings for this mode to <paramref name="path"/> (the play file by default).</summary>
     /// <param name="extra">Settings for this launch only, on top of the overrides; not saved back unless VPX changes them.</param>
     /// <param name="notKept">Keys of <paramref name="extra"/> that are never saved back, even if VPX changes them (one table's own value).</param>
-    /// <param name="afterPlay">Runs when play is saved back, with the play file as VPX started and left it (a table's own settings).</param>
+    /// <param name="afterPlay">The table's own part of saving back (<see cref="AfterPlay"/>).</param>
     public static Play Build(
         AppSettings s,
         bool vr,
         string? path = null,
         IEnumerable<(string Section, string Key, string Value)>? extra = null,
         IEnumerable<(string Section, string Key)>? notKept = null,
-        Action<
-            Dictionary<(string Section, string Key), string>,
-            Dictionary<(string Section, string Key), string>
-        >? afterPlay = null
+        AfterPlay? afterPlay = null
     )
     {
         path ??= PlayPath(s, vr);
@@ -157,46 +169,97 @@ public static class VpxIniLayers
         string overridePath,
         Dictionary<(string Section, string Key), string> before,
         (string Section, string Key)[] notKept,
-        Action<
-            Dictionary<(string Section, string Key), string>,
-            Dictionary<(string Section, string Key), string>
-        >? afterPlay = null
+        AfterPlay? afterPlay = null
     )
     {
         public string Path { get; } = path;
-        int _saved;
+        readonly Lock _gate = new();
+        bool _saved;
+
+        readonly List<string> _notes = [];
+
+        /// <summary>What the table's own part of saving back did or couldn't do, for the play log; each note once.</summary>
+        public List<string> TakeNotes()
+        {
+            lock (_gate)
+            {
+                var notes = _notes.ToList();
+                _notes.Clear();
+                return notes;
+            }
+        }
 
         /// <summary>
-        /// Keeps what VPX changed during play as overrides for this mode. Runs once, however often it's called
-        /// (when the table closes, and again by a caller that waited for it). Returns how many settings were kept.
+        /// Keeps what VPX changed during play as overrides for this mode. Runs once, however often it's called (when
+        /// the table closes, and again by a caller that waited for it); a second caller waits until the first is done,
+        /// so what it reads next is saved. Returns how many settings were kept.
         /// </summary>
         public int SaveBack()
         {
-            if (Interlocked.Exchange(ref _saved, 1) == 1)
+            lock (_gate)
             {
-                return 0;
-            }
+                if (_saved)
+                {
+                    return 0;
+                }
 
-            var after = IniFile.Read(Path);
-            afterPlay?.Invoke(before, after);
-            var changed = Changes(before, after)
-                .Where(c =>
-                    !notKept.Any(k =>
-                        k.Section.Equals(c.Section, StringComparison.OrdinalIgnoreCase)
-                        && k.Key.Equals(c.Key, StringComparison.OrdinalIgnoreCase)
+                _saved = true;
+                var after = IniFile.Read(Path);
+                List<(string Section, string Key)> skip = [.. notKept];
+                if (afterPlay?.NotKept is { } more)
+                {
+                    try
+                    {
+                        skip.AddRange(more());
+                    }
+                    catch (Exception e)
+                    {
+                        _notes.Add("couldn't read the table's own settings: " + e.Message);
+                    }
+                }
+
+                var changed = Changes(before, after)
+                    .Where(c =>
+                        !skip.Any(k =>
+                            k.Section.Equals(c.Section, StringComparison.OrdinalIgnoreCase)
+                            && k.Key.Equals(c.Key, StringComparison.OrdinalIgnoreCase)
+                        )
+                    )
+                    .ToList();
+                foreach (
+                    var section in changed.GroupBy(
+                        c => c.Section,
+                        StringComparer.OrdinalIgnoreCase
                     )
                 )
-                .ToList();
-            foreach (
-                var section in changed.GroupBy(c => c.Section, StringComparer.OrdinalIgnoreCase)
-            )
-            {
-                IniFile.SetMany(overridePath, section.Key, section.Select(c => (c.Key, c.Value)));
-            }
+                {
+                    IniFile.SetMany(
+                        overridePath,
+                        section.Key,
+                        section.Select(c => (c.Key, c.Value))
+                    );
+                }
 
-            return changed.Count;
+                if (afterPlay?.After is { } then)
+                {
+                    try
+                    {
+                        if (then(before, after) is { } note)
+                        {
+                            _notes.Add(note);
+                        }
+                    }
+                    catch (Exception e)
+                    {
+                        _notes.Add("couldn't save the table's own settings: " + e.Message);
+                    }
+                }
+
+                return changed.Count;
+            }
         }
     }
+
 
     /// <summary>Settings that differ after play. "1" and "1.000000" are the same value, not a change.</summary>
     public static IEnumerable<(string Section, string Key, string Value)> Changes(
@@ -247,6 +310,10 @@ public static class VpxIniLayers
                 if (play.SaveBack() is > 0 and var n)
                 {
                     log($"kept {n} setting{(n == 1 ? "" : "s")} changed during play as overrides");
+                }
+                foreach (var note in play.TakeNotes())
+                {
+                    log(note);
                 }
             }
             catch (Exception e)
