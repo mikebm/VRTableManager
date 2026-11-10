@@ -85,6 +85,14 @@ VPX 10.8.1 positions every table in VR using these settings:
 
 Lining the table up with your VR controllers (left thumbstick click) takes the lockbar height and width from the controllers until that table closes.
 
+### One table sits differently
+
+Some tables sit higher or lower than others, because their authors set a different glass height. VPX puts the playfield that far below your lockbar. For example, Jaws's glass is 24 cm above its playfield and Attack from Mars's is 16 cm, so Jaws sits about 3" lower. To fix one table, raise or lower it while you play it (keypad 8 and 2, or VPX's VR menu: X on the left controller). When it closes, the manager saves that height (`[PlayerVR] TableZ`) in the table's own `<table>.ini`, so only that table keeps it. Its card in **My Tables** then says "sits 6 cm higher in VR", and its **⋯** menu can clear it. Moving it back to the height every table has clears it too. Recentering (keypad 5) sets VPX's height to 0, which the manager doesn't count as a move.
+
+Where you stand (forward, back, sideways, turned) is still kept for every table, since it's about your room, not the table. For every table's height, change the lockbar height in **FIT VR TO ME**.
+
+VPX's own **Save as Table Override** (on its VR Settings page) also works: the table keeps the whole position for itself. When any table closes, VPX saves the position it ended at for every table. For a table with its own position, the manager doesn't keep that, so the other tables stay where they were.
+
 The manager also writes `[PlayerVR] OverrideLockbarHeight` and `OverrideLockbarWidth`. VPX 10.8.1 ignores them, but newer VPX builds use them to decide whether your lockbar values apply. Future Pinball's BAM keeps its own VR position, which this doesn't change.
 
 ## Controls

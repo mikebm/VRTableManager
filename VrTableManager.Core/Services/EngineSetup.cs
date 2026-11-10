@@ -784,7 +784,22 @@ public static class Launcher
                 );
             }
         }
-        var play = VpxIniLayers.Build(s, vr, extra: extra, notKept: notKept);
+        var play = VpxIniLayers.Build(
+            s,
+            vr,
+            extra: extra,
+            notKept: notKept,
+            // A height change in the headset is this table's own (VrFit.KeepTableHeight), not every table's.
+            afterPlay: vr && tablePath.EndsWith(".vpx", StringComparison.OrdinalIgnoreCase)
+                ? (before, after) =>
+                {
+                    if (VrFit.KeepTableHeight(tablePath, before, after) is { } kept)
+                    {
+                        PlaySession.Log(kept);
+                    }
+                }
+                : null
+        );
         if (
             VrRoomSwitch.Prepare(tablePath, vr, s.AutoVrRoom, s.UsePupPlugin, cabinetBackglass) is
             { } changed

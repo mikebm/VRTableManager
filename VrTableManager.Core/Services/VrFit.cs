@@ -193,6 +193,8 @@ public static class VrFit
     /// an empty value for one at its own default (85 cm, -10 cm), which then means exactly that.</item>
     /// <item>in real-size mode, the table's own lockbar width, unless its .ini sets one (VPX uses that anyway). Never
     /// kept (NotKept), or the next table would get this one's width.</item>
+    /// <item>for a table whose .ini sets its own position (TableX/Y/Z, Orientation), those keys are never kept either:
+    /// VPX saves the position for every table when one closes, so this table's would move all the others.</item>
     /// </list>
     /// </summary>
     public static (
@@ -227,22 +229,94 @@ public static class VrFit
             }
         }
 
+        var isVpx = tablePath.EndsWith(".vpx", StringComparison.OrdinalIgnoreCase);
+        var table = isVpx ? IniFile.Read(VpxGraphics.TableIniPath(tablePath)) : [];
         if (
             s.VrTableSizing == SizeReal
-            && tablePath.EndsWith(".vpx", StringComparison.OrdinalIgnoreCase)
-            && string.IsNullOrWhiteSpace(
-                IniFile
-                    .Read(VpxGraphics.TableIniPath(tablePath))
-                    .GetValueOrDefault(("Player", "LockbarWidth"))
-            )
+            && isVpx
+            && string.IsNullOrWhiteSpace(table.GetValueOrDefault(("Player", "LockbarWidth")))
             && RealLockbarWidth(tablePath) is { } w
         )
         {
             extra.Add(("Player", "LockbarWidth", Num(w)));
             notKept.Add(("Player", "LockbarWidth"));
         }
+
+        // A table with its own position (VPX's VR menu, "Save as Table Override") starts there, but when it closes VPX
+        // saves the position it ended at as the global one. Kept, that would move every other table to this one's
+        // place, so a position this table sets for itself is never kept.
+        foreach (var key in TablePositionKeys)
+        {
+            if (!string.IsNullOrWhiteSpace(table.GetValueOrDefault(("PlayerVR", key))))
+            {
+                notKept.Add(("PlayerVR", key));
+            }
+        }
+        // Height (keypad 8 and 2) is about one table's glass height, never everyone's: it goes to the table's own
+        // .ini instead (KeepTableHeight). The lockbar height in FIT VR TO ME is the one for every table.
+        if (isVpx && !notKept.Contains(("PlayerVR", "TableZ")))
+        {
+            notKept.Add(("PlayerVR", "TableZ"));
+        }
         return (extra, notKept);
     }
+
+    /// <summary>
+    /// After a VR play of a .vpx: a height VPX ended at that differs from where the table started becomes that
+    /// table's own (TableZ in its .ini), and one back at the height every table has clears it. A height of exactly 0
+    /// from a table that had its own is VPX recentering (keypad 5 resets the height), not a move, so it's ignored;
+    /// a table's height can be cleared on its card. Returns what changed, for the play log, or null.
+    /// </summary>
+    public static string? KeepTableHeight(
+        string tablePath,
+        Dictionary<(string Section, string Key), string> before,
+        Dictionary<(string Section, string Key), string> after
+    )
+    {
+        var global = Height(before.GetValueOrDefault(("PlayerVR", "TableZ"))) ?? 0;
+        var own = ReadTableHeight(tablePath);
+        var start = own ?? global;
+        var end = Height(after.GetValueOrDefault(("PlayerVR", "TableZ"))) ?? 0;
+        if (Math.Abs(end - start) < 0.05 || (own != null && end == 0))
+        {
+            return null;
+        }
+
+        var name = Path.GetFileName(tablePath);
+        if (Math.Abs(end - global) < 0.05)
+        {
+            WriteTableHeight(tablePath, null);
+            return $"{name}: VR height back to every table's";
+        }
+        WriteTableHeight(tablePath, end);
+        return $"{name}: VR height {Num(end)} cm, for this table only";
+    }
+
+    /// <summary>The height this table keeps for itself in VR (its .ini's TableZ, cm), or null.</summary>
+    public static double? ReadTableHeight(string tablePath) =>
+        Height(
+            IniFile
+                .Read(VpxGraphics.TableIniPath(tablePath))
+                .GetValueOrDefault(("PlayerVR", "TableZ"))
+        );
+
+    /// <summary>Sets (or with null, clears) this table's own VR height.</summary>
+    public static void WriteTableHeight(string tablePath, double? cm)
+    {
+        var ini = VpxGraphics.TableIniPath(tablePath);
+        if (cm == null && !File.Exists(ini))
+        {
+            return;
+        }
+
+        IniFile.Set(ini, "PlayerVR", "TableZ", cm is { } v ? Num(v) : "");
+    }
+
+    static double? Height(string? v) =>
+        double.TryParse(v, NumberStyles.Float, CultureInfo.InvariantCulture, out var d) ? d : null;
+
+    /// <summary>The [PlayerVR] keys VPX saves for every table when one closes (VRDevice::SaveVRSettings).</summary>
+    static readonly string[] TablePositionKeys = ["TableX", "TableY", "TableZ", "Orientation"];
 
     /// <summary>A [Player] length VR play will use (cm): the VR settings' own, else <paramref name="fallback"/>.</summary>
     public static double Value(

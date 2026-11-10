@@ -82,12 +82,17 @@ public static class VpxIniLayers
     /// <summary>Writes the layered settings for this mode to <paramref name="path"/> (the play file by default).</summary>
     /// <param name="extra">Settings for this launch only, on top of the overrides; not saved back unless VPX changes them.</param>
     /// <param name="notKept">Keys of <paramref name="extra"/> that are never saved back, even if VPX changes them (one table's own value).</param>
+    /// <param name="afterPlay">Runs when play is saved back, with the play file as VPX started and left it (a table's own settings).</param>
     public static Play Build(
         AppSettings s,
         bool vr,
         string? path = null,
         IEnumerable<(string Section, string Key, string Value)>? extra = null,
-        IEnumerable<(string Section, string Key)>? notKept = null
+        IEnumerable<(string Section, string Key)>? notKept = null,
+        Action<
+            Dictionary<(string Section, string Key), string>,
+            Dictionary<(string Section, string Key), string>
+        >? afterPlay = null
     )
     {
         path ??= PlayPath(s, vr);
@@ -119,7 +124,13 @@ public static class VpxIniLayers
             IniFile.SetMany(path, section.Key, section.Select(e => (e.Key, e.Value)));
         }
 
-        return new Play(path, OverridePath(s, vr), IniFile.Read(path), [.. PerTableKeys, .. notKept ?? []]);
+        return new Play(
+            path,
+            OverridePath(s, vr),
+            IniFile.Read(path),
+            [.. PerTableKeys, .. notKept ?? []],
+            afterPlay
+        );
     }
 
     /// <summary>
@@ -145,7 +156,11 @@ public static class VpxIniLayers
         string path,
         string overridePath,
         Dictionary<(string Section, string Key), string> before,
-        (string Section, string Key)[] notKept
+        (string Section, string Key)[] notKept,
+        Action<
+            Dictionary<(string Section, string Key), string>,
+            Dictionary<(string Section, string Key), string>
+        >? afterPlay = null
     )
     {
         public string Path { get; } = path;
@@ -162,7 +177,9 @@ public static class VpxIniLayers
                 return 0;
             }
 
-            var changed = Changes(before, IniFile.Read(Path))
+            var after = IniFile.Read(Path);
+            afterPlay?.Invoke(before, after);
+            var changed = Changes(before, after)
                 .Where(c =>
                     !notKept.Any(k =>
                         k.Section.Equals(c.Section, StringComparison.OrdinalIgnoreCase)

@@ -69,7 +69,12 @@ static class VrFitChecks
             ini,
             "[Player]\nAAFactor = 1.2\nLockbarWidth = 80\n\n[PlayerVR]\nAskToTurnOn = 0\nOrientation = 21.3\nTableX = -0.04\nTableY = 19.8\nTableZ = 6\n"
         );
-        VrFit.Write(ini, new VrFit.Choice(91, 15, VrFit.SizeReal, 57.1), resetPosition: false, VrFit.SizeReal);
+        VrFit.Write(
+            ini,
+            new VrFit.Choice(91, 15, VrFit.SizeReal, 57.1),
+            resetPosition: false,
+            VrFit.SizeReal
+        );
         var v = IniFile.Read(ini);
         Check(
             v[("Player", "LockbarHeight")] == "91"
@@ -85,7 +90,12 @@ static class VrFitChecks
                 && v[("PlayerVR", "AskToTurnOn")] == "0",
             "fit: the height offset is cleared, where you stand is kept unless asked"
         );
-        VrFit.Write(ini, new VrFit.Choice(91, 15, VrFit.SizeSame, 64), resetPosition: true, VrFit.SizeReal);
+        VrFit.Write(
+            ini,
+            new VrFit.Choice(91, 15, VrFit.SizeSame, 64),
+            resetPosition: true,
+            VrFit.SizeReal
+        );
         v = IniFile.Read(ini);
         Check(
             v[("Player", "LockbarWidth")] == "64"
@@ -95,7 +105,12 @@ static class VrFitChecks
                 && v[("PlayerVR", "Orientation")] == "",
             "fit: one width for every table, and the table put straight ahead at the standing distance"
         );
-        VrFit.Write(ini, new VrFit.Choice(91, 15, VrFit.SizeVpx, 64), resetPosition: false, VrFit.SizeSame);
+        VrFit.Write(
+            ini,
+            new VrFit.Choice(91, 15, VrFit.SizeVpx, 64),
+            resetPosition: false,
+            VrFit.SizeSame
+        );
         v = IniFile.Read(ini);
         Check(
             v[("Player", "LockbarWidth")] == "" && v[("PlayerVR", "OverrideLockbarWidth")] == "",
@@ -123,7 +138,7 @@ static class VrFitChecks
                 && Get(extra, "ScreenPlayerY") == "10"
                 && Get(extra, "TableY") == "10"
                 && Get(extra, "LockbarWidth") == "57.1"
-                && notKept.SequenceEqual([("Player", "LockbarWidth")]),
+                && notKept.SequenceEqual([("Player", "LockbarWidth"), ("PlayerVR", "TableZ")]),
             "fit: without settings of your own, a launch gets a real cabinet's lockbar height, eyes and size"
         );
         Dictionary<(string, string), string> mine = new()
@@ -138,8 +153,71 @@ static class VrFitChecks
         );
         var own = Table(tables, "own", 0, 1100);
         File.WriteAllText(Path.ChangeExtension(own, ".ini"), "[Player]\nLockbarWidth = 70\n");
-        (extra, _) = VrFit.LaunchSettings(new AppSettings(), mine, own);
-        Check(Get(extra, "LockbarWidth") == null, "fit: a table's own .ini width is left to VPX");
+        (extra, notKept) = VrFit.LaunchSettings(new AppSettings(), mine, own);
+        Check(
+            Get(extra, "LockbarWidth") == null && notKept.SequenceEqual([("PlayerVR", "TableZ")]),
+            "fit: a table's own .ini width is left to VPX"
+        );
+
+        // A table override of the position (VPX's "Save as Table Override") isn't kept as everyone's position.
+        var jaws = Table(tables, "jaws", 0, 952);
+        File.WriteAllText(
+            Path.ChangeExtension(jaws, ".ini"),
+            "[PlayerVR]\nTableZ = 6.0\nTableY = 12\nTableX = \n"
+        );
+        (_, notKept) = VrFit.LaunchSettings(new AppSettings(), mine, jaws);
+        Check(
+            notKept.Contains(("PlayerVR", "TableZ"))
+                && notKept.Contains(("PlayerVR", "TableY"))
+                && !notKept.Contains(("PlayerVR", "TableX"))
+                && !notKept.Contains(("PlayerVR", "Orientation")),
+            "fit: a position a table saves for itself isn't kept for every table (only the keys it sets)"
+        );
+        (_, notKept) = VrFit.LaunchSettings(new AppSettings(), mine, wpc);
+        Check(
+            !notKept.Contains(("PlayerVR", "TableY"))
+                && !notKept.Contains(("PlayerVR", "TableX"))
+                && notKept.Contains(("PlayerVR", "TableZ")),
+            "fit: where you stand is saved for every table, height never is"
+        );
+
+        // Height moved in the headset: kept for that table only.
+        var afm = Table(tables, "afm", 0, 1025);
+        Dictionary<(string, string), string> Z(string v) => new() { [("PlayerVR", "TableZ")] = v };
+        var log = VrFit.KeepTableHeight(afm, Z(""), Z("6.000000"));
+        Check(
+            VrFit.ReadTableHeight(afm) == 6 && log != null,
+            "fit: raising a table in the headset saves that height for it alone"
+        );
+        Check(
+            VrFit.KeepTableHeight(afm, Z(""), Z("6.0")) == null && VrFit.ReadTableHeight(afm) == 6,
+            "fit: playing it again without moving keeps its height"
+        );
+        VrFit.KeepTableHeight(afm, Z(""), Z("0.0"));
+        Check(
+            VrFit.ReadTableHeight(afm) == 6,
+            "fit: recentering (VPX resets the height to 0) doesn't lose a table's height"
+        );
+        // VPX starts a table with its own height there, so not moving it ends there too, whatever every table's is.
+        VrFit.KeepTableHeight(afm, Z("2"), Z("6.000000"));
+        Check(
+            VrFit.ReadTableHeight(afm) == 6,
+            "fit: a table's height stays while you don't move it, whatever every table's is"
+        );
+        VrFit.KeepTableHeight(afm, Z("2"), Z("2.5"));
+        Check(VrFit.ReadTableHeight(afm) == 2.5, "fit: moving it again saves the new height");
+        VrFit.KeepTableHeight(afm, Z("2"), Z("2"));
+        Check(
+            VrFit.ReadTableHeight(afm) == null,
+            "fit: moving it back to every table's height clears its own"
+        );
+        VrFit.WriteTableHeight(afm, 4);
+        VrFit.WriteTableHeight(afm, null);
+        Check(VrFit.ReadTableHeight(afm) == null, "fit: a table's VR height can be cleared");
+        Check(
+            VrFit.KeepTableHeight(wpc, Z(""), Z("")) == null && VrFit.ReadTableHeight(wpc) == null,
+            "fit: a table nobody moved gets no height of its own"
+        );
         (extra, _) = VrFit.LaunchSettings(
             new AppSettings { VrTableSizing = VrFit.SizeSame },
             mine,
@@ -154,7 +232,12 @@ static class VrFitChecks
                 == "Lockbar 100 cm high, your eyes 5 cm over the glass, every table at its real size.",
             "fit: the summary says over the glass for a negative eye position"
         );
-        VrFit.Write(ini, new VrFit.Choice(91, 60, VrFit.SizeReal, 57.1), resetPosition: true, VrFit.SizeReal);
+        VrFit.Write(
+            ini,
+            new VrFit.Choice(91, 60, VrFit.SizeReal, 57.1),
+            resetPosition: true,
+            VrFit.SizeReal
+        );
         v = IniFile.Read(ini);
         Check(
             v[("Player", "ScreenPlayerY")] == "60" && v[("PlayerVR", "TableY")] == "60",

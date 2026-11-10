@@ -430,6 +430,9 @@
                                     </Style>
                                   </MenuItem.Styles>
                                 </MenuItem>
+                                <MenuItem Header="{Binding VrHeightMenuHeader}" IsVisible="{Binding HasVrHeight}"
+                                          ToolTip.Tip="You raised or lowered this table in the headset, and it keeps that height. Clear it to sit at the same height as every table."
+                                          Command="{Binding Owner.ClearTableVrHeightCommand}" CommandParameter="{Binding}" />
                                 <Separator IsVisible="{Binding IsVpx}" />
                                 <MenuItem Header="{Binding AttractAudioMenuHeader}" IsVisible="{Binding CanGetAttractAudio}"
                                           ToolTip.Tip="Download this table's sound file or media pack and keep only its audio, as music\attract (the pack's videos are deleted)"
@@ -1057,7 +1060,9 @@
                       <TextBlock Classes="body" TextWrapping="Wrap"
                                  Text="• Or press X on the left controller for VPX's menu: its VR settings move the table forward, back, up and down, turn it, and set the lockbar width (the table's size)." />
                       <TextBlock Classes="body" TextWrapping="Wrap"
-                                 Text="• At the keyboard: keypad 5 recenters, keypad 8 and 2 move the table up and down. The headset's own recenter (hold the Meta button) moves the room with you." />
+                                 Text="• At the keyboard: keypad 5 recenters, keypad 8 and 2 raise and lower the table. The headset's own recenter (hold the Meta button) moves the room with you." />
+                      <TextBlock Classes="body" TextWrapping="Wrap"
+                                 Text="• Where you stand is kept for every table. A height you set (keypad 8 and 2, or VPX's menu) is kept for that table only, because tables sit differently when their authors set different glass heights. The table's card shows it and can clear it. For every table's height, change the lockbar height above." />
                       <TextBlock Classes="mono" TextWrapping="Wrap" Text="{Binding VrViewText}" />
                       <WrapPanel>
                         <Button Classes="small" Content="RESET TABLE POSITION" Margin="0,0,8,0" Command="{Binding ResetVrViewCommand}"

@@ -177,6 +177,19 @@ public sealed partial class InstalledItem : ObservableObject
             ? $"Render scale: {s * 100:0}% (this table)"
             : "Render scale: same as all tables";
 
+    /// <summary>The height this table keeps for itself in VR (cm, its .ini's TableZ), or null (VrFit.KeepTableHeight).</summary>
+    [
+        ObservableProperty,
+        NotifyPropertyChangedFor(nameof(DiskInfo), nameof(HasVrHeight), nameof(VrHeightMenuHeader))
+    ]
+    public partial double? TableVrHeight { get; set; }
+    public bool HasVrHeight => TableVrHeight != null;
+    public string VrHeightMenuHeader =>
+        TableVrHeight is { } h ? $"Clear its VR height ({VrHeightText(h)})" : "";
+
+    static string VrHeightText(double cm) =>
+        cm >= 0 ? $"{Math.Round(cm):0} cm higher" : $"{Math.Round(-cm):0} cm lower";
+
     /// <summary>"GRAND CHAMPION  ABC  1,234,567,890" from the table's NVRAM, or "" (no ROM, never played, no map).</summary>
     [ObservableProperty, NotifyPropertyChangedFor(nameof(HasHighScore))]
     public partial string TopScore { get; set; } = "";
@@ -194,6 +207,7 @@ public sealed partial class InstalledItem : ObservableObject
             {
                 SizeBytes > 0 ? DiskUsage.Format(SizeBytes) : null,
                 TableScale is { } s ? $"renders at {s * 100:0}%" : null,
+                TableVrHeight is { } h ? $"sits {VrHeightText(h)} in VR" : null,
             }.Where(x => x != null)
         );
     public string Title => Table.Manifest.GameName;

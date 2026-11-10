@@ -1319,6 +1319,7 @@ public sealed partial class MainViewModel : ObservableObject, IAsyncDisposable
             if (item.Table.IsVpx)
             {
                 item.TableScale = VpxGraphics.ReadTableScale(item.Table.TablePath);
+                item.TableVrHeight = VrFit.ReadTableHeight(item.Table.TablePath);
                 item.HasAttractAudio = MediaPackAudio.Existing(item.Table.Folder) != null;
                 item.HasLobbyVideo =
                     item.CanHaveLobbyVideo && LobbyVideo.Existing(item.Table.Folder) != null;
@@ -1545,7 +1546,10 @@ public sealed partial class MainViewModel : ObservableObject, IAsyncDisposable
             _ui.ShowAfterPlay();
             if (item.Table.IsVpx)
             {
+                // Save what VPX changed now, not on the background wait, so the panel and card show it.
+                VpxIniLayers.Finish(proc);
                 LoadVrView(); // VPX saves the table position when it closes
+                item.TableVrHeight = VrFit.ReadTableHeight(item.Table.TablePath);
             }
 
             await ExplainVpxExitAsync(item, started);

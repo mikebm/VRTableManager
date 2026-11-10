@@ -642,6 +642,28 @@ public sealed partial class MainViewModel
         LoadVrView();
     }
 
+    // ---- Per-table VR height ---------------------------------------------------------------
+
+    [RelayCommand]
+    void ClearTableVrHeight(InstalledItem? item)
+    {
+        if (item == null)
+        {
+            return;
+        }
+
+        try
+        {
+            VrFit.WriteTableHeight(item.Table.TablePath, null);
+            item.TableVrHeight = null;
+            PlayStatus = $"{item.Title} sits at the same height as every table again in VR.";
+        }
+        catch (Exception e)
+        {
+            PlayStatus = "Couldn't save the table's settings: " + e.Message;
+        }
+    }
+
     // ---- Per-table render scale ------------------------------------------------------------
 
     [RelayCommand]
