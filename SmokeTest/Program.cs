@@ -2299,7 +2299,7 @@ foreach (var (ok, name) in LobbyRuntimeChecks.Run(root))
 }
 
 Check(
-    LobbyRunner.HasLobbyRuntime(LobbyRunner.DotnetRoots()),
+    LobbyDotnet.HasLobbyRuntime(LobbyDotnet.DotnetRoots()),
     "lobby runtime: found on this PC (the SDK that builds this test includes it)"
 );
 

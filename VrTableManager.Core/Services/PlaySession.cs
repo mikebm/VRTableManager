@@ -106,6 +106,8 @@ public static class PlaySession
     public static async Task<int> RunAsync(string[] args)
     {
         var req = Parse(args);
+        // Started by a lobby running on this app's own .NET: the table and its helpers shouldn't inherit that.
+        LobbyDotnet.ClearInherited();
         var code = 0;
         void Status(string state, string message = "")
         {
@@ -161,6 +163,11 @@ public static class PlaySession
                 foreach (var a in req.ReturnArgs)
                 {
                     psi.ArgumentList.Add(a);
+                }
+                // The lobby runs on this app's own .NET when it can (cleared from this process for the table).
+                if (LobbyDotnet.Prepare() is { } dotnetRoot)
+                {
+                    LobbyDotnet.Apply(psi, dotnetRoot);
                 }
 
                 try

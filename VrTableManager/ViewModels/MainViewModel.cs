@@ -1688,14 +1688,21 @@ public sealed partial class MainViewModel : ObservableObject, IAsyncDisposable
             PlayStatus = "Couldn't find the VrLobby project next to this app.";
             return;
         }
-        if (!LobbyRunner.HasLobbyRuntime(LobbyRunner.DotnetRoots()))
+        // The lobby runs on this app's own .NET; from source (or where that can't be set up), on the installed one.
+        var dotnetRoot = LobbyDotnet.Prepare(
+            AppContext.BaseDirectory,
+            LobbyDotnet.DefaultRoot,
+            Environment.Version.ToString(),
+            out var noBundled
+        );
+        if (dotnetRoot == null && !LobbyDotnet.HasLobbyRuntime(LobbyDotnet.DotnetRoots()))
         {
-            // Without it Godot opens a black, empty lobby with no error to go on.
+            // Without one Godot opens a black, empty lobby with no error to go on.
             var missing = new JobItem("VR lobby");
             Jobs.Insert(0, missing);
             missing.Finish(
-                "The VR lobby needs the .NET 10 Runtime (this app doesn't, so everything else works). Install \".NET Runtime 10\" for Windows x64 from "
-                    + LobbyRunner.RuntimeUrl
+                $"The VR lobby couldn't use this app's own .NET ({noBundled}) and no .NET 10 or newer is installed. Install \".NET Runtime 10\" for Windows x64 from "
+                    + LobbyDotnet.RuntimeUrl
                     + ", then start the lobby again.",
                 error: true
             );
@@ -1726,9 +1733,15 @@ public sealed partial class MainViewModel : ObservableObject, IAsyncDisposable
                 await LobbyRunner.BuildAsync(lobbyDir, job.Report, job.Cts.Token);
             }
 
-            await LobbyRunner.ImportIfNeededAsync(godot, lobbyDir, job.Report, job.Cts.Token);
+            await LobbyRunner.ImportIfNeededAsync(
+                godot,
+                lobbyDir,
+                dotnetRoot,
+                job.Report,
+                job.Cts.Token
+            );
 
-            using var lobby = LobbyRunner.Start(godot, lobbyDir);
+            using var lobby = LobbyRunner.Start(godot, lobbyDir, dotnetRoot);
             Jobs.Remove(job);
             PlayStatus =
                 "VR lobby running. Put your headset on; this window comes back when you quit the lobby.";

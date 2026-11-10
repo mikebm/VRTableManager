@@ -90,6 +90,18 @@ if (Test-Path $out) { Remove-Item $out -Recurse -Force }
 Run dotnet @('publish', (Join-Path $root 'VrTableManager\VrTableManager.csproj'), '-c', 'Release', '-r', 'win-x64',
     '--self-contained', 'true', "-p:Version=$Version", "-p:SourceRevisionId=$commit", '-o', $stage, '-nologo')
 
+Step "Adding the framework deps file (the lobby runs on the app's own .NET)"
+# A self-contained publish leaves out Microsoft.NETCore.App.deps.json, which .NET needs to accept the app's
+# folder as a shared framework (LobbyDotnet). Taken from the runtime pack this publish used, so it always matches.
+$appDeps = [IO.File]::ReadAllText((Join-Path $stage 'VrTableManager.deps.json')) | ConvertFrom-Json
+$packKey = $appDeps.libraries.PSObject.Properties.Name | Where-Object { $_ -like 'runtimepack.Microsoft.NETCore.App.Runtime.win-x64/*' } | Select-Object -First 1
+if (-not $packKey) { throw "No .NET runtime pack in the published VrTableManager.deps.json" }
+$packVersion = $packKey.Split('/')[1]
+$nugetRoot = (& dotnet nuget locals global-packages --list) -replace '^global-packages:\s*', ''
+$frameworkDeps = Join-Path $nugetRoot.Trim() "microsoft.netcore.app.runtime.win-x64\$packVersion\runtimes\win-x64\lib\net10.0\Microsoft.NETCore.App.deps.json"
+if (-not (Test-Path $frameworkDeps)) { throw "Not found: $frameworkDeps" }
+Copy-Item $frameworkDeps $stage
+
 Step "Building the VR lobby"
 $lobbySrc = Join-Path $root 'VrLobby'
 # Debug is where Godot looks for a project's assemblies when it runs the project (LobbyRunner does the same).
@@ -117,8 +129,7 @@ VR Table Manager $Version
 Run VrTableManager.exe. Keep the VrLobby folder next to it (the VR lobby runs from there).
 
 Needs: Windows 10/11 x64, a web browser (table sites are downloaded from in it), a Quest with Meta Quest Link
-or Virtual Desktop. The VR lobby also needs the .NET 10 Runtime (https://dotnet.microsoft.com/download/dotnet/10.0);
-the app itself does not.
+or Virtual Desktop. Nothing else to install: the app and the VR lobby both run on the .NET included here.
 
 Settings, favourites and play stats live in %APPDATA%\VrTableManager, so a new version can be
 unzipped over or beside an old one.
@@ -178,7 +189,7 @@ if ($NotesFile) { $Notes = [IO.File]::ReadAllText((Resolve-Path $NotesFile), [Te
 $requirements = @"
 **Download** ``$(Split-Path $zip -Leaf)``, unzip it anywhere and run ``VrTableManager.exe``.
 
-Needs Windows 10/11 x64. The VR lobby also needs the [.NET 10 Runtime](https://dotnet.microsoft.com/download/dotnet/10.0).
+Needs Windows 10/11 x64. No .NET install needed: the app and the VR lobby run on the .NET included in the zip.
 SHA-256: ``$hash``
 "@
 $body = @{
