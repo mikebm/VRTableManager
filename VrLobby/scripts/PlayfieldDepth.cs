@@ -12,7 +12,7 @@ namespace VrLobby;
 public static class PlayfieldDepth
 {
     /// <summary>Cached next to the lobby video's frames, so re-recording the video drops it too.</summary>
-    public const string FileName = "heights-v2.png"; // v2: recorded up to 22 cm
+    public const string FileName = "heights-v3.png"; // v2: recorded up to 22 cm; v3: VPX ramps too
 
     const string Code = """
         shader_type spatial;
@@ -24,8 +24,9 @@ public static class PlayfieldDepth
         uniform vec2 size = vec2(0.5, 1.1);  // the quad, metres
         uniform float depth = 0.1;           // from glass level (where rays start) down to the playfield, metres
         uniform float top = 0.13;            // height a full height-map value stands for, metres
-        uniform float side_shade = 0.22;     // the sides of things (linear: ≈ 50% on screen)
-        uniform float under_shade = 0.3;     // the playfield seen under a ramp or plastic (≈ 58% on screen)
+        uniform float side_shade = 0.05;     // the sides of things (linear: ≈ 25% on screen)
+        uniform float under_shade = 0.11;    // the playfield seen under a ramp or plastic (≈ 37% on screen)
+        uniform float top_shade = 1.1;       // the tops of things, lifted a little so clear ramps read as solid (≈ 104%)
         const int STEPS = 64;
 
         bool inside(vec2 uv) { return all(greaterThanEqual(uv, vec2(0.0))) && all(lessThanEqual(uv, vec2(1.0))); }
@@ -81,7 +82,7 @@ public static class PlayfieldDepth
             float sy = (textureLod(height_tex, uv + vec2(0.0, e.y), 0.0).r - textureLod(height_tex, uv - vec2(0.0, e.y), 0.0).r) * top / (2.0 * e.y * size.y);
             float upright = 1.0 / sqrt(1.0 + sx * sx + sy * sy);  // 1 = flat, 0 = vertical
             float side = max(smoothstep(0.002, 0.012, below), 1.0 - smoothstep(0.25, 0.6, upright));
-            return c * mix(1.0, side_shade, side);
+            return c * mix(top_shade, side_shade, side);
         }
 
         void fragment() {

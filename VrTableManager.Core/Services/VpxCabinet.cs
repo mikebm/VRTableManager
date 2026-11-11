@@ -116,6 +116,7 @@ public static class VpxCabinet
     public const float VpuToMetres = 1.0625f * 0.0254f / 50f;
 
     const int ItemSurface = 0,
+        ItemRamp = 12,
         ItemPrimitive = 19,
         ItemPartGroup = 24;
 
@@ -177,8 +178,8 @@ public static class VpxCabinet
     /// (<see cref="PlayfieldHeightMap.Undersides"/>), so ramps and plastics can be looked under. 0 = the playfield,
     /// 1 = <see cref="HeightMapTop"/>; rows run from the back of the playfield (top of the picture) to the front,
     /// like the lobby video. Built from the table's visible 3D primitives, which is how modern tables (VPW's baked
-    /// "BM_" meshes) draw their ramps, plastics and toys; older tables built from VPX walls and ramps come out
-    /// mostly flat. Null when the table can't be read. <paramref name="include"/> picks primitives by name (diagnostics).
+    /// "BM_" meshes) draw their ramps, plastics and toys, plus VPX's own ramps (wire ramps, flat ramps with walls);
+    /// VPX walls are left out, so older tables built from walls come out mostly flat. Null when the table can't be read. <paramref name="include"/> picks primitives by name (diagnostics).
     /// </summary>
     public static PlayfieldHeightMap? HeightMap(
         string vpxPath,
@@ -245,6 +246,28 @@ public static class VpxCabinet
                     );
                 }
                 meshes.Add((px, p.Indices));
+            }
+            // VPX's own ramps (JAWS's wire ramps): many tables draw some of theirs this way rather than as primitives.
+            foreach (var r in t.Ramps)
+            {
+                if (
+                    HeightMapSkip.IsMatch(r.Name)
+                    || SpaceOf(r.Group, t) != 0
+                    || (include != null && !include(r.Name))
+                )
+                {
+                    continue;
+                }
+
+                var tris = RampTriangles(
+                    r,
+                    v => new Vector2((v.X - t.Left) / pw * width, (v.Y - t.Top) / ph * height),
+                    width / pw
+                );
+                if (tris.Count > 0)
+                {
+                    meshes.Add((tris.ToArray(), Enumerable.Range(0, tris.Count).ToArray()));
+                }
             }
             // First the tops, then (knowing them) the undersides of whatever is on top.
             var top = new float[width * height];
@@ -443,6 +466,9 @@ public static class VpxCabinet
 
         /// <summary>The table's VPX walls with visible sides, as meshes (see <see cref="ReadWall"/>); only <see cref="PlayfieldWalls"/> looks at them.</summary>
         public List<Prim> Walls = [];
+
+        /// <summary>The table's visible VPX ramps (see <see cref="ReadRamp"/>); only <see cref="HeightMap"/> looks at them.</summary>
+        public List<Ramp> Ramps = [];
         public Dictionary<string, (int Space, string? Parent)> Groups = new(
             StringComparer.OrdinalIgnoreCase
         );
@@ -1606,7 +1632,7 @@ public static class VpxCabinet
                 if (
                     type != ItemPrimitive
                     && type != ItemPartGroup
-                    && !(type == ItemSurface && meshes)
+                    && !((type == ItemSurface || type == ItemRamp) && meshes)
                 )
                 {
                     continue;
@@ -1631,6 +1657,20 @@ public static class VpxCabinet
                     catch (Exception)
                     {
                         // skip this wall
+                    }
+                }
+                else if (type == ItemRamp)
+                {
+                    try
+                    {
+                        if (ReadRamp(buf) is { } ramp)
+                        {
+                            t.Ramps.Add(ramp);
+                        }
+                    }
+                    catch (Exception)
+                    {
+                        // skip this ramp
                     }
                 }
                 else
@@ -1986,6 +2026,261 @@ public static class VpxCabinet
             Verts = verts,
             Indices = idx,
         };
+    }
+
+    /// <summary>A VPX ramp: its drag points (x, y, a z offset, smoothed or not) and how it's built along them.</summary>
+    sealed class Ramp
+    {
+        public string Name = "";
+        public string? Group;
+        public float HeightBottom,
+            HeightTop = 50,
+            WidthBottom = 75,
+            WidthTop = 60,
+            LeftWall = 62,
+            RightWall = 62,
+            WireDiameter = 8,
+            WireDistanceX = 38,
+            WireDistanceY = 88;
+
+        /// <summary>0 flat, 1 four wires, 2 two wires, 3 three wires (upper left), 4 three wires (upper right), 5 one wire.</summary>
+        public int Type;
+        public List<(Vector3 P, bool Smooth)> Points = [];
+    }
+
+    /// <summary>A visible VPX ramp (Ramp::LoadData's tags), or null when it isn't drawn or has no length.</summary>
+    static Ramp? ReadRamp(byte[] buf)
+    {
+        var r = new Ramp();
+        var visible = true;
+        var inPoint = false;
+        var pos = 4;
+        while (pos + 8 <= buf.Length)
+        {
+            var len = BitConverter.ToInt32(buf, pos);
+            if (len < 4 || len > buf.Length - pos - 4)
+            {
+                break;
+            }
+
+            var tag = Encoding.ASCII.GetString(buf, pos + 4, 4);
+            var d = buf.AsSpan(pos + 8, len - 4).ToArray();
+            pos += 4 + len;
+            if (tag == "DPNT")
+            {
+                r.Points.Add((Vector3.Zero, false));
+                inPoint = true;
+                continue;
+            }
+            if (inPoint)
+            {
+                var (p, smooth) = r.Points[^1];
+                switch (tag)
+                {
+                    case "VCEN" when d.Length >= 8:
+                        p = new Vector3(
+                            BitConverter.ToSingle(d, 0),
+                            BitConverter.ToSingle(d, 4),
+                            p.Z
+                        );
+                        break;
+                    case "POSZ":
+                        p.Z = F(d);
+                        break;
+                    case "SMTH":
+                        smooth = I(d) != 0;
+                        break;
+                    case "ENDB":
+                        inPoint = false;
+                        break;
+                }
+                r.Points[^1] = (p, smooth);
+                continue;
+            }
+            switch (tag)
+            {
+                case "NAME":
+                    r.Name = WStr(d) ?? "";
+                    break;
+                case "GRUP":
+                    r.Group = string.IsNullOrWhiteSpace(Str(d)) ? null : Str(d);
+                    break;
+                case "HTBT":
+                    r.HeightBottom = F(d);
+                    break;
+                case "HTTP":
+                    r.HeightTop = F(d);
+                    break;
+                case "WDBT":
+                    r.WidthBottom = F(d);
+                    break;
+                case "WDTP":
+                    r.WidthTop = F(d);
+                    break;
+                case "TYPE":
+                    r.Type = I(d);
+                    break;
+                case "WVHL":
+                    r.LeftWall = F(d);
+                    break;
+                case "WVHR":
+                    r.RightWall = F(d);
+                    break;
+                case "RADB":
+                    r.WireDiameter = F(d);
+                    break;
+                case "RADX":
+                    r.WireDistanceX = F(d);
+                    break;
+                case "RADY":
+                    r.WireDistanceY = F(d);
+                    break;
+                case "RVIS":
+                    visible = I(d) != 0;
+                    break;
+            }
+        }
+        return visible && r.Points.Count >= 2 ? r : null;
+    }
+
+    /// <summary>
+    /// What of a ramp shows from above, as triangles in height-map pixels (x, y) and VPX units above the playfield
+    /// (z): a flat ramp's floor and the tops of its walls, a wire ramp's wires. Follows VPX's Ramp::GetRampVertex
+    /// closely enough for a height map: the drag points joined by Catmull-Rom curves where smoothed, height and width
+    /// running from bottom to top along the length, each point's z on top.
+    /// </summary>
+    static List<Vector3> RampTriangles(Ramp r, Func<Vector2, Vector2> toPx, float pxPerUnit)
+    {
+        var pts = r.Points;
+        var n = pts.Count;
+        var curve = new List<Vector3>();
+        for (var i = 0; i + 1 < n; i++)
+        {
+            var p1 = pts[i].P;
+            var p2 = pts[i + 1].P;
+            var p0 = i > 0 && pts[i].Smooth ? pts[i - 1].P : 2 * p1 - p2;
+            var p3 = i + 2 < n && pts[i + 1].Smooth ? pts[i + 2].P : 2 * p2 - p1;
+            const int Steps = 16;
+            for (var k = 0; k < Steps; k++)
+            {
+                var t = k / (float)Steps;
+                curve.Add(
+                    0.5f
+                        * (
+                            2 * p1
+                            + (p2 - p0) * t
+                            + (2 * p0 - 5 * p1 + 4 * p2 - p3) * t * t
+                            + (3 * p1 - p0 - 3 * p2 + p3) * t * t * t
+                        )
+                );
+            }
+        }
+        curve.Add(pts[^1].P);
+
+        var along = new float[curve.Count];
+        for (var i = 1; i < curve.Count; i++)
+        {
+            along[i] =
+                along[i - 1]
+                + Vector2.Distance(
+                    new(curve[i - 1].X, curve[i - 1].Y),
+                    new(curve[i].X, curve[i].Y)
+                );
+        }
+        var total = along[^1];
+        var tris = new List<Vector3>();
+        if (total < 1)
+        {
+            return tris;
+        }
+
+        // Centre, sideways direction (unit, table units), height and width at each curve point.
+        var c = new (Vector2 P, Vector2 Side, float H, float W)[curve.Count];
+        for (var i = 0; i < curve.Count; i++)
+        {
+            var a = curve[Math.Max(i - 1, 0)];
+            var b = curve[Math.Min(i + 1, curve.Count - 1)];
+            var dir = new Vector2(b.X - a.X, b.Y - a.Y);
+            var side =
+                dir.LengthSquared() > 1e-6f
+                    ? Vector2.Normalize(new Vector2(-dir.Y, dir.X))
+                    : Vector2.UnitX;
+            var f = along[i] / total;
+            c[i] = (
+                new Vector2(curve[i].X, curve[i].Y),
+                side,
+                curve[i].Z + r.HeightBottom + f * (r.HeightTop - r.HeightBottom),
+                r.WidthBottom + f * (r.WidthTop - r.WidthBottom)
+            );
+        }
+
+        // A strip along the curve, offset sideways and `half` wide each way of that line, at `rise` above the ramp.
+        // At least about a pixel wide, so a thin wire still marks the pixels it crosses.
+        var minHalf = 0.8f / pxPerUnit;
+        void Strip(Func<int, float> offset, float half, float rise)
+        {
+            half = MathF.Max(half, minHalf);
+            for (var i = 0; i + 1 < c.Length; i++)
+            {
+                Vector3 At(int j, float s)
+                {
+                    var xy = toPx(c[j].P + c[j].Side * (offset(j) + s));
+                    return new Vector3(xy.X, xy.Y, c[j].H + rise);
+                }
+                var (a0, a1, b0, b1) = (
+                    At(i, -half),
+                    At(i, half),
+                    At(i + 1, -half),
+                    At(i + 1, half)
+                );
+                tris.AddRange([a0, a1, b1, a0, b1, b0]);
+            }
+        }
+
+        if (r.Type == 0)
+        {
+            // The floor across the full width, then the tops of the walls along its edges.
+            for (var i = 0; i + 1 < c.Length; i++)
+            {
+                Vector3 At(int j, float s)
+                {
+                    var xy = toPx(c[j].P + c[j].Side * (s * c[j].W * 0.5f));
+                    return new Vector3(xy.X, xy.Y, c[j].H);
+                }
+                var (a0, a1, b0, b1) = (At(i, -1), At(i, 1), At(i + 1, -1), At(i + 1, 1));
+                tris.AddRange([a0, a1, b1, a0, b1, b0]);
+            }
+            var wall = 2f; // half the thickness of a wall, VPX units
+            if (r.LeftWall > 0.5f)
+            {
+                Strip(j => -c[j].W * 0.5f, wall, r.LeftWall);
+            }
+            if (r.RightWall > 0.5f)
+            {
+                Strip(j => c[j].W * 0.5f, wall, r.RightWall);
+            }
+            return tris;
+        }
+
+        var wire = r.WireDiameter * 0.5f;
+        if (r.Type == 5)
+        {
+            Strip(_ => 0, wire, r.WireDiameter);
+            return tris;
+        }
+        var dx = r.WireDistanceX * 0.5f;
+        Strip(_ => -dx, wire, r.WireDiameter);
+        Strip(_ => dx, wire, r.WireDiameter);
+        var up = r.WireDistanceY * 0.5f + r.WireDiameter;
+        if (r.Type is 1 or 3)
+        {
+            Strip(_ => -dx, wire, up);
+        }
+        if (r.Type is 1 or 4)
+        {
+            Strip(_ => dx, wire, up);
+        }
+        return tris;
     }
 
     static Prim ReadPrimitive(byte[] buf, bool meshes)
