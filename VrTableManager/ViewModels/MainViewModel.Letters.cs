@@ -86,7 +86,11 @@ public sealed partial class MainViewModel
         Installed.FirstOrDefault(i => !i.IsFavourite && LobbyNav.LetterOf(i.Title) == letter)
         ?? Installed.FirstOrDefault(i => LobbyNav.LetterOf(i.Title) == letter);
 
-    /// <summary>The card a letter jumps to in Get Tables, showing more pages until it's there.</summary>
+    /// <summary>
+    /// The card a letter jumps to in Get Tables. A page or two past what's shown, those pages are added; further (or
+    /// before the first card shown), the cards start at the letter instead, since laying out every card up to "W" of
+    /// a 2,000-table catalog freezes the window. SHOW EARLIER TABLES brings back the ones before.
+    /// </summary>
     public GameItem? FirstCatalogAt(string letter)
     {
         var index = _filtered.FindIndex(g => LobbyNav.LetterOf(g.Name) == letter);
@@ -95,11 +99,21 @@ public sealed partial class MainViewModel
             return null;
         }
 
-        while (Games.Count <= index && HasMore)
+        if (index < _pageStart || index >= _pageStart + Games.Count + 2 * PageSize)
         {
+            _pageStart = index;
+            Games.Clear();
             AddPage();
         }
+        else
+        {
+            while (_pageStart + Games.Count <= index && HasMore)
+            {
+                AddPage();
+            }
+        }
 
-        return index < Games.Count ? Games[index] : null;
+        var shown = index - _pageStart;
+        return shown >= 0 && shown < Games.Count ? Games[shown] : null;
     }
 }

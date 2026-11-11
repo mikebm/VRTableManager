@@ -809,6 +809,10 @@
           <ScrollViewer x:Name="CatalogScroll">
             <StackPanel Margin="28,8,12,28" Spacing="20">
 
+              <Button HorizontalAlignment="Center" Content="SHOW EARLIER TABLES" IsVisible="{Binding HasEarlier}"
+                      ToolTip.Tip="The A–Z rail started the list at a letter: bring back the tables before it"
+                      Command="{Binding ShowEarlierCommand}" />
+
               <!-- Card grid -->
               <ListBox x:Name="CatalogGrid" Classes="grid" ItemsSource="{Binding Games}" SelectedItem="{Binding SelectedGame}">
                 <ListBox.ItemTemplate>

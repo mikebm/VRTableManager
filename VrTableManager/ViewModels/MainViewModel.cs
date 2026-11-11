@@ -257,8 +257,18 @@ public sealed partial class MainViewModel : ObservableObject, IAsyncDisposable
     List<VpsGame> _filtered = [];
     HashSet<string> _installedIds = [];
 
+    /// <summary>
+    /// Where the shown cards start in the results: 0, unless the A–Z rail jumped far down the list
+    /// (<see cref="FirstCatalogAt"/>), which starts them at the letter rather than laying out every card before it.
+    /// </summary>
+    int _pageStart;
+
     [ObservableProperty]
     public partial bool HasMore { get; set; }
+
+    /// <summary>The shown cards start after the first result: SHOW EARLIER TABLES brings back the page before.</summary>
+    [ObservableProperty]
+    public partial bool HasEarlier { get; set; }
 
     [ObservableProperty]
     public partial string CountLabel { get; set; } = "";
@@ -303,6 +313,7 @@ public sealed partial class MainViewModel : ObservableObject, IAsyncDisposable
         UpdateCatalogLetters(CatalogSort == CatalogSorts[0] && search == null);
 
         var selectedId = SelectedGame?.Game.Id;
+        _pageStart = 0;
         Games.Clear();
         AddPage();
         SelectedGame = Games.FirstOrDefault(g => g.Game.Id == selectedId);
@@ -429,13 +440,37 @@ public sealed partial class MainViewModel : ObservableObject, IAsyncDisposable
 
     void AddPage()
     {
-        foreach (var g in _filtered.Skip(Games.Count).Take(PageSize))
+        foreach (var g in _filtered.Skip(_pageStart + Games.Count).Take(PageSize))
         {
             Games.Add(new GameItem(g, _installedIds.Contains(g.Id)));
         }
 
-        HasMore = Games.Count < _filtered.Count;
-        CountLabel = $"{Games.Count} shown · {_filtered.Count} of {_allGames.Count}";
+        UpdatePaging();
+    }
+
+    /// <summary>Brings back the page of results before the first one shown (after an A–Z jump).</summary>
+    [RelayCommand]
+    void ShowEarlier()
+    {
+        var n = Math.Min(PageSize, _pageStart);
+        _pageStart -= n;
+        for (var i = 0; i < n; i++)
+        {
+            var g = _filtered[_pageStart + i];
+            Games.Insert(i, new GameItem(g, _installedIds.Contains(g.Id)));
+        }
+
+        UpdatePaging();
+    }
+
+    void UpdatePaging()
+    {
+        HasMore = _pageStart + Games.Count < _filtered.Count;
+        HasEarlier = _pageStart > 0;
+        CountLabel =
+            _pageStart > 0
+                ? $"{_pageStart + 1}–{_pageStart + Games.Count} shown · {_filtered.Count} of {_allGames.Count}"
+                : $"{Games.Count} shown · {_filtered.Count} of {_allGames.Count}";
     }
 
     [RelayCommand]
