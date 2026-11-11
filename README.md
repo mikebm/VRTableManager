@@ -24,7 +24,7 @@ Built for Meta Quest (Link, Air Link or Virtual Desktop) with the official Visua
 - **Rules:** The Pinball Primer's rules and strategy guide and the table's instruction cards, one click from each table.
 - **Your own artwork:** replace a table's card picture, its VR lobby playfield and backglass, its lobby video and its attract music with your own. See [Custom artwork, videos and sounds](docs/custom-artwork.md).
 
-Add-ons are matched to the table's ROM, installed where VPX's plugins look, and tracked, so a new version shows up as an update.
+Add-ons are matched to the table's ROM, installed where VPX's plugins look, and tracked, so a new version shows up as an update. Already have a pack? Each add-on menu has **Add a … you already have**: pick its archive or its unpacked folder and it's copied in, with nothing downloaded and your copy left where it is.
 
 ### Stay up to date
 - **Updates for everything:** new table versions, new add-on versions, Visual Pinball X itself and UEVR, checked every time the app starts. **SHOW THEM** (or the **Updates** filter) lists the tables with a newer version; update one, or update all with one button.

@@ -64,9 +64,14 @@ public sealed partial class MainViewModel
         foreach (var slot in item.Addons)
         {
             slot.State = Addons.StateOf(item.Table, slot.Kind);
-            slot.CanAddFile = slot.Kind == AddonKind.Pup && Addons.CanHold(item.Table, Settings);
+            // Colours and sounds are the ROM's: only a table that runs one can take them.
+            var hasRom = item.Table.Manifest.RomNames.Count > 0;
+            slot.CanAddFile =
+                Addons.CanHold(item.Table, Settings) && (slot.Kind == AddonKind.Pup || hasRom);
             slot.ScriptWantsIt =
-                slot.Kind == AddonKind.Pup && !string.IsNullOrEmpty(item.Table.Manifest.PupName);
+                slot.Kind == AddonKind.Pup
+                    ? !string.IsNullOrEmpty(item.Table.Manifest.PupName)
+                    : hasRom;
         }
     }
 
@@ -190,19 +195,37 @@ public sealed partial class MainViewModel
             Environment.GetFolderPath(Environment.SpecialFolder.UserProfile),
             "Downloads"
         );
-        if (
-            await _ui.PickFileAsync(
-                $"Choose the {KindName(slot.Kind)} for {slot.Item.Title}",
-                "*.zip;*.7z;*.rar",
-                startFolder: downloads
-            )
-            is not { } path
-        )
+        // Packs people already have are often unpacked folders (an altsound\<rom> or pupvideos\<pack> from another
+        // setup), so a folder will do as well as the archive. Either way it's copied; the original stays.
+        var form = await _ui.ChoiceAsync(
+            $"Add a {KindName(slot.Kind)} you already have",
+            $"Pick the archive you downloaded, or a folder that already holds the {KindName(slot.Kind)}. "
+                + "It's copied into the table's folder; your file or folder stays where it is.",
+            ["ARCHIVE OR FILE", "FOLDER", "CANCEL"]
+        );
+        if (form is < 0 or 2)
         {
             return;
         }
 
-        var name = Path.GetFileName(path);
+        var path =
+            form == 1
+                ? await _ui.PickFolderAsync(
+                    $"Choose the folder with the {KindName(slot.Kind)} for {slot.Item.Title}"
+                )
+                : await _ui.PickFileAsync(
+                    $"Choose the {KindName(slot.Kind)} for {slot.Item.Title}",
+                    slot.Kind == AddonKind.AltColor
+                        ? "*.zip;*.7z;*.rar;*.crz;*.crom;*.vni;*.pal;*.pac"
+                        : "*.zip;*.7z;*.rar",
+                    startFolder: downloads
+                );
+        if (path == null)
+        {
+            return;
+        }
+
+        var name = Path.GetFileName(path.TrimEnd('\\', '/'));
         VpsFile entry = new() { Id = "file:" + name };
         if (slot.Choices.Count > 0)
         {

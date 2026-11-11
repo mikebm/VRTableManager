@@ -209,6 +209,24 @@ public static class Addons
         string[]? looseExts = null
     )
     {
+        if (Directory.Exists(downloaded))
+        {
+            // A pack you already have unpacked (an altsound or pupvideos folder from another setup): copied, the
+            // original left where it is.
+            CopyTree(
+                downloaded,
+                Path.Combine(staging, Path.GetFileName(downloaded.TrimEnd('\\', '/')))
+            );
+            if (found())
+            {
+                return;
+            }
+
+            throw new InvalidDataException(
+                $"No {what} in the folder {Path.GetFileName(downloaded.TrimEnd('\\', '/'))}."
+            );
+        }
+
         if (looseExts?.Contains(Path.GetExtension(downloaded).ToLowerInvariant()) == true)
         {
             Directory.CreateDirectory(staging);
@@ -239,6 +257,20 @@ public static class Addons
                 nested,
                 Path.Combine(staging, "_nested", Path.GetFileNameWithoutExtension(nested))
             );
+        }
+    }
+
+    static void CopyTree(string from, string to)
+    {
+        Directory.CreateDirectory(to);
+        foreach (var dir in Directory.EnumerateDirectories(from, "*", SearchOption.AllDirectories))
+        {
+            Directory.CreateDirectory(Path.Combine(to, Path.GetRelativePath(from, dir)));
+        }
+
+        foreach (var file in Directory.EnumerateFiles(from, "*", SearchOption.AllDirectories))
+        {
+            File.Copy(file, Path.Combine(to, Path.GetRelativePath(from, file)), overwrite: true);
         }
     }
 

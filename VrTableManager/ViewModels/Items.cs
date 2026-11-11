@@ -814,7 +814,10 @@ public sealed partial class AddonSlot : ObservableObject
     [ObservableProperty, NotifyPropertyChangedFor(nameof(HasUpdate), nameof(Status))]
     public partial AddonUpdate? Update { get; set; }
 
-    /// <summary>A pack you already downloaded can be installed from its file (PuP, for a table in its own folder).</summary>
+    /// <summary>
+    /// A pack you already have can be added from its archive or folder (a table in its own folder; colours and
+    /// sounds only for a table that runs a ROM).
+    /// </summary>
     [ObservableProperty, NotifyPropertyChangedFor(nameof(ShowButton))]
     public partial bool CanAddFile { get; set; }
 
@@ -828,8 +831,8 @@ public sealed partial class AddonSlot : ObservableObject
     public bool ShowButton => HasChoices || IsInstalled || (CanAddFile && ScriptWantsIt);
     public string FileMenuHeader =>
         IsInstalled
-            ? $"Replace with a {Name} file you downloaded…"
-            : $"Install a {Name} file you downloaded…";
+            ? $"Replace with a {Name} you already have…"
+            : $"Add a {Name} you already have…";
     public string MenuHeader =>
         IsInstalled ? $"Replace {Name}"
         : Choices.Count == 1 ? $"Get {Name}"

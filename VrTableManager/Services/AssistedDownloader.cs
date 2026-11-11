@@ -191,7 +191,17 @@ public sealed class AssistedDownloader
                 {
                     if (handoff.File is { } picked)
                     {
-                        got.Add(CopyIn(picked, destDir, job));
+                        // A file you already had before this download started is yours to keep: only one saved
+                        // for this job is cleaned up afterwards.
+                        got.Add(
+                            CopyIn(
+                                picked,
+                                destDir,
+                                job,
+                                mayDelete: File.GetCreationTimeUtc(picked) >= started
+                                    || File.GetLastWriteTimeUtc(picked) >= started
+                            )
+                        );
                         lastGot = DateTime.UtcNow;
                         if (!many)
                         {
@@ -581,12 +591,18 @@ public sealed class AssistedDownloader
         }
     }
 
-    /// <summary>Copies the file in. Your copy stays until the job has installed it (then it may be deleted: Setup → delete downloads after installing).</summary>
-    static string CopyIn(string file, string destDir, JobItem job)
+    /// <summary>
+    /// Copies the file in. Your copy stays until the job has installed it; then, if <paramref name="mayDelete"/> (it was
+    /// saved for this download), it may be deleted: Setup → delete downloads after installing.
+    /// </summary>
+    static string CopyIn(string file, string destDir, JobItem job, bool mayDelete = true)
     {
         var dest = Path.Combine(destDir, Path.GetFileName(file));
         File.Copy(file, dest, overwrite: true);
-        job.AddSourceFile(file);
+        if (mayDelete)
+        {
+            job.AddSourceFile(file);
+        }
         return dest;
     }
 }
