@@ -5,6 +5,7 @@ using Avalonia.Data.Converters;
 using Avalonia.Layout;
 using Avalonia.Media;
 using Avalonia.Platform.Storage;
+using Avalonia.Threading;
 using VrTableManager.ViewModels;
 
 namespace VrTableManager.Views;
@@ -77,20 +78,10 @@ public partial class MainWindow : Window, IUiHost
             }
         }
 
-        PositionChanged += (_, _) =>
-        {
-            if (WindowState == WindowState.Normal)
-            {
-                _normalPosition = Position;
-            }
-        };
-        Resized += (_, _) =>
-        {
-            if (WindowState == WindowState.Normal)
-            {
-                _normalSize = ClientSize;
-            }
-        };
+        // Windows reports the new size and spot before the new state: maximizing resizes while the state still says
+        // Normal. Look once the state has caught up, so a maximized or minimized spot is never taken as the normal one.
+        PositionChanged += (_, _) => Dispatcher.UIThread.Post(SampleNormal);
+        Resized += (_, _) => Dispatcher.UIThread.Post(SampleNormal);
         PropertyChanged += (_, e) =>
         {
             if (e.Property == WindowStateProperty && WindowState != WindowState.Minimized)
@@ -100,10 +91,20 @@ public partial class MainWindow : Window, IUiHost
         };
     }
 
+    void SampleNormal()
+    {
+        if (WindowState == WindowState.Normal)
+        {
+            _normalPosition = Position;
+            _normalSize = ClientSize;
+        }
+    }
+
     void SavePlacement()
     {
         try
         {
+            SampleNormal();
             _vm.Settings.MainWindow = new()
             {
                 X = _normalPosition.X,
