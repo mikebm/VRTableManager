@@ -27,7 +27,7 @@ Built for Meta Quest (Link, Air Link or Virtual Desktop) with the official Visua
 Add-ons are matched to the table's ROM, installed where VPX's plugins look, and tracked, so a new version shows up as an update.
 
 ### Stay up to date
-- **Updates for everything:** new table versions, new add-on versions, Visual Pinball X itself and UEVR, checked every time the app starts. Update one, or update all with one button.
+- **Updates for everything:** new table versions, new add-on versions, Visual Pinball X itself and UEVR, checked every time the app starts. **SHOW THEM** (or the **Updates** filter) lists the tables with a newer version; update one, or update all with one button.
 - **Nothing lost:** updating a table keeps its ROMs, high scores and settings.
 
 ### Play in VR

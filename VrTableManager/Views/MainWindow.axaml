@@ -210,8 +210,12 @@
               <Grid ColumnDefinitions="Auto,*,Auto">
                 <TextBlock FontFamily="{StaticResource Display}" FontWeight="Black" FontSize="18" Foreground="{StaticResource Insert}"
                            Text="{Binding TableUpdateCount}" VerticalAlignment="Center" Margin="0,0,10,0" />
-                <TextBlock Grid.Column="1" Classes="title" Text="{Binding TableUpdateText}" VerticalAlignment="Center" />
-                <Button Grid.Column="2" Classes="primary" Content="UPDATE ALL TABLES" Command="{Binding UpdateAllTablesCommand}" VerticalAlignment="Center" />
+                <TextBlock Grid.Column="1" Classes="title" Text="{Binding TableUpdateText}" VerticalAlignment="Center" TextTrimming="CharacterEllipsis" />
+                <StackPanel Grid.Column="2" Orientation="Horizontal" Spacing="8" VerticalAlignment="Center">
+                  <Button Content="SHOW THEM" Command="{Binding ShowTableUpdatesCommand}"
+                          ToolTip.Tip="Shows only the tables with a newer version (the Updates filter), so you can update them one by one" />
+                  <Button Classes="primary" Content="UPDATE ALL TABLES" Command="{Binding UpdateAllTablesCommand}" />
+                </StackPanel>
               </Grid>
             </Border>
 

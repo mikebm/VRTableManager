@@ -1374,7 +1374,13 @@ public sealed partial class MainViewModel : ObservableObject, IAsyncDisposable
     public partial string PlayStatus { get; set; } = "";
 
     public string[] InstalledFilters { get; } =
-    ["All", "Favourites", "Most played", "Recently played"];
+    ["All", "Favourites", UpdatesFilter, "Most played", "Recently played"];
+
+    /// <summary>The filter that shows only tables with a newer version (the updates banner's SHOW THEM).</summary>
+    const string UpdatesFilter = "Updates";
+
+    [RelayCommand]
+    void ShowTableUpdates() => InstalledFilter = UpdatesFilter;
 
     [ObservableProperty]
     public partial string InstalledFilter { get; set; } = "All";
@@ -1541,6 +1547,8 @@ public sealed partial class MainViewModel : ObservableObject, IAsyncDisposable
             "Favourites" when search != null => pool.Where(i => i.IsFavourite)
                 .OrderByDescending(i => scores[i]),
             "Favourites" => pool.Where(i => i.IsFavourite),
+            UpdatesFilter => pool.Where(i => i.HasUpdate)
+                .OrderBy(i => i.Title, StringComparer.OrdinalIgnoreCase),
             "Most played" => pool.Where(i => i.Plays > 0)
                 .OrderByDescending(i => i.Plays)
                 .ThenByDescending(i => i.LastPlayed),
@@ -1586,6 +1594,8 @@ public sealed partial class MainViewModel : ObservableObject, IAsyncDisposable
             {
                 "Favourites" =>
                     "No favourites yet. Tap the ☆ on a table (or press the right grip on it in the VR lobby).",
+                UpdatesFilter =>
+                    "No updates: every table from the catalog is on its newest version.",
                 _ =>
                     "Nothing played yet. Your plays from here and from the VR lobby show up in this list.",
             };
@@ -1806,7 +1816,8 @@ public sealed partial class MainViewModel : ObservableObject, IAsyncDisposable
     {
         if (IsBatchRecording && _batchUsesVpx)
         {
-            PlayStatus = "Tables are being recorded in VPX: wait for them, or press STOP, then launch the VR lobby.";
+            PlayStatus =
+                "Tables are being recorded in VPX: wait for them, or press STOP, then launch the VR lobby.";
             return;
         }
 
@@ -2747,9 +2758,16 @@ public sealed partial class MainViewModel : ObservableObject, IAsyncDisposable
             0 => tracked == 1
                 ? "Your table is up to date."
                 : $"All {tracked} tables are up to date.",
-            1 => "1 table has a newer version.",
+            // Name them when they fit on the line; SHOW THEM lists them all either way.
+            1 => $"{updates.Values.First().Table.Manifest.GameName} has a newer version.",
+            <= 3 =>
+                $"{string.Join(", ", updates.Values.Select(u => u.Table.Manifest.GameName).Order())} have newer versions.",
             _ => $"{updates.Count} tables have newer versions.",
         };
+        if (InstalledFilter == UpdatesFilter)
+        {
+            FilterInstalled(); // one was updated, or a new version came out
+        }
         ApplyAddons();
         ApplyRules();
         UpdateCount =
