@@ -238,7 +238,16 @@ public static partial class RomDetector
                 && !InLoaderRoutine(script, l.index)
             )
         || CodeLinesAt(script, "VPinMAME.Controller")
-            .Any(l => PinMameRegex().IsMatch(l.code) && !InLoaderRoutine(script, l.index));
+            .Any(l => PinMameRegex().IsMatch(l.code) && !InLoaderRoutine(script, l.index))
+        // The table's own code calling the loaders below LoadVPM: LoadController("VPM"), LoadVPinMAME.
+        || CodeLinesAt(script, "LoadController")
+            .Any(l => PinMameLoaderCallRegex().IsMatch(l.code) && !InLoaderRoutine(script, l.index))
+        || CodeLinesAt(script, "LoadVPinMAME")
+            .Any(l =>
+                PinMameLoaderCallRegex().IsMatch(l.code)
+                && !LoaderDefinitionRegex().IsMatch(l.code)
+                && !InLoaderRoutine(script, l.index)
+            );
 
     /// <summary>
     /// The position sits inside controller.vbs's own loader routines (LoadVPM, LoadVPMALT, LoadController, LoadVPinMAME),
@@ -359,8 +368,15 @@ public static partial class RomDetector
     private static partial Regex PinMameRegex();
 
     /// <summary><c>Sub LoadVPM(VPMver, VBSfile, VBSver)</c>: the routine itself, not a call to it.</summary>
-    [GeneratedRegex("\\b(?:Sub|Function)[ \\t]+LoadVPM", RegexOptions.IgnoreCase)]
+    [GeneratedRegex("\\b(?:Sub|Function)[ \\t]+LoadV(?:PM|PinMAME)", RegexOptions.IgnoreCase)]
     private static partial Regex LoaderDefinitionRegex();
+
+    /// <summary><c>LoadController("VPM")</c> (or VPMALT / UVP), or <c>LoadVPinMAME</c>: controller.vbs loaders that start PinMAME.</summary>
+    [GeneratedRegex(
+        "\\bLoadController[ \\t]*\\(?[ \\t]*\"(?:VPM|VPMALT|UVP)\"|\\bLoadVPinMAME\\b",
+        RegexOptions.IgnoreCase
+    )]
+    private static partial Regex PinMameLoaderCallRegex();
 
     /// <summary>A line starting <c>Sub name</c> / <c>Function name</c>; searched backwards for the last one.</summary>
     [GeneratedRegex(

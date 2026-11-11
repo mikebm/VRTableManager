@@ -2533,6 +2533,13 @@ Console.WriteLine($"   gamepad connected: {Gamepad.IsConnected()?.ToString() ?? 
             )
             && RomDetector.UsesPinMame(
                 "Sub Table1_Init\r\n\tSet Controller = CreateObject(\"VPinMAME.Controller\")\r\nEnd Sub\r\n"
+            )
+            // The table's own code calling the lower loaders directly does start PinMAME.
+            && RomDetector.UsesPinMame(
+                controllerVbs + "Sub Table1_Init\r\n\tLoadController(\"VPM\")\r\nEnd Sub\r\n"
+            )
+            && RomDetector.UsesPinMame(
+                controllerVbs + "Sub Table1_Init\r\n\tLoadVPinMAME\r\nEnd Sub\r\n"
             ),
         "controller.vbs pasted into an original doesn't make it need a ROM; calling LoadVPM does"
     );
