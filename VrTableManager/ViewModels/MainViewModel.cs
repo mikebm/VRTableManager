@@ -1380,7 +1380,16 @@ public sealed partial class MainViewModel : ObservableObject, IAsyncDisposable
     const string UpdatesFilter = "Updates";
 
     [RelayCommand]
-    void ShowTableUpdates() => InstalledFilter = UpdatesFilter;
+    void ShowTableUpdates()
+    {
+        // All of them, as the banner counts them: no search, engine or other filter narrowing the list.
+        _refillingChoices = true;
+        InstalledSearch = "";
+        InstalledEngine = InstalledEngines[0];
+        _refillingChoices = false;
+        ClearInstalledFilters();
+        InstalledFilter = UpdatesFilter;
+    }
 
     [ObservableProperty]
     public partial string InstalledFilter { get; set; } = "All";
@@ -1594,6 +1603,8 @@ public sealed partial class MainViewModel : ObservableObject, IAsyncDisposable
             {
                 "Favourites" =>
                     "No favourites yet. Tap the ☆ on a table (or press the right grip on it in the VR lobby).",
+                UpdatesFilter when _allGames.Count == 0 =>
+                    "Updates are checked once the catalog has loaded.",
                 UpdatesFilter =>
                     "No updates: every table from the catalog is on its newest version.",
                 _ =>
