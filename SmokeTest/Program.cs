@@ -1108,6 +1108,72 @@ void WithTable(string fragment, string what, Func<string, bool> ok)
         Console.WriteLine($"SKIP  {what} (no table matching \"{fragment}\" installed)");
     }
 }
+
+// A recorded lobby video's frame: a band of back-board art on top, then the playfield. PlayfieldMatch finds the band
+// against the playfield picture; a frame that's all playfield, or one the picture doesn't resemble, isn't cut.
+{
+    var rng = new Random(7);
+    int pw = PlayfieldMatch.PlayfieldW,
+        ph = PlayfieldMatch.PlayfieldH,
+        fw = PlayfieldMatch.FrameW,
+        fh = PlayfieldMatch.FrameH;
+    // A smooth made-up playfield (blobs, so it still looks alike when scaled), sampled at any size.
+    var blobs = Enumerable
+        .Range(0, 40)
+        .Select(_ =>
+            (
+                X: rng.NextDouble(),
+                Y: rng.NextDouble(),
+                R: 0.04 + rng.NextDouble() * 0.1,
+                V: rng.NextDouble()
+            )
+        )
+        .ToArray();
+    float Field(double x, double y) =>
+        (float)
+            Math.Clamp(
+                blobs.Sum(b =>
+                    Math.Exp(-((x - b.X) * (x - b.X) + (y - b.Y) * (y - b.Y)) / (b.R * b.R))
+                    * (b.V - 0.5)
+                ) + 0.5,
+                0,
+                1
+            );
+    float[] Picture(int w, int h, double band, Func<double, double, float> above)
+    {
+        var px = new float[w * h];
+        var bandRows = (int)(h * band);
+        for (var y = 0; y < h; y++)
+        {
+            for (var x = 0; x < w; x++)
+            {
+                double u = (x + 0.5) / w;
+                px[y * w + x] =
+                    y < bandRows
+                        ? above(u, (y + 0.5) / Math.Max(bandRows, 1))
+                        : Field(u, (y - bandRows + 0.5) / (h - bandRows));
+            }
+        }
+        return px;
+    }
+    var playfield = Picture(pw, ph, 0, (_, _) => 0);
+    var withBand = Picture(
+        fw,
+        fh,
+        0.09,
+        (u, v) => (float)(0.5 + 0.4 * Math.Sin(u * 40) * Math.Cos(v * 9))
+    );
+    var allPlayfield = Picture(fw, fh, 0, (_, _) => 0);
+    var unlike = Enumerable.Range(0, fw * fh).Select(_ => (float)rng.NextDouble()).ToArray();
+    var found = PlayfieldMatch.TopTrim(withBand, playfield);
+    Console.WriteLine($"   recorded-video band: found {found:P1} (made 9%)");
+    Check(
+        found is > 0.075 and < 0.105
+            && PlayfieldMatch.TopTrim(allPlayfield, playfield) == 0
+            && PlayfieldMatch.TopTrim(unlike, playfield) == 0,
+        "recorded lobby video: the back-art band above the playfield is found and cut; no band, or no likeness, cuts nothing"
+    );
+}
 WithTable(
     "AC-DC Premium VR Room",
     "AC/DC's cabinet: outer panels (one front panel, not its near copy), the side art its script sets, and the backboard (a VPX wall)",
@@ -1137,12 +1203,40 @@ foreach (var vpw in new[] { "Fish Tales (Williams 1992) VPW", "Metallica Premium
 }
 WithTable(
     "JAWS 50Th Anniversary",
-    "JAWS: its 25,000-vertex rail screws, found only by place, are left out",
+    "JAWS: rail screws left out; its back art (Wall15, 2.7 cm up in VPX) stretched down to the playfield, the black board behind it gone",
     vpx =>
-        PartsOf(vpx) is { } named
-        && named.Values.All(p => p.VertexCount <= 30_000)
-        && !named.Keys.Any(k => k.StartsWith("RightRailscrew", StringComparison.OrdinalIgnoreCase))
+        VpxCabinet.Load(vpx) is { } model
+        && model.Parts.All(p => p.VertexCount <= 30_000)
+        && !model.Parts.Any(p =>
+            p.Name.StartsWith("RightRailscrew", StringComparison.OrdinalIgnoreCase)
+        )
+        && !model.Parts.Any(p => p.Name == "Wall007")
+        && model.Parts.FirstOrDefault(p => p.Name == "Wall15") is { } art
+        && model.PlayfieldCorners is [var back, ..]
+        // The art's foot, where the back of the playfield is: within a few millimetres of the playfield.
+        && Enumerable.Range(0, art.VertexCount).Min(i => art.Positions[i * 3 + 1]) - back.Y
+            is > -0.01f
+                and < 0.006f
 );
+
+// The low wooden boards on the playfield's edges (about an inch tall): without them the playfield picture's dark
+// edge showed as a gap round the playfield.
+foreach (
+    var (table, boards) in new[]
+    {
+        ("JAWS 50Th Anniversary", new[] { "Wall98", "Wall64" }),
+        ("AC-DC Premium VR Room", new[] { "sidewood" }),
+        ("Medieval Madness (Williams 1997)_DarthVito", new[] { "Wall271", "Wall272" }),
+        ("Attack from Mars (Bally 1995) g5k", new[] { "WOODRAILS" }),
+    }
+)
+{
+    WithTable(
+        table,
+        $"{table}: the low side boards round the playfield ({string.Join(", ", boards)})",
+        vpx => PartsOf(vpx) is { } named && boards.All(named.ContainsKey)
+    );
+}
 WithTable(
     "Elvira and the Party Monsters",
     "Elvira: both back panels stay (\"background\" rises above \"Pincab_Backwall\", as in VPX)",

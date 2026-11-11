@@ -27,11 +27,16 @@ public sealed class FrameStream
     public bool Failed { get; private set; }
 
     /// <param name="before">Runs on the worker before the first frame (the playfield's height map).</param>
+    /// <param name="topTrim">
+    /// Run once on the first frame read: the share of its height to cut off the top of every frame (a recorded
+    /// video's band of back-board art above the playfield, <see cref="VrTableManager.Lobby.PlayfieldMatch"/>).
+    /// </param>
     public void Start(
         string folder,
         int frames,
         bool mipmaps,
-        Action<CancellationToken>? before = null
+        Action<CancellationToken>? before = null,
+        Func<Image, double>? topTrim = null
     )
     {
         Stop();
@@ -45,7 +50,10 @@ public sealed class FrameStream
                 () =>
                 {
                     before?.Invoke(ct);
-                    if (!Decode(run, folder, frames, mipmaps, ct) && !ct.IsCancellationRequested)
+                    if (
+                        !Decode(run, folder, frames, mipmaps, topTrim, ct)
+                        && !ct.IsCancellationRequested
+                    )
                     {
                         Failed = true;
                     }
@@ -56,9 +64,17 @@ public sealed class FrameStream
     }
 
     /// <summary>False when a whole loop gave nothing.</summary>
-    bool Decode(int run, string folder, int frames, bool mipmaps, CancellationToken ct)
+    bool Decode(
+        int run,
+        string folder,
+        int frames,
+        bool mipmaps,
+        Func<Image, double>? topTrim,
+        CancellationToken ct
+    )
     {
         var misses = 0;
+        double? trim = null; // worked out on the first frame read
         for (var i = 0; !ct.IsCancellationRequested; i = (i + 1) % frames)
         {
             while (_ready.Count >= Ahead && !ct.IsCancellationRequested)
@@ -79,6 +95,13 @@ public sealed class FrameStream
             }
 
             misses = 0;
+            trim ??= topTrim?.Invoke(img) ?? 0;
+            if (trim > 0)
+            {
+                var cut = (int)(img.GetHeight() * trim.Value);
+                img = img.GetRegion(new Rect2I(0, cut, img.GetWidth(), img.GetHeight() - cut));
+            }
+
             if (mipmaps)
             {
                 img.GenerateMipmaps();

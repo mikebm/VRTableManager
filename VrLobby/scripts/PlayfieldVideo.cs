@@ -1,5 +1,6 @@
 using Godot;
 using VrTableManager.Services;
+using VrTableManager.Lobby;
 
 namespace VrLobby;
 
@@ -46,8 +47,65 @@ public partial class PlayfieldVideo : Node
                 {
                     Volatile.Write(ref _heights, h);
                 }
-            }
+            },
+            // A recording made with VPX shows the back board's art above the playfield at the top of each frame:
+            // cut off here, while playing, so recordings made before this need nothing redone.
+            topTrim: info.Source == "recorded" && vpxPath != null
+                ? img => TopTrim(img, vpxPath)
+                : null
         );
+    }
+
+    /// <summary>The share of a recorded frame's height above the playfield (<see cref="PlayfieldMatch"/>), or 0.</summary>
+    static double TopTrim(Image frame, string vpxPath)
+    {
+        try
+        {
+            if (
+                VpxImages.ExtractPlayfield(vpxPath) is not { } bytes
+                || ArtLoader.Decode(bytes) is not { } pf
+            )
+            {
+                return 0;
+            }
+            var trim = PlayfieldMatch.TopTrim(
+                Grey(frame, PlayfieldMatch.FrameW, PlayfieldMatch.FrameH),
+                Grey(pf, PlayfieldMatch.PlayfieldW, PlayfieldMatch.PlayfieldH)
+            );
+            if (trim > 0)
+            {
+                GD.Print(
+                    $"Playfield video: top {trim:P0} of each frame is above the playfield, cut off"
+                );
+            }
+            return trim;
+        }
+        catch (Exception e)
+        {
+            GD.PushWarning($"Couldn't match the playfield video to its playfield: {e.Message}");
+            return 0;
+        }
+    }
+
+    static float[] Grey(Image source, int w, int h)
+    {
+        var img = (Image)source.Duplicate();
+        if (img.IsCompressed())
+        {
+            img.Decompress();
+        }
+        img.Convert(Image.Format.Rgb8);
+        img.Resize(w, h, Image.Interpolation.Bilinear);
+        var grey = new float[w * h];
+        for (var y = 0; y < h; y++)
+        {
+            for (var x = 0; x < w; x++)
+            {
+                var c = img.GetPixel(x, y);
+                grey[y * w + x] = c.R * 0.3f + c.G * 0.59f + c.B * 0.11f;
+            }
+        }
+        return grey;
     }
 
     /// <summary>

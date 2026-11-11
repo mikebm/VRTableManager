@@ -585,6 +585,14 @@ public static class VpxCabinet
                 var pos = new float[n * 3];
                 var nrm = new float[n * 3];
                 var uv = new float[n * 2];
+                // A back board whose art starts just above the playfield is stretched down to it (StretchesDown):
+                // its heights map bottom..top onto 0..top, the texture following.
+                (float Bottom, float Top)? stretch = null;
+                if (StretchesDown(p, t))
+                {
+                    var (sa, sb) = Bounds(p, t);
+                    stretch = (sa.Z, sb.Z);
+                }
                 for (var i = 0; i < n; i++)
                 {
                     var o = i * 8;
@@ -592,6 +600,10 @@ public static class VpxCabinet
                         new Vector3(p.Verts![o], p.Verts[o + 1], p.Verts[o + 2]),
                         m
                     );
+                    if (stretch is var (bottom, top))
+                    {
+                        v.Z = top - (top - v.Z) * top / (top - bottom);
+                    }
                     var nn = Vector3.TransformNormal(
                         new Vector3(p.Verts[o + 3], p.Verts[o + 4], p.Verts[o + 5]),
                         normalMatrix
@@ -906,13 +918,29 @@ public static class VpxCabinet
     /// <summary>
     /// Back boards drawn in the same place (run once the script's pictures are filled in, since it looks at which
     /// boards have one):
-    /// - an untextured board standing where a textured one stands, within a few centimetres of depth (JAWS's
-    ///   "Wall007" beside "Wall15", John Wick's "Wall21" beside "Wall079");
+    /// - an untextured board that a textured one covers: within about 2 cm of depth, and no wider, lower or taller
+    ///   (one that reaches past the art, like JAWS's black "Wall007" below "Wall15", fills a gap and stays);
     /// - a board shut wholly inside another one (inside its depth, and no wider or taller), which VPX hides and the
     ///   lobby would show flickering through it.
     /// A board that reaches out of the other one stays: Elvira's "background" stands just behind "Pincab_Backwall"
     /// but rises above it, and that top part shows in VPX too, so both are drawn.
     /// </summary>
+    /// <summary>
+    /// A textured back board whose art starts a little above the playfield (up to about 3 cm: JAWS's "Wall15" at
+    /// 2.7 cm), drawn stretched down to it. In VPX the toys at the back of the playfield stand in front of that strip;
+    /// the lobby's playfield is a flat picture that can't hide anything, so the strip showed as an inch-high band
+    /// (a black board behind, or a gap). Stretched, the art is about a sixth taller and meets the playfield.
+    /// </summary>
+    static bool StretchesDown(Prim p, TableData t)
+    {
+        if (string.IsNullOrWhiteSpace(p.Image) || !IsBackBoard(p, t))
+        {
+            return false;
+        }
+        var (a, _) = Bounds(p, t);
+        return a.Z is > 1 and <= 60;
+    }
+
     static List<Prim> DropHiddenBackBoards(List<Prim> picked, TableData t)
     {
         var boards = picked.Where(p => IsBackBoard(p, t)).ToList();
@@ -932,10 +960,19 @@ public static class VpxCabinet
                     {
                         return false;
                     }
+                    // Covered by it: as near (about 2 cm), and no wider, lower or taller (a board whose art is
+                    // stretched down to the playfield, StretchesDown, counts from there). JAWS's black "Wall007"
+                    // under "Wall15"'s art goes once that art reaches the playfield.
                     var (oa, ob) = Bounds(o, t);
-                    return MathF.Abs((a.Y + b.Y) / 2 - (oa.Y + ob.Y) / 2) < 40 // about 2 cm
-                        && a.X <= ob.X
-                        && b.X >= oa.X;
+                    if (StretchesDown(o, t))
+                    {
+                        oa.Z = 0;
+                    }
+                    return MathF.Abs((a.Y + b.Y) / 2 - (oa.Y + ob.Y) / 2) < 40
+                        && a.X >= oa.X - 5
+                        && b.X <= ob.X + 5
+                        && a.Z >= oa.Z - 5
+                        && b.Z <= ob.Z + 5;
                 })
             )
             {
@@ -1288,7 +1325,22 @@ public static class VpxCabinet
             // The board across the back of the playfield (AC/DC's "BackboardWallOff", a VPX wall): it doesn't run
             // along, it stands at the back edge.
             var atBack = b.Y <= t.Top + (t.Bottom - t.Top) * 0.05f && a.Y >= t.Top - 150;
-            if (!(along || atBack) || !bothSides || !railHigh)
+            // The low wooden boards on the playfield's edges, about an inch tall (JAWS's "Wall98", Medieval Madness's
+            // "Wall271"/"Wall272", AC/DC's "sidewood", AFM's "WOODRAILS"), often one per side: they cover the dark
+            // edge of the playfield picture, which otherwise showed as an inch-wide gap round the playfield.
+            var oneSide =
+                (a.X <= t.Left + 40 || b.X >= t.Right - 40)
+                && a.X >= t.Left - 150
+                && b.X <= t.Right + 150;
+            // Opaque only: the clear plastic guards along the sides (JAWS's "Primitive031"/"Primitive051", 70% opaque
+            // "Plastic Ramps" with no picture) stand there too, and drew as solid white bars.
+            var seeThrough =
+                p.Material != null
+                && t.Materials.TryGetValue(p.Material, out var pm)
+                && pm.OpacityActive
+                && pm.Opacity < 0.95f;
+            var lowBoard = along && oneSide && a.Z >= -60 && b.Z is >= 30 and < 120 && !seeThrough;
+            if (!lowBoard && (!(along || atBack) || !bothSides || !railHigh))
             {
                 continue;
             }
@@ -1333,9 +1385,16 @@ public static class VpxCabinet
                     if (cover[y * W + x] > 0)
                     {
                         covered++;
-                        if (x >= W / 10 && x < W - W / 10 && y >= H / 10 && y < H - H / 10)
+                        // Inside the outer 15% of the width (the plunger lane's divider, part of AC/DC's "sidewood",
+                        // stands at 88-91%) and 10% of the length.
+                        if (
+                            x >= W * 15 / 100
+                            && x < W - W * 15 / 100
+                            && y >= H / 10
+                            && y < H - H / 10
+                        )
                         {
-                            middle++; // inside the outer 10%
+                            middle++;
                         }
                     }
                 }
