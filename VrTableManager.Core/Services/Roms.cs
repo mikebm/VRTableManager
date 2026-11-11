@@ -28,7 +28,7 @@ public static partial class RomDetector
         }
 
         const int Chunk = 4 << 20,
-            Overlap = 256;
+            Overlap = 64 << 10; // enough for a loader routine split across chunks (see InLoaderRoutine)
         var buffer = new byte[Chunk + Overlap];
         var carry = 0;
         string? gameName = null,
