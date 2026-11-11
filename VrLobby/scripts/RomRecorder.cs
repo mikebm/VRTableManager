@@ -53,6 +53,10 @@ public partial class RomRecorder : Node
             CreateNoWindow = true,
         };
         psi.ArgumentList.Add("--headless");
+        // No OpenXR in the recording copy: headless alone still started it, and it reached for the headset's runtime
+        // (Oculus) while the lobby held it, a second VR app turning up in the middle of the lobby's session.
+        psi.ArgumentList.Add("--xr-mode");
+        psi.ArgumentList.Add("off");
         if (!OS.HasFeature("template"))
         {
             psi.ArgumentList.Add("--path");

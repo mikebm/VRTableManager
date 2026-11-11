@@ -19,7 +19,7 @@ namespace VrLobby;
 static class CabinetCache
 {
     /// <summary>Bump when what Parse makes changes (texture size, merging, materials, which parts), so old files are re-read.</summary>
-    const int Version = 7; // 4: cabinets tipped forward to stand on all four legs, and the playfield slope; 5: the table's own playfield walls; 6: alpha read by RealCabinetLoader.AlphaOf; 7: VR cabinet collections
+    const int Version = 11; // 11: near-identical copies dropped (AC/DC's second front panel), back boards judged with the script's pictures and only against a board in the same place; 10: walls' outward faces, parts found by place capped and de-duplicated, hidden back boards dropped, script images only from plain assignments; 9: playfield at the table's own slope (SLOP/SLPX), not the legs'; 8: parts read by place and from VPX walls (back boards), VPW baked back boards, camel-case "Cab" parts (AC/DC's TAFCabLeft/Right/Front), pictures the script sets; 4: cabinets tipped forward to stand on all four legs, and the playfield slope; 5: the table's own playfield walls; 6: alpha read by RealCabinetLoader.AlphaOf; 7: VR cabinet collections
 
     /// <summary>
     /// Layout of the bundled default cabinet. Separate from <see cref="Version"/> so a change in which parts a

@@ -55,7 +55,7 @@ public sealed class VpxCabinetModel
     /// <summary>How far the cabinet was tipped forward to stand level on its legs (radians; see VpxCabinet.LevelingTilt).</summary>
     public float Tilt { get; init; }
 
-    /// <summary>The playfield's slope, back end up (radians), once the cabinet stands level.</summary>
+    /// <summary>The playfield's slope, back end up (radians): the table's own slope, as VPX shows it (the legs' <see cref="Tilt"/> when the table names none).</summary>
     public float PlayfieldSlope =>
         PlayfieldCorners.Length == 4
             ? MathF.Atan2(
@@ -115,7 +115,8 @@ public static class VpxCabinet
     /// <summary>One VPX unit in metres: 50 units are 1 1/16 inch.</summary>
     public const float VpuToMetres = 1.0625f * 0.0254f / 50f;
 
-    const int ItemPrimitive = 19,
+    const int ItemSurface = 0,
+        ItemPrimitive = 19,
         ItemPartGroup = 24;
 
     // Names that cabinet builders use (PinCab template, VPW, g5k…), and room/lighting parts to leave out.
@@ -123,6 +124,11 @@ public static class VpxCabinet
         @"pincab|cabinet|^cab|cab$|_cab|cab_|backbox|backglass|lockdown|lockbar|side_?rail|siderail|^rails?$|_rails?\b|rails?_|leg|coin|grill|speaker|dmd|button|blade|bottom|metals?\b|metal_|fitting|apron|plunger|shooter|housing|bolt|feet|foot|leveler|trim",
         RegexOptions.IgnoreCase
     );
+
+    // "Cab" as its own word inside a camel-case name: AC/DC's outer panels are "TAFCabLeft", "TAFCabRight" and
+    // "TAFCabFront", which CabinetName (cab at a word edge) misses; without them the cabinet stood open, its inside
+    // showing through the sides. Case-sensitive, so "vocabulary" or "Cable" don't count.
+    static readonly Regex CamelCab = new(@"Cab(?=[A-Z0-9_]|$)");
     static readonly Regex RoomName = new(
         @"room|floor|wall|ceiling|poster|window|carpet|chair|shelf|clock|plant|sign|sky|tree|cloud|curtain|beam|lamp|light|neon|topper|stool|rug|desk|tv\b|screen|sofa|door(?!.*coin)(?<!coin.*)",
         RegexOptions.IgnoreCase
@@ -147,7 +153,7 @@ public static class VpxCabinet
         && !name.Contains("backglass", StringComparison.OrdinalIgnoreCase);
 
     public static bool LooksLikeCabinetPart(string name) =>
-        CabinetName.IsMatch(name)
+        (CabinetName.IsMatch(name) || CamelCab.IsMatch(name))
         && !RoomName.IsMatch(name)
         && !OffVariant.IsMatch(name)
         && !NotGeometry.IsMatch(name)
@@ -408,6 +414,9 @@ public static class VpxCabinet
             Group;
         public bool Visible = true,
             Use3DMesh;
+
+        /// <summary>Built from a VPX wall (<see cref="ReadWall"/>): its script's ".Image" is the wall's top, not these sides.</summary>
+        public bool IsWall;
         public float SelfLit;
         public int NumVerts,
             NumIndices,
@@ -425,8 +434,15 @@ public static class VpxCabinet
             Bottom;
         public float GlassBottom,
             GroundToLockbar = 91f / 100f / VpuToMetres;
+
+        /// <summary>The table's playfield slope range in degrees (GameData's SLOP and SLPX; difficulty picks between them). 0 when missing.</summary>
+        public float SlopeMin,
+            SlopeMax;
         public Dictionary<string, VpxMaterial> Materials = new(StringComparer.OrdinalIgnoreCase);
         public List<Prim> Prims = [];
+
+        /// <summary>The table's VPX walls with visible sides, as meshes (see <see cref="ReadWall"/>); only <see cref="PlayfieldWalls"/> looks at them.</summary>
+        public List<Prim> Walls = [];
         public Dictionary<string, (int Space, string? Parent)> Groups = new(
             StringComparer.OrdinalIgnoreCase
         );
@@ -503,6 +519,29 @@ public static class VpxCabinet
             .ToList();
     }
 
+    /// <summary>The table's VPX walls with visible sides (as <see cref="ReadWall"/> builds them), for diagnostics and tests.</summary>
+    public static List<VpxPrimitiveInfo> ListWalls(string vpxPath)
+    {
+        var t = Read(vpxPath, meshes: true);
+        return t
+            .Walls.Select(p =>
+            {
+                var (min, max) = Bounds(p, t);
+                return new VpxPrimitiveInfo(
+                    p.Name,
+                    p.Visible,
+                    p.Use3DMesh,
+                    p.NumVerts,
+                    p.Image,
+                    p.Material,
+                    p.Group,
+                    min,
+                    max
+                );
+            })
+            .ToList();
+    }
+
     /// <summary>
     /// The table's cabinet in lobby space, or null when the table has no VR cabinet (a desktop-only table),
     /// so the lobby can fall back to its generic cabinet. Never throws.
@@ -517,6 +556,24 @@ public static class VpxCabinet
             {
                 return null;
             }
+
+            // Pictures the script sets, before deciding which back boards are hidden (that looks at which have one).
+            if (picked.Any(p => !p.IsWall && string.IsNullOrWhiteSpace(p.Image)))
+            {
+                var fromScript = ScriptImages(vpxPath);
+                foreach (var p in picked)
+                {
+                    if (
+                        !p.IsWall
+                        && string.IsNullOrWhiteSpace(p.Image)
+                        && fromScript.TryGetValue(p.Name, out var img)
+                    )
+                    {
+                        p.Image = img;
+                    }
+                }
+            }
+            picked = DropHiddenBackBoards(picked, t);
 
             // Build every part in VPX space first (in metres, axes swapped), then anchor the whole cabinet.
             var parts = new List<(Prim P, float[] Pos, float[] Nrm, float[] Uv, int[] Idx)>();
@@ -622,9 +679,28 @@ public static class VpxCabinet
                 })
                 .ToList();
 
-            // Playfield rectangle at playfield height (z = 0 in playfield space), same mapping.
-            Vector3 Pf(float x, float y) =>
-                Level(new Vector3(x * VpuToMetres, 0, y * VpuToMetres)) + shift;
+            // Playfield rectangle at playfield height (z = 0 in playfield space), same mapping, except for its slope.
+            // VPX shows a VR table inclined by the table's own playfield slope (its SLOP..SLPX range, which the
+            // difficulty picks from), not by its legs: about two tables in three have legs drawn for only 3-4°, so a
+            // playfield tipped with its cabinet sloped half as much as in VPX and looked sunk at the back. The
+            // cabinet still stands on its legs; the playfield turns about its own centre to the table's slope.
+            var tableSlope = (t.SlopeMin + t.SlopeMax) / 2 * MathF.PI / 180;
+            var slope = tableSlope is > 1f * MathF.PI / 180 and < 15f * MathF.PI / 180
+                ? tableSlope
+                : tilt;
+            var pfCentre = new Vector3(
+                (t.Left + t.Right) / 2 * VpuToMetres,
+                0,
+                (t.Top + t.Bottom) / 2 * VpuToMetres
+            );
+            var (sinS, cosS) = MathF.SinCos(slope);
+            Vector3 Pf(float x, float y)
+            {
+                var v = new Vector3(x * VpuToMetres, 0, y * VpuToMetres) - pfCentre;
+                return Level(pfCentre)
+                    + new Vector3(v.X, v.Y * cosS - v.Z * sinS, v.Y * sinS + v.Z * cosS)
+                    + shift;
+            }
             return new VpxCabinetModel
             {
                 Parts = outParts,
@@ -780,9 +856,362 @@ public static class VpxCabinet
                 return !onPlayfield || StrongCabinetName.IsMatch(p.Name);
             })
             .ToList();
-        picked.AddRange(PlayfieldWalls(t).Where(w => !picked.Contains(w)));
-        return DropUnlitCopies(picked);
+        var have = new HashSet<Prim>(picked);
+        var byPlace = ByPlace(t, body, have, vrCab);
+        have.UnionWith(byPlace);
+        picked.AddRange(byPlace);
+        var walls = PlayfieldWalls(t).Where(w => !have.Contains(w)).ToList();
+        have.UnionWith(walls);
+        picked.AddRange(walls);
+        if (!picked.Any(p => IsBackBoard(p, t)) && BakedBackBoard(t, have) is { } baked)
+        {
+            picked.Add(baked);
+        }
+        return DropNearCopies(DropUnlitCopies(picked), t);
     }
+
+    /// <summary>
+    /// Near-identical copies of one part, however they were picked: the same mesh size, picture and material within
+    /// a few units of each other (AC/DC's "TAFCabFront" and "TAFCabFront1", about 2 units apart). VPX draws both and
+    /// one hides the other; drawn in the lobby they flicker through each other. The first is kept.
+    /// </summary>
+    static List<Prim> DropNearCopies(List<Prim> picked, TableData t)
+    {
+        var kept = new List<Prim>();
+        var keptBounds = new List<(Vector3 A, Vector3 B)>();
+        foreach (var p in picked)
+        {
+            var (a, b) = Bounds(p, t);
+            var copy = false;
+            for (var k = 0; k < kept.Count && !copy; k++)
+            {
+                var o = kept[k];
+                copy =
+                    o.NumVerts == p.NumVerts
+                    && o.NumIndices == p.NumIndices
+                    && string.Equals(o.Image, p.Image, StringComparison.OrdinalIgnoreCase)
+                    && string.Equals(o.Material, p.Material, StringComparison.OrdinalIgnoreCase)
+                    && Vector3.Distance(keptBounds[k].A, a) < 5
+                    && Vector3.Distance(keptBounds[k].B, b) < 5;
+            }
+            if (!copy)
+            {
+                kept.Add(p);
+                keptBounds.Add((a, b));
+            }
+        }
+        return kept;
+    }
+
+    /// <summary>
+    /// Back boards drawn in the same place (run once the script's pictures are filled in, since it looks at which
+    /// boards have one):
+    /// - an untextured board standing where a textured one stands, within a few centimetres of depth (JAWS's
+    ///   "Wall007" beside "Wall15", John Wick's "Wall21" beside "Wall079");
+    /// - a board shut wholly inside another one (inside its depth, and no wider or taller), which VPX hides and the
+    ///   lobby would show flickering through it.
+    /// A board that reaches out of the other one stays: Elvira's "background" stands just behind "Pincab_Backwall"
+    /// but rises above it, and that top part shows in VPX too, so both are drawn.
+    /// </summary>
+    static List<Prim> DropHiddenBackBoards(List<Prim> picked, TableData t)
+    {
+        var boards = picked.Where(p => IsBackBoard(p, t)).ToList();
+        if (boards.Count < 2)
+        {
+            return picked;
+        }
+        var drop = new HashSet<Prim>();
+        foreach (var p in boards)
+        {
+            var (a, b) = Bounds(p, t);
+            if (
+                string.IsNullOrWhiteSpace(p.Image)
+                && boards.Any(o =>
+                {
+                    if (o == p || string.IsNullOrWhiteSpace(o.Image))
+                    {
+                        return false;
+                    }
+                    var (oa, ob) = Bounds(o, t);
+                    return MathF.Abs((a.Y + b.Y) / 2 - (oa.Y + ob.Y) / 2) < 40 // about 2 cm
+                        && a.X <= ob.X
+                        && b.X >= oa.X;
+                })
+            )
+            {
+                drop.Add(p);
+                continue;
+            }
+            foreach (var o in boards)
+            {
+                if (o == p || drop.Contains(o))
+                {
+                    continue;
+                }
+                var (oa, ob) = Bounds(o, t);
+                // Strictly inside the other's depth, and no wider or taller than it.
+                if (
+                    a.Y > oa.Y + 0.5f
+                    && b.Y < ob.Y - 0.5f
+                    && a.X >= oa.X - 5
+                    && b.X <= ob.X + 5
+                    && a.Z >= oa.Z - 5
+                    && b.Z <= ob.Z + 5
+                )
+                {
+                    drop.Add(p);
+                    break;
+                }
+            }
+        }
+        return drop.Count == 0 ? picked : picked.Where(p => !drop.Contains(p)).ToList();
+    }
+
+    /// <summary>
+    /// Cabinet parts found by where they sit rather than by name: anything shown that lies within the cabinet body's
+    /// own outline (10 cm round it) and isn't on the playfield. Cabinet builders name parts every way ("TAFBoxSupport",
+    /// "Primitive71vr"), so a list of names keeps missing some, and the cabinet shows gaps. Names still leave things
+    /// out (room parts, glass, lightmaps, unlit copies). A part counts as playfield, and stays out, when most of it
+    /// lies over the playfield inside the rails, from 15 cm below the surface up: the lobby shows the playfield as
+    /// video, and VPW's baked playfield meshes reach past the rails. Only parts shown in the file or listed in the
+    /// table's VR cabinet collection count, so a table that hides its whole cabinet and shows it from the script gains
+    /// nothing here. Very detailed parts (over 10,000 vertices, JAWS's rail screws) are left out, and of copies in the
+    /// same place that a script swaps between (AFM's "VR_Key" and "VR_KeyShake"), only the first is kept.
+    /// </summary>
+    static List<Prim> ByPlace(TableData t, Prim body, HashSet<Prim> picked, HashSet<string> vrCab)
+    {
+        const int MaxVertices = 10_000;
+        var found = new List<Prim>();
+        var (bmin, bmax) = Bounds(body, t);
+        var margin = 0.1f / VpuToMetres;
+        bmin -= new Vector3(margin);
+        bmax += new Vector3(margin);
+        const float edge = 1f,
+            below = -300f;
+        foreach (var p in t.Prims)
+        {
+            if (
+                picked.Contains(p)
+                || !p.Use3DMesh
+                || p.Verts == null
+                || p.Indices == null
+                || p.NumVerts is 0 or > MaxVertices
+                || !(p.Visible || vrCab.Contains(p.Name))
+                || RoomName.IsMatch(p.Name)
+                || OffVariant.IsMatch(p.Name)
+                || NotGeometry.IsMatch(p.Name)
+                || IsPlayfieldGlass(p.Name)
+                || NotCabinetByPlace.IsMatch(p.Name)
+            )
+            {
+                continue;
+            }
+
+            var (a, b) = Bounds(p, t);
+            if (
+                a.X < bmin.X
+                || b.X > bmax.X
+                || a.Y < bmin.Y
+                || b.Y > bmax.Y
+                || a.Z < bmin.Z
+                || b.Z > bmax.Z
+            )
+            {
+                continue;
+            }
+
+            // On the playfield: within its rectangle (the rails' screws, gates and decals sit right on its edge), or
+            // mostly over it (meshes that reach past it).
+            if (a.X >= t.Left && b.X <= t.Right && a.Y >= t.Top && b.Y <= t.Bottom && a.Z > below)
+            {
+                continue;
+            }
+
+            var m = FullMatrix(p, t);
+            var over = 0;
+            for (var i = 0; i < p.NumVerts; i++)
+            {
+                var v = Vector3.Transform(
+                    new Vector3(p.Verts[i * 8], p.Verts[i * 8 + 1], p.Verts[i * 8 + 2]),
+                    m
+                );
+                if (
+                    v.X >= t.Left - edge
+                    && v.X <= t.Right + edge
+                    && v.Y >= t.Top - edge
+                    && v.Y <= t.Bottom + edge
+                    && v.Z > below
+                )
+                {
+                    over++;
+                }
+            }
+            if (over * 2 >= p.NumVerts)
+            {
+                continue;
+            }
+
+            // A copy of one already found or picked: the same mesh size in the same place, or a variant named after it
+            // in the same place ("VR_KeyShake" for "VR_Key"). Of a variant pair, the plain name stays.
+            bool Overlaps(Prim o)
+            {
+                var (oa, ob) = Bounds(o, t);
+                return a.X <= ob.X
+                    && b.X >= oa.X
+                    && a.Y <= ob.Y
+                    && b.Y >= oa.Y
+                    && a.Z <= ob.Z
+                    && b.Z >= oa.Z;
+            }
+            bool SameMesh(Prim o)
+            {
+                var (oa, ob) = Bounds(o, t);
+                return o.NumVerts == p.NumVerts
+                    && Vector3.Distance(oa, a) < 5
+                    && Vector3.Distance(ob, b) < 5;
+            }
+            static bool Extends(string longer, string shorter) =>
+                longer.Length > shorter.Length
+                && longer.StartsWith(shorter, StringComparison.OrdinalIgnoreCase);
+            if (
+                found
+                    .Concat(picked)
+                    .Any(o => SameMesh(o) || (Extends(p.Name, o.Name) && Overlaps(o)))
+            )
+            {
+                continue;
+            }
+            found.RemoveAll(o => Extends(o.Name, p.Name) && Overlaps(o));
+            found.Add(p);
+        }
+        return found;
+    }
+
+    /// <summary>A board across the back of the playfield: reaching both sides, standing at its back edge, about rail height.</summary>
+    static bool IsBackBoard(Prim p, TableData t)
+    {
+        var (a, b) = Bounds(p, t);
+        return a.X <= t.Left + 40
+            && b.X >= t.Right - 40
+            && b.Y <= t.Top + (t.Bottom - t.Top) * 0.05f
+            && a.Y >= t.Top - 150
+            && a.Z <= 100 // standing on the playfield, not up in the backbox (a backglass)
+            && b.Z >= 120;
+    }
+
+    /// <summary>
+    /// The back board out of a VPW baked mesh: VPW tables (Metallica, Fish Tales) bake the board behind the playfield
+    /// into "BM_Parts" with the whole playfield, so there's no part of its own to pick. Its triangles are the upright
+    /// ones across the playfield (facing either way along it) at its back edge, from just under its surface up; they
+    /// become a part of their own, in the baked mesh's texture. The flat playfield never qualifies, being level.
+    /// Null when no baked mesh has them across the playfield's width.
+    /// </summary>
+    static Prim? BakedBackBoard(TableData t, HashSet<Prim> picked)
+    {
+        Prim? best = null;
+        var bestCount = 0;
+        foreach (var p in t.Prims)
+        {
+            if (
+                !p.Name.StartsWith("BM_", StringComparison.OrdinalIgnoreCase)
+                || !p.Visible
+                || picked.Contains(p)
+                || p.Verts == null
+                || p.Indices == null
+                || p.NumVerts == 0
+                || SpaceOf(p.Group, t) != 0
+            )
+            {
+                continue;
+            }
+
+            var m = FullMatrix(p, t);
+            var w = new Vector3[p.NumVerts];
+            for (var i = 0; i < p.NumVerts; i++)
+            {
+                w[i] = Vector3.Transform(
+                    new Vector3(p.Verts[i * 8], p.Verts[i * 8 + 1], p.Verts[i * 8 + 2]),
+                    m
+                );
+            }
+
+            bool InBand(Vector3 v) =>
+                v.Y >= t.Top - 60
+                && v.Y <= t.Top + 40
+                && v.Z is >= -10 and <= 500
+                && v.X >= t.Left - 60
+                && v.X <= t.Right + 60;
+            var tris = new List<int>();
+            float minX = float.MaxValue,
+                maxX = float.MinValue;
+            for (var i = 0; i + 2 < p.Indices.Length; i += 3)
+            {
+                int i0 = p.Indices[i],
+                    i1 = p.Indices[i + 1],
+                    i2 = p.Indices[i + 2];
+                if (!InBand(w[i0]) || !InBand(w[i1]) || !InBand(w[i2]))
+                {
+                    continue;
+                }
+                var n = Vector3.Cross(w[i1] - w[i0], w[i2] - w[i0]);
+                if (n.LengthSquared() < 1e-6f)
+                {
+                    continue;
+                }
+                n = Vector3.Normalize(n);
+                if (MathF.Abs(n.Y) < 0.7f) // upright and facing along the playfield, not a side or a top
+                {
+                    continue;
+                }
+                tris.Add(i0);
+                tris.Add(i1);
+                tris.Add(i2);
+                minX = MathF.Min(minX, MathF.Min(w[i0].X, MathF.Min(w[i1].X, w[i2].X)));
+                maxX = MathF.Max(maxX, MathF.Max(w[i0].X, MathF.Max(w[i1].X, w[i2].X)));
+            }
+            if (tris.Count / 3 > bestCount && minX <= t.Left + 60 && maxX >= t.Right - 60)
+            {
+                // A part of its own: the chosen triangles and just the vertices they use, in the baked mesh's space.
+                var map = new Dictionary<int, int>();
+                var verts = new List<float>();
+                var idx = new int[tris.Count];
+                for (var k = 0; k < tris.Count; k++)
+                {
+                    if (!map.TryGetValue(tris[k], out var ni))
+                    {
+                        ni = map.Count;
+                        map[tris[k]] = ni;
+                        verts.AddRange(p.Verts.AsSpan(tris[k] * 8, 8));
+                    }
+                    idx[k] = ni;
+                }
+                var part = new Prim
+                {
+                    Name = p.Name + "_BackBoard",
+                    Pos = p.Pos,
+                    Size = p.Size,
+                    Image = p.Image,
+                    Material = p.Material,
+                    Group = p.Group,
+                    Visible = true,
+                    Use3DMesh = true,
+                    SelfLit = p.SelfLit,
+                    NumVerts = map.Count,
+                    NumIndices = idx.Length,
+                    Verts = verts.ToArray(),
+                    Indices = idx,
+                };
+                Array.Copy(p.RotTra, part.RotTra, p.RotTra.Length);
+                best = part;
+                bestCount = tris.Count / 3;
+            }
+        }
+        return best;
+    }
+
+    // Found near the cabinet but not part of it: flat shadow decals ("BallShadow11", "IceManRampShadow") and the
+    // flasher domes at the back of the playfield ("Flasherbase5", "Flasherlit17"), which the playfield video shows.
+    static readonly Regex NotCabinetByPlace = new(@"shadow|flasher", RegexOptions.IgnoreCase);
 
     // "BladeLeftDTOff", "ApronRailOff", "sidewoodtrimOff": an unlit copy, named by a trailing Off.
     static readonly Regex TrailingOff = new(@"^(?<stem>.+?)_?(Off|OFF|off)\d*$");
@@ -829,7 +1258,7 @@ public static class VpxCabinet
     {
         var walls = new List<Prim>();
         var seen = new HashSet<(int, int, int)>();
-        foreach (var p in t.Prims)
+        foreach (var p in t.Prims.Concat(t.Walls))
         {
             if (
                 !p.Visible
@@ -854,8 +1283,12 @@ public static class VpxCabinet
                 && b.X >= t.Right - 40
                 && a.X >= t.Left - 150
                 && b.X <= t.Right + 150;
-            var railHigh = a.Z >= -60 && b.Z is >= 120 and <= 500;
-            if (!along || !bothSides || !railHigh)
+            // From a little under the playfield (AFM's "REARWALL" starts 70 below it) to about rail height.
+            var railHigh = a.Z >= -100 && b.Z is >= 120 and <= 500;
+            // The board across the back of the playfield (AC/DC's "BackboardWallOff", a VPX wall): it doesn't run
+            // along, it stands at the back edge.
+            var atBack = b.Y <= t.Top + (t.Bottom - t.Top) * 0.05f && a.Y >= t.Top - 150;
+            if (!(along || atBack) || !bothSides || !railHigh)
             {
                 continue;
             }
@@ -920,6 +1353,82 @@ public static class VpxCabinet
         }
         return walls;
     }
+
+    /// <summary>
+    /// Pictures the table's script gives its parts ("LeftCab.image = "sidecabL""): some tables leave a part's image
+    /// empty in the file and set it when the table starts, often by an option. AC/DC's inner side panels drew plain
+    /// white without this. Only plain assignments of one quoted name count (not "Page" &amp; n), outside comments.
+    /// The first one in the script counts; that's often the default option's, but it can be a light-show frame or
+    /// another option's, so this is a best guess for parts that have no image of their own at all. Parts the script
+    /// can hide anywhere (".visible = 0") are left out, which also skips some parts hidden only on desktop.
+    /// </summary>
+    static Dictionary<string, string> ScriptImages(string vpxPath)
+    {
+        var found = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+        try
+        {
+            var script = WithoutComments(RomAudio.Script(vpxPath));
+            // A part the script can hide is optional dressing, its picture one option's look (24's DMD decal,
+            // hidden by default): those keep the file's image.
+            var hideable = ScriptHides
+                .Matches(script)
+                .Select(m => m.Groups[1].Value)
+                .ToHashSet(StringComparer.OrdinalIgnoreCase);
+            foreach (Match m in ScriptImage.Matches(script))
+            {
+                if (!hideable.Contains(m.Groups[1].Value))
+                {
+                    found.TryAdd(m.Groups[1].Value, m.Groups[2].Value);
+                }
+            }
+        }
+        catch
+        {
+            // no script to read: the parts keep the file's images
+        }
+        return found;
+    }
+
+    /// <summary>The script with its comments blanked: "'" outside a string to the end of the line, and Rem lines.</summary>
+    static string WithoutComments(string script)
+    {
+        var sb = new StringBuilder(script.Length);
+        foreach (var line in script.Split('\n'))
+        {
+            if (Regex.IsMatch(line, @"^\s*rem\b", RegexOptions.IgnoreCase))
+            {
+                sb.Append('\n');
+                continue;
+            }
+            var inString = false;
+            var end = line.Length;
+            for (var i = 0; i < line.Length; i++)
+            {
+                if (line[i] == '"')
+                {
+                    inString = !inString;
+                }
+                else if (line[i] == '\'' && !inString)
+                {
+                    end = i;
+                    break;
+                }
+            }
+            sb.Append(line, 0, end).Append('\n');
+        }
+        return sb.ToString();
+    }
+
+    // "Part.image = "name"" as a whole statement: the quoted name ends it (or a ":" starts the next one).
+    static readonly Regex ScriptImage = new(
+        @"\b([A-Za-z_]\w*)\.image\s*=\s*""([^""\r\n]+)""[ \t]*(?=:|\r?$)",
+        RegexOptions.IgnoreCase | RegexOptions.Multiline
+    );
+
+    static readonly Regex ScriptHides = new(
+        @"\b([A-Za-z_]\w*)\.(?:side)?visible\s*=\s*(0|false)\b", // a wall's sides hide with ".SideVisible"
+        RegexOptions.IgnoreCase
+    );
 
     static readonly Regex CabinetBody = new(
         @"cabinet|^cab$|cabmain|cab_?body",
@@ -1035,7 +1544,11 @@ public static class VpxCabinet
                 }
 
                 var type = BitConverter.ToInt32(head, 0);
-                if (type != ItemPrimitive && type != ItemPartGroup)
+                if (
+                    type != ItemPrimitive
+                    && type != ItemPartGroup
+                    && !(type == ItemSurface && meshes)
+                )
                 {
                     continue;
                 }
@@ -1045,6 +1558,21 @@ public static class VpxCabinet
                 if (type == ItemPrimitive)
                 {
                     t.Prims.Add(ReadPrimitive(buf, meshes));
+                }
+                else if (type == ItemSurface)
+                {
+                    // One damaged wall mustn't cost the table its cabinet: it's left out on its own.
+                    try
+                    {
+                        if (ReadWall(buf) is { } wall)
+                        {
+                            t.Walls.Add(wall);
+                        }
+                    }
+                    catch (Exception)
+                    {
+                        // skip this wall
+                    }
                 }
                 else
                 {
@@ -1109,6 +1637,12 @@ public static class VpxCabinet
                     break;
                 case "CLBH":
                     t.GroundToLockbar = F(d);
+                    break;
+                case "SLOP":
+                    t.SlopeMin = F(d);
+                    break;
+                case "SLPX":
+                    t.SlopeMax = F(d);
                     break;
                 case "MASI":
                     count = I(d);
@@ -1203,6 +1737,196 @@ public static class VpxCabinet
         {
             t.Groups[name] = (space, string.IsNullOrEmpty(parent) ? null : parent);
         }
+    }
+
+    /// <summary>
+    /// A VPX wall ("surface") as a mesh of its sides, or null when its sides aren't drawn or it can't be built. Walls
+    /// are flat outlines (drag points) raised from a bottom to a top height; some tables build the boards around
+    /// the playfield this way rather than as primitives (AC/DC's backboard behind the playfield). Only straight
+    /// walls: a smoothed (curved) one is left out rather than drawn with corners. No top: the boards this is for
+    /// are thin, and their tops are mostly hidden. Side texture coordinates follow VPX's
+    /// IHaveDragPoints::GetTextureCoords (fixed coordinates at points without auto-texture, by length between).
+    /// </summary>
+    static Prim? ReadWall(byte[] buf)
+    {
+        string? name = null,
+            image = null,
+            material = null;
+        float bottom = 0,
+            top = 50;
+        string? group = null;
+        var sideVisible = true;
+        var pts = new List<(Vector2 P, bool Smooth, bool Auto, float Tex)>();
+        var inPoint = false;
+        var pos = 4;
+        while (pos + 8 <= buf.Length)
+        {
+            var len = BitConverter.ToInt32(buf, pos);
+            if (len < 4 || len > buf.Length - pos - 4) // written so a huge length can't overflow
+            {
+                break;
+            }
+
+            var tag = Encoding.ASCII.GetString(buf, pos + 4, 4);
+            var d = buf.AsSpan(pos + 8, len - 4).ToArray();
+            pos += 4 + len;
+            if (tag == "DPNT")
+            {
+                pts.Add((Vector2.Zero, false, true, 0));
+                inPoint = true;
+                continue;
+            }
+            if (inPoint)
+            {
+                var (p, smooth, auto, tex) = pts[^1];
+                switch (tag)
+                {
+                    case "VCEN" when d.Length >= 8:
+                        p = new Vector2(BitConverter.ToSingle(d, 0), BitConverter.ToSingle(d, 4));
+                        break;
+                    case "SMTH":
+                        smooth = I(d) != 0;
+                        break;
+                    case "ATEX":
+                        auto = I(d) != 0;
+                        break;
+                    case "TEXC":
+                        tex = F(d);
+                        break;
+                    case "ENDB":
+                        inPoint = false;
+                        break;
+                }
+                pts[^1] = (p, smooth, auto, tex);
+                continue;
+            }
+            switch (tag)
+            {
+                case "NAME":
+                    name = WStr(d);
+                    break;
+                case "SIMG":
+                    image = Str(d);
+                    break;
+                case "SIMA":
+                    material = Str(d);
+                    break;
+                case "HTBT":
+                    bottom = F(d);
+                    break;
+                case "HTTP":
+                    top = F(d);
+                    break;
+                case "SVBL":
+                    sideVisible = I(d) != 0;
+                    break;
+                case "GRUP":
+                    group = Str(d);
+                    break;
+            }
+        }
+
+        var n = pts.Count;
+        if (name == null || !sideVisible || n < 2 || top - bottom < 1 || pts.Any(x => x.Smooth))
+        {
+            return null;
+        }
+
+        // Texture coordinates along the outline (GetTextureCoords): spans between points with a fixed coordinate,
+        // or 0..1 round the whole outline from the first point when none has one.
+        var tc = new float[n];
+        var fixedAt = Enumerable.Range(0, n).Where(i => !pts[i].Auto).ToList();
+        var none = fixedAt.Count == 0;
+        if (none)
+        {
+            fixedAt.Add(0);
+        }
+        for (var k = 0; k < fixedAt.Count; k++)
+        {
+            var start = fixedAt[k];
+            var end = fixedAt[(k + 1) % fixedAt.Count];
+            var t0 = none ? 0f : pts[start].Tex;
+            var t1 = none ? 1f : pts[end].Tex;
+            if (end <= start)
+            {
+                end += n;
+            }
+            var total = 0f;
+            for (var l = start; l < end; l++)
+            {
+                total += Vector2.Distance(pts[l % n].P, pts[(l + 1) % n].P);
+            }
+            var part = 0f;
+            for (var l = start; l < end; l++)
+            {
+                tc[l % n] = total > 0 ? t0 + (t1 - t0) * part / total : t0;
+                part += Vector2.Distance(pts[l % n].P, pts[(l + 1) % n].P);
+            }
+        }
+
+        // One quad per side (bottom, top, next top, next bottom, as VPX lays them out), facing out of the outline.
+        // Which side is out follows from which way the outline runs (the sign of its area), which holds for concave
+        // outlines too; walls running the other way get their triangles turned round to match, so Godot's front
+        // faces are the outside, as for primitives.
+        var area = 0f;
+        for (var i = 0; i < n; i++)
+        {
+            var (p0, p1) = (pts[i].P, pts[(i + 1) % n].P);
+            area += p0.X * p1.Y - p1.X * p0.Y;
+        }
+        var outward = area > 0 ? 1f : -1f;
+        int[] quad = area > 0 ? [0, 2, 1, 0, 3, 2] : [0, 1, 2, 0, 2, 3];
+        var verts = new float[n * 4 * 8];
+        var idx = new int[n * 6];
+        for (var i = 0; i < n; i++)
+        {
+            var a = pts[i].P;
+            var b = pts[(i + 1) % n].P;
+            var along = b - a;
+            var normal =
+                along.LengthSquared() > 1e-8f
+                    ? outward * Vector2.Normalize(new Vector2(along.Y, -along.X))
+                    : Vector2.UnitY;
+            var corners = new[]
+            {
+                (a, bottom, tc[i], 1f),
+                (a, top, tc[i], 0f),
+                (b, top, tc[(i + 1) % n], 0f),
+                (b, bottom, tc[(i + 1) % n], 1f),
+            };
+            for (var c = 0; c < 4; c++)
+            {
+                var (xy, z, u, v) = corners[c];
+                var o = (i * 4 + c) * 8;
+                verts[o] = xy.X;
+                verts[o + 1] = xy.Y;
+                verts[o + 2] = z;
+                verts[o + 3] = normal.X;
+                verts[o + 4] = normal.Y;
+                verts[o + 5] = 0;
+                verts[o + 6] = u;
+                verts[o + 7] = v;
+            }
+            for (var q = 0; q < 6; q++)
+            {
+                idx[i * 6 + q] = i * 4 + quad[q];
+            }
+        }
+
+        return new Prim
+        {
+            Name = name,
+            Image = string.IsNullOrWhiteSpace(image) ? null : image,
+            Material = string.IsNullOrWhiteSpace(material) ? null : material,
+            Group = string.IsNullOrWhiteSpace(group) ? null : group,
+            IsWall = true,
+            Visible = true,
+            Use3DMesh = true,
+            NumVerts = n * 4,
+            NumIndices = idx.Length,
+            Verts = verts,
+            Indices = idx,
+        };
     }
 
     static Prim ReadPrimitive(byte[] buf, bool meshes)
@@ -1348,7 +2072,7 @@ public static class VpxCabinet
         while (pos + 8 <= buf.Length)
         {
             var len = BitConverter.ToInt32(buf, pos);
-            if (len < 4 || pos + 4 + len > buf.Length)
+            if (len < 4 || len > buf.Length - pos - 4) // written so a huge length can't overflow
             {
                 yield break;
             }

@@ -1074,6 +1074,154 @@ Check(
         && VpxCabinet.Load(fakeVpx) == null,
     "no VR cabinet (or a damaged file): null, so the lobby keeps its generic cabinet"
 );
+Check(
+    VpxCabinet.LooksLikeCabinetPart("TAFCabLeft")
+        && VpxCabinet.LooksLikeCabinetPart("TAFCabFront1")
+        && VpxCabinet.LooksLikeCabinetPart("PinCab_Rails")
+        && !VpxCabinet.LooksLikeCabinetPart("ZipCable")
+        && !VpxCabinet.LooksLikeCabinetPart("Vocabulary")
+        && !VpxCabinet.LooksLikeCabinetPart("TAFcabLeft"), // camel-case means a capital C
+    "cabinet parts: camel-case Cab panels (AC/DC's TAFCabLeft) count, words that merely contain cab don't"
+);
+
+// Installed tables: what a table's cabinet is read to contain. These need the tables on this PC (under
+// C:\Users\mikem\VPinball\Tables); where one isn't installed the check says SKIP rather than vanishing.
+string? Installed(string fragment) =>
+    Directory.Exists(@"C:\Users\mikem\VPinball\Tables")
+        ? Directory
+            .GetFiles(@"C:\Users\mikem\VPinball\Tables", "*.vpx", SearchOption.AllDirectories)
+            .FirstOrDefault(f => f.Contains(fragment, StringComparison.OrdinalIgnoreCase))
+        : null;
+Dictionary<string, VpxCabinetPart>? PartsOf(string vpx) =>
+    VpxCabinet
+        .Load(vpx)
+        ?.Parts.GroupBy(p => p.Name, StringComparer.OrdinalIgnoreCase)
+        .ToDictionary(g => g.Key, g => g.First(), StringComparer.OrdinalIgnoreCase);
+void WithTable(string fragment, string what, Func<string, bool> ok)
+{
+    if (Installed(fragment) is { } vpx)
+    {
+        Check(ok(vpx), what);
+    }
+    else
+    {
+        Console.WriteLine($"SKIP  {what} (no table matching \"{fragment}\" installed)");
+    }
+}
+WithTable(
+    "AC-DC Premium VR Room",
+    "AC/DC's cabinet: outer panels (one front panel, not its near copy), the side art its script sets, and the backboard (a VPX wall)",
+    vpx =>
+        PartsOf(vpx) is { } named
+        && named.ContainsKey("TAFCabLeft")
+        && named.ContainsKey("TAFCabRight")
+        && named.ContainsKey("TAFCabFront") != named.ContainsKey("TAFCabFront1")
+        && named.GetValueOrDefault("LeftCab")?.Image == "sidecabL"
+        && named.GetValueOrDefault("BackboardWallOff") is { Image: "backboard", VertexCount: 16 }
+);
+WithTable(
+    "Attack from Mars (Bally 1995) g5k",
+    "AFM's cabinet: its rear wall, and one coin-door key (not both copies the script swaps between)",
+    vpx =>
+        PartsOf(vpx) is { } named
+        && named.ContainsKey("REARWALL")
+        && named.ContainsKey("VR_Key") != named.ContainsKey("VR_KeyShake")
+);
+foreach (var vpw in new[] { "Fish Tales (Williams 1992) VPW", "Metallica Premium Monsters" })
+{
+    WithTable(
+        vpw,
+        $"{vpw}: the back board, taken out of the VPW baked mesh",
+        vpx => PartsOf(vpx) is { } named && named.ContainsKey("BM_Parts_BackBoard")
+    );
+}
+WithTable(
+    "JAWS 50Th Anniversary",
+    "JAWS: its 25,000-vertex rail screws, found only by place, are left out",
+    vpx =>
+        PartsOf(vpx) is { } named
+        && named.Values.All(p => p.VertexCount <= 30_000)
+        && !named.Keys.Any(k => k.StartsWith("RightRailscrew", StringComparison.OrdinalIgnoreCase))
+);
+WithTable(
+    "Elvira and the Party Monsters",
+    "Elvira: both back panels stay (\"background\" rises above \"Pincab_Backwall\", as in VPX)",
+    vpx =>
+        PartsOf(vpx) is { } named
+        && named.ContainsKey("background")
+        && named.ContainsKey("Pincab_Backwall")
+);
+
+// Each part built from a VPX wall, on its own: nearly every triangle's front faces where its normals point (Godot's
+// front face is clockwise seen from in front, so (c−a)×(b−a) points out of it). A box wall is only 8 triangles,
+// too few to show in a count over a whole cabinet.
+foreach (
+    var wallTable in new[]
+    {
+        "AC-DC Premium VR Room",
+        "Monster Bash (Williams 1998)",
+        "Mass Effect 1.7.2",
+        "KISS (Stern 2015)",
+        "JAWS 50Th Anniversary",
+        "JohnWick",
+    }
+)
+{
+    WithTable(
+        wallTable,
+        $"{wallTable}: every wall part faces out (triangles along their normals)",
+        vpx =>
+        {
+            var wallNames = VpxCabinet
+                .ListWalls(vpx)
+                .Select(w => w.Name)
+                .ToHashSet(StringComparer.OrdinalIgnoreCase);
+            var walls =
+                VpxCabinet.Load(vpx)?.Parts.Where(p => wallNames.Contains(p.Name)).ToList() ?? [];
+            if (walls.Count == 0)
+            {
+                return false; // each of these tables has at least one wall in its cabinet
+            }
+            foreach (var part in walls)
+            {
+                int agree = 0,
+                    total = 0;
+                for (var k = 0; k + 2 < part.Indices.Length; k += 3)
+                {
+                    System.Numerics.Vector3 P(int i) =>
+                        new(
+                            part.Positions[i * 3],
+                            part.Positions[i * 3 + 1],
+                            part.Positions[i * 3 + 2]
+                        );
+                    System.Numerics.Vector3 N(int i) =>
+                        new(part.Normals[i * 3], part.Normals[i * 3 + 1], part.Normals[i * 3 + 2]);
+                    int a = part.Indices[k],
+                        b = part.Indices[k + 1],
+                        c = part.Indices[k + 2];
+                    var face = System.Numerics.Vector3.Cross(P(c) - P(a), P(b) - P(a));
+                    if (face.LengthSquared() < 1e-14f)
+                    {
+                        continue;
+                    }
+                    total++;
+                    if (System.Numerics.Vector3.Dot(face, N(a) + N(b) + N(c)) > 0)
+                    {
+                        agree++;
+                    }
+                }
+                if (total == 0 || agree < total * 0.95)
+                {
+                    Console.WriteLine(
+                        $"   {part.Name}: {agree} of {total} triangles face along their normals"
+                    );
+                    return false;
+                }
+            }
+            return true;
+        }
+    );
+}
 var realCab = Directory.Exists(@"C:\Users\mikem\VPinball\Tables")
     ? Directory
         .GetFiles(@"C:\Users\mikem\VPinball\Tables", "*.vpx", SearchOption.AllDirectories)
