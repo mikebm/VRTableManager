@@ -15,6 +15,9 @@ public enum CabinetAction
     Random,
     Leave,
     Favourite,
+
+    /// <summary>VPX's "Align VR view" (keypad 5): face the selected cabinet from where you stand.</summary>
+    Recenter,
 }
 
 /// <summary>
@@ -49,15 +52,52 @@ public sealed class CabinetButtons
     )[] Controls =
     [
         (CabinetAction.PrevTable, "LeftFlipper", "LFlipKey", "JoyLFlipKey", Sdl.LShift, Sdl.LShift),
-        (CabinetAction.NextTable, "RightFlipper", "RFlipKey", "JoyRFlipKey", Sdl.RShift, Sdl.RShift),
-        (CabinetAction.PrevLetter, "LeftMagna", "LMagnaSave", "JoyLMagnaSave", Sdl.LCtrl, Sdl.LCtrl),
-        (CabinetAction.NextLetter, "RightMagna", "RMagnaSave", "JoyRMagnaSave", Sdl.RCtrl, Sdl.RCtrl),
+        (
+            CabinetAction.NextTable,
+            "RightFlipper",
+            "RFlipKey",
+            "JoyRFlipKey",
+            Sdl.RShift,
+            Sdl.RShift
+        ),
+        (
+            CabinetAction.PrevLetter,
+            "LeftMagna",
+            "LMagnaSave",
+            "JoyLMagnaSave",
+            Sdl.LCtrl,
+            Sdl.LCtrl
+        ),
+        (
+            CabinetAction.NextLetter,
+            "RightMagna",
+            "RMagnaSave",
+            "JoyRMagnaSave",
+            Sdl.RCtrl,
+            Sdl.RCtrl
+        ),
         (CabinetAction.Play, "Start", "StartGameKey", "JoyStartGameKey", Sdl.Digit1, Sdl.Digit1),
         (CabinetAction.Play, "LaunchBall", "PlungerKey", "JoyPlungerKey", Sdl.Enter, Sdl.Enter),
         (CabinetAction.Play, "Lockbar", "LockbarKey", "JoyLockbarKey", Sdl.LAlt, Sdl.LAlt),
-        (CabinetAction.Filter, "Credit1", "AddCreditKey", "JoyAddCreditKey", Sdl.Digit5, Sdl.Digit5),
+        (
+            CabinetAction.Filter,
+            "Credit1",
+            "AddCreditKey",
+            "JoyAddCreditKey",
+            Sdl.Digit5,
+            Sdl.Digit5
+        ),
         (CabinetAction.Random, "ExtraBall", null, null, Sdl.B, Sdl.B),
         (CabinetAction.Leave, "ExitGame", "ExitGameKey", "JoyExitGameKey", Sdl.Escape, Sdl.Q),
+        // 10.8.1 calls it "Align VR view"; older VPX "TableRecenterKey". Keypad 5 in both.
+        (
+            CabinetAction.Recenter,
+            "VRCenter",
+            "TableRecenterKey",
+            "JoyTableRecenterKey",
+            Sdl.Keypad5,
+            Sdl.Keypad5
+        ),
     ];
 
     /// <summary>Godot's d-pad buttons, which a joystick's first hat arrives as.</summary>
@@ -229,12 +269,7 @@ public sealed class CabinetButtons
                             )
                     )
                 )
-        )
-        + (
-            _joyByDevice.Count > 0
-                ? "; joysticks: " + string.Join(", ", JoyDevices)
-                : ""
-        );
+        ) + (_joyByDevice.Count > 0 ? "; joysticks: " + string.Join(", ", JoyDevices) : "");
 
     /// <summary>SDL scancodes (what VPX 10.8.1 stores for keys), and the DirectInput ones older VPX used.</summary>
     public static class Sdl
@@ -250,6 +285,7 @@ public sealed class CabinetButtons
         public const int LAlt = 226;
         public const int RCtrl = 228;
         public const int RShift = 229;
+        public const int Keypad5 = 93;
 
         /// <summary>True for A–Z and 0–9, the keys the desktop lobby uses to jump to a letter.</summary>
         public static bool IsLetterOrDigit(int sdl) => sdl is >= 4 and <= 39;

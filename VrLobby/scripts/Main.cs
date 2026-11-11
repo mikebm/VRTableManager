@@ -447,11 +447,8 @@ public partial class Main : Node3D
                 Leave(
                     "the headset ended the VR session (Quest Link disconnected, or the app was closed from the Quest menu)"
                 );
-            // Holding the Quest's Oculus button recenters. keep_height = true leaves the floor where the
-            // headset put it (project.godot asks for the Local Floor reference space), and the user's
-            // height offset lives on the rig node, so recentering can't wipe it.
-            xr.PoseRecentered += () =>
-                XRServer.CenterOnHmd(XRServer.RotationMode.ResetButKeepTilt, true);
+            // Holding the Quest's Oculus button recenters, and so does VPX's own recenter control (OnCabinet).
+            xr.PoseRecentered += Recenter;
 
             var origin = new XROrigin3D();
             AddChild(origin);
@@ -497,6 +494,22 @@ public partial class Main : Node3D
             _rig.AddChild(cam);
             AttachHeightLabel(cam);
         }
+    }
+
+    /// <summary>
+    /// Puts you where the lobby expects you, facing the selected cabinet, from wherever you stand and look now.
+    /// keep_height = true leaves the floor where the headset put it (project.godot asks for the Local Floor
+    /// reference space), and the user's height offset lives on the rig node, so recentering can't wipe it.
+    /// </summary>
+    void Recenter()
+    {
+        if (!_vr)
+        {
+            return;
+        }
+
+        XRServer.CenterOnHmd(XRServer.RotationMode.ResetButKeepTilt, true);
+        Trace("recentered");
     }
 
     /// <summary>The "Height +12 cm" readout rides on the camera so it's always in view while adjusting.</summary>
@@ -2093,6 +2106,10 @@ public partial class Main : Node3D
                 break;
             case CabinetAction.Random:
                 SelectRandom();
+                break;
+            // VPX's "Align VR view" (keypad 5 unless remapped), so the button that recenters a table recenters here too.
+            case CabinetAction.Recenter:
+                Recenter();
                 break;
             // Like Menu, Exit has to be held: it's the button you just used to leave a table.
             case CabinetAction.Leave:

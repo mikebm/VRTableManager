@@ -56,6 +56,7 @@ On a cabinet controller (PinOne, Pinscape, Zeb's and the like) or a game control
 | Start, Launch ball, Lockbar fire | 1, Enter, Left Alt | A, Start | Play |
 | Coin | 5 | B | Next filter |
 | Extra ball | B | Y | Random table |
+| Align VR view (VPX's recenter) | Keypad 5 | – | Recenter, facing the selected cabinet |
 | – | – | X | Favourite |
 | Exit Game | Esc (Q before 10.8.1) | Back | Hold 1 s to quit the lobby |
 
@@ -124,7 +125,7 @@ The lobby puts the floor where the Quest's Guardian says it is (OpenXR **Local F
 - **Adjust:** hold the **left grip** and push the **left stick** up or down (about 30 cm per second, up to ±60 cm; a "Height +12 cm" readout appears).
 - **Reset:** hold the left grip and **click the left stick**.
 - **Saved:** the adjustment is saved and comes back every time the lobby starts.
-- **Recentering:** holding the Oculus button recenters your direction but leaves your height alone.
+- **Recentering:** holding the Oculus button recenters where you stand and which way you face, and leaves your height alone. VPX's own recenter control (**Align VR view**: keypad 5, or whatever you mapped it to in VPX, including a cabinet button) does the same in the lobby. If you start facing backwards or inside a cabinet, face the way you want and recenter.
 
 ### Look ("DMD & lamps", shared with the manager)
 

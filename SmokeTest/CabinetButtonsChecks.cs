@@ -22,6 +22,7 @@ static class CabinetButtonsChecks
                 && d.ForKey(CabinetButtons.Sdl.Enter) == CabinetAction.Play
                 && d.ForKey(CabinetButtons.Sdl.Digit5) == CabinetAction.Filter
                 && d.ForKey(CabinetButtons.Sdl.Escape) == CabinetAction.Leave
+                && d.ForKey(CabinetButtons.Sdl.Keypad5) == CabinetAction.Recenter
                 && d.ForKey(CabinetButtons.Sdl.Q) == CabinetAction.None
                 && d.JoyButtons.Count == 0,
             "cabinet buttons: VPX 10.8.1's default keys when nothing is set"
@@ -89,6 +90,30 @@ static class CabinetButtonsChecks
                 && o.JoyButtons.Count == 1
                 && o.ForKey(CabinetButtons.Sdl.Enter) == CabinetAction.Play,
             "cabinet buttons: older VPX keys and joystick buttons"
+        );
+        // Recentering follows VPX's own control: 10.8.1's VRCenter ("Align VR view"), or older VPX's
+        // TableRecenterKey / JoyTableRecenterKey; keypad 5 when nothing is set.
+        var r = CabinetButtons.From(
+            Ini(
+                ("Input", "Devices", $"Key;{pinscape}"),
+                ("Input", "Mapping.VRCenter", $"Key;10 | {pinscape};7")
+            )
+        );
+        yield return (
+            r.ForKey(10) == CabinetAction.Recenter
+                && r.ForJoyButton(guid, 7) == CabinetAction.Recenter
+                && r.ForKey(CabinetButtons.Sdl.Keypad5) == CabinetAction.None,
+            "cabinet buttons: VPX 10.8.1's VRCenter mapping recenters"
+        );
+        var ro = CabinetButtons.From(
+            Ini(("Player", "TableRecenterKey", "34"), ("Player", "JoyTableRecenterKey", "9")) // DIK_G
+        );
+        var rd = CabinetButtons.From(Ini(("Player", "TableRecenterKey", "")));
+        yield return (
+            ro.ForKey(4 + ('G' - 'A')) == CabinetAction.Recenter
+                && ro.ForJoyButton(8) == CabinetAction.Recenter
+                && rd.ForKey(CabinetButtons.Sdl.Keypad5) == CabinetAction.Recenter,
+            "cabinet buttons: older VPX's TableRecenterKey recenters (keypad 5 by default)"
         );
         yield return (
             CabinetButtons.ForGamepadButton(0) == CabinetAction.Play // A / Cross

@@ -15,6 +15,7 @@ You don't need the Quest controllers to pick a table in the VR lobby. A pinball 
 | Lockbar fire | Left Alt | Play |
 | Coin | 5 | Next filter (All, VPX, Favourites…) |
 | Extra ball / Buy-in | B | Random table |
+| Align VR view (recenter) | Keypad 5 | Recenter: you stand where the lobby expects you, facing the selected cabinet. Turn to face the way you want first. |
 | Exit Game | Esc (Q before VPX 10.8.1) | **Hold 1 second** to leave the lobby. A short press does nothing, so leaving a table with Exit can't close the lobby too. |
 
 Favourites still need the Quest's right grip (or a game controller's X / Square).
