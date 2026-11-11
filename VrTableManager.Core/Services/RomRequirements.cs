@@ -16,7 +16,7 @@ namespace VrTableManager.Services;
 public static class RomRequirements
 {
     /// <summary>Bump when the check learns something new, so installed tables are checked again.</summary>
-    public const int Version = 3;
+    public const int Version = 4;
 
     /// <summary>The Virtual Pinball Spreadsheet's tag for a table file that runs without PinMAME.</summary>
     public const string NoRomFeature = "no ROM";

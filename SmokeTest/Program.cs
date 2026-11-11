@@ -2513,6 +2513,29 @@ Console.WriteLine($"   gamepad connected: {Gamepad.IsConnected()?.ToString() ?? 
             ),
         "a commented-out LoadVPM doesn't make an original need a ROM"
     );
+    // Harry Potter's VR room: all of controller.vbs pasted in, but it only calls LoadController("EM").
+    const string controllerVbs =
+        "Sub LoadVPM(VPMver, VBSfile, VBSver)\r\n\tLoadController(\"VPM\")\r\nEnd Sub\r\n"
+        + "Sub LoadController(TableType)\r\n\tSelect Case TableType\r\n\t\tCase \"VPM\"\r\n"
+        + "\tSet Controller = CreateObject(\"VPinMAME.Controller\")\r\n\tEnd Select\r\nEnd Sub\r\n"
+        // Its newer layout creates it in a routine of its own.
+        + "Sub LoadVPinMAME\r\n\tSet Controller = CreateObject(\"VPinMAME.Controller\")\r\nEnd Sub\r\n";
+    Check(
+        !RomDetector.UsesPinMame(
+            "Const cGameName = \"hpgof\"\r\n"
+                + controllerVbs
+                + "Sub Table1_Init\r\n\tLoadController(\"EM\")\r\nEnd Sub\r\n"
+        )
+            && RomDetector.UsesPinMame(
+                "Const cGameName = \"totan_14\"\r\n"
+                    + controllerVbs
+                    + "LoadVPM \"02700000\",\"WPC.vbs\",3.56\r\n"
+            )
+            && RomDetector.UsesPinMame(
+                "Sub Table1_Init\r\n\tSet Controller = CreateObject(\"VPinMAME.Controller\")\r\nEnd Sub\r\n"
+            ),
+        "controller.vbs pasted into an original doesn't make it need a ROM; calling LoadVPM does"
+    );
     Check(
         RomDetector.ControllerRomFromScript(
             "Const cGameName = \"fallout\"\r\nConst cRomName = \"swrds_l2\"\r\nWith Controller\r\n"

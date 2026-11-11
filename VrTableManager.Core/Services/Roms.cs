@@ -225,9 +225,45 @@ public static partial class RomDetector
     /// An uncommented line loads PinMAME. Originals built from a ROM table's script keep the old
     /// <c>' LoadVPM "01560000", "S11.VBS", 3.26</c> line commented out; that doesn't need a ROM.
     /// </summary>
+    /// <remarks>
+    /// Many originals also paste in all of controller.vbs, whose <c>Sub LoadVPM</c> and <c>Sub LoadController</c>
+    /// create VPinMAME.Controller but only run when called: a definition, or a line inside one of those routines,
+    /// doesn't count (Harry Potter's VR room calls <c>LoadController("EM")</c> and needs no ROM).
+    /// </remarks>
     public static bool UsesPinMame(string script) =>
-        CodeLinesWith(script, "LoadVPM").Any(l => PinMameRegex().IsMatch(l))
-        || CodeLinesWith(script, "VPinMAME.Controller").Any(l => PinMameRegex().IsMatch(l));
+        CodeLinesAt(script, "LoadVPM")
+            .Any(l =>
+                PinMameRegex().IsMatch(l.code)
+                && !LoaderDefinitionRegex().IsMatch(l.code)
+                && !InLoaderRoutine(script, l.index)
+            )
+        || CodeLinesAt(script, "VPinMAME.Controller")
+            .Any(l => PinMameRegex().IsMatch(l.code) && !InLoaderRoutine(script, l.index));
+
+    /// <summary>
+    /// The position sits inside controller.vbs's own loader routines (LoadVPM, LoadVPMALT, LoadController, LoadVPinMAME),
+    /// which only do anything when the table calls them.
+    /// </summary>
+    static bool InLoaderRoutine(string text, int index)
+    {
+        var from = Math.Max(0, index - 64 * 1024);
+        var start = RoutineStartRegex().Match(text, from, index - from);
+        if (!start.Success)
+        {
+            return false;
+        }
+
+        var end = RoutineEndRegex().Match(text, from, index - from);
+        if (end.Success && end.Index > start.Index)
+        {
+            return false; // the last routine before it has already ended
+        }
+
+        var name = start.Groups["name"].Value;
+        return name.StartsWith("LoadVPM", StringComparison.OrdinalIgnoreCase)
+            || name.Equals("LoadVPinMAME", StringComparison.OrdinalIgnoreCase)
+            || name.Equals("LoadController", StringComparison.OrdinalIgnoreCase);
+    }
 
     /// <summary>
     /// The ROM the script hands PinMAME when it isn't cGameName: <c>.GameName = "swrds_l2"</c>, or
@@ -274,7 +310,11 @@ public static partial class RomDetector
     /// lone \r): up to the word, nothing after a ' comment mark. A plain search finds the few lines
     /// first, so this stays fast over the hundreds of MB of a table file.
     /// </summary>
-    static IEnumerable<string> CodeLinesWith(string text, string word)
+    static IEnumerable<string> CodeLinesWith(string text, string word) =>
+        CodeLinesAt(text, word).Select(l => l.code);
+
+    /// <summary><see cref="CodeLinesWith"/>, with where in the text the word was found.</summary>
+    static IEnumerable<(int index, string code)> CodeLinesAt(string text, string word)
     {
         for (
             var i = text.IndexOf(word, StringComparison.OrdinalIgnoreCase);
@@ -298,7 +338,7 @@ public static partial class RomDetector
                 continue; // the word is inside a comment
             }
 
-            yield return comment >= 0 ? line[..comment] : line;
+            yield return (i, comment >= 0 ? line[..comment] : line);
         }
     }
 
@@ -317,6 +357,23 @@ public static partial class RomDetector
 
     [GeneratedRegex("LoadVPM|VPinMAME\\.Controller", RegexOptions.IgnoreCase)]
     private static partial Regex PinMameRegex();
+
+    /// <summary><c>Sub LoadVPM(VPMver, VBSfile, VBSver)</c>: the routine itself, not a call to it.</summary>
+    [GeneratedRegex("\\b(?:Sub|Function)[ \\t]+LoadVPM", RegexOptions.IgnoreCase)]
+    private static partial Regex LoaderDefinitionRegex();
+
+    /// <summary>A line starting <c>Sub name</c> / <c>Function name</c>; searched backwards for the last one.</summary>
+    [GeneratedRegex(
+        "(?<=[\\r\\n])[ \\t]*(?:(?:Private|Public)[ \\t]+)?(?:Sub|Function)[ \\t]+(?<name>[A-Za-z_][A-Za-z0-9_]*)",
+        RegexOptions.IgnoreCase | RegexOptions.RightToLeft
+    )]
+    private static partial Regex RoutineStartRegex();
+
+    [GeneratedRegex(
+        "(?<=[\\r\\n])[ \\t]*End[ \\t]+(?:Sub|Function)\\b",
+        RegexOptions.IgnoreCase | RegexOptions.RightToLeft
+    )]
+    private static partial Regex RoutineEndRegex();
 
     [GeneratedRegex("PinUpPlayer\\.PinDisplay", RegexOptions.IgnoreCase)]
     private static partial Regex PupRegex();
