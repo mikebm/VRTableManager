@@ -24,9 +24,26 @@ public partial class MainWindow : Window, IUiHost
         InitializeComponent();
         DataContext = _vm = new MainViewModel(this);
         RestorePlacement();
-        // The A–Z rails light the letter of the top row as the lists scroll (or change).
+        // The A–Z rails light the letters on screen as the lists scroll. A filter can change the cards without
+        // changing the scroll size, and a list refiltered while its tab was hidden only lays out when shown again,
+        // so those look again too, once the cards are in place.
         InstalledScroll.ScrollChanged += (_, _) => TrackLetter(installed: true);
         CatalogScroll.ScrollChanged += (_, _) => TrackLetter(installed: false);
+        _vm.Installed.CollectionChanged += (_, _) => TrackLetterSoon(installed: true);
+        _vm.Games.CollectionChanged += (_, _) => TrackLetterSoon(installed: false);
+        InstalledScroll.AttachedToVisualTree += (_, _) => TrackLetterSoon(installed: true);
+        CatalogScroll.AttachedToVisualTree += (_, _) => TrackLetterSoon(installed: false);
+        _vm.PropertyChanged += (_, e) =>
+        {
+            if (e.PropertyName == nameof(MainViewModel.ShowInstalledLetters))
+            {
+                TrackLetterSoon(installed: true);
+            }
+            else if (e.PropertyName == nameof(MainViewModel.ShowCatalogLetters))
+            {
+                TrackLetterSoon(installed: false);
+            }
+        };
         Opened += async (_, _) => await _vm.LoadCatalogAsync();
         Closing += async (_, e) =>
         {
@@ -188,14 +205,52 @@ public partial class MainWindow : Window, IUiHost
                     InstalledItem t => t.Title,
                     GameItem g => g.Title,
                     _ => null,
-                }
-                is { } title
+                } is
+                { } title
             )
             {
                 shown.Add(LobbyNav.LetterOf(title));
             }
         }
         _vm.SetActiveLetters(installed, shown);
+    }
+
+    // One look per list once layout has caught up, however many cards a refill adds one by one.
+    bool _installedLetterQueued,
+        _catalogLetterQueued;
+
+    void TrackLetterSoon(bool installed)
+    {
+        if (installed ? _installedLetterQueued : _catalogLetterQueued)
+        {
+            return;
+        }
+
+        if (installed)
+        {
+            _installedLetterQueued = true;
+        }
+        else
+        {
+            _catalogLetterQueued = true;
+        }
+
+        Dispatcher.UIThread.Post(
+            () =>
+            {
+                if (installed)
+                {
+                    _installedLetterQueued = false;
+                }
+                else
+                {
+                    _catalogLetterQueued = false;
+                }
+
+                TrackLetter(installed);
+            },
+            DispatcherPriority.Loaded
+        );
     }
 
     void SampleNormal()
