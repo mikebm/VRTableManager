@@ -180,6 +180,33 @@ public static class AltPackChecks
             "installed colours are tracked"
         );
 
+        // A folder you already have: copied in, left where it is. A whole altcolor folder of several games
+        // installs this ROM's pack, and is refused when none is this ROM's rather than guessing.
+        var have = Path.Combine(root, "have", "altcolor");
+        Write(Path.Combine(have, "afm_113b", "afm_113b.cRZ"));
+        Write(Path.Combine(have, "mm_109c", "mm_109c.cRZ"));
+        rec = AltPacks.Install(AddonKind.AltColor, have, table, game.AltColorFiles[1]);
+        var others = Path.Combine(root, "have2", "altcolor");
+        Write(Path.Combine(others, "afm_113b", "afm_113b.cRZ"));
+        Write(Path.Combine(others, "tz_92", "tz_92.cRZ"));
+        string? refused = null;
+        try
+        {
+            AltPacks.Install(AddonKind.AltColor, others, table, game.AltColorFiles[1]);
+        }
+        catch (InvalidDataException e)
+        {
+            refused = e.Message;
+        }
+        yield return (
+            rec is { Location: "serum", Folder: "mm_109c" }
+                && File.Exists(Path.Combine(folder, "serum", "mm_109c", "mm_109c.cRZ"))
+                && File.Exists(Path.Combine(have, "mm_109c", "mm_109c.cRZ"))
+                && refused?.Contains("several games") == true,
+            "a colour folder you have: this ROM's pack copied in; a folder of other games' packs refused"
+        );
+        table.Manifest.AltColor = rec;
+
         // A new catalog version shows as an update; switching to Pin2DMD replaces the Serum files.
         game.AltColorFiles[1].Version = "1.2.0";
         var updates = Addons.FindUpdates([table], [game]);

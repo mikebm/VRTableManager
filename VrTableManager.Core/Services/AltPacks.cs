@@ -213,12 +213,23 @@ public static class AltPacks
             "colorization",
             [.. SerumExts, .. VniExts, ".pac"]
         );
-        var names = new[] { game, (file as VpsAltColorFile)?.Folder }.OfType<string>().ToList();
+        List<string> names =
+        [
+            game,
+            .. new[] { (file as VpsAltColorFile)?.Folder }.OfType<string>(),
+            .. table.Manifest.RomNames,
+        ];
+        // altcolor\<rom>\<rom>.cRZ: the folder can carry the ROM's name as well as the file.
         bool Named(string f) =>
-            names.Contains(Path.GetFileNameWithoutExtension(f), StringComparer.OrdinalIgnoreCase);
+            names.Contains(Path.GetFileNameWithoutExtension(f), StringComparer.OrdinalIgnoreCase)
+            || names.Contains(
+                Path.GetFileName(Path.GetDirectoryName(f)) ?? "",
+                StringComparer.OrdinalIgnoreCase
+            );
 
         if (Find(SerumExts) is { Count: > 0 } serum)
         {
+            OneGameOnly(downloaded, serum, Named, "colorization", game);
             // Packs ship .cRZ (or .cROM); a .cROMc is a cache Serum builds itself from them.
             var main = serum
                 .OrderByDescending(Named)
@@ -247,6 +258,7 @@ public static class AltPacks
         }
         if (Find(VniExts) is { Count: > 0 } vni)
         {
+            OneGameOnly(downloaded, vni, Named, "colorization", game);
             var dir = Path.GetDirectoryName(vni.OrderByDescending(Named).First())!;
             var dest = Prepare(table, VniFolder, game, status);
             foreach (
@@ -298,6 +310,17 @@ public static class AltPacks
         }
 
         var names = table.Manifest.RomNames.Append(game).ToList();
+        OneGameOnly(
+            downloaded,
+            roots,
+            r =>
+                names.Contains(
+                    Path.GetFileName(r.TrimEnd('\\', '/')),
+                    StringComparer.OrdinalIgnoreCase
+                ),
+            "AltSound",
+            game
+        );
         var root =
             roots.FirstOrDefault(r =>
                 names.Contains(
@@ -313,6 +336,35 @@ public static class AltPacks
         var dest = Prepare(table, SoundFolder, game, status, create: false);
         Addons.MoveTree(root, dest);
         return Addons.NewRecord(file, SoundFolder, game);
+    }
+
+    /// <summary>
+    /// A folder you picked yourself (a whole altcolor or altsound folder from another setup) can hold several ROMs'
+    /// packs. When they're in different folders and none is named after this table's ROM, guessing would install
+    /// another game's pack under this ROM's name: ask for the ROM's own folder instead. Downloads keep the old
+    /// best guess (an archive is one table's pack, sometimes with variants).
+    /// </summary>
+    static void OneGameOnly(
+        string source,
+        IReadOnlyList<string> candidates,
+        Func<string, bool> named,
+        string what,
+        string game
+    )
+    {
+        if (
+            Directory.Exists(source)
+            && !candidates.Any(named)
+            && candidates
+                .Select(c => Path.GetDirectoryName(c.TrimEnd('\\', '/')))
+                .Distinct(StringComparer.OrdinalIgnoreCase)
+                .Count() > 1
+        )
+        {
+            throw new InvalidDataException(
+                $"That folder has {what} for several games and none is named {game}. Pick the folder of this table's own pack."
+            );
+        }
     }
 
     /// <summary>Empties &lt;table&gt;\&lt;location&gt;\&lt;game&gt; and removes the one of this kind installed before (it may sit elsewhere).</summary>
