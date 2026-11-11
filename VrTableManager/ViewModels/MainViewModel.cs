@@ -296,10 +296,11 @@ public sealed partial class MainViewModel : ObservableObject, IAsyncDisposable
                 "Oldest machines" => matches
                     .OrderBy(g => g.Year is > 0 ? g.Year : int.MaxValue)
                     .ThenBy(g => g.Name),
-                _ => matches,
+                _ => matches.OrderBy(g => SortKey(g.Name), StringComparer.OrdinalIgnoreCase),
             }
         ).ToList();
         UpdateManufacturers();
+        UpdateCatalogLetters(CatalogSort == CatalogSorts[0] && search == null);
 
         var selectedId = SelectedGame?.Game.Id;
         Games.Clear();
@@ -1558,9 +1559,10 @@ public sealed partial class MainViewModel : ObservableObject, IAsyncDisposable
         {
             "Favourites" when search != null => pool.Where(i => i.IsFavourite)
                 .OrderByDescending(i => scores[i]),
-            "Favourites" => pool.Where(i => i.IsFavourite),
+            "Favourites" => pool.Where(i => i.IsFavourite)
+                .OrderBy(i => SortKey(i.Title), StringComparer.OrdinalIgnoreCase),
             UpdatesFilter => pool.Where(i => i.HasUpdate)
-                .OrderBy(i => i.Title, StringComparer.OrdinalIgnoreCase),
+                .OrderBy(i => SortKey(i.Title), StringComparer.OrdinalIgnoreCase),
             "Most played" => pool.Where(i => i.Plays > 0)
                 .OrderByDescending(i => i.Plays)
                 .ThenByDescending(i => i.LastPlayed),
@@ -1575,7 +1577,7 @@ public sealed partial class MainViewModel : ObservableObject, IAsyncDisposable
                     .ThenBy(i => i.Title, StringComparer.OrdinalIgnoreCase),
                 // Favourites first, then A–Z.
                 _ => pool.OrderByDescending(i => i.IsFavourite)
-                    .ThenBy(i => i.Title, StringComparer.OrdinalIgnoreCase),
+                    .ThenBy(i => SortKey(i.Title), StringComparer.OrdinalIgnoreCase),
             },
         };
         var shown = q.ToList();
@@ -1587,6 +1589,15 @@ public sealed partial class MainViewModel : ObservableObject, IAsyncDisposable
                 Installed.Add(i);
             }
         }
+        UpdateInstalledLetters(
+            search == null
+                && InstalledFilter switch
+                {
+                    "Favourites" or UpdatesFilter => true,
+                    "Most played" or "Recently played" => false,
+                    _ => InstalledSort == InstalledSorts[0],
+                }
+        );
 
         InstalledTotal = _allInstalled.Count;
         InstalledEmptyText =

@@ -35,9 +35,47 @@
         </Button.Flyout>
       </Button>
     </DataTemplate>
+    <!-- One letter of an A–Z rail beside a card grid. -->
+    <DataTemplate x:Key="LetterButton" x:DataType="vm:LetterChoice">
+      <Button Classes="letter" Classes.active="{Binding IsActive}" Content="{Binding Letter}" IsEnabled="{Binding HasTables}" Click="Letter_Click" />
+    </DataTemplate>
   </Window.Resources>
 
   <Window.Styles>
+    <!-- A–Z rail: the letters share the list's full height (as large as fits), dimmed when no table files under them. -->
+    <Style Selector="ItemsControl.letterRail">
+      <Setter Property="ItemTemplate" Value="{StaticResource LetterButton}" />
+      <Setter Property="ItemsPanel">
+        <ItemsPanelTemplate><UniformGrid Columns="1" /></ItemsPanelTemplate>
+      </Setter>
+    </Style>
+    <Style Selector="Button.letter">
+      <Setter Property="Background" Value="Transparent" />
+      <Setter Property="BorderThickness" Value="0" />
+      <Setter Property="Padding" Value="0" />
+      <Setter Property="MinHeight" Value="0" />
+      <Setter Property="Width" Value="40" />
+      <Setter Property="FontSize" Value="16" />
+      <Setter Property="VerticalAlignment" Value="Stretch" />
+      <Setter Property="VerticalContentAlignment" Value="Center" />
+      <Setter Property="FontWeight" Value="Bold" />
+      <Setter Property="HorizontalAlignment" Value="Stretch" />
+      <Setter Property="HorizontalContentAlignment" Value="Center" />
+      <Setter Property="ToolTip.Tip" Value="Jump to this letter" />
+    </Style>
+    <!-- Letters with cards on screen, as the list scrolls. -->
+    <Style Selector="Button.letter.active">
+      <Setter Property="Foreground" Value="{StaticResource Lamp}" />
+      <Setter Property="Background" Value="{StaticResource LampSoft}" />
+      <Setter Property="CornerRadius" Value="6" />
+    </Style>
+    <Style Selector="Button.letter.active /template/ ContentPresenter#PART_ContentPresenter">
+      <Setter Property="Foreground" Value="{StaticResource Lamp}" />
+      <Setter Property="Background" Value="{StaticResource LampSoft}" />
+    </Style>
+    <Style Selector="Button.letter:disabled">
+      <Setter Property="Opacity" Value="0.3" />
+    </Style>
     <!-- Card grids are ListBoxes with a WrapPanel; strip the default row chrome. -->
     <Style Selector="ListBox.grid">
       <Setter Property="Background" Value="Transparent" />
@@ -280,8 +318,11 @@
             </Border>
           </StackPanel>
 
-          <ScrollViewer>
-            <ItemsControl ItemsSource="{Binding Installed}" Margin="28,8,28,28">
+          <!-- A–Z rail: a letter jumps to its first table, as in the VR lobby (only while the list is A–Z). -->
+          <ItemsControl DockPanel.Dock="Right" Classes="letterRail" Margin="0,8,6,8"
+                        x:Name="InstalledLetterRail" ItemsSource="{Binding InstalledLetters}" IsVisible="{Binding ShowInstalledLetters}" />
+          <ScrollViewer x:Name="InstalledScroll">
+            <ItemsControl x:Name="InstalledGrid" ItemsSource="{Binding Installed}" Margin="28,8,28,28">
               <ItemsControl.ItemsPanel>
                 <ItemsPanelTemplate><WrapPanel /></ItemsPanelTemplate>
               </ItemsControl.ItemsPanel>
@@ -762,11 +803,14 @@
               </StackPanel>
             </StackPanel>
 
-          <ScrollViewer>
+          <!-- A–Z rail: a letter jumps to its first table, as in the VR lobby (only while the list is A–Z). -->
+          <ItemsControl DockPanel.Dock="Right" Classes="letterRail" Margin="0,8,6,8"
+                        x:Name="CatalogLetterRail" ItemsSource="{Binding CatalogLetters}" IsVisible="{Binding ShowCatalogLetters}" />
+          <ScrollViewer x:Name="CatalogScroll">
             <StackPanel Margin="28,8,12,28" Spacing="20">
 
               <!-- Card grid -->
-              <ListBox Classes="grid" ItemsSource="{Binding Games}" SelectedItem="{Binding SelectedGame}">
+              <ListBox x:Name="CatalogGrid" Classes="grid" ItemsSource="{Binding Games}" SelectedItem="{Binding SelectedGame}">
                 <ListBox.ItemTemplate>
                   <DataTemplate x:DataType="vm:GameItem">
                     <Border Classes="tile" Width="214">

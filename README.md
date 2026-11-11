@@ -16,6 +16,7 @@ Built for Meta Quest (Link, Air Link or Virtual Desktop) with the official Visua
 - **Already downloaded it?** **ADD A TABLE FILE…** in My Tables installs a table zip (or `.vpx` / `.fpt`) you have. The app guesses which catalog table it is from the file name and you confirm, so it still gets its ROM, add-ons and updates. A table that isn't in the catalog installs under its file name.
 - **Ready to play:** each table gets its own folder in the layout VPX 10.8.1 expects. The app reads the table's script to find the exact ROM it needs, then fetches it, including Stern's free game code. Its parent sets and aliases are handled for you.
 - **Find any table, however you spell it:** search in Get Tables and My Tables matches the name, maker, author, theme, year or ROM, with words in any order. Typos are fine ("adams famly", "twilite zone"), initials work ("afm", "tz", "lotr"), and "90s" or "1992" finds machines from then. Best matches come first. My Tables has the same maker, era, type and theme filters as Get Tables. Type and theme come from the catalog, so a table that isn't linked to it only shows under "Any".
+- **A–Z rail:** beside the cards in both tabs, as in the VR lobby. Click a letter to jump to its first table ("The Addams Family" files under A). It shows while the list is in A–Z order.
 
 ### Make every table look and sound its best
 - **PuP packs:** PinUP Player videos on the cabinet's backglass and DMD, shown in VR by VPX's PinUP plugin.
