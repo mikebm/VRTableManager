@@ -11,30 +11,12 @@ public static class VpxInput
 {
     public const string Section = "Input";
 
-    /// <summary>Where desktop VPX keeps its settings, most likely first.</summary>
-    public static IEnumerable<string> DesktopIniCandidates(AppSettings s)
-    {
-        // "Store settings next to the program" option.
-        yield return Path.Combine(s.VpxDir, "VPinballX.ini");
-        // 10.8.1+: one folder per minor version.
-        if (Directory.Exists(AppFolders.VpxPrefs))
-        {
-            foreach (
-                var dir in Directory
-                    .EnumerateDirectories(AppFolders.VpxPrefs)
-                    .OrderByDescending(d => Path.GetFileName(d), StringComparer.Ordinal)
-            )
-            {
-                yield return Path.Combine(dir, "VPinballX.ini");
-            }
-        }
-
-        yield return Path.Combine(AppFolders.VpxPrefs, "VPinballX.ini");
-    }
-
-    /// <summary>The desktop VPX settings file that has controls in the 10.8.1 format, or null.</summary>
+    /// <summary>
+    /// The player's own VPinballX.ini (the one VPX itself loads, <see cref="VpxIniLayers.BasePath"/>, which VR play
+    /// and Setup → Controls also use) when it has controls in the 10.8.1 format; otherwise null.
+    /// </summary>
     public static string? FindDesktopIni(AppSettings s) =>
-        DesktopIniCandidates(s).FirstOrDefault(HasMappings);
+        VpxIniLayers.BasePath(s) is { } own && HasMappings(own) ? own : null;
 
     public static bool HasMappings(string iniPath) =>
         IniFile

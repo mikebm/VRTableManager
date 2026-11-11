@@ -1,4 +1,4 @@
-<!-- Setup → 03 Headset. -->
+<!-- Setup → 04 Headset. -->
 <UserControl xmlns="https://github.com/avaloniaui"
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
              xmlns:vm="using:VrTableManager.ViewModels"
@@ -13,7 +13,7 @@
       </Grid.ColumnDefinitions>
       <StackPanel Classes="setupPage">
         <StackPanel Classes="setupHead">
-          <TextBlock Classes="eyebrow" Text="03 · VIRTUAL REALITY" />
+          <TextBlock Classes="eyebrow" Text="04 · VIRTUAL REALITY" />
           <TextBlock Classes="display" FontSize="42" Text="Headset" />
           <TextBlock Classes="body"
                      Text="VPX talks to your headset through the PC's OpenXR runtime. Easiest: install the Meta Quest Link app, connect with a USB-C cable or Air Link, and make Meta Quest Link the active OpenXR runtime (Link app → Settings → General). Virtual Desktop (VDXR) and SteamVR also work." />
@@ -72,20 +72,6 @@
               <Button Classes="small" Content="OPEN OCULUS DEBUG TOOL" Margin="0,0,8,0" Command="{Binding OpenOculusDebugToolCommand}"
                       ToolTip.Tip="Encode bitrate, resolution and more for Quest Link" />
             </WrapPanel>
-          </StackPanel>
-        </Border>
-
-        <Border Classes="panel">
-          <StackPanel Spacing="8">
-            <TextBlock Classes="h2" Text="Controls" />
-            <TextBlock Classes="body" TextWrapping="Wrap"
-                       Text="VR play has its own VPX settings file, so controls mapped in desktop VPX aren't there until they're copied. They're copied automatically the first time; after that, remaps you make in VR (in-game menu → Input) stay for every table." />
-            <WrapPanel>
-              <Button Classes="small" Content="USE MY DESKTOP VPX CONTROLS" Margin="0,0,8,0" Command="{Binding ImportDesktopControlsCommand}"
-                      ToolTip.Tip="Copies the [Input] section of your VPinballX.ini into the VR settings file, keeping the VR controller buttons." />
-            </WrapPanel>
-            <TextBlock Classes="body" Foreground="{StaticResource Lamp}" TextWrapping="Wrap" Text="{Binding ControlsStatus}"
-                       IsVisible="{Binding ControlsStatus, Converter={x:Static StringConverters.IsNotNullOrEmpty}}" />
           </StackPanel>
         </Border>
 

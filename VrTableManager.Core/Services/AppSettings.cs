@@ -128,6 +128,12 @@ public sealed class AppSettings
     public bool UseVrGraphics { get; set; } = true;
 
     /// <summary>
+    /// Where a key set on Setup → Controls is saved (<see cref="VpxKeyMap.Set"/>): the player's own VPinballX.ini (desktop
+    /// and VR), or the VR or desktop overrides only.
+    /// </summary>
+    public ControlsTarget ControlsTarget { get; set; } = ControlsTarget.Everywhere;
+
+    /// <summary>
     /// Tables with a hand-set VR room switch in their script (VRRoom = 0 / 1) get it set for the mode being
     /// played: on in VR, off on the desktop (<see cref="VrRoomSwitch"/>). Off: every table plays as it came.
     /// </summary>

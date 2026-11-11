@@ -49,7 +49,7 @@
           </StackPanel>
         </Border>
 
-        <Button Classes="small setupNext" Content="NEXT: HEADSET  ›" Command="{Binding ShowSetupSectionCommand}" CommandParameter="headset" />
+        <Button Classes="small setupNext" Content="NEXT: CONTROLS  ›" Command="{Binding ShowSetupSectionCommand}" CommandParameter="controls" />
       </StackPanel>
     </Grid>
   </ScrollViewer>

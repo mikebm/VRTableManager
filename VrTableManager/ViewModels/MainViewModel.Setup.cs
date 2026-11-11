@@ -11,6 +11,7 @@ public sealed partial class MainViewModel
     [
         "vpx",
         "play",
+        "controls",
         "headset",
         "fit",
         "graphics",

@@ -1,4 +1,4 @@
-<!-- Setup → 10 Maintenance. -->
+<!-- Setup → 11 Maintenance. -->
 <UserControl xmlns="https://github.com/avaloniaui"
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
              xmlns:vm="using:VrTableManager.ViewModels"
@@ -13,7 +13,7 @@
       </Grid.ColumnDefinitions>
       <StackPanel Classes="setupPage">
         <StackPanel Classes="setupHead">
-          <TextBlock Classes="eyebrow" Text="10 · THIS APP" />
+          <TextBlock Classes="eyebrow" Text="11 · THIS APP" />
           <TextBlock Classes="display" FontSize="42" Text="Maintenance" />
           <TextBlock Classes="body" Text="When something goes wrong, what's using space, and a backup of what you can't download again." />
         </StackPanel>

@@ -98,7 +98,21 @@ The manager also writes `[PlayerVR] OverrideLockbarHeight` and `OverrideLockbarW
 
 ## Controls
 
-VR play uses the controls from your own `VPinballX.ini` until the VR file has mappings of its own. That happens when you remap a button during VR play, or when you click **USE MY DESKTOP VPX CONTROLS** on the Setup tab. That button merges your desktop mappings into the VR file and keeps the Quest controller buttons as alternatives.
+VR play uses the controls from your own `VPinballX.ini` until the VR file has mappings of its own. That happens when you remap a button during VR play, when you save a key for VR only (below), or when you click **USE MY DESKTOP VPX CONTROLS** under Setup → Controls. That button merges your desktop mappings into the VR file and keeps the Quest controller buttons as alternatives.
+
+### Setting keys on the Setup tab
+
+Setup → **Controls** lists VPX's actions (flippers, magna-saves, plunger, Start, coins, nudge and tilt, Exit, the in-game menu, Align VR view…) with the key each one has in desktop play and in VR play. Click **SET** and press a key. This needs VPX 10.8.1 or later.
+
+**Save keys for** picks where the key goes:
+
+| Choice | Written to | Used by |
+| --- | --- | --- |
+| Desktop and VR play | Your own `VPinballX.ini` | Desktop and VR play, and VPX started on its own. If the VR or desktop file has its own mapping for that action (one that would hide the change), its key is changed there too. |
+| VR play only | `VrTableManager-VR.ini` | VR play. Your `VPinballX.ini` isn't changed. |
+| Desktop play only | `VrTableManager-Desktop.ini` | Desktop play. Your `VPinballX.ini` isn't changed. |
+
+A new key replaces the keyboard keys for that action only. Bindings on the VR controllers, a gamepad or a cabinet board stay, as do key combinations. The staged flipper and the in-game menu's navigation keys move with the flipper or magna-save key they share, unless you gave them a different key. If another action already uses the key, the page says so; VPX allows it, but it's usually a mistake. Gamepad and cabinet-board buttons are still mapped in VPX's own menu.
 
 ## Backups
 

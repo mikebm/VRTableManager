@@ -1,4 +1,4 @@
-<!-- Setup → 07 Downloads. -->
+<!-- Setup → 08 Downloads. -->
 <UserControl xmlns="https://github.com/avaloniaui"
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
              xmlns:vm="using:VrTableManager.ViewModels"
@@ -13,7 +13,7 @@
       </Grid.ColumnDefinitions>
       <StackPanel Classes="setupPage">
         <StackPanel Classes="setupHead">
-          <TextBlock Classes="eyebrow" Text="07 · TABLES" />
+          <TextBlock Classes="eyebrow" Text="08 · TABLES" />
           <TextBlock Classes="display" FontSize="42" Text="Downloads" />
           <TextBlock Classes="body" Text="Where tables come from, and what happens to the files once they're installed." />
         </StackPanel>

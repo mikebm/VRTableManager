@@ -1,4 +1,4 @@
-<!-- Setup → 04 Fit & position. -->
+<!-- Setup → 05 Fit & position. -->
 <UserControl xmlns="https://github.com/avaloniaui"
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
              xmlns:vm="using:VrTableManager.ViewModels"
@@ -13,7 +13,7 @@
       </Grid.ColumnDefinitions>
       <StackPanel Classes="setupPage">
         <StackPanel Classes="setupHead">
-          <TextBlock Classes="eyebrow" Text="04 · VIRTUAL REALITY" />
+          <TextBlock Classes="eyebrow" Text="05 · VIRTUAL REALITY" />
           <TextBlock Classes="display" FontSize="42" Text="Fit &amp; position" />
           <TextBlock Classes="body" Text="How high and how far away every VPX table stands in the headset, and how big it is." />
         </StackPanel>

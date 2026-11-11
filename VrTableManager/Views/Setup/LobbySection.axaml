@@ -1,4 +1,4 @@
-<!-- Setup → 06 VR lobby. -->
+<!-- Setup → 07 VR lobby. -->
 <UserControl xmlns="https://github.com/avaloniaui"
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
              xmlns:vm="using:VrTableManager.ViewModels"
@@ -13,7 +13,7 @@
       </Grid.ColumnDefinitions>
       <StackPanel Classes="setupPage">
         <StackPanel Classes="setupHead">
-          <TextBlock Classes="eyebrow" Text="06 · VIRTUAL REALITY" />
+          <TextBlock Classes="eyebrow" Text="07 · VIRTUAL REALITY" />
           <TextBlock Classes="display" FontSize="42" Text="VR lobby" />
           <TextBlock Classes="body" Text="Your tables as pinball cabinets standing round you in an arcade, started with LAUNCH VR LOBBY on My Tables. Pick one in the headset and it plays." />
         </StackPanel>

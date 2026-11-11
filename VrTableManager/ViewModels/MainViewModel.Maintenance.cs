@@ -86,6 +86,7 @@ public sealed partial class MainViewModel
         {
             ControlsStatus = "Couldn't copy the controls: " + e.Message;
         }
+        RefreshControls(); // the VR column shows the copied keys
     }
 
     /// <summary>What happened when opening a settings file (shown under the buttons).</summary>
@@ -391,6 +392,8 @@ public sealed partial class MainViewModel
     {
         var s = AppSettings.Load();
         s.ManagerExe = Settings.ManagerExe; // this install's path, not the backed-up one
+        // Set first: each property below saves Settings, and would otherwise write the old choice over the restored one.
+        Settings.ControlsTarget = s.ControlsTarget;
         VpxDir = s.VpxDir;
         TablesDir = s.TablesDir;
         FpDir = s.FpDir;
@@ -425,6 +428,7 @@ public sealed partial class MainViewModel
         LobbyLoadingVideos = s.LobbyLoadingVideos;
         LobbyCabinetCount = s.LobbyCabinetCount;
         LobbyCabinetScale = s.LobbyCabinetScalePercent;
+        RefreshControls(); // the restored choice, and the keys in the restored VPX settings
         LoadGraphics();
         RefreshInstalled();
         RefreshSetupStatus();

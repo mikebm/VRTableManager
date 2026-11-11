@@ -1741,6 +1741,7 @@ public sealed partial class MainViewModel : ObservableObject, IAsyncDisposable
             {
                 // Save what VPX changed now, not on the background wait, so the panel and card show it.
                 VpxIniLayers.Finish(proc);
+                RefreshControls(); // keys remapped in VPX's menu are saved only now, after the window came back
                 LoadVrView(); // VPX saves the table position when it closes
                 item.TableVrHeight = VrFit.ReadTableHeight(item.Table.TablePath);
             }

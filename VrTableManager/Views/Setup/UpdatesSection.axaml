@@ -1,4 +1,4 @@
-<!-- Setup → 09 Updates. -->
+<!-- Setup → 10 Updates. -->
 <UserControl xmlns="https://github.com/avaloniaui"
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
              xmlns:vm="using:VrTableManager.ViewModels"
@@ -13,7 +13,7 @@
       </Grid.ColumnDefinitions>
       <StackPanel Classes="setupPage">
         <StackPanel Classes="setupHead">
-          <TextBlock Classes="eyebrow" Text="09 · THIS APP" />
+          <TextBlock Classes="eyebrow" Text="10 · THIS APP" />
           <TextBlock Classes="display" FontSize="42" Text="Updates" />
           <TextBlock Classes="body" Text="New versions of this app, your tables and add-ons, VPX and UEVR, checked each time the app starts." />
         </StackPanel>

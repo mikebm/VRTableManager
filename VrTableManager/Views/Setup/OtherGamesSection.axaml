@@ -1,4 +1,4 @@
-<!-- Setup → 08 Other games. -->
+<!-- Setup → 09 Other games. -->
 <UserControl xmlns="https://github.com/avaloniaui"
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
              xmlns:vm="using:VrTableManager.ViewModels"
@@ -13,7 +13,7 @@
       </Grid.ColumnDefinitions>
       <StackPanel Classes="setupPage">
         <StackPanel Classes="setupHead">
-          <TextBlock Classes="eyebrow" Text="08 · TABLES" />
+          <TextBlock Classes="eyebrow" Text="09 · TABLES" />
           <TextBlock Classes="display" FontSize="42" Text="Other games" />
           <TextBlock Classes="body" Text="Optional: Future Pinball through BAM, and Zen's Pinball FX and Pinball M through UEVR. VPX doesn't need either." />
         </StackPanel>

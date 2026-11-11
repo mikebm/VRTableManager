@@ -1,0 +1,84 @@
+<!-- Setup → 03 Controls. -->
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:vm="using:VrTableManager.ViewModels"
+             x:Class="VrTableManager.Views.Setup.ControlsSection"
+             x:DataType="vm:MainViewModel">
+  <ScrollViewer>
+    <Grid>
+      <Grid.ColumnDefinitions>
+        <ColumnDefinition Width="*" MaxWidth="980" />
+      </Grid.ColumnDefinitions>
+      <StackPanel Classes="setupPage">
+        <StackPanel Classes="setupHead">
+          <TextBlock Classes="eyebrow" Text="03 · PINBALL" />
+          <TextBlock Classes="display" FontSize="42" Text="Controls" />
+          <TextBlock Classes="body" TextWrapping="Wrap"
+                     Text="The keyboard keys VPX uses for each action, set here instead of in VPX's in-game menu. Click SET, then press the key. Buttons on the VR controllers, a gamepad or a cabinet board stay mapped as they are." />
+        </StackPanel>
+
+        <Border Classes="panel" IsVisible="{Binding !ControlsSupported}">
+          <TextBlock Classes="body" TextWrapping="Wrap"
+                     Text="Setting keys here needs VPX 10.8.1 or later. Install it under Visual Pinball X, or set keys in VPX's own options." />
+        </Border>
+
+        <Border Classes="panel" IsVisible="{Binding ControlsSupported}">
+          <StackPanel Spacing="10">
+            <Grid ColumnDefinitions="Auto,*" ColumnSpacing="12">
+              <TextBlock Text="Save keys for" VerticalAlignment="Center" FontWeight="SemiBold" />
+              <ComboBox Grid.Column="1" ItemsSource="{Binding ControlsTargets}" SelectedIndex="{Binding ControlsTargetIndex}"
+                        MinWidth="320" HorizontalAlignment="Left" />
+            </Grid>
+            <TextBlock Classes="muted" TextWrapping="Wrap"
+                       Text="Desktop and VR: saved in your own VPinballX.ini, so VPX started on its own uses them too. VR or desktop only: saved in the manager's settings for that mode, on top of your own, and VPinballX.ini isn't changed." />
+            <TextBlock Classes="body" Foreground="{StaticResource Lamp}" TextWrapping="Wrap" Text="{Binding KeyMapStatus}"
+                       IsVisible="{Binding KeyMapStatus, Converter={x:Static StringConverters.IsNotNullOrEmpty}}" />
+
+            <Grid ColumnDefinitions="220,*,*,Auto" ColumnSpacing="12" Margin="0,6,0,0">
+              <TextBlock Classes="muted" Text="ACTION" />
+              <TextBlock Grid.Column="1" Classes="muted" Text="DESKTOP" />
+              <TextBlock Grid.Column="2" Classes="muted" Text="VR" />
+            </Grid>
+            <ItemsControl ItemsSource="{Binding ControlRows}">
+              <ItemsControl.ItemTemplate>
+                <DataTemplate x:DataType="vm:ControlRow">
+                  <StackPanel>
+                    <TextBlock Classes="eyebrow" Text="{Binding GroupHeader}" Margin="0,12,0,4"
+                               IsVisible="{Binding GroupHeader, Converter={x:Static StringConverters.IsNotNullOrEmpty}}" />
+                    <Grid ColumnDefinitions="220,*,*,Auto" ColumnSpacing="12" Margin="0,2">
+                      <TextBlock Text="{Binding Label}" VerticalAlignment="Center" FontWeight="SemiBold" />
+                      <TextBlock Grid.Column="1" Text="{Binding DesktopKeys}" VerticalAlignment="Center" TextWrapping="Wrap" />
+                      <TextBlock Grid.Column="2" Text="{Binding VrKeys}" VerticalAlignment="Center" TextWrapping="Wrap" />
+                      <Panel Grid.Column="3">
+                        <Button Classes="small" Content="SET" IsVisible="{Binding !IsCapturing}"
+                                Command="{ReflectionBinding $parent[ItemsControl].DataContext.CaptureKeyCommand}" CommandParameter="{Binding}" />
+                        <Button Classes="small" Content="PRESS A KEY…" Foreground="{StaticResource Lamp}" IsVisible="{Binding IsCapturing}"
+                                Command="{ReflectionBinding $parent[ItemsControl].DataContext.CaptureKeyCommand}" CommandParameter="{Binding}" />
+                      </Panel>
+                    </Grid>
+                  </StackPanel>
+                </DataTemplate>
+              </ItemsControl.ItemTemplate>
+            </ItemsControl>
+          </StackPanel>
+        </Border>
+
+        <Border Classes="panel">
+          <StackPanel Spacing="8">
+            <TextBlock Classes="h2" Text="Desktop controls in VR" />
+            <TextBlock Classes="body" TextWrapping="Wrap"
+                       Text="VR play uses the controls in your own VPinballX.ini until it has its own: a remap made during VR play (in-game menu → Input) or a key saved here for VR only. To bring a gamepad or cabinet board mapped in desktop VPX into VR after that, copy the desktop controls across." />
+            <WrapPanel>
+              <Button Classes="small" Content="USE MY DESKTOP VPX CONTROLS" Margin="0,0,8,0" Command="{Binding ImportDesktopControlsCommand}"
+                      ToolTip.Tip="Copies the [Input] section of your VPinballX.ini into the VR settings file, keeping the VR controller buttons." />
+            </WrapPanel>
+            <TextBlock Classes="body" Foreground="{StaticResource Lamp}" TextWrapping="Wrap" Text="{Binding ControlsStatus}"
+                       IsVisible="{Binding ControlsStatus, Converter={x:Static StringConverters.IsNotNullOrEmpty}}" />
+          </StackPanel>
+        </Border>
+
+        <Button Classes="small setupNext" Content="NEXT: HEADSET  ›" Command="{Binding ShowSetupSectionCommand}" CommandParameter="headset" />
+      </StackPanel>
+    </Grid>
+  </ScrollViewer>
+</UserControl>

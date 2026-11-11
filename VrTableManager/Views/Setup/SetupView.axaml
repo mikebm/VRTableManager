@@ -42,15 +42,25 @@
               </StackPanel>
             </Grid>
           </RadioButton>
+          <RadioButton Classes="setupNav" GroupName="setupNav"
+                       IsChecked="{Binding SetupSection, Converter={x:Static v:Converters.SectionIs}, ConverterParameter=controls}">
+            <Grid ColumnDefinitions="30,*">
+              <TextBlock Classes="navNum" Text="03" />
+              <StackPanel Grid.Column="1">
+                <TextBlock Classes="navTitle" Text="Controls" />
+                <TextBlock Classes="navSub" Text="VPX keys, desktop and VR" />
+              </StackPanel>
+            </Grid>
+          </RadioButton>
 
           <TextBlock Classes="railGroup" Text="VIRTUAL REALITY" />
           <RadioButton Classes="setupNav" GroupName="setupNav"
                        IsChecked="{Binding SetupSection, Converter={x:Static v:Converters.SectionIs}, ConverterParameter=headset}">
             <Grid ColumnDefinitions="30,*,Auto">
-              <TextBlock Classes="navNum" Text="03" />
+              <TextBlock Classes="navNum" Text="04" />
               <StackPanel Grid.Column="1">
                 <TextBlock Classes="navTitle" Text="Headset" />
-                <TextBlock Classes="navSub" Text="Runtime, smoothness, controls" />
+                <TextBlock Classes="navSub" Text="Runtime, smoothness" />
               </StackPanel>
               <Border Grid.Column="2" Classes="chip hot" Padding="7,1" VerticalAlignment="Center" IsVisible="{Binding IsRuntimeWarning}"
                       ToolTip.Tip="Check the OpenXR runtime">
@@ -61,7 +71,7 @@
           <RadioButton Classes="setupNav" GroupName="setupNav"
                        IsChecked="{Binding SetupSection, Converter={x:Static v:Converters.SectionIs}, ConverterParameter=fit}">
             <Grid ColumnDefinitions="30,*">
-              <TextBlock Classes="navNum" Text="04" />
+              <TextBlock Classes="navNum" Text="05" />
               <StackPanel Grid.Column="1">
                 <TextBlock Classes="navTitle" Text="Fit &amp; position" />
                 <TextBlock Classes="navSub" Text="Lockbar height, table size" />
@@ -71,7 +81,7 @@
           <RadioButton Classes="setupNav" GroupName="setupNav"
                        IsChecked="{Binding SetupSection, Converter={x:Static v:Converters.SectionIs}, ConverterParameter=graphics}">
             <Grid ColumnDefinitions="30,*">
-              <TextBlock Classes="navNum" Text="05" />
+              <TextBlock Classes="navNum" Text="06" />
               <StackPanel Grid.Column="1">
                 <TextBlock Classes="navTitle" Text="VR graphics" />
                 <TextBlock Classes="navSub" Text="VPX's quality in the headset" />
@@ -81,7 +91,7 @@
           <RadioButton Classes="setupNav" GroupName="setupNav"
                        IsChecked="{Binding SetupSection, Converter={x:Static v:Converters.SectionIs}, ConverterParameter=lobby}">
             <Grid ColumnDefinitions="30,*">
-              <TextBlock Classes="navNum" Text="06" />
+              <TextBlock Classes="navNum" Text="07" />
               <StackPanel Grid.Column="1">
                 <TextBlock Classes="navTitle" Text="VR lobby" />
                 <TextBlock Classes="navSub" Text="Cabinets, loading, music" />
@@ -93,7 +103,7 @@
           <RadioButton Classes="setupNav" GroupName="setupNav"
                        IsChecked="{Binding SetupSection, Converter={x:Static v:Converters.SectionIs}, ConverterParameter=downloads}">
             <Grid ColumnDefinitions="30,*">
-              <TextBlock Classes="navNum" Text="07" />
+              <TextBlock Classes="navNum" Text="08" />
               <StackPanel Grid.Column="1">
                 <TextBlock Classes="navTitle" Text="Downloads" />
                 <TextBlock Classes="navSub" Text="Table sites, the queue" />
@@ -103,7 +113,7 @@
           <RadioButton Classes="setupNav" GroupName="setupNav"
                        IsChecked="{Binding SetupSection, Converter={x:Static v:Converters.SectionIs}, ConverterParameter=games}">
             <Grid ColumnDefinitions="30,*">
-              <TextBlock Classes="navNum" Text="08" />
+              <TextBlock Classes="navNum" Text="09" />
               <StackPanel Grid.Column="1">
                 <TextBlock Classes="navTitle" Text="Other games" />
                 <TextBlock Classes="navSub" Text="Future Pinball, Pinball FX &amp; M" />
@@ -115,7 +125,7 @@
           <RadioButton Classes="setupNav" GroupName="setupNav"
                        IsChecked="{Binding SetupSection, Converter={x:Static v:Converters.SectionIs}, ConverterParameter=updates}">
             <Grid ColumnDefinitions="30,*,Auto">
-              <TextBlock Classes="navNum" Text="09" />
+              <TextBlock Classes="navNum" Text="10" />
               <StackPanel Grid.Column="1">
                 <TextBlock Classes="navTitle" Text="Updates" />
                 <TextBlock Classes="navSub" Text="App, tables, add-ons, VPX" />
@@ -129,7 +139,7 @@
           <RadioButton Classes="setupNav" GroupName="setupNav"
                        IsChecked="{Binding SetupSection, Converter={x:Static v:Converters.SectionIs}, ConverterParameter=maintenance}">
             <Grid ColumnDefinitions="30,*">
-              <TextBlock Classes="navNum" Text="10" />
+              <TextBlock Classes="navNum" Text="11" />
               <StackPanel Grid.Column="1">
                 <TextBlock Classes="navTitle" Text="Maintenance" />
                 <TextBlock Classes="navSub" Text="Logs, storage, backup" />
@@ -146,21 +156,23 @@
       <setup:VpxSection IsVisible="{Binding SetupSection, Converter={x:Static v:Converters.SectionIs}, ConverterParameter=vpx}" />
       <!-- 02 Playing tables -->
       <setup:PlaySection IsVisible="{Binding SetupSection, Converter={x:Static v:Converters.SectionIs}, ConverterParameter=play}" />
-      <!-- 03 Headset -->
+      <!-- 03 Controls -->
+      <setup:ControlsSection IsVisible="{Binding SetupSection, Converter={x:Static v:Converters.SectionIs}, ConverterParameter=controls}" />
+      <!-- 04 Headset -->
       <setup:HeadsetSection IsVisible="{Binding SetupSection, Converter={x:Static v:Converters.SectionIs}, ConverterParameter=headset}" />
-      <!-- 04 Fit & position -->
+      <!-- 05 Fit & position -->
       <setup:FitSection IsVisible="{Binding SetupSection, Converter={x:Static v:Converters.SectionIs}, ConverterParameter=fit}" />
-      <!-- 05 VR graphics -->
+      <!-- 06 VR graphics -->
       <setup:GraphicsSection IsVisible="{Binding SetupSection, Converter={x:Static v:Converters.SectionIs}, ConverterParameter=graphics}" />
-      <!-- 06 VR lobby -->
+      <!-- 07 VR lobby -->
       <setup:LobbySection IsVisible="{Binding SetupSection, Converter={x:Static v:Converters.SectionIs}, ConverterParameter=lobby}" />
-      <!-- 07 Downloads -->
+      <!-- 08 Downloads -->
       <setup:DownloadsSection IsVisible="{Binding SetupSection, Converter={x:Static v:Converters.SectionIs}, ConverterParameter=downloads}" />
-      <!-- 08 Other games -->
+      <!-- 09 Other games -->
       <setup:OtherGamesSection IsVisible="{Binding SetupSection, Converter={x:Static v:Converters.SectionIs}, ConverterParameter=games}" />
-      <!-- 09 Updates -->
+      <!-- 10 Updates -->
       <setup:UpdatesSection IsVisible="{Binding SetupSection, Converter={x:Static v:Converters.SectionIs}, ConverterParameter=updates}" />
-      <!-- 10 Maintenance -->
+      <!-- 11 Maintenance -->
       <setup:MaintenanceSection IsVisible="{Binding SetupSection, Converter={x:Static v:Converters.SectionIs}, ConverterParameter=maintenance}" />
     </Panel>
   </Grid>

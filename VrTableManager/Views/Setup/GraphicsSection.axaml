@@ -1,4 +1,4 @@
-<!-- Setup → 05 VR graphics. -->
+<!-- Setup → 06 VR graphics. -->
 <UserControl xmlns="https://github.com/avaloniaui"
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
              xmlns:vm="using:VrTableManager.ViewModels"
@@ -13,7 +13,7 @@
       </Grid.ColumnDefinitions>
       <StackPanel Classes="setupPage">
         <StackPanel Classes="setupHead">
-          <TextBlock Classes="eyebrow" Text="05 · VIRTUAL REALITY" />
+          <TextBlock Classes="eyebrow" Text="06 · VIRTUAL REALITY" />
           <TextBlock Classes="display" FontSize="42" Text="VR graphics" />
           <TextBlock Classes="body"
                      Text="Pinball needs a steady frame rate more than anything: the ball moves fast, so one late frame shows as a skip. Start with Performance, then raise things while it stays smooth." />
