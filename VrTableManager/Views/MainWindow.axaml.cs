@@ -6,6 +6,7 @@ using Avalonia.Layout;
 using Avalonia.Media;
 using Avalonia.Platform.Storage;
 using Avalonia.Threading;
+using VrTableManager.Services;
 using VrTableManager.ViewModels;
 
 namespace VrTableManager.Views;
@@ -105,7 +106,7 @@ public partial class MainWindow : Window, IUiHost
         try
         {
             SampleNormal();
-            _vm.Settings.MainWindow = new()
+            var placement = new WindowPlacement
             {
                 X = _normalPosition.X,
                 Y = _normalPosition.Y,
@@ -113,7 +114,11 @@ public partial class MainWindow : Window, IUiHost
                 Height = _normalSize.Height,
                 Maximized = _maximized,
             };
-            _vm.Settings.Save();
+            _vm.Settings.MainWindow = placement;
+            // Only the placement: the file can hold newer settings than this copy (a backup restored meanwhile).
+            var onDisk = AppSettings.LoadFrom(_vm.Settings.SourcePath ?? AppSettings.DefaultPath);
+            onDisk.MainWindow = placement;
+            onDisk.Save();
         }
         catch
         { /* next launch opens at the default spot */
