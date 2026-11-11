@@ -193,6 +193,19 @@ public sealed record VpxGraphics
             : null;
     }
 
+    /// <summary>
+    /// The graphics keys the table's .ini sets for itself (its render scale, say). If VPX writes such a value back
+    /// into the play file as everyone's, it isn't kept: it would reach every table, and with the VR graphics switched
+    /// off, the player's own VPinballX.ini.
+    /// </summary>
+    public static IEnumerable<(string Section, string Key)> OwnTableKeys(string tablePath)
+    {
+        var table = IniFile.Read(TableIniPath(tablePath));
+        return Keys.Where(k => !string.IsNullOrWhiteSpace(table.GetValueOrDefault(("Player", k))))
+            .Select(k => ("Player", k))
+            .ToList();
+    }
+
     /// <summary>Sets (or with null, clears) the table's own render scale.</summary>
     public static void WriteTableScale(string tablePath, double? scale)
     {

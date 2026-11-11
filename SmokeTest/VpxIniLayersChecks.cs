@@ -72,23 +72,182 @@ static class VpxIniLayersChecks
             var offPlay = VpxIniLayers.Build(s, vr: true);
             var off = IniFile.Read(offPlay.Path);
             var offRead = VpxGraphics.Read(VpxIniLayers.Effective(s, vr: true));
-            // Changed in VPX's menu while off: not saved over the panel's settings.
-            IniFile.SetMany(offPlay.Path, "Player", [("MSAASamples", "3")]);
+            // Changed in VPX's menu while off: saved into the player's own VPinballX.ini, as outside the manager, and
+            // not over the panel's settings. Other changes still go to the VR overrides.
+            var ownBeforeOff = File.ReadAllBytes(own);
+            var ownTextBeforeOff = File.ReadAllText(own);
+            // One [Player] section with a graphics and a non-graphics change: each goes to its own file.
+            IniFile.SetMany(offPlay.Path, "Player", [("MSAASamples", "3"), ("SoundVolume", "40")]);
+            IniFile.SetMany(offPlay.Path, "PlayerVR", [("TableY", "7.0")]);
             var offKept = offPlay.SaveBack();
+            var offNotes = offPlay.TakeNotes();
+            var ownAfterOff = IniFile.Read(own);
+            var ownTextAfterOff = File.ReadAllText(own);
+            var vrAfterOff = IniFile.Read(VpxSetup.VrIniPath(s));
+            File.WriteAllBytes(own, ownBeforeOff);
             s.UseVrGraphics = true;
             results.Add(
                 (
                     off.GetValueOrDefault(("Player", "MSAASamples")) == ""
                         && off.GetValueOrDefault(("PlayerVR", "AskToTurnOn")) == "0"
                         && offRead.Msaa == 0
-                        && offKept == 0
+                        && offKept == 2
+                        && offNotes.Any(n =>
+                            n.StartsWith("saved 1 graphics setting changed during play into")
+                        )
+                        && ownTextAfterOff
+                            == ownTextBeforeOff.Replace("MSAASamples = \n", "MSAASamples = 3\n")
+                        && !ownAfterOff.ContainsKey(("Player", "SoundVolume"))
+                        && vrAfterOff.GetValueOrDefault(("Player", "SoundVolume")) == "40"
+                        && vrAfterOff.GetValueOrDefault(("PlayerVR", "TableY")) == "7.0"
+                        && IniFile
+                            .Read(VpxSetup.VrIniPath(s))
+                            .GetValueOrDefault(("PlayerVR", "TableY")) == "7.0"
                         && IniFile
                             .Read(VpxSetup.VrIniPath(s))
                             .GetValueOrDefault(("Player", "MSAASamples")) == "1"
                         && IniFile
                             .Read(VpxIniLayers.Build(s, vr: true).Path)
                             .GetValueOrDefault(("Player", "MSAASamples")) == "1",
-                    "layers: VR graphics off leaves VPX's own graphics (other VR settings stay) and keeps in-game graphics changes out of the panel's; on again brings them back"
+                    "layers: VR graphics off leaves VPX's own graphics (other VR settings stay), saves in-game graphics changes into the player's VPinballX.ini (only the changed line), not the panel's; on again brings the panel's back"
+                )
+            );
+
+            // Off, but the player's file can't be written: the other changes are still kept, and the log says why.
+            s.UseVrGraphics = false;
+            var lockedPlay = VpxIniLayers.Build(s, vr: true);
+            IniFile.SetMany(lockedPlay.Path, "Player", [("MSAASamples", "2")]);
+            IniFile.SetMany(lockedPlay.Path, "PlayerVR", [("TableY", "8.0")]);
+            File.SetAttributes(own, FileAttributes.ReadOnly);
+            int lockedKept;
+            List<string> lockedNotes;
+            try
+            {
+                lockedKept = lockedPlay.SaveBack();
+                lockedNotes = lockedPlay.TakeNotes();
+            }
+            finally
+            {
+                File.SetAttributes(own, FileAttributes.Normal);
+            }
+            results.Add(
+                (
+                    lockedKept == 1
+                        && lockedNotes.Any(n => n.StartsWith("couldn't save 1 graphics setting"))
+                        && File.ReadAllBytes(own).SequenceEqual(ownBeforeOff)
+                        && !Directory
+                            .EnumerateFiles(Path.GetDirectoryName(own)!, "*.vrtm-new")
+                            .Any()
+                        && IniFile
+                            .Read(VpxSetup.VrIniPath(s))
+                            .GetValueOrDefault(("PlayerVR", "TableY")) == "8.0",
+                    "layers: VR graphics off with the player's VPinballX.ini read-only: other changes are still kept, the file is left as it was, and the log says why"
+                )
+            );
+
+            // Off, and the table's own .ini sets its render scale: VPX writing that back isn't saved as the player's.
+            var ownTable = Path.Combine(dir, "tables", "Own Scale", "Own Scale.vpx");
+            Directory.CreateDirectory(Path.GetDirectoryName(ownTable)!);
+            VpxGraphics.WriteTableScale(ownTable, 0.8);
+            var tablePlay = VpxIniLayers.Build(
+                s,
+                vr: true,
+                afterPlay: new VpxIniLayers.AfterPlay(NotKept: () =>
+                    VpxGraphics.OwnTableKeys(ownTable)
+                )
+            );
+            IniFile.SetMany(tablePlay.Path, "Player", [("AAFactor", "0.8")]);
+            tablePlay.SaveBack();
+            results.Add(
+                (
+                    File.ReadAllBytes(own).SequenceEqual(ownBeforeOff)
+                        && tablePlay.TakeNotes().Count == 0
+                        && IniFile
+                            .Read(VpxSetup.VrIniPath(s))
+                            .GetValueOrDefault(("Player", "AAFactor")) == "",
+                    "layers: a graphics setting the table's own .ini sets (its render scale) is never saved as the player's or everyone's"
+                )
+            );
+
+            // Off, with no VPinballX.ini of the player's anywhere: a graphics change lasts for that game, and the log says so.
+            var besideExe = Path.Combine(s.VpxDir, "VPinballX.ini");
+            var besideExeBytes = File.ReadAllBytes(besideExe);
+            File.Delete(own);
+            File.Delete(besideExe);
+            var nonePlay = VpxIniLayers.Build(s, vr: true);
+            IniFile.SetMany(nonePlay.Path, "Player", [("MSAASamples", "2")]);
+            var noneKept = nonePlay.SaveBack();
+            var noneNotes = nonePlay.TakeNotes();
+            var noneCreated = File.Exists(own) || File.Exists(besideExe);
+            File.WriteAllBytes(own, ownBeforeOff);
+            File.WriteAllBytes(besideExe, besideExeBytes);
+            s.UseVrGraphics = true;
+            results.Add(
+                (
+                    noneKept == 0
+                        && !noneCreated
+                        && noneNotes.Any(n => n.Contains("not kept: there's no VPinballX.ini"))
+                        && IniFile
+                            .Read(VpxSetup.VrIniPath(s))
+                            .GetValueOrDefault(("Player", "MSAASamples")) == "1",
+                    "layers: VR graphics off without a VPinballX.ini: a graphics change isn't kept (nor counted as kept), and the log says so"
+                )
+            );
+
+            // On, and in desktop play: a graphics change goes to that mode's overrides, never the player's file.
+            var vrOnPlay = VpxIniLayers.Build(s, vr: true);
+            IniFile.SetMany(vrOnPlay.Path, "Player", [("FXAA", "4")]);
+            var vrOnKept = vrOnPlay.SaveBack();
+            VpxSetup.EnsureDesktopIni(s);
+            var desktopBefore = File.ReadAllBytes(VpxSetup.DesktopIniPath(s));
+            var desktopPlay = VpxIniLayers.Build(s, vr: false);
+            IniFile.SetMany(desktopPlay.Path, "Player", [("FXAA", "5")]);
+            var desktopKept = desktopPlay.SaveBack();
+            var desktopFxaa = IniFile
+                .Read(VpxSetup.DesktopIniPath(s))
+                .GetValueOrDefault(("Player", "FXAA"));
+            File.WriteAllBytes(VpxSetup.DesktopIniPath(s), desktopBefore);
+            var vrFxaa = IniFile.Read(VpxSetup.VrIniPath(s)).GetValueOrDefault(("Player", "FXAA"));
+            IniFile.SetMany(VpxSetup.VrIniPath(s), "Player", [("FXAA", "")]);
+            results.Add(
+                (
+                    vrOnKept == 1
+                        && desktopKept == 1
+                        && vrFxaa == "4"
+                        && desktopFxaa == "5"
+                        && File.ReadAllBytes(own).SequenceEqual(ownBeforeOff),
+                    "layers: with VR graphics on, and in desktop play, a graphics change is kept as that mode's override and the player's file is untouched"
+                )
+            );
+
+            // Rewriting a file keeps how it was written: byte-order mark, line endings, and text in the PC's code page.
+            var styled = Path.Combine(dir, "styled.ini");
+            byte[] Styled(string value) =>
+                [
+                    0xEF,
+                    0xBB,
+                    0xBF,
+                    .. System.Text.Encoding.UTF8.GetBytes(
+                        $"; café\n[Player]\nMSAASamples = {value}\nPath = C:\\Tables\\Café\n"
+                    ),
+                ];
+            File.WriteAllBytes(styled, Styled(""));
+            IniFile.SetMany(styled, "Player", [("MSAASamples", "2")]);
+            var bomKept = File.ReadAllBytes(styled).SequenceEqual(Styled("2"));
+            var ansi = Path.Combine(dir, "ansi.ini");
+            byte[] Ansi(string value) =>
+                System.Text.Encoding.Latin1.GetBytes(
+                    $"[Player]\r\nMSAASamples = {value}\r\nPath = C:\\Tables\\Café\r\n"
+                );
+            File.WriteAllBytes(ansi, Ansi(""));
+            IniFile.SetMany(ansi, "Player", [("MSAASamples", "2")]);
+            results.Add(
+                (
+                    bomKept
+                        && File.ReadAllBytes(ansi).SequenceEqual(Ansi("2"))
+                        && IniFile.Read(ansi).GetValueOrDefault(("Player", "Path"))
+                            == @"C:\Tables\Café",
+                    "ini: rewriting a file keeps its byte-order mark, line endings and non-UTF-8 text as they were"
                 )
             );
 

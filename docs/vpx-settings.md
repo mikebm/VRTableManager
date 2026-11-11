@@ -6,7 +6,7 @@ So when you play a table from VR Table Manager, its settings come in layers:
 
 | Layer | File | Used for | Who changes it |
 |---|---|---|---|
-| 1. Your settings | `VPinballX.ini` (the one VPX itself loads) | VR **and** desktop play | You, in VPX or by hand. The manager never writes to it. |
+| 1. Your settings | `VPinballX.ini` (the one VPX itself loads) | VR **and** desktop play | You, in VPX or by hand. The manager writes to it only for the case described under "VR graphics switched off" below. |
 | 2. VR settings | `VrTableManager-VR.ini`, next to `VPinballX.exe` | **Play in VR** and the VR lobby | The manager, VPX's in-game menu during VR play, and you |
 | 2. Desktop settings | `VrTableManager-Desktop.ini`, next to `VPinballX.exe` | **DESKTOP** play | The manager, VPX's in-game menu during desktop play, and you |
 | 3. Table settings | `<table>.ini`, next to the table's `.vpx` | That one table | VPX, and the per-table render scale in the manager |
@@ -17,7 +17,8 @@ A higher layer wins. Anything a layer doesn't set comes from the layer below it.
 
 - **Change something in your own `VPinballX.ini` and it applies everywhere.** Change a key binding or the sound volume in desktop VPX, and VR play picks it up too, unless the VR file has its own value for that setting.
 - **The VR and desktop files only hold differences.** A setting with an empty value (`AAFactor = `) isn't an override, so yours is used. VPX writes empty values for anything left at its default, so most lines in these files are empty.
-- **Changes made while playing are kept for that mode.** If you change a setting in VPX's in-game menu while playing in VR (sound, graphics, or lining the table up with the left thumbstick click), it goes into the VR file when the table closes. It won't affect desktop play or your own `VPinballX.ini`.
+- **Changes made while playing are kept for that mode.** If you change a setting in VPX's in-game menu while playing in VR (sound, graphics, or lining the table up with the left thumbstick click), it goes into the VR file when the table closes. It won't affect desktop play or your own `VPinballX.ini`, except for graphics with the VR graphics switched off (next point).
+- **VR graphics switched off.** With **Use these graphics settings in VR** unchecked (Setup → VR graphics), VR play uses the graphics in your own `VPinballX.ini`. A graphics setting you change in VPX's in-game menu during VR play then goes back into your `VPinballX.ini` when the table closes, just as it would outside the manager. These are the panel's settings: render scale, MSAA, post-processing anti-aliasing, reflections, ambient occlusion, bloom, sharpen and the FPS display. Since it's your own file, desktop play and VPX on its own pick the change up too. Other changes still go into the VR file. A graphics setting the table's own `<table>.ini` sets (its render scale, say) stays that table's and is never saved as yours. If your `VPinballX.ini` can't be written (read-only, or open in another program), the change isn't kept and the play log says why.
 - **The manager's own options live in the VR and desktop files.** The Setup tab's checkboxes (built-in PinMAME, PuP packs, FlexDMD and B2S, adding a backglass in VR) and the VR graphics presets are written there.
 - **Tables you open in VPX directly, outside the manager, use only your `VPinballX.ini`.** Nothing changes for them.
 

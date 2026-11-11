@@ -25,7 +25,7 @@
               <StackPanel Spacing="2">
                 <TextBlock FontWeight="SemiBold" Text="Use these graphics settings in VR" />
                 <TextBlock Classes="muted" TextWrapping="Wrap"
-                           Text="Off: VR play uses the graphics in your own VPinballX.ini. A change in VPX's in-game menu then lasts for that game only (set it in VPinballX.ini to keep it), and a table's own render scale (⋯ → Table settings) still applies. What's set below is kept for when you turn it back on." />
+                           Text="Off: VR play uses the graphics in your own VPinballX.ini, and a graphics change saved in VPX's in-game menu goes into that file, as it does outside the manager. A table's own render scale (⋯ → Table settings) still applies. What's set below is kept for when you turn it back on." />
               </StackPanel>
             </CheckBox>
             <StackPanel Spacing="10" IsEnabled="{Binding UseVrGraphics}">

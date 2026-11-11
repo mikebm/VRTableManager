@@ -8,14 +8,16 @@ namespace VrTableManager.Services;
 /// VPX reads one settings file per run, but players want to keep tuning their own <c>VPinballX.ini</c> and still
 /// have the manager's VR and desktop changes on top. So each launch gets a file built from layers:
 /// <list type="number">
-/// <item>the player's own <c>VPinballX.ini</c> (the one VPX itself would load; read fresh every launch, never written),</item>
+/// <item>the player's own <c>VPinballX.ini</c> (the one VPX itself would load; read fresh every launch, and written
+/// only with the VR graphics switched off, when it holds the graphics VR play uses),</item>
 /// <item>the overrides for the mode: <c>VrTableManager-VR.ini</c> or <c>VrTableManager-Desktop.ini</c> beside VPX.
 /// Only keys with a value count; VPX writes an empty value for anything left at its default, so the VR file from
 /// before this change works as an override file as it is.</item>
 /// </list>
 /// The result goes to <c>…-VR.play.ini</c> / <c>…-Desktop.play.ini</c>, which VPX runs with (<c>-Ini</c>). Whatever
 /// VPX changed in it during play (the in-game menu, lining the table up in VR) is saved into that mode's overrides
-/// once the table closes, since the play file is rebuilt next time.
+/// once the table closes, since the play file is rebuilt next time. The exception is VR play with the VR graphics
+/// switched off: its graphics changes go into the player's own <c>VPinballX.ini</c>, as they would outside the manager.
 /// </summary>
 public static class VpxIniLayers
 {
@@ -148,14 +150,13 @@ public static class VpxIniLayers
             path,
             OverridePath(s, vr),
             IniFile.Read(path),
-            [
-                .. PerTableKeys,
-                .. notKept ?? [],
-                // VR graphics switched off: the play file has the player's own graphics, and a change made in VPX's
-                // menu isn't saved into the panel's settings (it would replace them when switched back on).
-                .. vr && !s.UseVrGraphics ? VpxGraphics.Keys.Select(k => ("Player", k)) : [],
-            ],
-            afterPlay
+            [.. PerTableKeys, .. notKept ?? []],
+            afterPlay,
+            // VR graphics switched off: the play file has the player's own graphics, so a change made in VPX's menu
+            // goes back into their VPinballX.ini, as it would outside the manager, and not into the panel's settings
+            // (it would replace them when switched back on).
+            graphicsToOwn: vr && !s.UseVrGraphics,
+            ownPath: BasePath(s)
         );
     }
 
@@ -183,7 +184,9 @@ public static class VpxIniLayers
         string overridePath,
         Dictionary<(string Section, string Key), string> before,
         (string Section, string Key)[] notKept,
-        AfterPlay? afterPlay = null
+        AfterPlay? afterPlay = null,
+        bool graphicsToOwn = false,
+        string? ownPath = null
     )
     {
         public string Path { get; } = path;
@@ -206,7 +209,8 @@ public static class VpxIniLayers
         /// <summary>
         /// Keeps what VPX changed during play as overrides for this mode. Runs once, however often it's called (when
         /// the table closes, and again by a caller that waited for it); a second caller waits until the first is done,
-        /// so what it reads next is saved. Returns how many settings were kept.
+        /// so what it reads next is saved. Returns how many settings were kept as overrides; graphics changes saved
+        /// into the player's own file (<c>graphicsToOwn</c>) are reported in <see cref="TakeNotes"/> instead.
         /// </summary>
         public int SaveBack()
         {
@@ -240,8 +244,15 @@ public static class VpxIniLayers
                         )
                     )
                     .ToList();
+                var toOwn = graphicsToOwn
+                    ? changed.Where(c => VpxGraphics.IsGraphicsKey((c.Section, c.Key))).ToList()
+                    : [];
+                var toOverrides = changed.Except(toOwn).ToList();
                 foreach (
-                    var section in changed.GroupBy(c => c.Section, StringComparer.OrdinalIgnoreCase)
+                    var section in toOverrides.GroupBy(
+                        c => c.Section,
+                        StringComparer.OrdinalIgnoreCase
+                    )
                 )
                 {
                     IniFile.SetMany(
@@ -249,6 +260,44 @@ public static class VpxIniLayers
                         section.Key,
                         section.Select(c => (c.Key, c.Value))
                     );
+                }
+
+                // Last, and on its own: the player's file may be read-only or open elsewhere, and that mustn't lose
+                // the overrides or the table's own part below.
+                if (toOwn.Count > 0)
+                {
+                    var n =
+                        $"{toOwn.Count} graphics setting{(toOwn.Count == 1 ? "" : "s")} changed during play";
+                    if (ownPath == null)
+                    {
+                        _notes.Add(
+                            $"{n} not kept: there's no VPinballX.ini of yours to keep them in"
+                        );
+                    }
+                    else
+                    {
+                        try
+                        {
+                            foreach (
+                                var section in toOwn.GroupBy(
+                                    c => c.Section,
+                                    StringComparer.OrdinalIgnoreCase
+                                )
+                            )
+                            {
+                                IniFile.SetMany(
+                                    ownPath,
+                                    section.Key,
+                                    section.Select(c => (c.Key, c.Value))
+                                );
+                            }
+                            _notes.Add($"saved {n} into {ownPath}");
+                        }
+                        catch (Exception e)
+                        {
+                            _notes.Add($"couldn't save {n} into {ownPath}: {e.Message}");
+                        }
+                    }
                 }
 
                 if (afterPlay?.After is { } then)
@@ -266,7 +315,7 @@ public static class VpxIniLayers
                     }
                 }
 
-                return changed.Count;
+                return toOverrides.Count;
             }
         }
     }
