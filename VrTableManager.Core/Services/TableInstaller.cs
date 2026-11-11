@@ -202,7 +202,10 @@ public static class TableInstaller
                 Authors = tf.Authors ?? [],
                 Features = tf.Features ?? [],
                 SourceUrl = tf.Urls?.FirstOrDefault()?.Url,
-                ImgUrl = tf.ImgUrl ?? game.ImgUrl,
+                ImgUrl =
+                    !string.IsNullOrWhiteSpace(tf.ImgUrl) ? tf.ImgUrl
+                    : !string.IsNullOrWhiteSpace(game.ImgUrl) ? game.ImgUrl
+                    : null,
                 VpxFile = Path.GetFileName(installed.tablePath),
                 RomNames = isFp ? [] : romNames,
                 InstalledAt = DateTime.Now,

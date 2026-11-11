@@ -121,10 +121,14 @@ public static class CatalogLink
         m.GameId = game.Id;
         m.Manufacturer ??= game.Manufacturer;
         m.Year ??= game.Year;
-        m.ImgUrl ??=
-            game.ImgUrl
-            ?? game.TableFiles?.Where(VpsCatalog.IsVpx)
-                .FirstOrDefault(f => f.ImgUrl != null)
-                ?.ImgUrl;
+        // "imgUrl": "" in the spreadsheet means no picture, like a missing one.
+        if (string.IsNullOrWhiteSpace(m.ImgUrl))
+        {
+            m.ImgUrl =
+                (string.IsNullOrWhiteSpace(game.ImgUrl) ? null : game.ImgUrl)
+                ?? game.TableFiles?.Where(VpsCatalog.IsVpx)
+                    .FirstOrDefault(f => !string.IsNullOrWhiteSpace(f.ImgUrl))
+                    ?.ImgUrl;
+        }
     }
 }

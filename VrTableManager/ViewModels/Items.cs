@@ -10,8 +10,11 @@ public sealed class GameItem(VpsGame game, bool installed)
 {
     public VpsGame Game { get; } = game;
     public string Title => Game.Name;
+
+    // The spreadsheet sometimes has "imgUrl": "" — that's no picture, so fall through to a table file's.
     public string? ImgUrl =>
-        Game.ImgUrl ?? Game.TableFiles?.FirstOrDefault(t => t.ImgUrl != null)?.ImgUrl;
+        (string.IsNullOrWhiteSpace(Game.ImgUrl) ? null : Game.ImgUrl)
+        ?? Game.TableFiles?.FirstOrDefault(t => !string.IsNullOrWhiteSpace(t.ImgUrl))?.ImgUrl;
     public bool IsInstalled { get; } = installed;
     public int VrCount =>
         Game.TableFiles?.Count(t => VpsCatalog.IsVpx(t) && VpsCatalog.IsVrReady(t)) ?? 0;
