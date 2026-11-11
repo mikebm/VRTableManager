@@ -1,0 +1,84 @@
+<!-- Get Tables' details drawer: the picked machine and its table files to install. -->
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:vm="using:VrTableManager.ViewModels"
+             xmlns:v="using:VrTableManager.Views"
+             xmlns:services="using:VrTableManager.Services"
+             x:Class="VrTableManager.Views.GetTables.TableDetailsView"
+             x:DataType="vm:MainViewModel">
+  <Border Width="470" Background="{StaticResource Surface}"
+          BorderBrush="{StaticResource Line}" BorderThickness="1,0,0,0"
+          IsVisible="{Binding SelectedGame, Converter={x:Static ObjectConverters.IsNotNull}}">
+    <ScrollViewer>
+      <StackPanel>
+        <Grid Height="250">
+          <Border Background="{StaticResource Stripes}" />
+          <Image v:ImageLoader.Url="{Binding SelectedGame.ImgUrl}" Stretch="UniformToFill" />
+          <Border>
+            <Border.Background>
+              <LinearGradientBrush StartPoint="0%,0%" EndPoint="0%,100%">
+                <GradientStop Offset="0.35" Color="#00141416" />
+                <GradientStop Offset="1" Color="#FF141416" />
+              </LinearGradientBrush>
+            </Border.Background>
+          </Border>
+          <Button Classes="icon" Content="✕" HorizontalAlignment="Right" VerticalAlignment="Top" Margin="12"
+                  Background="#B30A0A0B" Command="{Binding CloseDetailsCommand}" />
+        </Grid>
+
+        <StackPanel Margin="24,0,24,28" Spacing="16">
+          <StackPanel Spacing="6">
+            <TextBlock Classes="h2" FontSize="22" Text="{Binding SelectedGame.Title}" TextWrapping="Wrap" />
+            <TextBlock Classes="muted" FontSize="13.5" Text="{Binding SelectedGame.MakerYear}" />
+            <StackPanel Orientation="Horizontal" Spacing="6" Margin="0,4,0,0">
+              <Border Classes="chip lit" IsVisible="{Binding SelectedGame.IsVr}"><TextBlock Text="VR READY" /></Border>
+              <Border Classes="chip hot" IsVisible="{Binding SelectedGame.HasFp}"><TextBlock Text="FUTURE PINBALL" /></Border>
+              <Border Classes="chip green" IsVisible="{Binding SelectedGame.IsInstalled}"><TextBlock Text="INSTALLED" /></Border>
+            </StackPanel>
+          </StackPanel>
+
+          <TextBlock Classes="eyebrow" Text="VERSIONS" Margin="0,6,0,0" />
+
+          <ItemsControl ItemsSource="{Binding Versions}">
+            <ItemsControl.ItemsPanel>
+              <ItemsPanelTemplate><StackPanel Spacing="12" /></ItemsPanelTemplate>
+            </ItemsControl.ItemsPanel>
+            <ItemsControl.ItemTemplate>
+              <DataTemplate x:DataType="vm:TableVersionItem">
+                <Border Background="{StaticResource Bg}" BorderBrush="{StaticResource Line}" BorderThickness="1"
+                        CornerRadius="10" Padding="16">
+                  <StackPanel Spacing="8">
+                    <StackPanel Orientation="Horizontal" Spacing="6">
+                      <Border Classes="chip lit" IsVisible="{Binding IsVr}"><TextBlock Text="VR" /></Border>
+                      <Border Classes="chip"><TextBlock Text="{Binding Engine}" /></Border>
+                    </StackPanel>
+                    <TextBlock Classes="title" Text="{Binding Heading}" TextWrapping="Wrap" />
+                    <TextBlock Classes="mono" Text="{Binding Details}" TextWrapping="Wrap" />
+                    <ItemsControl ItemsSource="{Binding FeatureList}">
+                      <ItemsControl.ItemsPanel>
+                        <ItemsPanelTemplate><WrapPanel /></ItemsPanelTemplate>
+                      </ItemsControl.ItemsPanel>
+                      <ItemsControl.ItemTemplate>
+                        <DataTemplate x:DataType="x:String">
+                          <Border Classes="chip quiet" Margin="0,0,5,5"><TextBlock Text="{Binding}" /></Border>
+                        </DataTemplate>
+                      </ItemsControl.ItemTemplate>
+                    </ItemsControl>
+                    <TextBlock Classes="muted" Text="{Binding Comment}" TextWrapping="Wrap" FontStyle="Italic"
+                               IsVisible="{Binding Comment, Converter={x:Static StringConverters.IsNotNullOrEmpty}}" />
+                    <StackPanel Orientation="Horizontal" Spacing="8" Margin="0,4,0,0">
+                      <Button Classes="primary" Content="INSTALL" Command="{Binding Install}" IsEnabled="{Binding HasUrl}" />
+                      <Button Content="OPEN PAGE" IsEnabled="{Binding HasUrl}"
+                              Command="{ReflectionBinding $parent[Window].DataContext.OpenPageCommand}"
+                              CommandParameter="{Binding Url}" />
+                    </StackPanel>
+                  </StackPanel>
+                </Border>
+              </DataTemplate>
+            </ItemsControl.ItemTemplate>
+          </ItemsControl>
+        </StackPanel>
+      </StackPanel>
+    </ScrollViewer>
+  </Border>
+</UserControl>

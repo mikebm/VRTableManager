@@ -1,0 +1,105 @@
+<!-- Setup → 04 Fit & position. -->
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:vm="using:VrTableManager.ViewModels"
+             xmlns:v="using:VrTableManager.Views"
+             xmlns:services="using:VrTableManager.Services"
+             x:Class="VrTableManager.Views.Setup.FitSection"
+             x:DataType="vm:MainViewModel">
+  <ScrollViewer>
+    <Grid>
+      <Grid.ColumnDefinitions>
+        <ColumnDefinition Width="*" MaxWidth="980" />
+      </Grid.ColumnDefinitions>
+      <StackPanel Classes="setupPage">
+        <StackPanel Classes="setupHead">
+          <TextBlock Classes="eyebrow" Text="04 · VIRTUAL REALITY" />
+          <TextBlock Classes="display" FontSize="42" Text="Fit &amp; position" />
+          <TextBlock Classes="body" Text="How high and how far away every VPX table stands in the headset, and how big it is." />
+        </StackPanel>
+
+        <Border Classes="panel" BorderBrush="{StaticResource LineHi}">
+          <StackPanel Spacing="10">
+            <TextBlock Classes="h2" Text="Fit VR to me" />
+            <TextBlock Classes="body" TextWrapping="Wrap"
+                       Text="Every VPX table gets its lockbar at the same height and distance from you, sized like a real machine, so you don't line each one up yourself. Tables use a real cabinet's values until you change them. Changes here count once you click FIT EVERY TABLE TO ME, and then for every table." />
+            <Grid ColumnDefinitions="Auto,Auto,*" RowDefinitions="Auto,Auto,Auto,Auto,Auto" ColumnSpacing="12" RowSpacing="8">
+              <TextBlock Text="Your height" VerticalAlignment="Center" FontWeight="SemiBold" />
+              <Grid Grid.Column="1" Width="210" ColumnDefinitions="Auto,*,Auto,Auto" ColumnSpacing="4">
+                <Button Classes="small" Content="−" Command="{Binding FitHeightLessCommand}" ToolTip.Tip="Shorter" />
+                <TextBox Grid.Column="1" Text="{Binding FitHeightText}" PlaceholderText="optional" HorizontalContentAlignment="Center" MinWidth="0" />
+                <Button Grid.Column="2" Classes="small" Content="+" Command="{Binding FitHeightMoreCommand}" ToolTip.Tip="Taller" />
+                <Button Grid.Column="3" Classes="small" Content="×" Command="{Binding FitHeightClearCommand}" ToolTip.Tip="Clear (your height is optional)" />
+              </Grid>
+              <TextBlock Grid.Column="2" Classes="muted" VerticalAlignment="Center" TextWrapping="Wrap"
+                         Text="Optional: fills in the lockbar height below, and × clears it. − and + move 1 cm (1&quot;). The headset already knows how tall you are." />
+
+              <TextBlock Grid.Row="1" Text="Lockbar height" VerticalAlignment="Center" FontWeight="SemiBold" />
+              <Grid Grid.Row="1" Grid.Column="1" Width="210" ColumnDefinitions="Auto,*,Auto,Auto" ColumnSpacing="4">
+                <Button Classes="small" Content="−" Command="{Binding FitLockbarLowerCommand}" ToolTip.Tip="Lower" />
+                <TextBox Grid.Column="1" Text="{Binding FitLockbarText}" HorizontalContentAlignment="Center" MinWidth="0" />
+                <Button Grid.Column="2" Classes="small" Content="+" Command="{Binding FitLockbarHigherCommand}" ToolTip.Tip="Higher" />
+              </Grid>
+              <TextBlock Grid.Row="1" Grid.Column="2" Classes="muted" VerticalAlignment="Center" TextWrapping="Wrap"
+                         Text="Floor to the top of the lockbar. A real cabinet's is about 91 cm (36&quot;). On a real cabinet or a controller stand, measure yours. − and + move 1 cm (1&quot;)." />
+
+              <TextBlock Grid.Row="2" Text="Eyes behind it" VerticalAlignment="Center" FontWeight="SemiBold" />
+              <Grid Grid.Row="2" Grid.Column="1" Width="210" ColumnDefinitions="Auto,*,Auto,Auto" ColumnSpacing="4">
+                <Button Classes="small" Content="−" Command="{Binding FitEyesCloserCommand}" ToolTip.Tip="Closer to the table" />
+                <TextBox Grid.Column="1" Text="{Binding FitEyesText}" HorizontalContentAlignment="Center" MinWidth="0" />
+                <Button Grid.Column="2" Classes="small" Content="+" Command="{Binding FitEyesFurtherCommand}" ToolTip.Tip="Further back" />
+              </Grid>
+              <TextBlock Grid.Row="2" Grid.Column="2" Classes="muted" VerticalAlignment="Center" TextWrapping="Wrap"
+                         Text="How far your eyes are behind the lockbar: − and + move 1 cm (1&quot; in feet and inches), or type it. About 10 cm (4&quot;) feels like standing at a real cabinet. It's exact once you recenter (keypad 5) where you stand; a negative number leans you over the glass." />
+
+              <TextBlock Grid.Row="3" Text="Table size" VerticalAlignment="Center" FontWeight="SemiBold" />
+              <ComboBox Grid.Row="3" Grid.Column="1" Grid.ColumnSpan="2" ItemsSource="{Binding FitSizes}" SelectedIndex="{Binding FitSizeIndex}"
+                        MinWidth="300" HorizontalAlignment="Left"
+                        ToolTip.Tip="VPX scales every table so its lockbar is 70 cm wide, which makes a standard table about a fifth too big. Real size works out each table's own width from its playfield every time it starts, so a width you change in VPX's menu lasts only until that table closes. The same width suits a controller stand: the table always fits it." />
+
+              <TextBlock Grid.Row="4" Text="Lockbar width" VerticalAlignment="Center" FontWeight="SemiBold" IsVisible="{Binding IsFitSameWidth}" />
+              <TextBox Grid.Row="4" Grid.Column="1" Text="{Binding FitSameWidthText}" Width="150" IsVisible="{Binding IsFitSameWidth}" />
+              <TextBlock Grid.Row="4" Grid.Column="2" Classes="muted" VerticalAlignment="Center" TextWrapping="Wrap" IsVisible="{Binding IsFitSameWidth}"
+                         Text="A standard (WPC) table's is 57 cm (22½&quot;); a widebody's about 65 cm." />
+            </Grid>
+            <CheckBox IsChecked="{Binding FitUseInches}" Content="Feet and inches" />
+            <CheckBox IsChecked="{Binding FitResetPosition}" Content="Also put the table straight ahead, where the headset centres you"
+                      ToolTip.Tip="Forgets the position you set in the headset. The table then starts in front of the headset's centre point (hold the Meta button to move that to where you stand). Off: only the height offset is cleared, so the lockbar height above is what you get." />
+            <TextBlock Classes="mono" TextWrapping="Wrap" Text="{Binding FitSummary}" />
+            <WrapPanel>
+              <Button Classes="small" Content="FIT EVERY TABLE TO ME" Margin="0,0,8,0" Command="{Binding ApplyVrFitCommand}"
+                      ToolTip.Tip="Saves these in the VR settings file. Changes here only count once you click this. Desktop play doesn't change." />
+              <Button Classes="small" Content="RESET TO DEFAULTS" Margin="0,0,8,0" Command="{Binding ResetVrFitCommand}"
+                      ToolTip.Tip="A real cabinet's lockbar height, your eyes 10 cm (4&quot;) behind it, every table at its real size, and the table straight ahead." />
+            </WrapPanel>
+            <TextBlock Classes="body" Foreground="{StaticResource Lamp}" TextWrapping="Wrap" Text="{Binding FitStatus}"
+                       IsVisible="{Binding FitStatus, Converter={x:Static StringConverters.IsNotNullOrEmpty}}" />
+          </StackPanel>
+        </Border>
+
+        <Border Classes="panel">
+          <StackPanel Spacing="8">
+            <TextBlock Classes="h2" Text="Where the table sits in VR" />
+            <TextBlock Classes="body" TextWrapping="Wrap"
+                       Text="Line the table up while playing, in the headset. VPX remembers it for every table." />
+            <TextBlock Classes="body" TextWrapping="Wrap"
+                       Text="• Click the LEFT THUMBSTICK to line the table up with your VR controllers: hold them where you want the front of the cabinet (the lockbar) and click. Do this standing where you play. Until the table closes, this also takes the lockbar height and width from your controllers, in place of FIT VR TO ME's." />
+            <TextBlock Classes="body" TextWrapping="Wrap"
+                       Text="• Or press X on the left controller for VPX's menu: its VR settings move the table forward, back, up and down, turn it, and set the lockbar width (the table's size)." />
+            <TextBlock Classes="body" TextWrapping="Wrap"
+                       Text="• At the keyboard: keypad 5 recenters, keypad 8 and 2 raise and lower the table. The headset's own recenter (hold the Meta button) moves the room with you." />
+            <TextBlock Classes="body" TextWrapping="Wrap"
+                       Text="• Where you stand is kept for every table. A height you set (keypad 8 and 2, or VPX's menu) is kept for that table only, because tables sit differently when their authors set different glass heights. The table's card shows it and can clear it. For every table's height, change the lockbar height above." />
+            <TextBlock Classes="mono" TextWrapping="Wrap" Text="{Binding VrViewText}" />
+            <WrapPanel>
+              <Button Classes="small" Content="RESET TABLE POSITION" Margin="0,0,8,0" Command="{Binding ResetVrViewCommand}"
+                      ToolTip.Tip="Forgets the position set in the headset, so VPX places the table itself again." />
+            </WrapPanel>
+          </StackPanel>
+        </Border>
+
+        <Button Classes="small setupNext" Content="NEXT: VR GRAPHICS  ›" Command="{Binding ShowSetupSectionCommand}" CommandParameter="graphics" />
+      </StackPanel>
+    </Grid>
+  </ScrollViewer>
+</UserControl>

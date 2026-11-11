@@ -2,13 +2,10 @@ using System.Diagnostics;
 using Avalonia;
 using Avalonia.Controls;
 using Avalonia.Data.Converters;
-using Avalonia.Interactivity;
 using Avalonia.Layout;
 using Avalonia.Media;
 using Avalonia.Platform.Storage;
 using Avalonia.Threading;
-using Avalonia.VisualTree;
-using VrTableManager.Lobby;
 using VrTableManager.Services;
 using VrTableManager.ViewModels;
 
@@ -24,26 +21,6 @@ public partial class MainWindow : Window, IUiHost
         InitializeComponent();
         DataContext = _vm = new MainViewModel(this);
         RestorePlacement();
-        // The A–Z rails light the letters on screen as the lists scroll. A filter can change the cards without
-        // changing the scroll size, and a list refiltered while its tab was hidden only lays out when shown again,
-        // so those look again too, once the cards are in place.
-        InstalledScroll.ScrollChanged += (_, _) => TrackLetter(installed: true);
-        CatalogScroll.ScrollChanged += (_, _) => TrackLetter(installed: false);
-        _vm.Installed.CollectionChanged += (_, _) => TrackLetterSoon(installed: true);
-        _vm.Games.CollectionChanged += (_, _) => TrackLetterSoon(installed: false);
-        InstalledScroll.AttachedToVisualTree += (_, _) => TrackLetterSoon(installed: true);
-        CatalogScroll.AttachedToVisualTree += (_, _) => TrackLetterSoon(installed: false);
-        _vm.PropertyChanged += (_, e) =>
-        {
-            if (e.PropertyName == nameof(MainViewModel.ShowInstalledLetters))
-            {
-                TrackLetterSoon(installed: true);
-            }
-            else if (e.PropertyName == nameof(MainViewModel.ShowCatalogLetters))
-            {
-                TrackLetterSoon(installed: false);
-            }
-        };
         Opened += async (_, _) => await _vm.LoadCatalogAsync();
         Closing += async (_, e) =>
         {
@@ -113,144 +90,6 @@ public partial class MainWindow : Window, IUiHost
                 _maximized = WindowState is WindowState.Maximized or WindowState.FullScreen;
             }
         };
-    }
-
-    /// <summary>A–Z rail: scrolls the list beside it so the letter's first table is at the top.</summary>
-    void Letter_Click(object? sender, RoutedEventArgs e)
-    {
-        if (sender is not Button { DataContext: LetterChoice choice } button)
-        {
-            return;
-        }
-
-        var installed = button.FindAncestorOfType<ItemsControl>() == InstalledLetterRail;
-        object? item = installed
-            ? _vm.FirstInstalledAt(choice.Letter)
-            : _vm.FirstCatalogAt(choice.Letter); // may show more pages first
-        ItemsControl grid = installed ? InstalledGrid : CatalogGrid;
-        var scroll = installed ? InstalledScroll : CatalogScroll;
-        if (item == null)
-        {
-            return;
-        }
-
-        grid.UpdateLayout(); // cards a page just added need their place before it's measured
-        if (
-            grid.ContainerFromItem(item) is { } card
-            && scroll.Content is Visual content
-            && card.TranslatePoint(default, content) is { } at
-        )
-        {
-            scroll.Offset = new Vector(scroll.Offset.X, Math.Max(0, at.Y - 8));
-        }
-    }
-
-    /// <summary>
-    /// Lights the rail letters of the cards on screen: every card at least half showing. (Only the top row lit a
-    /// letter for a sliver of a row above the screen.) Cards are laid out in list order, row by row, so two binary
-    /// searches find the first and last of them in a few steps however long the list is.
-    /// </summary>
-    void TrackLetter(bool installed)
-    {
-        ItemsControl grid = installed ? InstalledGrid : CatalogGrid;
-        var scroll = installed ? InstalledScroll : CatalogScroll;
-        if (
-            !(installed ? _vm.ShowInstalledLetters : _vm.ShowCatalogLetters)
-            || scroll.Content is not Visual content
-        )
-        {
-            return;
-        }
-
-        // Where a card's middle sits in the list, or null while it isn't laid out.
-        double? Middle(int index) =>
-            grid.ContainerFromIndex(index) is { } card
-            && card.TranslatePoint(default, content) is { } at
-                ? at.Y + card.Bounds.Height / 2
-                : null;
-
-        // The first card whose middle is below y (cards' middles only grow down the list).
-        int FirstBelow(double y)
-        {
-            int lo = 0,
-                hi = grid.ItemCount;
-            while (lo < hi)
-            {
-                var mid = (lo + hi) / 2;
-                if (Middle(mid) is not { } m)
-                {
-                    return -1;
-                }
-
-                if (m > y)
-                {
-                    hi = mid;
-                }
-                else
-                {
-                    lo = mid + 1;
-                }
-            }
-            return lo;
-        }
-
-        var first = FirstBelow(scroll.Offset.Y);
-        var end = FirstBelow(scroll.Offset.Y + scroll.Viewport.Height);
-        var shown = new HashSet<string>();
-        for (var i = Math.Max(first, 0); first >= 0 && i < end; i++)
-        {
-            if (
-                grid.Items[i] switch
-                {
-                    InstalledItem t => t.Title,
-                    GameItem g => g.Title,
-                    _ => null,
-                } is
-                { } title
-            )
-            {
-                shown.Add(LobbyNav.LetterOf(title));
-            }
-        }
-        _vm.SetActiveLetters(installed, shown);
-    }
-
-    // One look per list once layout has caught up, however many cards a refill adds one by one.
-    bool _installedLetterQueued,
-        _catalogLetterQueued;
-
-    void TrackLetterSoon(bool installed)
-    {
-        if (installed ? _installedLetterQueued : _catalogLetterQueued)
-        {
-            return;
-        }
-
-        if (installed)
-        {
-            _installedLetterQueued = true;
-        }
-        else
-        {
-            _catalogLetterQueued = true;
-        }
-
-        Dispatcher.UIThread.Post(
-            () =>
-            {
-                if (installed)
-                {
-                    _installedLetterQueued = false;
-                }
-                else
-                {
-                    _catalogLetterQueued = false;
-                }
-
-                TrackLetter(installed);
-            },
-            DispatcherPriority.Loaded
-        );
     }
 
     void SampleNormal()

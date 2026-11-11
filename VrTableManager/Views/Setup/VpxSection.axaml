@@ -1,0 +1,100 @@
+<!-- Setup → 01 Visual Pinball X. -->
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:vm="using:VrTableManager.ViewModels"
+             xmlns:v="using:VrTableManager.Views"
+             xmlns:services="using:VrTableManager.Services"
+             x:Class="VrTableManager.Views.Setup.VpxSection"
+             x:DataType="vm:MainViewModel">
+  <ScrollViewer>
+    <Grid>
+      <Grid.ColumnDefinitions>
+        <ColumnDefinition Width="*" MaxWidth="980" />
+      </Grid.ColumnDefinitions>
+      <StackPanel Classes="setupPage">
+        <StackPanel Classes="setupHead">
+          <TextBlock Classes="eyebrow" Text="01 · PINBALL" />
+          <TextBlock Classes="display" FontSize="42" Text="Visual Pinball X" />
+          <TextBlock Classes="body" Text="VPX, your headset (03) and a table site (07) are all you need. Future Pinball, Pinball FX and Pinball M are optional extras, under Other games." />
+        </StackPanel>
+
+        <Border Classes="panel" BorderBrush="{StaticResource LineHi}">
+          <StackPanel Spacing="10">
+            <TextBlock Classes="h2" Text="Install &amp; update" />
+            <TextBlock Classes="body" Foreground="{StaticResource Text}" Text="{Binding VpxStatus}" />
+            <StackPanel Orientation="Horizontal" Spacing="8">
+              <Button Classes="primary" Content="INSTALL / UPDATE VPX" Command="{Binding InstallVpxCommand}" IsEnabled="{Binding !IsInstallingVpx}" />
+              <Button Content="CHECK FOR UPDATES" Command="{Binding CheckVpxUpdateCommand}" />
+              <Button Content="CHOOSE A BUILD…" Command="{Binding LoadVpxBuildsCommand}" IsEnabled="{Binding !IsInstallingVpx}"
+                      ToolTip.Tip="Lists VPX's releases (and, with nightly builds on, the last week or so of nightlies) so you can install a particular one, such as an older build when a newer one broke something." />
+            </StackPanel>
+            <WrapPanel IsVisible="{Binding HasVpxBuilds}">
+              <ComboBox ItemsSource="{Binding VpxBuilds}" SelectedItem="{Binding ChosenVpxBuild}" MinWidth="380" MaxDropDownHeight="420"
+                        Margin="0,0,8,0" VerticalAlignment="Center" />
+              <Button Classes="small" Content="{Binding ChosenVpxButtonText}" Command="{Binding InstallChosenVpxCommand}" IsEnabled="{Binding !IsInstallingVpx}"
+                      VerticalAlignment="Center"
+                      ToolTip.Tip="Installs the picked build over the one you have, older or newer, and keeps it: newer builds aren't offered as updates until you click INSTALL / UPDATE VPX. Your settings files stay as they are. On the installed build it reinstalls it, which repairs a damaged VPX folder." />
+            </WrapPanel>
+            <Grid ColumnDefinitions="*,Auto" ColumnSpacing="8" IsVisible="{Binding IsInstallingVpx}">
+              <ProgressBar Value="{Binding VpxProgress}" IsIndeterminate="{Binding VpxProgressUnknown}" VerticalAlignment="Center" />
+              <Button Grid.Column="1" Classes="small" Content="CANCEL" Command="{Binding CancelVpxInstallCommand}" />
+            </Grid>
+            <TextBlock Classes="mono" Text="{Binding LatestVpx}" TextWrapping="Wrap" />
+            <TextBlock Classes="muted" TextWrapping="Wrap"
+                       Text="Installs the official BGFX build from github.com/vpinball (VR through OpenXR)." />
+            <TextBlock Classes="eyebrow" Text="BUILDS" Margin="0,6,0,0" />
+            <CheckBox IsChecked="{Binding VpxUseDoNotUseBuilds}"
+                      Content="Use the BGFX builds marked &quot;DO NOT USE&quot; on GitHub (recommended)"
+                      ToolTip.Tip="The VPX team labels its current BGFX builds &quot;DO NOT USE&quot;; they have the newest VR work. Off: only builds without that label are installed or offered as updates (plus nightlies, if that option is on). Click CHECK FOR UPDATES after changing this." />
+            <CheckBox IsChecked="{Binding VpxUseNightlyBuilds}"
+                      Content="Use nightly BGFX builds (newest, untested)"
+                      ToolTip.Tip="VPX builds every change to its master branch. On: the newest of those builds is installed and offered as an update when it's newer than the newest release. They're downloaded through nightly.link (GitHub only gives them to signed-in users) and nobody has tested them, so one can break tables. Works with or without the &quot;DO NOT USE&quot; builds option above, which only decides whether those releases are offered too (some work better than the newest nightly). Off: only releases. Turning it off keeps the nightly you have until a newer release comes out. Click CHECK FOR UPDATES after changing this." />
+          </StackPanel>
+        </Border>
+
+        <Border Classes="panel">
+          <StackPanel Spacing="10">
+            <TextBlock Classes="h2" Text="Folders" />
+            <TextBlock Classes="eyebrow" Foreground="{StaticResource Muted}" Text="VPX INSTALL FOLDER" />
+            <Grid ColumnDefinitions="*,Auto,Auto">
+              <TextBox Text="{Binding VpxDir}" />
+              <Button Grid.Column="1" Content="BROWSE" Margin="8,0,0,0" Command="{Binding BrowseVpxDirCommand}" />
+              <Button Grid.Column="2" Content="OPEN" Margin="8,0,0,0" Command="{Binding OpenVpxFolderCommand}" />
+            </Grid>
+            <TextBlock Classes="eyebrow" Foreground="{StaticResource Muted}" Text="VPX TABLES FOLDER · ONE SUB-FOLDER PER TABLE" Margin="0,6,0,0" />
+            <Grid ColumnDefinitions="*,Auto,Auto">
+              <TextBox Text="{Binding TablesDir}" />
+              <Button Grid.Column="1" Content="BROWSE" Margin="8,0,0,0" Command="{Binding BrowseTablesDirCommand}" />
+              <Button Grid.Column="2" Content="OPEN" Margin="8,0,0,0" Command="{Binding OpenTablesFolderCommand}" />
+            </Grid>
+            <StackPanel Orientation="Horizontal" Spacing="10">
+              <Button Classes="small" Content="COPY TABLES FROM ANOTHER VPX INSTALL…" Command="{Binding ImportTablesCommand}"
+                      ToolTip.Tip="Pick another VPX folder (or its Tables folder). Its tables are copied here, one folder each, with their ROMs, NVRAM, AltSound, AltColor and PuP packs from that install's VPinMAME and PinUPSystem folders. Tables already here are skipped; the other install isn't changed." />
+              <TextBlock Classes="muted" VerticalAlignment="Center" TextWrapping="Wrap" Text="{Binding ImportStatus}" />
+            </StackPanel>
+          </StackPanel>
+        </Border>
+
+        <Border Classes="panel">
+          <StackPanel Spacing="10">
+            <TextBlock Classes="h2" Text="VPX settings, in layers" />
+            <TextBlock Classes="muted" TextWrapping="Wrap"
+                       Text="Tables play with your own VPX settings (VPinballX.ini, which you can keep changing in VPX or by hand), with the manager's VR or desktop changes on top. A setting in the VR or desktop file wins over yours for that mode only; leave its value empty to use yours. Settings you change in VPX's menu while playing a table from here are kept in that mode's file. Your VPinballX.ini is never changed by the manager. Edit the files while no table is running." />
+            <WrapPanel>
+              <Button Classes="small" Content="EDIT MY VPINBALLX.INI" Margin="0,0,8,8" Command="{Binding OpenOwnVpxIniCommand}"
+                      ToolTip.Tip="Your own VPX settings: used for VR and desktop play, except where the VR or desktop file says otherwise." />
+              <Button Classes="small" Content="EDIT VR SETTINGS" Margin="0,0,8,8" Command="{Binding OpenVrIniCommand}"
+                      ToolTip.Tip="VrTableManager-VR.ini beside VPX: settings for VR play only, on top of yours." />
+              <Button Classes="small" Content="EDIT DESKTOP SETTINGS" Margin="0,0,8,8" Command="{Binding OpenDesktopIniCommand}"
+                      ToolTip.Tip="VrTableManager-Desktop.ini beside VPX: settings for DESKTOP play only, on top of yours." />
+            </WrapPanel>
+            <TextBlock Classes="body" Foreground="{StaticResource Lamp}" Text="{Binding SettingsFilesStatus}" TextWrapping="Wrap"
+                       IsVisible="{Binding SettingsFilesStatus, Converter={x:Static StringConverters.IsNotNullOrEmpty}}" />
+          </StackPanel>
+        </Border>
+
+        <Button Classes="small setupNext" Content="NEXT: PLAYING TABLES  ›" Command="{Binding ShowSetupSectionCommand}" CommandParameter="play" />
+      </StackPanel>
+    </Grid>
+  </ScrollViewer>
+</UserControl>

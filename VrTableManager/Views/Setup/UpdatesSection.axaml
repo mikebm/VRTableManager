@@ -1,0 +1,106 @@
+<!-- Setup → 09 Updates. -->
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:vm="using:VrTableManager.ViewModels"
+             xmlns:v="using:VrTableManager.Views"
+             xmlns:services="using:VrTableManager.Services"
+             x:Class="VrTableManager.Views.Setup.UpdatesSection"
+             x:DataType="vm:MainViewModel">
+  <ScrollViewer>
+    <Grid>
+      <Grid.ColumnDefinitions>
+        <ColumnDefinition Width="*" MaxWidth="980" />
+      </Grid.ColumnDefinitions>
+      <StackPanel Classes="setupPage">
+        <StackPanel Classes="setupHead">
+          <TextBlock Classes="eyebrow" Text="09 · THIS APP" />
+          <TextBlock Classes="display" FontSize="42" Text="Updates" />
+          <TextBlock Classes="body" Text="New versions of this app, your tables and add-ons, VPX and UEVR, checked each time the app starts." />
+        </StackPanel>
+
+        <Border Classes="panel" BorderBrush="{StaticResource LineHi}">
+          <StackPanel Spacing="14">
+            <Grid ColumnDefinitions="*,Auto,Auto">
+              <StackPanel Spacing="4" VerticalAlignment="Center">
+                <StackPanel Orientation="Horizontal" Spacing="10">
+                  <TextBlock Classes="h2" Text="Updates" />
+                  <Border Classes="chip hot" VerticalAlignment="Center"
+                          IsVisible="{Binding UpdateCount, Converter={x:Static v:Converters.NonZero}}">
+                    <TextBlock Text="{Binding UpdateCount, StringFormat='{}{0} AVAILABLE'}" />
+                  </Border>
+                </StackPanel>
+                <TextBlock Classes="mono" Text="{Binding LastChecked}" />
+              </StackPanel>
+              <Button Grid.Column="1" Content="CHECK NOW" Margin="0,0,8,0" Command="{Binding CheckUpdatesCommand}"
+                      IsEnabled="{Binding !IsCheckingUpdates}" VerticalAlignment="Center" />
+              <Button Grid.Column="2" Classes="primary" Content="UPDATE ALL" Command="{Binding UpdateAllCommand}"
+                      IsEnabled="{Binding !IsUpdating}" VerticalAlignment="Center" />
+            </Grid>
+            <ProgressBar IsIndeterminate="True" IsVisible="{Binding IsCheckingUpdates}" />
+
+            <Grid ColumnDefinitions="170,*,Auto" RowDefinitions="Auto,Auto,Auto,Auto,Auto,Auto,Auto">
+              <Grid.Styles>
+                <Style Selector="Grid > TextBlock.k">
+                  <Setter Property="FontFamily" Value="{StaticResource Display}" />
+                  <Setter Property="FontWeight" Value="Bold" />
+                  <Setter Property="FontSize" Value="14" />
+                  <Setter Property="LetterSpacing" Value="1.4" />
+                  <Setter Property="Foreground" Value="{StaticResource Muted}" />
+                  <Setter Property="VerticalAlignment" Value="Center" />
+                  <Setter Property="Margin" Value="0,9" />
+                </Style>
+                <Style Selector="Grid > TextBlock.v">
+                  <Setter Property="VerticalAlignment" Value="Center" />
+                  <Setter Property="TextWrapping" Value="Wrap" />
+                  <Setter Property="FontSize" Value="13" />
+                  <Setter Property="Margin" Value="0,0,12,0" />
+                </Style>
+              </Grid.Styles>
+
+              <TextBlock Grid.Row="0" Classes="k" Text="VR TABLE MANAGER" />
+              <StackPanel Grid.Row="0" Grid.Column="1" Spacing="4" VerticalAlignment="Center" Margin="0,0,12,0">
+                <TextBlock Classes="v" Margin="0" Text="{Binding AppUpdateText}" />
+                <ProgressBar Value="{Binding AppUpdateProgress}" IsVisible="{Binding IsUpdatingApp}" />
+              </StackPanel>
+              <StackPanel Grid.Row="0" Grid.Column="2" Orientation="Horizontal" Spacing="8" VerticalAlignment="Center">
+                <Button Classes="small" Content="RELEASE NOTES" Command="{Binding OpenAppReleasesCommand}" />
+                <Button Classes="small" Content="UPDATE APP" Command="{Binding UpdateAppCommand}"
+                        IsVisible="{Binding HasAppUpdate}" IsEnabled="{Binding !IsUpdatingApp}" />
+              </StackPanel>
+
+              <TextBlock Grid.Row="1" Classes="k" Text="YOUR TABLES" />
+              <TextBlock Grid.Row="1" Grid.Column="1" Classes="v" Text="{Binding TableUpdateText}" />
+              <Button Grid.Row="1" Grid.Column="2" Classes="small" Content="UPDATE TABLES" Command="{Binding UpdateAllTablesCommand}"
+                      IsVisible="{Binding TableUpdateCount, Converter={x:Static v:Converters.NonZero}}" />
+
+              <TextBlock Grid.Row="2" Classes="k" Text="ADD-ONS" />
+              <TextBlock Grid.Row="2" Grid.Column="1" Classes="v" Text="{Binding AddonUpdateText}" />
+              <Button Grid.Row="2" Grid.Column="2" Classes="small" Content="UPDATE ADD-ONS" Command="{Binding UpdateAllAddonsCommand}"
+                      IsVisible="{Binding AddonUpdateCount, Converter={x:Static v:Converters.NonZero}}" />
+
+              <TextBlock Grid.Row="3" Classes="k" Text="VISUAL PINBALL X" />
+              <TextBlock Grid.Row="3" Grid.Column="1" Classes="v" Text="{Binding VpxUpdateText}" />
+              <Button Grid.Row="3" Grid.Column="2" Classes="small" Content="UPDATE VPX" Command="{Binding InstallVpxCommand}"
+                      IsVisible="{Binding HasVpxUpdate}" />
+
+              <TextBlock Grid.Row="4" Classes="k" Text="UEVR" />
+              <TextBlock Grid.Row="4" Grid.Column="1" Classes="v" Text="{Binding UevrUpdateText}" />
+              <Button Grid.Row="4" Grid.Column="2" Classes="small" Content="{Binding UevrButtonText}" Command="{Binding InstallUevrCommand}" />
+
+              <TextBlock Grid.Row="5" Classes="k" Text="BAM" />
+              <TextBlock Grid.Row="5" Grid.Column="1" Classes="v" Text="{Binding BamUpdateText}" />
+              <Button Grid.Row="5" Grid.Column="2" Classes="small" Content="BAM PAGE" Command="{Binding OpenPageCommand}"
+                      CommandParameter="https://www.ravarcade.pl/" />
+
+              <TextBlock Grid.Row="6" Classes="k" Text="FUTURE PINBALL" />
+              <TextBlock Grid.Row="6" Grid.Column="1" Classes="v" Foreground="{StaticResource Muted}"
+                         Text="No updates. The final release came out in 2010; BAM is what keeps it current." />
+            </Grid>
+          </StackPanel>
+        </Border>
+
+        <Button Classes="small setupNext" Content="NEXT: MAINTENANCE  ›" Command="{Binding ShowSetupSectionCommand}" CommandParameter="maintenance" />
+      </StackPanel>
+    </Grid>
+  </ScrollViewer>
+</UserControl>

@@ -1,0 +1,87 @@
+<!-- Setup → 06 VR lobby. -->
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:vm="using:VrTableManager.ViewModels"
+             xmlns:v="using:VrTableManager.Views"
+             xmlns:services="using:VrTableManager.Services"
+             x:Class="VrTableManager.Views.Setup.LobbySection"
+             x:DataType="vm:MainViewModel">
+  <ScrollViewer>
+    <Grid>
+      <Grid.ColumnDefinitions>
+        <ColumnDefinition Width="*" MaxWidth="980" />
+      </Grid.ColumnDefinitions>
+      <StackPanel Classes="setupPage">
+        <StackPanel Classes="setupHead">
+          <TextBlock Classes="eyebrow" Text="06 · VIRTUAL REALITY" />
+          <TextBlock Classes="display" FontSize="42" Text="VR lobby" />
+          <TextBlock Classes="body" Text="Your tables as pinball cabinets standing round you in an arcade, started with LAUNCH VR LOBBY on My Tables. Pick one in the headset and it plays." />
+        </StackPanel>
+
+        <!-- How big the cabinets are and how many stand in the ring (LobbyLayout); the lobby reads them when it starts. -->
+        <Border Classes="panel" BorderBrush="{StaticResource LineHi}">
+          <StackPanel Spacing="10">
+            <TextBlock Classes="h2" Text="Cabinets" />
+            <Grid ColumnDefinitions="210,Auto,*" RowDefinitions="Auto,Auto" ColumnSpacing="12" RowSpacing="10">
+              <TextBlock Text="Cabinet size" VerticalAlignment="Center" FontWeight="SemiBold" />
+              <ComboBox Grid.Column="1" ItemsSource="{Binding LobbyCabinetScales}" SelectedItem="{Binding LobbyCabinetScale}" Width="150">
+                <ComboBox.ItemTemplate>
+                  <DataTemplate x:DataType="x:Int32">
+                    <TextBlock Text="{Binding StringFormat='{}{0} %'}" />
+                  </DataTemplate>
+                </ComboBox.ItemTemplate>
+              </ComboBox>
+              <TextBlock Grid.Column="2" Classes="muted" VerticalAlignment="Center" TextWrapping="Wrap"
+                         Text="100 % is a real machine. Smaller cabinets leave more room round you; bigger ones keep the same gap between them, so the ring moves back." />
+
+              <TextBlock Grid.Row="1" Text="Cabinets in the ring" VerticalAlignment="Center" FontWeight="SemiBold" />
+              <ComboBox Grid.Row="1" Grid.Column="1" ItemsSource="{Binding LobbyCabinetCounts}" SelectedItem="{Binding LobbyCabinetCount}" Width="150" />
+              <TextBlock Grid.Row="1" Grid.Column="2" Classes="muted" VerticalAlignment="Center" TextWrapping="Wrap"
+                         Text="The one you've picked and as many either side. More than 11 stand closer together round a bigger ring, and each one costs the headset a little frame rate." />
+            </Grid>
+            <TextBlock Classes="mono" TextWrapping="Wrap" Text="{Binding LobbyRingSummary}" />
+            <WrapPanel>
+              <Button Classes="small" Content="RESET TO DEFAULTS" Margin="0,0,8,0" Command="{Binding ResetLobbyCabinetsCommand}"
+                      ToolTip.Tip="Real-size cabinets, 11 in the ring: the lobby as it always was." />
+            </WrapPanel>
+            <TextBlock Classes="muted" TextWrapping="Wrap"
+                       Text="The lobby reads these when it starts: one already open, or waiting hidden behind a table, keeps its ring until you quit it." />
+          </StackPanel>
+        </Border>
+
+        <Border Classes="panel">
+          <StackPanel Spacing="10">
+            <TextBlock Classes="h2" Text="Starting tables" />
+            <CheckBox IsChecked="{Binding LobbyWaitsForTable}"
+                      Content="Show a loading screen in the VR lobby while a table starts"
+                      ToolTip.Tip="The lobby stays in the headset until the table takes it over, and says so if the table fails to start. Turn it off if tables won't open in VR while the lobby is waiting (some OpenXR runtimes allow only one VR app at a time)." />
+            <CheckBox IsChecked="{Binding LobbyStaysOpen}" IsEnabled="{Binding LobbyWaitsForTable}"
+                      Content="Keep the VR lobby open behind the table, for a quick return"
+                      ToolTip.Tip="The lobby waits, hidden, while you play, and is back the moment the table closes instead of starting up again. It keeps its cabinets in memory meanwhile. Turn it off if a big table runs short of graphics memory." />
+            <CheckBox IsChecked="{Binding LobbyLoadingVideos}" IsEnabled="{Binding LobbyWaitsForTable}"
+                      Content="Play a loading video on the loading screen"
+                      ToolTip.Tip="A big screen shows the table's loading video, with its sound, until the table takes the headset over. A table gets its own from MORE (media pack, or your own video); the one below plays for the rest." />
+            <TextBlock Classes="muted" TextWrapping="Wrap" Text="Loading video for every table without its own:" />
+            <TextBlock Classes="mono" TextWrapping="Wrap" Text="{Binding DefaultLoadingVideoText}" />
+            <WrapPanel>
+              <Button Classes="small" Content="CHOOSE A VIDEO…" Margin="0,0,8,0" Command="{Binding ChooseDefaultLoadingVideoCommand}"
+                      ToolTip.Tip="Any video file (.mp4 works best), such as one of the generic loading videos front-end users share. The first 30 seconds are used, with their sound." />
+              <Button Classes="small" Content="REMOVE" IsVisible="{Binding HasDefaultLoadingVideo}" Command="{Binding RemoveDefaultLoadingVideoCommand}" />
+            </WrapPanel>
+          </StackPanel>
+        </Border>
+
+        <Border Classes="panel">
+          <StackPanel Spacing="10">
+            <TextBlock Classes="h2" Text="Music" />
+            <CheckBox IsChecked="{Binding LobbyRecordsRomAudio}"
+                      Content="Record a table's music from its ROM in the VR lobby"
+                      ToolTip.Tip="Runs the ROM for about 50 s in the background the first time you stop on a table. Off: only audio files already there play." />
+          </StackPanel>
+        </Border>
+
+        <Button Classes="small setupNext" Content="NEXT: DOWNLOADS  ›" Command="{Binding ShowSetupSectionCommand}" CommandParameter="downloads" />
+      </StackPanel>
+    </Grid>
+  </ScrollViewer>
+</UserControl>

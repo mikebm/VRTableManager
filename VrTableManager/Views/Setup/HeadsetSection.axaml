@@ -1,0 +1,96 @@
+<!-- Setup → 03 Headset. -->
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:vm="using:VrTableManager.ViewModels"
+             xmlns:v="using:VrTableManager.Views"
+             xmlns:services="using:VrTableManager.Services"
+             x:Class="VrTableManager.Views.Setup.HeadsetSection"
+             x:DataType="vm:MainViewModel">
+  <ScrollViewer>
+    <Grid>
+      <Grid.ColumnDefinitions>
+        <ColumnDefinition Width="*" MaxWidth="980" />
+      </Grid.ColumnDefinitions>
+      <StackPanel Classes="setupPage">
+        <StackPanel Classes="setupHead">
+          <TextBlock Classes="eyebrow" Text="03 · VIRTUAL REALITY" />
+          <TextBlock Classes="display" FontSize="42" Text="Headset" />
+          <TextBlock Classes="body"
+                     Text="VPX talks to your headset through the PC's OpenXR runtime. Easiest: install the Meta Quest Link app, connect with a USB-C cable or Air Link, and make Meta Quest Link the active OpenXR runtime (Link app → Settings → General). Virtual Desktop (VDXR) and SteamVR also work." />
+        </StackPanel>
+
+        <Border Classes="panel" BorderBrush="{StaticResource LineHi}">
+          <StackPanel Spacing="8">
+            <StackPanel Orientation="Horizontal" Spacing="10">
+              <TextBlock Classes="h2" Text="OpenXR runtime" VerticalAlignment="Center" />
+              <Border Classes="chip hot" VerticalAlignment="Center" IsVisible="{Binding IsRuntimeWarning}"><TextBlock Text="CHECK THIS" /></Border>
+            </StackPanel>
+            <TextBlock Classes="title" Text="{Binding RuntimeTitle}" />
+            <TextBlock Classes="body" Text="{Binding RuntimeAdvice}" />
+            <ItemsControl ItemsSource="{Binding Runtimes}">
+              <ItemsControl.ItemsPanel>
+                <ItemsPanelTemplate><WrapPanel /></ItemsPanelTemplate>
+              </ItemsControl.ItemsPanel>
+              <ItemsControl.ItemTemplate>
+                <DataTemplate x:DataType="services:OpenXrRuntime">
+                  <Panel Margin="0,0,8,8">
+                    <Border Classes="chip green" Padding="10,6" IsVisible="{Binding IsActive}">
+                      <TextBlock Text="{Binding Name, StringFormat='● {0} (ACTIVE)'}" />
+                    </Border>
+                    <Button Classes="small" IsVisible="{Binding !IsActive}"
+                            Content="{Binding Name, StringFormat='USE {0}'}"
+                            Command="{ReflectionBinding $parent[Window].DataContext.MakeRuntimeActiveCommand}" CommandParameter="{Binding}" />
+                  </Panel>
+                </DataTemplate>
+              </ItemsControl.ItemTemplate>
+            </ItemsControl>
+            <CheckBox Content="Warn me before a VR launch when SteamVR is the active runtime" IsChecked="{Binding WarnSteamVrRuntime}" />
+            <WrapPanel>
+              <Button Classes="small" Content="OPEN META QUEST LINK" Margin="0,0,8,8" IsVisible="{Binding HasMetaLinkApp}" Command="{Binding OpenMetaLinkAppCommand}" />
+              <Button Classes="small" Content="RECHECK" Margin="0,0,8,8" Command="{Binding RecheckSetupCommand}" />
+            </WrapPanel>
+          </StackPanel>
+        </Border>
+
+        <Border Classes="panel">
+          <StackPanel Spacing="10">
+            <TextBlock Classes="h2" Text="Smoothness" />
+            <Grid ColumnDefinitions="210,Auto,*" RowDefinitions="Auto,Auto" RowSpacing="10">
+              <TextBlock Text="Headset refresh rate" VerticalAlignment="Center" FontWeight="SemiBold" />
+              <ComboBox Grid.Column="1" ItemsSource="{Binding RefreshRates}" SelectedItem="{Binding RefreshRate}" Width="190" />
+              <TextBlock Grid.Column="2" Classes="muted" Margin="12,0,0,0" VerticalAlignment="Center" TextWrapping="Wrap"
+                         Text="Pick the highest rate your PC holds without drops. 90 Hz is a good start; 72 Hz gives a slower PC more time per frame." />
+              <TextBlock Grid.Row="1" Text="Spacewarp (ASW, Quest Link)" VerticalAlignment="Center" FontWeight="SemiBold" />
+              <ComboBox Grid.Row="1" Grid.Column="1" ItemsSource="{Binding AswModes}" SelectedItem="{Binding AswMode}" Width="190" VerticalAlignment="Center"
+                        IsEnabled="{Binding IsAswAvailable}" />
+              <TextBlock Grid.Row="1" Grid.Column="2" Classes="muted" Margin="12,0,0,0" VerticalAlignment="Center" TextWrapping="Wrap"
+                         Text="When a frame is late, ASW shows a guessed one, which smears a fast ball. Off is usually better for pinball if your PC keeps up. Applied before each VR launch through the Oculus Debug Tool (it resets when the Oculus service restarts)." />
+            </Grid>
+            <TextBlock Classes="muted" TextWrapping="Wrap" IsVisible="{Binding !IsAswAvailable}"
+                       Text="ASW can only be set when the Meta Quest Link app is installed. Virtual Desktop and SteamVR have their own setting (Synchronous Spacewarp / Motion Smoothing)." />
+            <WrapPanel IsVisible="{Binding HasOculusDebugTool}">
+              <Button Classes="small" Content="OPEN OCULUS DEBUG TOOL" Margin="0,0,8,0" Command="{Binding OpenOculusDebugToolCommand}"
+                      ToolTip.Tip="Encode bitrate, resolution and more for Quest Link" />
+            </WrapPanel>
+          </StackPanel>
+        </Border>
+
+        <Border Classes="panel">
+          <StackPanel Spacing="8">
+            <TextBlock Classes="h2" Text="Controls" />
+            <TextBlock Classes="body" TextWrapping="Wrap"
+                       Text="VR play has its own VPX settings file, so controls mapped in desktop VPX aren't there until they're copied. They're copied automatically the first time; after that, remaps you make in VR (in-game menu → Input) stay for every table." />
+            <WrapPanel>
+              <Button Classes="small" Content="USE MY DESKTOP VPX CONTROLS" Margin="0,0,8,0" Command="{Binding ImportDesktopControlsCommand}"
+                      ToolTip.Tip="Copies the [Input] section of your VPinballX.ini into the VR settings file, keeping the VR controller buttons." />
+            </WrapPanel>
+            <TextBlock Classes="body" Foreground="{StaticResource Lamp}" TextWrapping="Wrap" Text="{Binding ControlsStatus}"
+                       IsVisible="{Binding ControlsStatus, Converter={x:Static StringConverters.IsNotNullOrEmpty}}" />
+          </StackPanel>
+        </Border>
+
+        <Button Classes="small setupNext" Content="NEXT: FIT &amp; POSITION  ›" Command="{Binding ShowSetupSectionCommand}" CommandParameter="fit" />
+      </StackPanel>
+    </Grid>
+  </ScrollViewer>
+</UserControl>

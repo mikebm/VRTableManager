@@ -1,0 +1,103 @@
+<!-- Setup → 08 Other games. -->
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:vm="using:VrTableManager.ViewModels"
+             xmlns:v="using:VrTableManager.Views"
+             xmlns:services="using:VrTableManager.Services"
+             x:Class="VrTableManager.Views.Setup.OtherGamesSection"
+             x:DataType="vm:MainViewModel">
+  <ScrollViewer>
+    <Grid>
+      <Grid.ColumnDefinitions>
+        <ColumnDefinition Width="*" MaxWidth="980" />
+      </Grid.ColumnDefinitions>
+      <StackPanel Classes="setupPage">
+        <StackPanel Classes="setupHead">
+          <TextBlock Classes="eyebrow" Text="08 · TABLES" />
+          <TextBlock Classes="display" FontSize="42" Text="Other games" />
+          <TextBlock Classes="body" Text="Optional: Future Pinball through BAM, and Zen's Pinball FX and Pinball M through UEVR. VPX doesn't need either." />
+        </StackPanel>
+
+        <Border Classes="panel">
+          <StackPanel Spacing="10">
+            <StackPanel Orientation="Horizontal" Spacing="10">
+              <TextBlock Classes="h2" Text="Future Pinball" />
+              <Border Classes="chip quiet" VerticalAlignment="Center"><TextBlock Text="Optional" /></Border>
+            </StackPanel>
+            <TextBlock Classes="body" Foreground="{StaticResource Text}" Text="{Binding FpStatus}" />
+            <TextBlock Classes="muted" TextWrapping="Wrap"
+                       Text="Future Pinball plays in VR through BAM-OpenVR, which needs SteamVR (with Quest Link or Virtual Desktop under it). Install Future Pinball and BAM yourself (see ravarcade.pl), then point this app at the folder." />
+            <Grid ColumnDefinitions="*,Auto">
+              <TextBox Text="{Binding FpDir}" PlaceholderText="C:\Games\Future Pinball" />
+              <Button Grid.Column="1" Content="BROWSE" Margin="8,0,0,0" Command="{Binding BrowseFpDirCommand}" />
+            </Grid>
+            <CheckBox Content="Run FPLoader as administrator (BAM recommends this)" IsChecked="{Binding FpRunAsAdmin}" />
+            <WrapPanel>
+              <Button Classes="small" Content="BAM DOWNLOAD PAGE" Margin="0,0,8,8" Command="{Binding OpenPageCommand}" CommandParameter="https://www.ravarcade.pl/" />
+              <Button Classes="small" Content="BAM OPENVR GUIDE" Margin="0,0,8,8" Command="{Binding OpenPageCommand}" CommandParameter="https://pinballnirvana.com/forums/threads/bam-openvr-guide-by-terryred.19916/" />
+            </WrapPanel>
+          </StackPanel>
+        </Border>
+
+        <Border Classes="panel">
+          <StackPanel Spacing="10">
+            <StackPanel Orientation="Horizontal" Spacing="10">
+              <TextBlock Classes="h2" Text="Pinball FX &amp; Pinball M through UEVR" />
+              <Border Classes="chip quiet" VerticalAlignment="Center"><TextBlock Text="Optional" /></Border>
+            </StackPanel>
+            <TextBlock Classes="muted" TextWrapping="Wrap"
+                       Text="UEVR injects VR into Zen's Unreal pinball games: Pinball FX and Pinball M (now sold as Pinball FX Midnight). Both are found automatically on Steam or Epic. Play in VR starts the injector, launches the game and closes the injector when you quit. Pick your table inside the game; neither can be told to open one. Choose OpenXR in the injector window (players report it's smoother than OpenVR), and play with a gamepad." />
+            <Grid ColumnDefinitions="*,Auto">
+              <TextBox Text="{Binding UevrDir}" PlaceholderText="Folder containing UEVRInjector.exe" />
+              <Button Grid.Column="1" Content="BROWSE" Margin="8,0,0,0" Command="{Binding BrowseUevrDirCommand}" />
+            </Grid>
+
+            <!-- Pinball tuning on top of UEVR -->
+            <Border Background="{StaticResource Bg}" BorderBrush="{StaticResource Line}" BorderThickness="1" CornerRadius="10" Padding="16" Margin="0,4,0,0">
+              <StackPanel Spacing="8">
+                <StackPanel Orientation="Horizontal" Spacing="10">
+                  <TextBlock Classes="eyebrow" Text="PINBALL SETTINGS FOR UEVR" VerticalAlignment="Center" />
+                  <Border Classes="chip green" VerticalAlignment="Center" IsVisible="{Binding ApplyPinballUevrProfile}"><TextBlock Text="ON" /></Border>
+                </StackPanel>
+                <CheckBox Content="Apply pinball settings to UEVR before each VR launch (recommended)" IsChecked="{Binding ApplyPinballUevrProfile}" />
+                <CheckBox Content="Show the 'before you start' checklist before launching" IsChecked="{Binding ShowZenReminder}" />
+                <Expander Header="What gets set, and why" Padding="0,8,0,0">
+                  <TextBlock Classes="mono" FontSize="11.5" TextWrapping="Wrap" LineHeight="19" Text="{Binding PinballProfileSummary}" />
+                </Expander>
+                <TextBlock Classes="muted" TextWrapping="Wrap"
+                           Text="Only these settings are changed; the rest of UEVR's profile is left alone. Your original profile is backed up the first time. OpenXR vs OpenVR can't be set here: UEVR's injector window decides that each time, so the app checks which one was used." />
+              </StackPanel>
+            </Border>
+
+            <TextBlock Classes="eyebrow" Foreground="{StaticResource Muted}" Text="PINBALL FX" Margin="0,6,0,0" />
+            <TextBlock Classes="body" Foreground="{StaticResource Text}" Text="{Binding PfxStatus}" />
+            <TextBlock Classes="body" Foreground="{StaticResource Lamp}" Text="{Binding PfxProfileStatus}" />
+            <WrapPanel>
+              <Button Classes="small" Content="RESET TO PINBALL DEFAULTS" Margin="0,0,8,8" Command="{Binding ApplyPinballProfileCommand}" CommandParameter="PFX" />
+              <Button Classes="small" Content="RESTORE MY ORIGINAL" Margin="0,0,8,8" IsVisible="{Binding PfxHasUevrBackup}" Command="{Binding RestoreUevrOriginalCommand}" CommandParameter="PFX" />
+              <Button Classes="small" Content="IMPORT PROFILE" Margin="0,0,8,8" Command="{Binding ImportUevrProfileCommand}" CommandParameter="PFX" />
+              <Button Classes="small" Content="OPEN PROFILE FOLDER" Margin="0,0,8,8" Command="{Binding OpenUevrProfileFolderCommand}" CommandParameter="PFX" />
+            </WrapPanel>
+
+            <TextBlock Classes="eyebrow" Foreground="{StaticResource Muted}" Text="PINBALL M" Margin="0,6,0,0" />
+            <TextBlock Classes="body" Foreground="{StaticResource Text}" Text="{Binding PmStatus}" />
+            <TextBlock Classes="body" Foreground="{StaticResource Lamp}" Text="{Binding PmProfileStatus}" />
+            <WrapPanel>
+              <Button Classes="small" Content="RESET TO PINBALL DEFAULTS" Margin="0,0,8,8" Command="{Binding ApplyPinballProfileCommand}" CommandParameter="PM" />
+              <Button Classes="small" Content="RESTORE MY ORIGINAL" Margin="0,0,8,8" IsVisible="{Binding PmHasUevrBackup}" Command="{Binding RestoreUevrOriginalCommand}" CommandParameter="PM" />
+              <Button Classes="small" Content="IMPORT PROFILE" Margin="0,0,8,8" Command="{Binding ImportUevrProfileCommand}" CommandParameter="PM" />
+              <Button Classes="small" Content="OPEN PROFILE FOLDER" Margin="0,0,8,8" Command="{Binding OpenUevrProfileFolderCommand}" CommandParameter="PM" />
+            </WrapPanel>
+
+            <WrapPanel>
+              <Button Classes="small" Content="UEVR DOWNLOAD PAGE" Margin="0,0,8,8" Command="{Binding OpenPageCommand}" CommandParameter="https://github.com/praydog/UEVR/releases" />
+              <Button Classes="small" Content="RECHECK" Margin="0,0,8,8" Command="{Binding RecheckSetupCommand}" />
+            </WrapPanel>
+          </StackPanel>
+        </Border>
+
+        <Button Classes="small setupNext" Content="NEXT: UPDATES  ›" Command="{Binding ShowSetupSectionCommand}" CommandParameter="updates" />
+      </StackPanel>
+    </Grid>
+  </ScrollViewer>
+</UserControl>

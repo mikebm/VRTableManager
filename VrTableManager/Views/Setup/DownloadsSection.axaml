@@ -1,0 +1,53 @@
+<!-- Setup → 07 Downloads. -->
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:vm="using:VrTableManager.ViewModels"
+             xmlns:v="using:VrTableManager.Views"
+             xmlns:services="using:VrTableManager.Services"
+             x:Class="VrTableManager.Views.Setup.DownloadsSection"
+             x:DataType="vm:MainViewModel">
+  <ScrollViewer>
+    <Grid>
+      <Grid.ColumnDefinitions>
+        <ColumnDefinition Width="*" MaxWidth="980" />
+      </Grid.ColumnDefinitions>
+      <StackPanel Classes="setupPage">
+        <StackPanel Classes="setupHead">
+          <TextBlock Classes="eyebrow" Text="07 · TABLES" />
+          <TextBlock Classes="display" FontSize="42" Text="Downloads" />
+          <TextBlock Classes="body" Text="Where tables come from, and what happens to the files once they're installed." />
+        </StackPanel>
+
+        <Border Classes="panel" BorderBrush="{StaticResource LineHi}">
+          <StackPanel Spacing="10">
+            <TextBlock Classes="h2" Text="Downloading from table sites" />
+            <TextBlock Classes="body"
+                       Text="Table sites are run by the community and paid for by their ads, and their terms ask that you download yourself. So when you install a table, its page opens in your own browser: sign in if asked, accept the site's terms, and click Download. The app picks the file up from your Downloads folder and does everything else (unpacking, ROMs, add-ons, layout). Your password goes only to the site, never to this app." />
+            <TextBlock Classes="mono" TextWrapping="Wrap" Text="{Binding DownloadsFolderText}" />
+            <WrapPanel>
+              <Button Content="VPUNIVERSE" Margin="0,0,8,8" Command="{Binding OpenSiteCommand}" CommandParameter="https://vpuniverse.com/login/" />
+              <Button Content="VPFORUMS" Margin="0,0,8,8" Command="{Binding OpenSiteCommand}" CommandParameter="https://www.vpforums.org/index.php?app=core&amp;module=global&amp;section=login" />
+              <Button Content="PINBALL NIRVANA" Margin="0,0,8,8" Command="{Binding OpenSiteCommand}" CommandParameter="https://pinballnirvana.com/forums/login/" />
+            </WrapPanel>
+          </StackPanel>
+        </Border>
+
+        <Border Classes="panel">
+          <StackPanel Spacing="10">
+            <TextBlock Classes="h2" Text="Queue &amp; catalog" />
+            <StackPanel Orientation="Horizontal" Spacing="10">
+              <TextBlock Text="Downloads at once" VerticalAlignment="Center" FontWeight="SemiBold" />
+              <ComboBox ItemsSource="{Binding ParallelDownloadChoices}" SelectedItem="{Binding MaxParallelDownloads}" Width="90" />
+              <TextBlock Classes="muted" VerticalAlignment="Center" Text="More installs wait in the queue. Unpacking doesn't count, so the next download starts meanwhile." />
+            </StackPanel>
+            <CheckBox Content="Delete downloaded files after installing (tables, ROMs, add-ons, media). Files from a failed install are kept."
+                      IsChecked="{Binding DeleteDownloadsAfterInstall}" />
+            <CheckBox Content="Hide adult-themed tables" IsChecked="{Binding HideAdult}" />
+          </StackPanel>
+        </Border>
+
+        <Button Classes="small setupNext" Content="NEXT: OTHER GAMES  ›" Command="{Binding ShowSetupSectionCommand}" CommandParameter="games" />
+      </StackPanel>
+    </Grid>
+  </ScrollViewer>
+</UserControl>

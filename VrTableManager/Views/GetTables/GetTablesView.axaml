@@ -1,0 +1,130 @@
+<!-- The Get Tables tab: the catalog's search, filters and card grid, with its A–Z rail and the details drawer. -->
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:vm="using:VrTableManager.ViewModels"
+             xmlns:v="using:VrTableManager.Views"
+             xmlns:services="using:VrTableManager.Services"
+             xmlns:gt="using:VrTableManager.Views.GetTables"
+             x:Class="VrTableManager.Views.GetTables.GetTablesView"
+             x:DataType="vm:MainViewModel">
+  <Grid ColumnDefinitions="*,Auto">
+
+    <!-- Everything above the cards stays put; only the cards scroll. -->
+    <DockPanel Grid.Column="0">
+      <StackPanel DockPanel.Dock="Top" Margin="28,14,12,6" Spacing="10">
+        <!-- One line: title and source; the match count on a slim score display on the right. -->
+        <Grid ColumnDefinitions="*,Auto">
+          <StackPanel Orientation="Horizontal" Spacing="14" VerticalAlignment="Center"
+                      ToolTip.Tip="Every VPX and Future Pinball table on the Virtual Pinball Spreadsheet. Pick one, hit Install, and it's downloaded, unpacked and ready to play in your headset. Sign in to the table site once; the app does the clicking after that.">
+            <TextBlock Classes="h2" Text="Get Tables" VerticalAlignment="Center" />
+            <TextBlock Classes="eyebrow" Text="VIRTUAL PINBALL SPREADSHEET · ONE-CLICK INSTALL" VerticalAlignment="Center" />
+          </StackPanel>
+          <Border Grid.Column="1" Classes="dmd" Height="40" Margin="16,0,4,0" ClipToBounds="True" VerticalAlignment="Center">
+            <Grid>
+              <Border Background="{StaticResource DmdDots}" />
+              <StackPanel Orientation="Horizontal" Spacing="10" Margin="16,0" VerticalAlignment="Center" HorizontalAlignment="Center">
+                <TextBlock Classes="dmd" FontSize="26" VerticalAlignment="Center"
+                           Text="{Binding MatchCount, StringFormat='{}{0:N0}'}" />
+                <TextBlock Classes="dmd" FontSize="13" LetterSpacing="2" VerticalAlignment="Center"
+                           Text="{Binding TotalCount, StringFormat='TABLES MATCH · OF {0:N0}'}" />
+              </StackPanel>
+            </Grid>
+          </Border>
+        </Grid>
+
+        <!-- Search and filters in one row that wraps when the window is narrow -->
+        <WrapPanel>
+          <WrapPanel.Styles>
+            <Style Selector="ComboBox">
+              <Setter Property="Margin" Value="0,0,10,8" />
+              <Setter Property="MinWidth" Value="150" />
+              <Setter Property="VerticalAlignment" Value="Center" />
+            </Style>
+          </WrapPanel.Styles>
+          <TextBox Text="{Binding SearchText}" PlaceholderText="Search name, maker, author, theme, year" Width="300" ToolTip.Tip="Typos are fine, words can be in any order, and initials work: afm, tz, mm" Margin="0,0,12,8">
+            <TextBox.InnerLeftContent>
+              <PathIcon Classes="search" Margin="12,0,0,0" />
+            </TextBox.InnerLeftContent>
+          </TextBox>
+          <ListBox Classes="segmented" Margin="0,0,14,8" VerticalAlignment="Center"
+                   ItemsSource="{Binding EngineFilters}" SelectedItem="{Binding EngineFilter}" />
+          <ToggleSwitch Margin="0,0,14,8" IsChecked="{Binding VrOnly}" OnContent="VR-ready only" OffContent="VR-ready only"
+                        FontWeight="SemiBold" VerticalAlignment="Center" />
+          <ComboBox ItemsSource="{Binding Manufacturers}" SelectedItem="{Binding ManufacturerFilter}" MaxDropDownHeight="420" ToolTip.Tip="Manufacturer" />
+          <ComboBox ItemsSource="{Binding Eras}" SelectedItem="{Binding EraFilter}" ToolTip.Tip="When the real machine came out" />
+          <ComboBox ItemsSource="{Binding MachineTypes}" SelectedItem="{Binding TypeFilter}" ToolTip.Tip="Solid state (1977 on), electro-mechanical, or original designs" />
+          <ComboBox ItemsSource="{Binding Themes}" SelectedItem="{Binding ThemeFilter}" MaxDropDownHeight="420" ToolTip.Tip="What the machine is about (Movie, Sci-Fi, Horror …)" />
+          <StackPanel Orientation="Horizontal" Spacing="8" Margin="4,0,10,8" VerticalAlignment="Center">
+            <TextBlock Classes="eyebrow" Foreground="{StaticResource Muted}" Text="SORT" VerticalAlignment="Center" />
+            <ComboBox ItemsSource="{Binding CatalogSorts}" SelectedItem="{Binding CatalogSort}" Margin="0" />
+          </StackPanel>
+          <Button Classes="small" Content="CLEAR FILTERS" Margin="0,0,10,8" VerticalAlignment="Center"
+                  IsVisible="{Binding HasCatalogFilters}" Command="{Binding ClearCatalogFiltersCommand}" />
+          <Button Classes="icon" Content="⟳" ToolTip.Tip="Refresh catalog" Margin="0,0,12,8"
+                  Command="{Binding RefreshCatalogCommand}" VerticalAlignment="Center" />
+          <TextBlock Classes="mono" Margin="0,0,4,8" VerticalAlignment="Center" Text="{Binding CountLabel}" />
+        </WrapPanel>
+
+        <StackPanel Orientation="Horizontal" Spacing="10" IsVisible="{Binding IsLoading}">
+          <ProgressBar IsIndeterminate="True" Width="120" />
+          <TextBlock Classes="mono" Text="Loading tables…" />
+        </StackPanel>
+      </StackPanel>
+
+    <!-- A–Z rail: a letter jumps to its first table, as in the VR lobby (only while the list is A–Z). -->
+    <ItemsControl DockPanel.Dock="Right" Classes="letterRail" Margin="0,8,6,8"
+                  x:Name="CatalogLetterRail" ItemsSource="{Binding CatalogLetters}" IsVisible="{Binding ShowCatalogLetters}" />
+    <ScrollViewer x:Name="CatalogScroll">
+      <StackPanel Margin="28,8,12,28" Spacing="20">
+
+        <Button HorizontalAlignment="Center" Content="SHOW EARLIER TABLES" IsVisible="{Binding HasEarlier}"
+                ToolTip.Tip="The A–Z rail started the list at a letter: bring back the tables before it"
+                Command="{Binding ShowEarlierCommand}" />
+
+        <!-- Card grid -->
+        <ListBox x:Name="CatalogGrid" Classes="grid" ItemsSource="{Binding Games}" SelectedItem="{Binding SelectedGame}">
+          <ListBox.ItemTemplate>
+            <DataTemplate x:DataType="vm:GameItem">
+              <Border Classes="tile" Width="214">
+                <StackPanel>
+                  <!-- The picture is clipped to the card's inner rounded corners, so it never covers the (highlighted) border. -->
+                  <Border Classes="tileArt" Height="276">
+                  <Grid>
+                    <Border Background="{StaticResource Stripes}" />
+                    <TextBlock Classes="mono" Text="NO ARTWORK" HorizontalAlignment="Center" VerticalAlignment="Center"
+                               IsVisible="{Binding !HasImage}" />
+                    <Image v:ImageLoader.Url="{Binding ImgUrl}" Stretch="UniformToFill" />
+                    <Border Background="{StaticResource CardFade}" />
+                    <StackPanel Orientation="Horizontal" Spacing="5" Margin="10" VerticalAlignment="Top">
+                      <Border Classes="chip lit" IsVisible="{Binding IsVr}"><TextBlock Text="VR" /></Border>
+                      <Border Classes="chip hot" IsVisible="{Binding HasFp}"><TextBlock Text="FP" /></Border>
+                    </StackPanel>
+                    <Border Classes="chip green" Margin="10" HorizontalAlignment="Right" VerticalAlignment="Top"
+                            IsVisible="{Binding IsInstalled}">
+                      <TextBlock Text="INSTALLED" />
+                    </Border>
+                  </Grid>
+                  </Border>
+                  <StackPanel Margin="14,12,14,14" Spacing="3">
+                    <TextBlock Classes="title" Text="{Binding Title}" TextWrapping="Wrap" MaxLines="2" TextTrimming="CharacterEllipsis" />
+                    <TextBlock Classes="muted" Text="{Binding MakerYear}" />
+                    <TextBlock Classes="mono" Margin="0,6,0,0" TextTrimming="CharacterEllipsis"
+                               Text="{Binding AuthorsShort, StringFormat='✎  {0}'}" />
+                  </StackPanel>
+                </StackPanel>
+              </Border>
+            </DataTemplate>
+          </ListBox.ItemTemplate>
+        </ListBox>
+
+        <Button HorizontalAlignment="Center" Content="SHOW MORE TABLES" IsVisible="{Binding HasMore}"
+                Command="{Binding ShowMoreCommand}" />
+      </StackPanel>
+    </ScrollViewer>
+    </DockPanel>
+
+    <!-- Detail drawer -->
+    <gt:TableDetailsView Grid.Column="1" />
+
+  </Grid>
+</UserControl>

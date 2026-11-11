@@ -1,0 +1,107 @@
+<!-- Setup → 10 Maintenance. -->
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:vm="using:VrTableManager.ViewModels"
+             xmlns:v="using:VrTableManager.Views"
+             xmlns:services="using:VrTableManager.Services"
+             x:Class="VrTableManager.Views.Setup.MaintenanceSection"
+             x:DataType="vm:MainViewModel">
+  <ScrollViewer>
+    <Grid>
+      <Grid.ColumnDefinitions>
+        <ColumnDefinition Width="*" MaxWidth="980" />
+      </Grid.ColumnDefinitions>
+      <StackPanel Classes="setupPage">
+        <StackPanel Classes="setupHead">
+          <TextBlock Classes="eyebrow" Text="10 · THIS APP" />
+          <TextBlock Classes="display" FontSize="42" Text="Maintenance" />
+          <TextBlock Classes="body" Text="When something goes wrong, what's using space, and a backup of what you can't download again." />
+        </StackPanel>
+
+        <Border Classes="panel">
+          <StackPanel Spacing="10">
+            <TextBlock Classes="h2" Text="Troubleshooting" />
+            <TextBlock Classes="body" Text="When a table crashes, closes straight away or opens on the monitor instead of the headset, VPX's log usually says why." />
+            <CheckBox Content="When a VPX table crashes or closes within seconds, show what its log says" IsChecked="{Binding ExplainFailedLaunches}" />
+            <WrapPanel>
+              <Button Classes="small primary" Content="VIEW LAST VPX RUN" Margin="0,0,8,8" Command="{Binding ViewLastVpxLogCommand}" />
+              <Button Classes="small" Content="OPEN VR SETTINGS FILE" Margin="0,0,8,8" Command="{Binding OpenVrIniCommand}" />
+              <Button Classes="small" Content="OPEN LOBBY PLAY LOG" Margin="0,0,8,8" Command="{Binding OpenPlayLogCommand}"
+                      ToolTip.Tip="What happened when tables were launched from the VR lobby" />
+            </WrapPanel>
+          </StackPanel>
+        </Border>
+
+        <Border Classes="panel">
+          <StackPanel Spacing="10">
+            <TextBlock Classes="h2" Text="Data folders" />
+            <WrapPanel Margin="0,4,0,0">
+              <Button Classes="small" Content="APP DATA" Margin="0,0,8,8" Command="{Binding OpenDataFolderCommand}"
+                      ToolTip.Tip="Settings, favourites, play stats, catalog and caches" />
+              <Button Classes="small" Content="VPX SETTINGS &amp; LOGS" Margin="0,0,8,8" Command="{Binding OpenVpxPrefsFolderCommand}"
+                      ToolTip.Tip="%APPDATA%\VPinballX: VPX's own settings, log and caches" />
+              <Button Classes="small" Content="UEVR" Margin="0,0,8,8" Command="{Binding OpenUevrFolderCommand}" />
+              <Button Classes="small" Content="FUTURE PINBALL" Margin="0,0,8,8" Command="{Binding OpenFpFolderCommand}" />
+            </WrapPanel>
+          </StackPanel>
+        </Border>
+
+        <Border Classes="panel">
+          <StackPanel Spacing="10">
+            <Grid ColumnDefinitions="*,Auto">
+              <StackPanel Spacing="2">
+                <TextBlock Classes="h2" Text="Storage" />
+                <TextBlock Classes="mono" Text="{Binding StorageStatus}" />
+              </StackPanel>
+              <Button Grid.Column="1" Classes="small" Content="⟳  CHECK SIZES" VerticalAlignment="Center"
+                      Command="{Binding RefreshStorageCommand}" IsEnabled="{Binding !IsSurveyingStorage}" />
+            </Grid>
+            <ProgressBar IsIndeterminate="True" IsVisible="{Binding IsSurveyingStorage}" />
+            <TextBlock Classes="muted" Text="Press Check sizes to see what's using space." IsVisible="{Binding Storage.Count, Converter={x:Static v:Converters.IsZero}}" />
+            <ItemsControl ItemsSource="{Binding Storage}">
+              <ItemsControl.ItemsPanel>
+                <ItemsPanelTemplate><StackPanel Spacing="6" /></ItemsPanelTemplate>
+              </ItemsControl.ItemsPanel>
+              <ItemsControl.ItemTemplate>
+                <DataTemplate x:DataType="services:StorageEntry">
+                  <Border Background="{StaticResource Bg}" BorderBrush="{StaticResource Line}" BorderThickness="1" CornerRadius="8" Padding="12,8">
+                    <Grid ColumnDefinitions="90,*,Auto,Auto">
+                      <TextBlock Classes="dmd" FontSize="16" VerticalAlignment="Center" Text="{Binding SizeText}" />
+                      <StackPanel Grid.Column="1" Spacing="1" VerticalAlignment="Center">
+                        <TextBlock Classes="title" FontSize="13.5" Text="{Binding Name}" />
+                        <TextBlock Classes="muted" FontSize="12" TextWrapping="Wrap" Text="{Binding Description}" />
+                      </StackPanel>
+                      <Button Grid.Column="2" Classes="small" Content="OPEN" Margin="8,0,0,0" VerticalAlignment="Center"
+                              Command="{ReflectionBinding $parent[Window].DataContext.OpenStorageCommand}" CommandParameter="{Binding}" />
+                      <Button Grid.Column="3" Classes="small danger" Content="CLEAR" Margin="8,0,0,0" VerticalAlignment="Center"
+                              IsVisible="{Binding CanClear}"
+                              Command="{ReflectionBinding $parent[Window].DataContext.ClearStorageCommand}" CommandParameter="{Binding}" />
+                    </Grid>
+                  </Border>
+                </DataTemplate>
+              </ItemsControl.ItemTemplate>
+            </ItemsControl>
+          </StackPanel>
+        </Border>
+
+        <Border Classes="panel">
+          <StackPanel Spacing="10">
+            <TextBlock Classes="h2" Text="Backup &amp; restore" />
+            <TextBlock Classes="body"
+                       Text="Saves what you can't download again: favourites and play stats, app and VPX settings, each table's settings and high scores, and your UEVR profiles. Tables and ROMs aren't included (they can be downloaded again), so backups stay small." />
+            <WrapPanel>
+              <Button Classes="small primary" Content="BACK UP NOW" Margin="0,0,8,8" Command="{Binding CreateBackupCommand}" />
+              <Button Classes="small" Content="RESTORE…" Margin="0,0,8,8" Command="{Binding RestoreBackupCommand}" />
+              <Button Classes="small" Content="OPEN BACKUPS FOLDER" Margin="0,0,8,8" Command="{Binding OpenBackupsFolderCommand}" />
+            </WrapPanel>
+            <TextBlock Classes="body" Foreground="{StaticResource Lamp}" Text="{Binding BackupStatus}" TextWrapping="Wrap"
+                       IsVisible="{Binding BackupStatus, Converter={x:Static StringConverters.IsNotNullOrEmpty}}" />
+          </StackPanel>
+        </Border>
+
+        <TextBlock Classes="mono" TextWrapping="Wrap" Margin="0,8,0,0"
+                   Text="Table data from the Virtual Pinball Spreadsheet (virtualpinballspreadsheet.github.io). This app doesn't host tables. Thank the authors on the sites you download from. High scores: this program makes use of content from the Pinball Memory Maps project (github.com/tomlogic/pinball-memory-maps), available under the Open Database License (ODbL) v1.0." />
+      </StackPanel>
+    </Grid>
+  </ScrollViewer>
+</UserControl>

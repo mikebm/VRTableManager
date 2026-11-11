@@ -1,0 +1,80 @@
+<!-- Styles shared by the card grids of My Tables and Get Tables: the A–Z rail, the grid, the search icon. -->
+<Styles xmlns="https://github.com/avaloniaui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:vm="using:VrTableManager.ViewModels"
+        xmlns:v="using:VrTableManager.Views"
+        xmlns:services="using:VrTableManager.Services">
+  <Styles.Resources>
+    <!-- One letter of an A–Z rail beside a card grid. -->
+    <DataTemplate x:Key="LetterButton" x:DataType="vm:LetterChoice">
+      <Button Classes="letter" Classes.active="{Binding IsActive}" Content="{Binding Letter}" IsEnabled="{Binding HasTables}" />
+    </DataTemplate>
+  </Styles.Resources>
+
+  <!-- A–Z rail: the letters share the list's full height (as large as fits), dimmed when no table files under them. -->
+  <Style Selector="ItemsControl.letterRail">
+    <Setter Property="ItemTemplate" Value="{StaticResource LetterButton}" />
+    <Setter Property="ItemsPanel">
+      <ItemsPanelTemplate><UniformGrid Columns="1" /></ItemsPanelTemplate>
+    </Setter>
+  </Style>
+  <Style Selector="Button.letter">
+    <Setter Property="Background" Value="Transparent" />
+    <Setter Property="BorderThickness" Value="0" />
+    <Setter Property="Padding" Value="0" />
+    <Setter Property="MinHeight" Value="0" />
+    <Setter Property="Width" Value="40" />
+    <Setter Property="FontSize" Value="16" />
+    <Setter Property="VerticalAlignment" Value="Stretch" />
+    <Setter Property="VerticalContentAlignment" Value="Center" />
+    <Setter Property="FontWeight" Value="Bold" />
+    <Setter Property="HorizontalAlignment" Value="Stretch" />
+    <Setter Property="HorizontalContentAlignment" Value="Center" />
+    <Setter Property="ToolTip.Tip" Value="Jump to this letter" />
+  </Style>
+  <!-- Letters with cards on screen, as the list scrolls. -->
+  <Style Selector="Button.letter.active">
+    <Setter Property="Foreground" Value="{StaticResource Lamp}" />
+    <Setter Property="Background" Value="{StaticResource LampSoft}" />
+    <Setter Property="CornerRadius" Value="6" />
+  </Style>
+  <Style Selector="Button.letter.active /template/ ContentPresenter#PART_ContentPresenter">
+    <Setter Property="Foreground" Value="{StaticResource Lamp}" />
+    <Setter Property="Background" Value="{StaticResource LampSoft}" />
+  </Style>
+  <Style Selector="Button.letter:disabled">
+    <Setter Property="Opacity" Value="0.3" />
+  </Style>
+  <!-- Card grids are ListBoxes with a WrapPanel; strip the default row chrome. -->
+  <Style Selector="ListBox.grid">
+    <Setter Property="Background" Value="Transparent" />
+    <Setter Property="BorderThickness" Value="0" />
+    <Setter Property="Padding" Value="0" />
+    <Setter Property="ItemsPanel">
+      <ItemsPanelTemplate><WrapPanel /></ItemsPanelTemplate>
+    </Setter>
+  </Style>
+  <Style Selector="ListBox.grid ListBoxItem">
+    <Setter Property="Padding" Value="0" />
+    <Setter Property="Margin" Value="0,0,16,16" />
+  </Style>
+  <Style Selector="ListBox.grid ListBoxItem /template/ ContentPresenter#PART_ContentPresenter">
+    <Setter Property="Background" Value="Transparent" />
+  </Style>
+  <Style Selector="ListBox.grid ListBoxItem:pointerover /template/ ContentPresenter#PART_ContentPresenter">
+    <Setter Property="Background" Value="Transparent" />
+  </Style>
+  <Style Selector="ListBox.grid ListBoxItem:selected /template/ ContentPresenter#PART_ContentPresenter">
+    <Setter Property="Background" Value="Transparent" />
+  </Style>
+  <Style Selector="ListBox.grid ListBoxItem:selected Border.tile">
+    <Setter Property="BorderBrush" Value="{StaticResource Lamp}" />
+    <Setter Property="BorderThickness" Value="2" />
+  </Style>
+  <Style Selector="PathIcon.search">
+    <Setter Property="Data" Value="M15.5 14h-.79l-.28-.27A6.47 6.47 0 0 0 16 9.5 6.5 6.5 0 1 0 9.5 16c1.61 0 3.09-.59 4.23-1.57l.27.28v.79l5 4.99L20.49 19l-4.99-5zm-6 0C7.01 14 5 11.99 5 9.5S7.01 5 9.5 5 14 7.01 14 9.5 11.99 14 9.5 14z" />
+    <Setter Property="Width" Value="16" />
+    <Setter Property="Height" Value="16" />
+    <Setter Property="Foreground" Value="{StaticResource Muted}" />
+  </Style>
+</Styles>

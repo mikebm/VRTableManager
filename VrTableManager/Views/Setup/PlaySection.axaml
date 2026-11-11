@@ -1,0 +1,56 @@
+<!-- Setup → 02 Playing tables. -->
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:vm="using:VrTableManager.ViewModels"
+             xmlns:v="using:VrTableManager.Views"
+             xmlns:services="using:VrTableManager.Services"
+             x:Class="VrTableManager.Views.Setup.PlaySection"
+             x:DataType="vm:MainViewModel">
+  <ScrollViewer>
+    <Grid>
+      <Grid.ColumnDefinitions>
+        <ColumnDefinition Width="*" MaxWidth="980" />
+      </Grid.ColumnDefinitions>
+      <StackPanel Classes="setupPage">
+        <StackPanel Classes="setupHead">
+          <TextBlock Classes="eyebrow" Text="02 · PINBALL" />
+          <TextBlock Classes="display" FontSize="42" Text="Playing tables" />
+          <TextBlock Classes="body" Text="What VPX turns on for every table you start from here, in VR and on the desktop." />
+        </StackPanel>
+
+        <Border Classes="panel">
+          <StackPanel Spacing="10">
+            <TextBlock Classes="h2" Text="ROMs, displays &amp; backglass" />
+            <CheckBox IsChecked="{Binding UseBuiltInPinmame}"
+                      Content="Use VPX's built-in PinMAME (recommended)"
+                      ToolTip.Tip="In VR and desktop play, reads each table's ROMs, scores, ROM aliases and Serum colours from its own folder. Off: VPX uses a separately installed VPinMAME and its own roms folder." />
+            <CheckBox IsChecked="{Binding UsePupPlugin}"
+                      Content="Show PuP packs (VPX's PinUP Player plugin)"
+                      ToolTip.Tip="Plays a table's PuP pack (pupvideos in its folder) on the cabinet's backglass and DMD. Tables without one are unaffected." />
+            <CheckBox IsChecked="{Binding UseDisplayPlugins}"
+                      Content="Use VPX's FlexDMD and backglass (B2S) plugins (recommended)"
+                      ToolTip.Tip="FlexDMD draws the DMD for tables whose script makes it (many originals, such as Jaws and Mass Effect). B2S shows a table's .directb2s backglass." />
+            <CheckBox IsChecked="{Binding VrAutoBackglass}"
+                      Content="Add a backglass in VR to desktop tables, not VR tables (needed for PuP packs)"
+                      ToolTip.Tip="Desktop and cabinet tables have no backglass in the VR scene, so their PuP pack or .directb2s plays with nothing to show it: they get VPX's default backglass display. VR tables have their own and don't. Off: VPX's own Add Backglass setting decides. A table setting saved in VPX always wins." />
+          </StackPanel>
+        </Border>
+
+        <Border Classes="panel">
+          <StackPanel Spacing="10">
+            <TextBlock Classes="h2" Text="While you play" />
+            <CheckBox IsChecked="{Binding DesktopBloomOff}"
+                      Content="Turn off VPX's bloom (the glow around bright lights) in desktop play"
+                      ToolTip.Tip="Sets VPX's Force Bloom Off for every desktop launch: a little faster on slow graphics cards, and lights look crisper. Off: VPX's own setting decides. VR play has its own Bloom setting under VPX GRAPHICS IN VR." />
+            <CheckBox IsChecked="{Binding AutoVrRoom}"
+                      Content="Turn on a table's VR room for VR play, and off for desktop play (recommended)"
+                      ToolTip.Tip="Some tables have a VR room switch at the top of their script (VRRoom = 0) instead of noticing VR themselves, so in the headset they play with no cabinet and often too dark (The Getaway, Batman 66, Monster Bash). Play in VR turns it on and DESKTOP turns it off, using a copy of the script beside the table; the .vpx isn't changed. Off: tables play as they came." />
+            <CheckBox Content="Hide this window while playing and bring it back when the table closes" IsChecked="{Binding ReturnAfterPlay}" />
+          </StackPanel>
+        </Border>
+
+        <Button Classes="small setupNext" Content="NEXT: HEADSET  ›" Command="{Binding ShowSetupSectionCommand}" CommandParameter="headset" />
+      </StackPanel>
+    </Grid>
+  </ScrollViewer>
+</UserControl>

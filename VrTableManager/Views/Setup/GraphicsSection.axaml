@@ -1,0 +1,112 @@
+<!-- Setup → 05 VR graphics. -->
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:vm="using:VrTableManager.ViewModels"
+             xmlns:v="using:VrTableManager.Views"
+             xmlns:services="using:VrTableManager.Services"
+             x:Class="VrTableManager.Views.Setup.GraphicsSection"
+             x:DataType="vm:MainViewModel">
+  <ScrollViewer>
+    <Grid>
+      <Grid.ColumnDefinitions>
+        <ColumnDefinition Width="*" MaxWidth="980" />
+      </Grid.ColumnDefinitions>
+      <StackPanel Classes="setupPage">
+        <StackPanel Classes="setupHead">
+          <TextBlock Classes="eyebrow" Text="05 · VIRTUAL REALITY" />
+          <TextBlock Classes="display" FontSize="42" Text="VR graphics" />
+          <TextBlock Classes="body"
+                     Text="Pinball needs a steady frame rate more than anything: the ball moves fast, so one late frame shows as a skip. Start with Performance, then raise things while it stays smooth." />
+        </StackPanel>
+
+        <Border Classes="panel">
+          <StackPanel Spacing="10">
+            <CheckBox IsChecked="{Binding UseVrGraphics}">
+              <StackPanel Spacing="2">
+                <TextBlock FontWeight="SemiBold" Text="Use these graphics settings in VR" />
+                <TextBlock Classes="muted" TextWrapping="Wrap"
+                           Text="Off: VR play uses the graphics in your own VPinballX.ini. A change in VPX's in-game menu then lasts for that game only (set it in VPinballX.ini to keep it), and a table's own render scale (⋯ → Table settings) still applies. What's set below is kept for when you turn it back on." />
+              </StackPanel>
+            </CheckBox>
+            <StackPanel Spacing="10" IsEnabled="{Binding UseVrGraphics}">
+            <Grid ColumnDefinitions="*,Auto">
+              <StackPanel Spacing="2">
+                <TextBlock Classes="h2" Text="VPX graphics in VR" />
+                <TextBlock Classes="mono" Text="{Binding GraphicsPresetLabel}" />
+              </StackPanel>
+              <ItemsControl Grid.Column="1" ItemsSource="{Binding GraphicsPresets}" VerticalAlignment="Center">
+                <ItemsControl.ItemsPanel>
+                  <ItemsPanelTemplate><StackPanel Orientation="Horizontal" Spacing="8" /></ItemsPanelTemplate>
+                </ItemsControl.ItemsPanel>
+                <ItemsControl.ItemTemplate>
+                  <DataTemplate x:DataType="x:String">
+                    <Button Classes="small" Content="{Binding}"
+                            Command="{ReflectionBinding $parent[Window].DataContext.ApplyGraphicsPresetCommand}" CommandParameter="{Binding}" />
+                  </DataTemplate>
+                </ItemsControl.ItemTemplate>
+              </ItemsControl>
+            </Grid>
+            <Grid ColumnDefinitions="210,Auto,*" RowDefinitions="Auto,Auto,Auto,Auto,Auto,Auto,Auto,Auto">
+              <Grid.Styles>
+                <Style Selector="Grid > TextBlock.k">
+                  <Setter Property="FontWeight" Value="SemiBold" />
+                  <Setter Property="VerticalAlignment" Value="Center" />
+                  <Setter Property="Margin" Value="0,5" />
+                </Style>
+                <Style Selector="Grid > ComboBox">
+                  <Setter Property="Width" Value="210" />
+                  <Setter Property="Margin" Value="0,5" />
+                </Style>
+                <Style Selector="Grid > TextBlock.muted">
+                  <Setter Property="Margin" Value="12,0,0,0" />
+                  <Setter Property="VerticalAlignment" Value="Center" />
+                  <Setter Property="TextWrapping" Value="Wrap" />
+                </Style>
+              </Grid.Styles>
+              <TextBlock Classes="k" Text="Render scale" />
+              <ComboBox Grid.Column="1" ItemsSource="{Binding RenderScales}" SelectedItem="{Binding GfxRenderScale}" />
+              <TextBlock Grid.Column="2" Classes="muted" Text="Biggest effect on speed and sharpness. 100% = the headset's own resolution. Heavy tables can have their own (My Tables → More)." />
+
+              <TextBlock Grid.Row="1" Classes="k" Text="Anti-aliasing (MSAA)" />
+              <ComboBox Grid.Row="1" Grid.Column="1" ItemsSource="{Binding MsaaNames}" SelectedIndex="{Binding GfxMsaa}" />
+              <TextBlock Grid.Row="1" Grid.Column="2" Classes="muted" Text="Smooths edges of ramps and rails. 4× is plenty; costs GPU time and memory." />
+
+              <TextBlock Grid.Row="2" Classes="k" Text="Post-process AA" />
+              <ComboBox Grid.Row="2" Grid.Column="1" ItemsSource="{Binding PostAaNames}" SelectedIndex="{Binding GfxPostAa}" />
+              <TextBlock Grid.Row="2" Grid.Column="2" Classes="muted" Text="Cheap edge smoothing when MSAA is off. Fast FXAA costs almost nothing." />
+
+              <TextBlock Grid.Row="3" Classes="k" Text="Reflections" />
+              <ComboBox Grid.Row="3" Grid.Column="1" ItemsSource="{Binding ReflectionNames}" SelectedIndex="{Binding GfxReflections}" />
+              <TextBlock Grid.Row="3" Grid.Column="2" Classes="muted" Text="Playfield reflections. Dynamic looks best but costs the most in VR (everything is drawn twice)." />
+
+              <TextBlock Grid.Row="4" Classes="k" Text="Ambient occlusion" />
+              <ComboBox Grid.Row="4" Grid.Column="1" ItemsSource="{Binding AoNames}" SelectedIndex="{Binding GfxAo}" />
+              <TextBlock Grid.Row="4" Grid.Column="2" Classes="muted" Text="Soft shadows in corners. Static is nearly free; Dynamic follows moving parts." />
+
+              <TextBlock Grid.Row="5" Classes="k" Text="Sharpening" />
+              <ComboBox Grid.Row="5" Grid.Column="1" ItemsSource="{Binding SharpenNames}" SelectedIndex="{Binding GfxSharpen}" />
+              <TextBlock Grid.Row="5" Grid.Column="2" Classes="muted" Text="CAS sharpens text and art, useful below 100% render scale or over Wi-Fi." />
+
+              <TextBlock Grid.Row="6" Classes="k" Text="Bloom" />
+              <CheckBox Grid.Row="6" Grid.Column="1" Content="Glow around lit inserts" IsChecked="{Binding GfxBloom}" Margin="0,5" />
+
+              <TextBlock Grid.Row="7" Classes="k" Text="Frame rate overlay" />
+              <ComboBox Grid.Row="7" Grid.Column="1" ItemsSource="{Binding FpsNames}" SelectedIndex="{Binding GfxFps}" />
+              <TextBlock Grid.Row="7" Grid.Column="2" Classes="muted" Text="Shows VPX's frame rate in the headset while you tune. (F11 toggles it in a game.)" />
+            </Grid>
+            </StackPanel>
+            <TextBlock Classes="body" Foreground="{StaticResource Lamp}" Text="{Binding GraphicsStatus}"
+                       IsVisible="{Binding GraphicsStatus, Converter={x:Static StringConverters.IsNotNullOrEmpty}}" />
+            <TextBlock Classes="muted" TextWrapping="Wrap"
+                       Text="Saved in the VR settings file, on top of your own VPinballX.ini, so desktop play keeps its own settings. A table's own .ini can still override these." />
+            <WrapPanel>
+              <Button Classes="small" Content="OPEN VR SETTINGS FILE" Margin="0,0,8,0" Command="{Binding OpenVrIniCommand}" />
+            </WrapPanel>
+          </StackPanel>
+        </Border>
+
+        <Button Classes="small setupNext" Content="NEXT: VR LOBBY  ›" Command="{Binding ShowSetupSectionCommand}" CommandParameter="lobby" />
+      </StackPanel>
+    </Grid>
+  </ScrollViewer>
+</UserControl>
