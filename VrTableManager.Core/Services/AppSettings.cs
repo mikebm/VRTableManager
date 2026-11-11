@@ -121,6 +121,13 @@ public sealed class AppSettings
     public bool DesktopBloomOff { get; set; }
 
     /// <summary>
+    /// VR play uses the VR graphics panel's settings (render scale, AA, reflections…) on top of the player's own
+    /// VPinballX.ini. Off: those are left out of every VR launch, so VPX's own graphics settings decide; the panel's
+    /// values are kept for turning it back on (<see cref="VpxIniLayers"/>).
+    /// </summary>
+    public bool UseVrGraphics { get; set; } = true;
+
+    /// <summary>
     /// Tables with a hand-set VR room switch in their script (VRRoom = 0 / 1) get it set for the mode being
     /// played: on in VR, off on the desktop (<see cref="VrRoomSwitch"/>). Off: every table plays as it came.
     /// </summary>

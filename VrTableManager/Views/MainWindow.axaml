@@ -1343,6 +1343,14 @@
 
                   <Border Classes="panel">
                     <StackPanel Spacing="10">
+                      <CheckBox IsChecked="{Binding UseVrGraphics}">
+                        <StackPanel Spacing="2">
+                          <TextBlock FontWeight="SemiBold" Text="Use these graphics settings in VR" />
+                          <TextBlock Classes="muted" TextWrapping="Wrap"
+                                     Text="Off: VR Table Manager leaves VPX's graphics alone, and VR play uses your own VPinballX.ini (VPX's own settings and menu). What's set below is kept for when you turn it back on." />
+                        </StackPanel>
+                      </CheckBox>
+                      <StackPanel Spacing="10" IsEnabled="{Binding UseVrGraphics}">
                       <Grid ColumnDefinitions="*,Auto">
                         <StackPanel Spacing="2">
                           <TextBlock Classes="h2" Text="VPX graphics in VR" />
@@ -1408,6 +1416,7 @@
                         <ComboBox Grid.Row="7" Grid.Column="1" ItemsSource="{Binding FpsNames}" SelectedIndex="{Binding GfxFps}" />
                         <TextBlock Grid.Row="7" Grid.Column="2" Classes="muted" Text="Shows VPX's frame rate in the headset while you tune. (F11 toggles it in a game.)" />
                       </Grid>
+                      </StackPanel>
                       <TextBlock Classes="body" Foreground="{StaticResource Lamp}" Text="{Binding GraphicsStatus}"
                                  IsVisible="{Binding GraphicsStatus, Converter={x:Static StringConverters.IsNotNullOrEmpty}}" />
                       <TextBlock Classes="muted" TextWrapping="Wrap"

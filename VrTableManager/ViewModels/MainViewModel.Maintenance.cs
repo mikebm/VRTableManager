@@ -415,6 +415,9 @@ public sealed partial class MainViewModel
         UseDisplayPlugins = s.UseDisplayPlugins;
         VrAutoBackglass = s.VrAutoBackglass;
         DesktopBloomOff = s.DesktopBloomOff;
+        _loadingGraphics = true;
+        UseVrGraphics = s.UseVrGraphics;
+        _loadingGraphics = false;
         AutoVrRoom = s.AutoVrRoom;
         LobbyRecordsRomAudio = s.LobbyRecordsRomAudio;
         LobbyWaitsForTable = s.LobbyWaitsForTable;

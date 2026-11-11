@@ -140,6 +140,24 @@ public sealed record VpxGraphics
         };
     }
 
+    /// <summary>The [Player] keys the VR graphics panel sets (see <see cref="Write"/>).</summary>
+    public static readonly string[] Keys =
+    [
+        "AAFactor",
+        "MSAASamples",
+        "FXAA",
+        "PFReflection",
+        "DisableAO",
+        "DynamicAO",
+        "ForceBloomOff",
+        "Sharpen",
+        "ShowFPS",
+    ];
+
+    public static bool IsGraphicsKey((string Section, string Key) k) =>
+        k.Section.Equals("Player", StringComparison.OrdinalIgnoreCase)
+        && Keys.Contains(k.Key, StringComparer.OrdinalIgnoreCase);
+
     public void Write(string iniPath)
     {
         var values = new (string Key, string Value)[]

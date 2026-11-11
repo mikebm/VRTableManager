@@ -67,6 +67,26 @@ static class VpxIniLayersChecks
                 )
             );
 
+            // VR graphics switched off: the panel's settings stay in the file but VPX's own decide.
+            s.UseVrGraphics = false;
+            var off = IniFile.Read(VpxIniLayers.Build(s, vr: true).Path);
+            var offRead = VpxGraphics.Read(VpxIniLayers.Effective(s, vr: true));
+            s.UseVrGraphics = true;
+            results.Add(
+                (
+                    off.GetValueOrDefault(("Player", "MSAASamples")) == ""
+                        && off.GetValueOrDefault(("PlayerVR", "AskToTurnOn")) == "0"
+                        && offRead.Msaa == 0
+                        && IniFile
+                            .Read(VpxSetup.VrIniPath(s))
+                            .GetValueOrDefault(("Player", "MSAASamples")) == "1"
+                        && IniFile
+                            .Read(VpxIniLayers.Build(s, vr: true).Path)
+                            .GetValueOrDefault(("Player", "MSAASamples")) == "1",
+                    "layers: VR graphics off leaves VPX's own graphics (other VR settings stay); on again brings them back"
+                )
+            );
+
             VpxSetup.EnsureDesktopIni(s);
             var d = IniFile.Read(VpxIniLayers.Build(s, vr: false).Path);
             results.Add(

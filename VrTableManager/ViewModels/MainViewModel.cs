@@ -104,6 +104,9 @@ public sealed partial class MainViewModel : ObservableObject, IAsyncDisposable
         UseDisplayPlugins = Settings.UseDisplayPlugins;
         VrAutoBackglass = Settings.VrAutoBackglass;
         DesktopBloomOff = Settings.DesktopBloomOff;
+        _loadingGraphics = true; // loading, not a change: no status line
+        UseVrGraphics = Settings.UseVrGraphics;
+        _loadingGraphics = false;
         AutoVrRoom = Settings.AutoVrRoom;
         LobbyRecordsRomAudio = Settings.LobbyRecordsRomAudio;
         LobbyWaitsForTable = Settings.LobbyWaitsForTable;
@@ -2159,6 +2162,16 @@ public sealed partial class MainViewModel : ObservableObject, IAsyncDisposable
                 break;
             case nameof(VrAutoBackglass):
                 Settings.VrAutoBackglass = VrAutoBackglass;
+                break;
+            case nameof(UseVrGraphics):
+                Settings.UseVrGraphics = UseVrGraphics;
+                if (!_loadingGraphics)
+                {
+                    LoadGraphics(); // now shows what VR play will use: the panel's, or VPX's own
+                    GraphicsStatus = UseVrGraphics
+                        ? "✓ VR play uses these settings again from the next table."
+                        : "✓ VR play uses VPX's own graphics settings from the next table. These are kept for when you turn them back on.";
+                }
                 break;
             case nameof(DesktopBloomOff):
                 Settings.DesktopBloomOff = DesktopBloomOff;

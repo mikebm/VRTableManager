@@ -181,6 +181,10 @@ public sealed partial class MainViewModel
     [ObservableProperty]
     public partial string GraphicsStatus { get; set; } = "";
 
+    /// <summary>VR play uses the panel's graphics settings; off, VPX's own (<see cref="AppSettings.UseVrGraphics"/>).</summary>
+    [ObservableProperty]
+    public partial bool UseVrGraphics { get; set; }
+
     bool _loadingGraphics;
 
     static string ScaleText(double s) => $"{Math.Round(s * 100):0}%";

@@ -63,7 +63,7 @@ public static class VpxIniLayers
     public static Dictionary<(string Section, string Key), string> Effective(AppSettings s, bool vr)
     {
         var result = BasePath(s) is { } b ? IniFile.Read(b) : IniFile.Read("");
-        foreach (var (k, v) in Overrides(OverridePath(s, vr)))
+        foreach (var (k, v) in Overrides(s, vr))
         {
             result[k] = v;
         }
@@ -71,12 +71,20 @@ public static class VpxIniLayers
         return result;
     }
 
-    static IEnumerable<KeyValuePair<(string Section, string Key), string>> Overrides(string path) =>
+    /// <summary>
+    /// The mode's overrides. With the VR graphics switched off (<see cref="AppSettings.UseVrGraphics"/>), VR leaves
+    /// out the graphics panel's keys, so the player's own VPinballX.ini decides them; they stay in the file.
+    /// </summary>
+    static IEnumerable<KeyValuePair<(string Section, string Key), string>> Overrides(
+        AppSettings s,
+        bool vr
+    ) =>
         IniFile
-            .Read(path)
+            .Read(OverridePath(s, vr))
             .Where(kv =>
                 kv.Value != ""
                 && !NotSettings.Contains(kv.Key.Section, StringComparer.OrdinalIgnoreCase)
+                && (!vr || s.UseVrGraphics || !VpxGraphics.IsGraphicsKey(kv.Key))
             );
 
     /// <summary>
@@ -120,7 +128,7 @@ public static class VpxIniLayers
         }
 
         foreach (
-            var section in Overrides(OverridePath(s, vr))
+            var section in Overrides(s, vr)
                 .GroupBy(kv => kv.Key.Section, StringComparer.OrdinalIgnoreCase)
         )
         {
@@ -227,10 +235,7 @@ public static class VpxIniLayers
                     )
                     .ToList();
                 foreach (
-                    var section in changed.GroupBy(
-                        c => c.Section,
-                        StringComparer.OrdinalIgnoreCase
-                    )
+                    var section in changed.GroupBy(c => c.Section, StringComparer.OrdinalIgnoreCase)
                 )
                 {
                     IniFile.SetMany(
@@ -259,7 +264,6 @@ public static class VpxIniLayers
             }
         }
     }
-
 
     /// <summary>Settings that differ after play. "1" and "1.000000" are the same value, not a change.</summary>
     public static IEnumerable<(string Section, string Key, string Value)> Changes(
