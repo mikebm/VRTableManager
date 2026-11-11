@@ -71,56 +71,56 @@
         </StackPanel>
       </StackPanel>
 
-    <!-- A–Z rail: a letter jumps to its first table, as in the VR lobby (only while the list is A–Z). -->
-    <ItemsControl DockPanel.Dock="Right" Classes="letterRail" Margin="0,8,6,8"
-                  x:Name="CatalogLetterRail" ItemsSource="{Binding CatalogLetters}" IsVisible="{Binding ShowCatalogLetters}" />
-    <ScrollViewer x:Name="CatalogScroll">
-      <StackPanel Margin="28,8,12,28" Spacing="20">
+      <!-- A–Z rail: a letter jumps to its first table, as in the VR lobby (only while the list is A–Z). -->
+      <ItemsControl DockPanel.Dock="Right" Classes="letterRail" Margin="0,8,6,8"
+                    x:Name="CatalogLetterRail" ItemsSource="{Binding CatalogLetters}" IsVisible="{Binding ShowCatalogLetters}" />
+      <ScrollViewer x:Name="CatalogScroll">
+        <StackPanel Margin="28,8,12,28" Spacing="20">
 
-        <Button HorizontalAlignment="Center" Content="SHOW EARLIER TABLES" IsVisible="{Binding HasEarlier}"
-                ToolTip.Tip="The A–Z rail started the list at a letter: bring back the tables before it"
-                Command="{Binding ShowEarlierCommand}" />
+          <Button HorizontalAlignment="Center" Content="SHOW EARLIER TABLES" IsVisible="{Binding HasEarlier}"
+                  ToolTip.Tip="The A–Z rail started the list at a letter: bring back the tables before it"
+                  Command="{Binding ShowEarlierCommand}" />
 
-        <!-- Card grid -->
-        <ListBox x:Name="CatalogGrid" Classes="grid" ItemsSource="{Binding Games}" SelectedItem="{Binding SelectedGame}">
-          <ListBox.ItemTemplate>
-            <DataTemplate x:DataType="vm:GameItem">
-              <Border Classes="tile" Width="214">
-                <StackPanel>
-                  <!-- The picture is clipped to the card's inner rounded corners, so it never covers the (highlighted) border. -->
-                  <Border Classes="tileArt" Height="276">
-                  <Grid>
-                    <Border Background="{StaticResource Stripes}" />
-                    <TextBlock Classes="mono" Text="NO ARTWORK" HorizontalAlignment="Center" VerticalAlignment="Center"
-                               IsVisible="{Binding !HasImage}" />
-                    <Image v:ImageLoader.Url="{Binding ImgUrl}" Stretch="UniformToFill" />
-                    <Border Background="{StaticResource CardFade}" />
-                    <StackPanel Orientation="Horizontal" Spacing="5" Margin="10" VerticalAlignment="Top">
-                      <Border Classes="chip lit" IsVisible="{Binding IsVr}"><TextBlock Text="VR" /></Border>
-                      <Border Classes="chip hot" IsVisible="{Binding HasFp}"><TextBlock Text="FP" /></Border>
-                    </StackPanel>
-                    <Border Classes="chip green" Margin="10" HorizontalAlignment="Right" VerticalAlignment="Top"
-                            IsVisible="{Binding IsInstalled}">
-                      <TextBlock Text="INSTALLED" />
+          <!-- Card grid -->
+          <ListBox x:Name="CatalogGrid" Classes="grid" ItemsSource="{Binding Games}" SelectedItem="{Binding SelectedGame}">
+            <ListBox.ItemTemplate>
+              <DataTemplate x:DataType="vm:GameItem">
+                <Border Classes="tile" Width="214">
+                  <StackPanel>
+                    <!-- The picture is clipped to the card's inner rounded corners, so it never covers the (highlighted) border. -->
+                    <Border Classes="tileArt" Height="276">
+                    <Grid>
+                      <Border Background="{StaticResource Stripes}" />
+                      <TextBlock Classes="mono" Text="NO ARTWORK" HorizontalAlignment="Center" VerticalAlignment="Center"
+                                 IsVisible="{Binding !HasImage}" />
+                      <Image v:ImageLoader.Url="{Binding ImgUrl}" Stretch="UniformToFill" />
+                      <Border Background="{StaticResource CardFade}" />
+                      <StackPanel Orientation="Horizontal" Spacing="5" Margin="10" VerticalAlignment="Top">
+                        <Border Classes="chip lit" IsVisible="{Binding IsVr}"><TextBlock Text="VR" /></Border>
+                        <Border Classes="chip hot" IsVisible="{Binding HasFp}"><TextBlock Text="FP" /></Border>
+                      </StackPanel>
+                      <Border Classes="chip green" Margin="10" HorizontalAlignment="Right" VerticalAlignment="Top"
+                              IsVisible="{Binding IsInstalled}">
+                        <TextBlock Text="INSTALLED" />
+                      </Border>
+                    </Grid>
                     </Border>
-                  </Grid>
-                  </Border>
-                  <StackPanel Margin="14,12,14,14" Spacing="3">
-                    <TextBlock Classes="title" Text="{Binding Title}" TextWrapping="Wrap" MaxLines="2" TextTrimming="CharacterEllipsis" />
-                    <TextBlock Classes="muted" Text="{Binding MakerYear}" />
-                    <TextBlock Classes="mono" Margin="0,6,0,0" TextTrimming="CharacterEllipsis"
-                               Text="{Binding AuthorsShort, StringFormat='✎  {0}'}" />
+                    <StackPanel Margin="14,12,14,14" Spacing="3">
+                      <TextBlock Classes="title" Text="{Binding Title}" TextWrapping="Wrap" MaxLines="2" TextTrimming="CharacterEllipsis" />
+                      <TextBlock Classes="muted" Text="{Binding MakerYear}" />
+                      <TextBlock Classes="mono" Margin="0,6,0,0" TextTrimming="CharacterEllipsis"
+                                 Text="{Binding AuthorsShort, StringFormat='✎  {0}'}" />
+                    </StackPanel>
                   </StackPanel>
-                </StackPanel>
-              </Border>
-            </DataTemplate>
-          </ListBox.ItemTemplate>
-        </ListBox>
+                </Border>
+              </DataTemplate>
+            </ListBox.ItemTemplate>
+          </ListBox>
 
-        <Button HorizontalAlignment="Center" Content="SHOW MORE TABLES" IsVisible="{Binding HasMore}"
-                Command="{Binding ShowMoreCommand}" />
-      </StackPanel>
-    </ScrollViewer>
+          <Button HorizontalAlignment="Center" Content="SHOW MORE TABLES" IsVisible="{Binding HasMore}"
+                  Command="{Binding ShowMoreCommand}" />
+        </StackPanel>
+      </ScrollViewer>
     </DockPanel>
 
     <!-- Detail drawer -->
