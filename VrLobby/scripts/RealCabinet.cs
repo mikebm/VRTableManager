@@ -128,7 +128,15 @@ public sealed class RealCabinet
 public partial class RealCabinetLoader : Node
 {
     public const int TextureMaxSide = 1024;
-    public const int Keep = 14; // the 11 in the ring plus a few just scrolled past
+
+    /// <summary>
+    /// How many tables' cabinets are kept: the ring's cabinets plus a few just scrolled past. The lobby sets it from
+    /// the ring's size. It must never be fewer than the cabinets on show: reading one would forget another still
+    /// standing in the ring, which then hides until it's read again and forgets the next, round and round.
+    /// </summary>
+    public int Keep { get; set; } = KeepFor(VrTableManager.Lobby.LobbyRing.Default.Count);
+
+    public static int KeepFor(int ringCount) => ringCount + 3;
 
     /// <summary>Table path, and its cabinet (null: the table has no VR cabinet, use the generic one).</summary>
     public event Action<string, RealCabinet?>? CabinetReady;

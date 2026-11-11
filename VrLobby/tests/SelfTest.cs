@@ -92,6 +92,44 @@ public static class SelfTest
     static async Task Seconds(Main lobby, double s) =>
         await lobby.ToSignal(lobby.GetTree().CreateTimer(s), SceneTreeTimer.SignalName.Timeout);
 
+    /// <summary>
+    /// The cabinet and picture caches hold every cabinet of the biggest ring. With room for only 14 cabinets, a ring
+    /// of 15 or more read one table's cabinet, forgot another still on show, which hid and was read again, and so
+    /// on: cabinets flickered or vanished and every read hitched the frame.
+    /// </summary>
+    static async Task BiggestRingKeepsEveryCabinet(Main lobby)
+    {
+        var count = LobbyLayout.MaxCount;
+        var loader = new RealCabinetLoader
+        {
+            CacheDir = null,
+            Keep = RealCabinetLoader.KeepFor(count),
+        };
+        lobby.AddChild(loader);
+        // Tables that don't exist: each is answered at once as "no VR cabinet", and remembered like any other.
+        var tables = Enumerable
+            .Range(0, count)
+            .Select(i => Path.Combine(OS.GetUserDataDir(), $"no-such-table-{i}.vpx"))
+            .ToList();
+        var answered = 0;
+        loader.CabinetReady += (_, _) => answered++;
+        foreach (var t in tables)
+        {
+            loader.Request(t);
+        }
+        for (var i = 0; i < 200 && answered < count; i++)
+        {
+            await Seconds(lobby, 0.02);
+        }
+        Check(
+            answered == count
+                && tables.All(loader.IsKnown)
+                && Enumerable.All(LobbyLayout.Counts, n => ArtLoader.KeepFor(n) >= n * 2 + 1),
+            $"a ring of {count} keeps every cabinet's table and pictures (no cabinet forgotten while on show)"
+        );
+        loader.QueueFree();
+    }
+
     static float FrontDistance(Cabinet c) =>
         new Vector2(c.Position.X, c.Position.Z).Length() - CabinetKit.Length * c.Scale.Z / 2;
 
@@ -139,6 +177,7 @@ public static class SelfTest
                 && lobby.Cabinets.All(c => c.Scale.IsEqualApprox(Vector3.One)),
             "default cabinet size and count: the ring is as it always was (real size, 2.1 m away)"
         );
+        await BiggestRingKeepsEveryCabinet(lobby);
         Check(
             lobby.Cabinets.Count(c => c.Visible) == 6,
             "at the first table: it plus 5 to its right (nothing to the left)"

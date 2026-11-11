@@ -15,7 +15,14 @@ public partial class ArtLoader : Node
 {
     public const int MaxSide = 1024;
     public const int PlayfieldMaxSide = 2048;
-    public const int KeepTextures = 40;
+
+    /// <summary>
+    /// Pictures kept: a playfield and a backglass for each cabinet in the ring, the selected one's wheel, and a few
+    /// just scrolled past (40 for the default 11). The lobby sets it from the ring's size.
+    /// </summary>
+    public int KeepTextures { get; set; } = KeepFor(VrTableManager.Lobby.LobbyRing.Default.Count);
+
+    public static int KeepFor(int ringCount) => ringCount * 3 + 7;
 
     /// <summary>url, texture, average colour of the picture.</summary>
     public event Action<string, Texture2D, Color>? Loaded;

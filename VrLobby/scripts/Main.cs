@@ -229,6 +229,9 @@ public partial class Main : Node3D
         GD.Print(
             $"Cabinets: {_layout.Count} at {CabinetScale * 100:0}%, ring {_layout.RingFront:0.00} m"
         );
+        // Both caches must hold at least every cabinet on show, or loading one forgets another in the ring.
+        _cabs.Keep = RealCabinetLoader.KeepFor(_layout.Count);
+        _art.KeepTextures = ArtLoader.KeepFor(_layout.Count);
         BuildRoom();
         BuildChase();
         AddChild(_art);
@@ -2330,7 +2333,16 @@ public partial class Main : Node3D
             return;
         }
         _perfNextStep = _perfClock + 3.0;
-        GD.Print($"STEP {_perfSteps} at {_perfClock:0.00}s");
+        var vp = GetViewport().GetViewportRid();
+        RenderingServer.ViewportSetMeasureRenderTime(vp, true);
+        GD.Print(
+            $"STEP {_perfSteps} at {_perfClock:0.00}s: render cpu {RenderingServer.ViewportGetMeasuredRenderTimeCpu(vp):0.0} ms, "
+                + $"gpu {RenderingServer.ViewportGetMeasuredRenderTimeGpu(vp):0.0} ms, "
+                + $"{Performance.GetMonitor(Performance.Monitor.RenderTotalDrawCallsInFrame)} draws, "
+                + $"{Performance.GetMonitor(Performance.Monitor.RenderTotalObjectsInFrame)} objects, "
+                + $"{Performance.GetMonitor(Performance.Monitor.RenderTotalPrimitivesInFrame) / 1e6:0.0} M triangles, "
+                + $"{Performance.GetMonitor(Performance.Monitor.RenderVideoMemUsed) / 1048576:0} MB video memory"
+        );
         Select(Selected + 1);
     }
 
