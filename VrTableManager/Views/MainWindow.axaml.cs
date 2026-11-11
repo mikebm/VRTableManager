@@ -1,4 +1,5 @@
 using System.Diagnostics;
+using Avalonia;
 using Avalonia.Controls;
 using Avalonia.Data.Converters;
 using Avalonia.Layout;
@@ -17,6 +18,7 @@ public partial class MainWindow : Window, IUiHost
     {
         InitializeComponent();
         DataContext = _vm = new MainViewModel(this);
+        RestorePlacement();
         Opened += async (_, _) => await _vm.LoadCatalogAsync();
         Closing += async (_, e) =>
         {
@@ -39,9 +41,82 @@ public partial class MainWindow : Window, IUiHost
                 }
                 return;
             }
+            SavePlacement();
             _vm.PrepareToClose();
             await _vm.DisposeAsync();
         };
+    }
+
+    // The window's last normal (not maximized or minimized) spot, and whether it's maximized over it.
+    PixelPoint _normalPosition;
+    Size _normalSize;
+    bool _maximized;
+
+    /// <summary>Opens where the window was when the app last closed, if that spot is still on a screen.</summary>
+    void RestorePlacement()
+    {
+        _normalPosition = Position;
+        _normalSize = new(Width, Height);
+        if (_vm.Settings.MainWindow is { } p && p.Width >= MinWidth && p.Height >= MinHeight)
+        {
+            // A monitor unplugged since: only use the spot when its title bar is on a screen now.
+            var titleBar = new PixelRect(p.X + 40, p.Y + 8, 200, 24);
+            if (Screens.All.Any(s => s.WorkingArea.Intersects(titleBar)))
+            {
+                WindowStartupLocation = WindowStartupLocation.Manual;
+                Position = new PixelPoint(p.X, p.Y);
+                _normalPosition = Position;
+            }
+            Width = p.Width;
+            Height = p.Height;
+            _normalSize = new(p.Width, p.Height);
+            if (p.Maximized)
+            {
+                WindowState = WindowState.Maximized;
+                _maximized = true;
+            }
+        }
+
+        PositionChanged += (_, _) =>
+        {
+            if (WindowState == WindowState.Normal)
+            {
+                _normalPosition = Position;
+            }
+        };
+        Resized += (_, _) =>
+        {
+            if (WindowState == WindowState.Normal)
+            {
+                _normalSize = ClientSize;
+            }
+        };
+        PropertyChanged += (_, e) =>
+        {
+            if (e.Property == WindowStateProperty && WindowState != WindowState.Minimized)
+            {
+                _maximized = WindowState is WindowState.Maximized or WindowState.FullScreen;
+            }
+        };
+    }
+
+    void SavePlacement()
+    {
+        try
+        {
+            _vm.Settings.MainWindow = new()
+            {
+                X = _normalPosition.X,
+                Y = _normalPosition.Y,
+                Width = _normalSize.Width,
+                Height = _normalSize.Height,
+                Maximized = _maximized,
+            };
+            _vm.Settings.Save();
+        }
+        catch
+        { /* next launch opens at the default spot */
+        }
     }
 
     public async Task<string?> PickFolderAsync(string title)
@@ -298,7 +373,7 @@ public partial class MainWindow : Window, IUiHost
 
     public void ShowAfterPlay()
     {
-        WindowState = WindowState.Normal;
+        WindowState = _maximized ? WindowState.Maximized : WindowState.Normal;
         Activate();
     }
 

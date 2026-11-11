@@ -56,6 +56,9 @@ public sealed class AppSettings
     /// </summary>
     public string? VpxKeptBuild { get; set; }
 
+    /// <summary>Where the main window was when the app last closed, so it opens there again. Null until then.</summary>
+    public WindowPlacement? MainWindow { get; set; }
+
     /// <summary>0 = runtime default, otherwise 72/80/90/120.</summary>
     public int VrRefreshRate { get; set; }
 
@@ -223,4 +226,17 @@ public sealed class AppSettings
 
     public void Save() =>
         File.WriteAllText(SourcePath ?? DefaultPath, JsonSerializer.Serialize(this, Json));
+}
+
+/// <summary>
+/// A window's normal (not maximized) spot: top-left corner in screen pixels, size in the window's own units, and
+/// whether it was maximized over it.
+/// </summary>
+public sealed class WindowPlacement
+{
+    public int X { get; set; }
+    public int Y { get; set; }
+    public double Width { get; set; }
+    public double Height { get; set; }
+    public bool Maximized { get; set; }
 }
