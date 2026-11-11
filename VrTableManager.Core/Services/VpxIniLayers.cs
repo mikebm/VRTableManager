@@ -148,7 +148,13 @@ public static class VpxIniLayers
             path,
             OverridePath(s, vr),
             IniFile.Read(path),
-            [.. PerTableKeys, .. notKept ?? []],
+            [
+                .. PerTableKeys,
+                .. notKept ?? [],
+                // VR graphics switched off: the play file has the player's own graphics, and a change made in VPX's
+                // menu isn't saved into the panel's settings (it would replace them when switched back on).
+                .. vr && !s.UseVrGraphics ? VpxGraphics.Keys.Select(k => ("Player", k)) : [],
+            ],
             afterPlay
         );
     }
