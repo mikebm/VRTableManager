@@ -1161,6 +1161,21 @@ public partial class Main : Node3D
         label.Visible = alpha > 0.001f;
     }
 
+    /// <summary>
+    /// The filter you just switched to, big in front of you. It stays longer than other flashes, since a name like
+    /// "Forgotten favourites" takes a moment to read.
+    /// </summary>
+    void ShowFilterFlash()
+    {
+        ShowFlash(State.Filter);
+        _flashTime = NameFlashSeconds;
+        _flashFade = 0.6;
+    }
+
+    /// <summary>
+    /// A quick flash: the rail's letter or group as you move along it, "?" for a random table, HOLD TO LEAVE. It
+    /// changes quickly (and is shown again every frame while held), so it goes quickly.
+    /// </summary>
     void ShowFlash(string? text = null)
     {
         if (text == null)
@@ -1175,8 +1190,18 @@ public partial class Main : Node3D
         }
         _flash.Text = text;
         _flash.FontSize = text.Length <= 2 ? 260 : 120;
-        _flashTime = 0.7;
+        _flashTime = LetterFlashSeconds;
+        _flashFade = 0.3;
     }
+
+    public const double LetterFlashSeconds = 0.7,
+        NameFlashSeconds = 2.2;
+
+    /// <summary>How long the flash takes to fade out at the end of its time.</summary>
+    double _flashFade = 0.3;
+
+    /// <summary>Seconds the flash has left (for the self-test).</summary>
+    public double FlashTimeLeft => _flashTime;
 
     // ---- Selection ------------------------------------------------------------------
 
@@ -1480,7 +1505,7 @@ public partial class Main : Node3D
         State.Filter = LobbyNav.NextFilter(State, Library);
         State.Save();
         Rebuild(current);
-        ShowFlash(State.Filter);
+        ShowFilterFlash();
     }
 
     public string HeaderText => _header.Text;
@@ -1503,7 +1528,7 @@ public partial class Main : Node3D
             if (gone)
             {
                 State.Save();
-                ShowFlash(State.Filter);
+                ShowFilterFlash();
             }
             if (gone || State.IsCollection(State.Filter) || State.IsSmart(State.Filter))
             {
@@ -1823,7 +1848,7 @@ public partial class Main : Node3D
                 _flash,
                 Palette.Dmd,
                 Palette.DmdPanel,
-                Mathf.Clamp((float)_flashTime / 0.3f, 0f, 0.85f)
+                Mathf.Clamp((float)(_flashTime / _flashFade), 0f, 0.85f)
             );
         }
         _statsCheck -= delta;
@@ -2431,6 +2456,7 @@ public partial class Main : Node3D
         _loading = t;
         _error = null; // an old failure of this table mustn't come back after it plays fine
         _loadingTime = _unfocused = 0;
+        _loggedXrState = null;
         _loadingPoll = 0.25;
         foreach (var cab in _pool)
         {
@@ -2530,6 +2556,8 @@ public partial class Main : Node3D
         UpdateSelection();
     }
 
+    OpenXRInterface.SessionState? _loggedXrState;
+
     void ShowLoadingText() =>
         _status.Text =
             $"Loading{new string('.', 1 + (int)(_loadingTime * 2) % 3), -3}  {(int)_loadingTime} s";
@@ -2597,12 +2625,35 @@ public partial class Main : Node3D
             return;
         }
         // The runtime gives the headset's focus to the newest app, so once the table's own session starts ours
-        // drops out of focus: that's the moment to go. (STOPPING is handled by SessionStopping in SetupView.)
-        if (running && _xr != null && _xr.GetSessionState() != OpenXRInterface.SessionState.Focused)
+        // drops out of focus. VPX starts its session before it has loaded the table, so while the runtime still
+        // draws the lobby the loading screen stays up (LobbyHandover). (STOPPING is handled in SetupView.)
+        var state = _xr?.GetSessionState();
+        if (state != _loggedXrState)
         {
-            _unfocused += 0.25;
-            if (_unfocused >= 0.5)
+            // What the runtime does around the hand-over, for when it doesn't look right in the headset.
+            GD.Print(
+                $"OpenXR session {state} at {_loadingTime:0.0} s (table {st?.State ?? "no status"})"
+            );
+            _loggedXrState = state;
+        }
+        var shown = state switch
+        {
+            OpenXRInterface.SessionState.Focused => LobbyShown.Focused,
+            OpenXRInterface.SessionState.Visible => LobbyShown.Visible,
+            _ => LobbyShown.Hidden,
+        };
+        if (running && _xr != null && shown != LobbyShown.Focused)
+        {
+            // The table has the focus: the picture can stay up while it loads, but not the sound, which could
+            // otherwise play on under the table if the runtime keeps showing the lobby.
+            if (_loadingVideo.SoundPlaying)
             {
+                _loadingVideo.Mute();
+            }
+            _unfocused += 0.25;
+            if (LobbyHandover.StepAside(running, shown, _unfocused))
+            {
+                GD.Print($"Lobby stepping aside: {shown} for {_unfocused:0.0} s");
                 if (Settings.LobbyStaysOpen && _statusFile != null)
                 {
                     StartPlaying(t);

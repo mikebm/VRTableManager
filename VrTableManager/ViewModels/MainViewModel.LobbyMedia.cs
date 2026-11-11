@@ -250,6 +250,10 @@ public sealed partial class MainViewModel
             LobbyMedia.Next(LobbyMediaSources(x.Item.Table), x.Needs) != null
         );
         var recordable = shown.Count(x => x.Needs.Video && !x.Item.NeedsRom);
+        var toRecord = shown
+            .Where(x => x.Needs.Video && x.Item.CanHaveLobbyVideo && !x.Item.NeedsRom)
+            .Select(x => x.Item)
+            .ToList();
         if (fromCatalog == 0 && recordable == 0)
         {
             PlayStatus =
@@ -276,16 +280,42 @@ public sealed partial class MainViewModel
                         + "window for about half a minute each, sound off. Leave the PC alone meanwhile.\n\n"
                     : ""
             )
+            + (
+                recordable > 0 && fromCatalog > 0 && toRecord.Count > 0
+                    ? $"• RECORD VIDEOS ONLY skips the catalog and just records a playfield video in VPX for the {toRecord.Count} "
+                        + $"table{(toRecord.Count == 1 ? "" : "s")} without one.\n\n"
+                    : ""
+            )
             + "Cancelling one table's job in the Downloads list skips that table; STOP ends the run. "
             + "To do only some tables, search or filter My Tables first.";
         string[] buttons =
             recordable > 0 && fromCatalog > 0
-                ? ["GET ALL, RECORD THE REST", "GET ALL, DON'T RECORD", "CANCEL"]
-            : recordable > 0 ? ["RECORD IN VPX", "CANCEL"]
-            : ["GET ALL", "CANCEL"];
+                ? toRecord.Count > 0
+                    ?
+                    [
+                        "GET ALL, RECORD THE REST",
+                        "GET ALL, DON'T RECORD",
+                        "RECORD VIDEOS ONLY",
+                        "CANCEL",
+                    ]
+                    : ["GET ALL, RECORD THE REST", "GET ALL, DON'T RECORD", "CANCEL"]
+                : recordable > 0
+                    ? ["RECORD IN VPX", "CANCEL"]
+                    : ["GET ALL", "CANCEL"];
         var pick = await _ui.ChoiceAsync("Get the VR lobby media?", message, buttons);
         if (pick < 0 || pick == buttons.Length - 1)
         {
+            return;
+        }
+
+        if (buttons[pick] == "RECORD VIDEOS ONLY")
+        {
+            if (IsLobbyRunning)
+            {
+                PlayStatus = "Close the VR lobby first: recording runs the tables in VPX.";
+                return;
+            }
+            await RecordLobbyVideosAsync(toRecord);
             return;
         }
 

@@ -266,6 +266,15 @@ public sealed partial class MainViewModel
             return;
         }
 
+        await RecordLobbyVideosAsync(todo);
+    }
+
+    /// <summary>
+    /// Records <paramref name="todo"/> in VPX one after another, with the toolbar's STOP, and says how it went.
+    /// The caller has asked and checked the VR lobby isn't running. Cancelling a recording, or STOP, ends the batch.
+    /// </summary>
+    async Task RecordLobbyVideosAsync(List<InstalledItem> todo)
+    {
         IsBatchRecording = true;
         _batchUsesVpx = true;
         _batchStop = false;

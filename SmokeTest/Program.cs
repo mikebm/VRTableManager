@@ -1479,6 +1479,24 @@ Check(
         LobbyNav.NextFilter(ss, lib) == lobbyFilters[Array.IndexOf(lobbyFilters, "Decade") + 1],
         "lobby: B from Decade goes on to what comes after it (collections, then smart ones)"
     );
+
+    // Handing the headset to a table: stay up while the runtime still draws the lobby.
+    Check(
+        !LobbyHandover.StepAside(false, LobbyShown.Hidden, 10)
+            && !LobbyHandover.StepAside(true, LobbyShown.Focused, 10),
+        "hand-over: nothing to step aside for until the table runs and has the focus"
+    );
+    Check(
+        !LobbyHandover.StepAside(true, LobbyShown.Hidden, 0.25)
+            && LobbyHandover.StepAside(true, LobbyShown.Hidden, 0.5),
+        "hand-over: once the lobby isn't drawn, it steps aside within half a second"
+    );
+    Check(
+        !LobbyHandover.StepAside(true, LobbyShown.Visible, 5)
+            && !LobbyHandover.StepAside(true, LobbyShown.Visible, 19.75)
+            && LobbyHandover.StepAside(true, LobbyShown.Visible, LobbyHandover.VisibleGrace),
+        "hand-over: still drawn while the table loads, the loading screen stays up (20 s at most)"
+    );
     File.Delete(colPath);
     reloaded.Save(); // put back the state the checks below expect
 }

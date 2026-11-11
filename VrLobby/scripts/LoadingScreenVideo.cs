@@ -100,6 +100,16 @@ public partial class LoadingScreenVideo : Node3D
         }
     }
 
+    /// <summary>
+    /// Silences it, for good, while the picture plays on: the table has the headset's focus (and soon its sound),
+    /// though the lobby may still be shown for a while (LobbyHandover).
+    /// </summary>
+    public void Mute()
+    {
+        _sound.Stop();
+        _sound.Stream = null; // or the next loop would start it again
+    }
+
     public void Stop()
     {
         _frames.Stop();

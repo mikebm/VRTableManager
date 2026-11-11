@@ -443,10 +443,19 @@ public static class SelfTest
             lobby.State.Filter == "VPX" && lobby.Shown.All(t => t.Engine == "VPX"),
             "B / Tab cycles to the VPX filter"
         );
+        Check(
+            lobby.FlashTimeLeft > 2.0 && lobby.FlashTimeLeft <= Main.NameFlashSeconds,
+            $"the filter's name stays up long enough to read ({lobby.FlashTimeLeft:F1} s)"
+        );
         SetFilter(lobby, "Manufacturer");
         Check(
             lobby.RailItemCount is > 0 and <= 9 && lobby.Groups[0].Label == "Bally",
             "manufacturer rail shows maker groups"
+        );
+        lobby.JumpToGroup(1);
+        Check(
+            lobby.FlashTimeLeft <= Main.LetterFlashSeconds,
+            $"a rail group's name (a maker) flashes briefly, like a letter ({lobby.FlashTimeLeft:F1} s)"
         );
         SetFilter(lobby, "All");
 
