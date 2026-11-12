@@ -58,7 +58,7 @@ public sealed partial class MainViewModel
         var title = what.Count == 1 ? char.ToUpper(what[0][0]) + what[0][1..] : "VR lobby media";
         var job = new JobItem($"{title} for {table.Manifest.GameName}")
         {
-            FileNames = [table.Manifest.GameName],
+            FileNames = [table.Manifest.MatchName],
         };
         Jobs.Insert(0, job);
         started?.Invoke(job);

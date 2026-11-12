@@ -233,6 +233,12 @@ public sealed partial class InstalledItem : ObservableObject
         );
     public string Title => Table.Manifest.GameName;
 
+    /// <summary>⋯ → Rename…: tables with a manifest of their own to keep the name in (see TableInstaller.CanRename).</summary>
+    public bool CanRename => TableInstaller.CanRename(Table);
+
+    /// <summary>The table was renamed in place (same Table): show the new name.</summary>
+    public void NameChanged() => OnPropertyChanged(nameof(Title));
+
     /// <summary>The ⋯ menu's Collections submenu: one tick per collection, then New collection….</summary>
     [ObservableProperty]
     public partial IReadOnlyList<CollectionChoice> CollectionChoices { get; set; } = [];

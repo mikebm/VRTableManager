@@ -99,7 +99,7 @@ public static class WheelArt
     /// <summary>The game a wheel is for: its name, and the maker and year that tell editions and namesakes apart.</summary>
     public sealed record Game(string Name, string? Manufacturer = null, int? Year = null)
     {
-        public static Game Of(TableManifest m) => new(m.GameName, m.Manufacturer, m.Year);
+        public static Game Of(TableManifest m) => new(m.MatchName, m.Manufacturer, m.Year);
     }
 
     /// <summary>
@@ -249,7 +249,9 @@ public static class WheelArt
             wheelPack ? ImageExts : [],
             (src, entry) =>
             {
-                var medias = Directory.CreateDirectory(Path.Combine(tableFolder, "medias")).FullName;
+                var medias = Directory
+                    .CreateDirectory(Path.Combine(tableFolder, "medias"))
+                    .FullName;
                 var dest = Path.Combine(
                     medias,
                     Prefix

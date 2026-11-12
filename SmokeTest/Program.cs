@@ -2836,6 +2836,11 @@ foreach (var (ok, name) in VpxIniLayersChecks.Run(root))
     Check(ok, name);
 }
 
+foreach (var (ok, name) in RenameChecks.Run(root))
+{
+    Check(ok, name);
+}
+
 foreach (var (ok, name) in UserArtworkChecks.Run(root))
 {
     Check(ok, name);

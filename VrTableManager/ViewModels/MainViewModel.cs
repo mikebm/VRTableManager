@@ -843,7 +843,7 @@ public sealed partial class MainViewModel : ObservableObject, IAsyncDisposable
                 rom != null
                     ? PinmameInfo.Get(Settings, Path.Combine(t.Folder, "pinmame"), rom)?.Description
                     : null;
-            name = name?.Split(" (")[0].Replace(", The", "") ?? t.Manifest.GameName;
+            name = name?.Split(" (")[0].Replace(", The", "") ?? t.Manifest.MatchName;
             urls.Add(SternGameCode.SearchUrl(name));
         }
         return urls;
@@ -1121,7 +1121,7 @@ public sealed partial class MainViewModel : ObservableObject, IAsyncDisposable
         }
         var job = new JobItem($"ROM for {table.Manifest.GameName}")
         {
-            FileNames = [.. table.MissingRoms, .. family, table.Manifest.GameName],
+            FileNames = [.. table.MissingRoms, .. family, table.Manifest.MatchName],
             FileTypes = [".zip", ".7z", ".rar"],
             NamesMustMatch = true,
         };
@@ -2196,6 +2196,64 @@ public sealed partial class MainViewModel : ObservableObject, IAsyncDisposable
 
     [RelayCommand]
     void OpenTableFolder(InstalledItem item) => _ui.OpenExternal(item.Table.Folder);
+
+    /// <summary>
+    /// ⋯ → Rename…: the name shown in My Tables and the VR lobby. It's kept in the table's vrtm.json; the catalog
+    /// link (GameId), collections, play history and pictures don't go by the name, so they all stay.
+    /// </summary>
+    [RelayCommand]
+    async Task RenameTable(InstalledItem item)
+    {
+        if (!item.CanRename)
+        {
+            return;
+        }
+
+        var shown = item.Table.Manifest;
+        var message =
+            shown.OriginalName != null && shown.OriginalName != shown.GameName
+                ? $"A new name for “{shown.GameName}”. Leave it blank to go back to “{shown.OriginalName}”."
+                : $"A new name for “{shown.GameName}”.";
+        if (await _ui.AskTextAsync("Rename", message, shown.GameName, "RENAME") is not { } typed)
+        {
+            return;
+        }
+
+        // An update, add-on or ROM job on this table rewrites its vrtm.json from what it read at the start, which
+        // would undo the new name: wait for it. A rescan may also have replaced the table while the box was open,
+        // so everything below reads the current one.
+        var table = item.Table;
+        if (!TryBeginBusy(table.TablePath))
+        {
+            PlayStatus = $"“{table.Manifest.GameName}” is busy. Rename it once that's done.";
+            return;
+        }
+
+        var old = table.Manifest.GameName;
+        try
+        {
+            if (!item.CanRename || !TableInstaller.Rename(table, typed))
+            {
+                return;
+            }
+        }
+        catch (Exception e)
+        {
+            PlayStatus = $"Couldn't rename “{old}”: {e.Message}";
+            return;
+        }
+        finally
+        {
+            EndBusy(table.TablePath);
+        }
+
+        item.NameChanged();
+        FilterInstalled(); // A–Z order and search go by the name
+        PlayStatus =
+            table.Manifest.OriginalName == null
+                ? $"“{old}” is back to “{table.Manifest.GameName}”."
+                : $"Renamed “{old}” to “{table.Manifest.GameName}”.";
+    }
 
     [RelayCommand]
     async Task AddRomAsync(InstalledItem item)

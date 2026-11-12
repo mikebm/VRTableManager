@@ -190,11 +190,21 @@ public static class TableInstaller
                 ct
             ); // copying can take a while; keep it off the UI thread
 
+            // The name as saved now, not as it was when the update started (a rename may have come in between).
+            var name = NameAfterInstall(
+                replacing == null
+                    ? null
+                    : ReadManifest(ManifestPathFor(replacing.TablePath, isFp))
+                        ?? replacing.Manifest,
+                game.Name
+            );
             var manifest = new TableManifest
             {
                 Engine = isFp ? TableManifest.FuturePinball : TableManifest.Vpx,
                 GameId = game.Id,
-                GameName = game.Name,
+                // An update keeps the name you gave the table.
+                GameName = name.Name,
+                OriginalName = name.Original,
                 Manufacturer = game.Manufacturer,
                 Year = game.Year,
                 TableFileId = tf.Id,
@@ -919,6 +929,76 @@ public static class TableInstaller
     {
         var path = ManifestPathFor(table.TablePath, !table.IsVpx);
         File.WriteAllText(path, JsonSerializer.Serialize(table.Manifest, Json));
+    }
+
+    /// <summary>
+    /// The name a freshly installed table gets: the catalog's, except that an update keeps the name you gave the
+    /// table (and the catalog's latest name becomes the one to go back to).
+    /// </summary>
+    public static (string Name, string? Original) NameAfterInstall(
+        TableManifest? replacing,
+        string catalogName
+    ) =>
+        replacing?.OriginalName != null && replacing.GameName != catalogName
+            ? (replacing.GameName, catalogName)
+            : (catalogName, null);
+
+    /// <summary>
+    /// Whether the table's name can be changed: it needs a manifest of its own to keep the name in. A VPX table
+    /// folder you set up by hand (no vrtm.json) can't, because writing one would make this app treat the folder
+    /// as its own (Remove deletes the whole folder); loose .vpx files and store games have nowhere to keep it.
+    /// A Future Pinball table can: its manifest sits beside the .fpt and Remove only deletes those two files.
+    /// </summary>
+    public static bool CanRename(InstalledTable table) =>
+        File.Exists(table.TablePath) // not removed meanwhile (no stray manifest beside a deleted .fpt)
+        && !table.IsIncomplete
+        && table.Manifest.Engine switch
+        {
+            TableManifest.Vpx => !table.SharedFolder
+                && File.Exists(ManifestPathFor(table.TablePath, false)),
+            TableManifest.FuturePinball => true,
+            _ => false,
+        };
+
+    /// <summary>
+    /// Renames the table and saves its manifest. A blank name, or the name it had before, puts the original back.
+    /// Returns false when nothing changed.
+    /// </summary>
+    public static bool Rename(InstalledTable table, string? name)
+    {
+        if (!CanRename(table))
+        {
+            throw new InvalidOperationException(
+                "This table has no vrtm.json to keep a new name in."
+            );
+        }
+
+        var m = table.Manifest;
+        var original = m.OriginalName ?? m.GameName;
+        var clean = string.Join(
+            ' ',
+            (name ?? "").Split((char[]?)null, StringSplitOptions.RemoveEmptyEntries)
+        );
+        var (newName, newOriginal) =
+            clean == "" || clean == original ? (original, (string?)null) : (clean, original);
+        if (newName == m.GameName && newOriginal == m.OriginalName)
+        {
+            return false;
+        }
+
+        var (oldName, oldOriginal) = (m.GameName, m.OriginalName);
+        (m.GameName, m.OriginalName) = (newName, newOriginal);
+        try
+        {
+            SaveManifest(table);
+        }
+        catch
+        {
+            // Not saved: keep showing the name that's on disk.
+            (m.GameName, m.OriginalName) = (oldName, oldOriginal);
+            throw;
+        }
+        return true;
     }
 
     static bool SamePath(string a, string b) =>

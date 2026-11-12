@@ -15,6 +15,19 @@ public sealed class TableManifest
     public string Engine { get; set; } = Vpx;
     public string GameId { get; set; } = "";
     public string GameName { get; set; } = "";
+
+    /// <summary>
+    /// The name the table had before you renamed it (the catalog's, or the file's), so it can go back; null when
+    /// it wasn't renamed. An update keeps your name and puts the catalog's latest name here.
+    /// </summary>
+    public string? OriginalName { get; set; }
+
+    /// <summary>
+    /// The game's own name, for matching downloads, packs and searches against: a name you gave the table means
+    /// nothing to them. <see cref="GameName"/> is the name shown.
+    /// </summary>
+    [System.Text.Json.Serialization.JsonIgnore]
+    public string MatchName => OriginalName ?? GameName;
     public string? Manufacturer { get; set; }
     public int? Year { get; set; }
     public string TableFileId { get; set; } = "";

@@ -247,7 +247,7 @@ public sealed partial class MainViewModel
         }
         var game =
             _allGames.FirstOrDefault(g => g.Id == table.Manifest.GameId)
-            ?? new VpsGame { Id = table.Manifest.GameId, Name = table.Manifest.GameName };
+            ?? new VpsGame { Id = table.Manifest.GameId, Name = table.Manifest.MatchName };
 
         if (!TryBeginBusy(table.TablePath))
         {
@@ -291,7 +291,7 @@ public sealed partial class MainViewModel
             // The kind's own word too: a table's page offers its .vpx and its PuP zip side by side.
             FileNames =
             [
-                table.Manifest.GameName,
+                table.Manifest.MatchName,
                 .. table.Manifest.RomNames,
                 .. new[] { table.Manifest.RomAlias, table.Manifest.PupName }.OfType<string>(),
                 kind switch

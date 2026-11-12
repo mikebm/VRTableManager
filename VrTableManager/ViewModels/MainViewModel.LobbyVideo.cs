@@ -124,7 +124,7 @@ public sealed partial class MainViewModel
 
         var job = new JobItem($"Recording {table.Manifest.GameName} for the lobby")
         {
-            FileNames = [table.Manifest.GameName],
+            FileNames = [table.Manifest.MatchName],
         };
         Jobs.Insert(0, job);
         started?.Invoke(job);

@@ -108,7 +108,7 @@ public sealed partial class MainViewModel
 
         var job = new JobItem($"Lobby video for {table.Manifest.GameName}")
         {
-            FileNames = [table.Manifest.GameName],
+            FileNames = [table.Manifest.MatchName],
         };
         Jobs.Insert(0, job);
         try

@@ -149,7 +149,7 @@ public static class LobbyMedia
         CancellationToken ct = default
     )
     {
-        var name = table.Manifest.GameName;
+        var name = table.Manifest.MatchName;
 
         // save() is true when it saved the piece; it may add its own problem when it found one that won't work.
         bool Take(string what, Func<bool> save)

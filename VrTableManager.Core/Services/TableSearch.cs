@@ -70,7 +70,11 @@ public sealed class TableSearch
         var f = TableFilters.FactsOf(m, game);
         return Index(
             new SearchFields(
-                m.GameName,
+                // A renamed table is found by both names.
+                m.OriginalName
+                    is { } original
+                    ? $"{m.GameName} {original}"
+                    : m.GameName,
                 f.Manufacturer,
                 f.Year,
                 m.Authors,
