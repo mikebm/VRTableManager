@@ -136,8 +136,16 @@ public static class TableImport
             try
             {
                 Directory.CreateDirectory(dest);
-                // The table and the files named like it: backglass, settings, sidecar script, POV …
-                foreach (var f in Directory.EnumerateFiles(tablesDir, name + ".*"))
+                // The table and the files named like it: backglass, settings, sidecar script, POV … Only that exact
+                // name: "Name.*" also finds another table's "Name.VR.vpx" and its files.
+                foreach (
+                    var f in Directory
+                        .EnumerateFiles(tablesDir, name + ".*")
+                        .Where(f =>
+                            Path.GetFileNameWithoutExtension(f)
+                                .Equals(name, StringComparison.OrdinalIgnoreCase)
+                        )
+                )
                 {
                     CopyFile(f, Path.Combine(dest, Path.GetFileName(f)));
                 }

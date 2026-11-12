@@ -668,7 +668,15 @@ public static partial class PupPackOptions
             }
 
             var full = Path.Combine(pack, dir);
-            if (Directory.Exists(full))
+            // ".\screens-vr.pup" is the pack's own folder, not a layout: copying it onto itself fails.
+            if (
+                Directory.Exists(full)
+                && !string.Equals(
+                    Path.GetFullPath(full).TrimEnd('\\', '/'),
+                    Path.GetFullPath(pack).TrimEnd('\\', '/'),
+                    StringComparison.OrdinalIgnoreCase
+                )
+            )
             {
                 return full;
             }

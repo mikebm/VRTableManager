@@ -118,7 +118,7 @@ public static class AltPacks
                     folders.AddRange(
                         Directory
                             .EnumerateDirectories(root)
-                            .Where(d => HasFile(d, exts))
+                            .Where(d => !Addons.IsSwapFolder(d) && HasFile(d, exts))
                             .Select(d => loc + "\\" + Path.GetFileName(d))
                     );
                 }
@@ -133,7 +133,8 @@ public static class AltPacks
                     Directory
                         .EnumerateDirectories(root)
                         .Where(d =>
-                            Directory.EnumerateFiles(d, "*", SearchOption.AllDirectories).Any()
+                            !Addons.IsSwapFolder(d)
+                            && Directory.EnumerateFiles(d, "*", SearchOption.AllDirectories).Any()
                         )
                         .Select(d => Path.GetFileName(d)!)
                 );
@@ -236,22 +237,33 @@ public static class AltPacks
                 .ThenBy(f => Array.IndexOf(SerumExts, Path.GetExtension(f).ToLowerInvariant()))
                 .First();
             var dest = Prepare(table, SerumFolder, game, status);
-            var stem = Path.GetFileNameWithoutExtension(main);
-            File.Copy(main, Path.Combine(dest, game + Path.GetExtension(main)));
-            // Companions named after it (Serum 2's <rom>.pup.csv), renamed along with it.
-            foreach (
-                var extra in Directory
-                    .EnumerateFiles(Path.GetDirectoryName(main)!, stem + ".*")
-                    .Where(f =>
-                        f != main && !SerumExts.Contains(Path.GetExtension(f).ToLowerInvariant())
-                    )
-            )
+            try
             {
-                File.Copy(
-                    extra,
-                    Path.Combine(dest, game + Path.GetFileName(extra)[stem.Length..]),
-                    overwrite: true
-                );
+                var stem = Path.GetFileNameWithoutExtension(main);
+                File.Copy(main, Path.Combine(dest, game + Path.GetExtension(main)));
+                // Companions named after it (Serum 2's <rom>.pup.csv), renamed along with it.
+                foreach (
+                    var extra in Directory
+                        .EnumerateFiles(Path.GetDirectoryName(main)!, stem + ".*")
+                        .Where(f =>
+                            f != main
+                            && !SerumExts.Contains(Path.GetExtension(f).ToLowerInvariant())
+                        )
+                )
+                {
+                    File.Copy(
+                        extra,
+                        Path.Combine(dest, game + Path.GetFileName(extra)[stem.Length..]),
+                        overwrite: true
+                    );
+                }
+
+                Commit(table, SerumFolder, game, dest);
+            }
+            catch
+            {
+                Addons.TryDeleteFolder(dest);
+                throw;
             }
 
             return Addons.NewRecord(file, SerumFolder, game);
@@ -261,18 +273,28 @@ public static class AltPacks
             OneGameOnly(downloaded, vni, Named, "colorization", game);
             var dir = Path.GetDirectoryName(vni.OrderByDescending(Named).First())!;
             var dest = Prepare(table, VniFolder, game, status);
-            foreach (
-                var f in Directory
-                    .EnumerateFiles(dir)
-                    .Where(f => VniExts.Contains(Path.GetExtension(f).ToLowerInvariant()))
-            )
+            try
             {
-                // pin2dmd.pal/.vni is a name the plugin knows; anything else takes the ROM's name.
-                var name = Path.GetFileNameWithoutExtension(f)
-                    .Equals("pin2dmd", StringComparison.OrdinalIgnoreCase)
-                    ? Path.GetFileName(f)
-                    : game + Path.GetExtension(f);
-                File.Copy(f, Path.Combine(dest, name), overwrite: true);
+                foreach (
+                    var f in Directory
+                        .EnumerateFiles(dir)
+                        .Where(f => VniExts.Contains(Path.GetExtension(f).ToLowerInvariant()))
+                )
+                {
+                    // pin2dmd.pal/.vni is a name the plugin knows; anything else takes the ROM's name.
+                    var name = Path.GetFileNameWithoutExtension(f)
+                        .Equals("pin2dmd", StringComparison.OrdinalIgnoreCase)
+                        ? Path.GetFileName(f)
+                        : game + Path.GetExtension(f);
+                    File.Copy(f, Path.Combine(dest, name), overwrite: true);
+                }
+
+                Commit(table, VniFolder, game, dest);
+            }
+            catch
+            {
+                Addons.TryDeleteFolder(dest);
+                throw;
             }
             return Addons.NewRecord(file, VniFolder, game);
         }
@@ -334,7 +356,16 @@ public static class AltPacks
                 )
                 .First();
         var dest = Prepare(table, SoundFolder, game, status, create: false);
-        Addons.MoveTree(root, dest);
+        try
+        {
+            Addons.MoveTree(root, dest);
+            Commit(table, SoundFolder, game, dest);
+        }
+        catch
+        {
+            Addons.TryDeleteFolder(dest);
+            throw;
+        }
         return Addons.NewRecord(file, SoundFolder, game);
     }
 
@@ -367,7 +398,10 @@ public static class AltPacks
         }
     }
 
-    /// <summary>Empties &lt;table&gt;\&lt;location&gt;\&lt;game&gt; and removes the one of this kind installed before (it may sit elsewhere).</summary>
+    /// <summary>
+    /// The folder the new pack goes into first: &lt;table&gt;\&lt;location&gt;\&lt;game&gt;.vrtm-new, beside the one
+    /// installed, which stays until <see cref="Commit"/> (a copy that fails halfway leaves it as it was).
+    /// </summary>
     static string Prepare(
         InstalledTable table,
         string location,
@@ -376,21 +410,54 @@ public static class AltPacks
         bool create = true
     )
     {
+        var dest = Path.Combine(table.Folder, location, game);
+        var fresh = dest + Addons.NewSuffix;
+        status?.Invoke($"Installing to {location}\\{game}…");
+        Addons.CleanUpSwap(dest); // what an install cut off here left behind
+        if (create)
+        {
+            Directory.CreateDirectory(fresh);
+        }
+
+        return fresh;
+    }
+
+    /// <summary>
+    /// Swaps the new pack in as &lt;table&gt;\&lt;location&gt;\&lt;game&gt; (<see cref="Addons.SwapIn"/>: whatever is
+    /// there stays until the new one has its name), then removes the one of this kind installed before when it sits
+    /// elsewhere (another ROM's name, or vni\ for a Serum one).
+    /// </summary>
+    static void Commit(InstalledTable table, string location, string game, string fresh)
+    {
+        var dest = Path.Combine(table.Folder, location, game);
+        Addons.SwapIn(fresh, dest);
+
         var kind = location == SoundFolder ? AddonKind.AltSound : AddonKind.AltColor;
         if (Addons.Record(table, kind) is { } old)
         {
-            Remove(table, kind, Display(old, kind));
+            var oldDir = Path.Combine(
+                table.Folder,
+                kind == AddonKind.AltSound
+                    ? Path.Combine(SoundFolder, old.Folder)
+                    : Display(old, kind)
+            );
+            if (
+                !string.Equals(
+                    Path.GetFullPath(oldDir).TrimEnd('\\', '/'),
+                    Path.GetFullPath(dest).TrimEnd('\\', '/'),
+                    StringComparison.OrdinalIgnoreCase
+                )
+            )
+            {
+                try
+                {
+                    Remove(table, kind, Display(old, kind));
+                }
+                catch (Exception e) when (e is IOException or UnauthorizedAccessException)
+                { /* the new one is in; the old one only takes up space */
+                }
+            }
         }
-
-        var dest = Path.Combine(table.Folder, location, game);
-        status?.Invoke($"Installing to {location}\\{game}…");
-        Addons.DeleteFolder(dest);
-        if (create)
-        {
-            Directory.CreateDirectory(dest);
-        }
-
-        return dest;
     }
 
     static bool IsSoundRoot(string dir) =>
@@ -412,6 +479,9 @@ public static class AltPacks
         var rel = kind == AddonKind.AltSound ? Path.Combine(SoundFolder, folder) : folder;
         var dir = Path.Combine(table.Folder, rel);
         Addons.DeleteFolder(dir);
+        // Leftovers of an update that was cut short (Addons.SwapIn) go with it.
+        Addons.DeleteFolder(dir + Addons.OldSuffix);
+        Addons.DeleteFolder(dir + Addons.NewSuffix);
         Addons.DeleteIfEmpty(Path.GetDirectoryName(dir)!);
     }
 

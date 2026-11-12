@@ -307,6 +307,92 @@ public static class Addons
         }
     }
 
+    /// <summary>Added to an add-on's folder name while the new one is copied in beside the one installed.</summary>
+    public const string NewSuffix = ".vrtm-new";
+
+    /// <summary>Added to the installed add-on's folder name while the new one takes its place.</summary>
+    public const string OldSuffix = ".vrtm-old";
+
+    /// <summary>A folder <see cref="SwapIn"/> uses on the way (not an installed add-on).</summary>
+    public static bool IsSwapFolder(string dir) =>
+        dir.TrimEnd('\\', '/').EndsWith(NewSuffix, StringComparison.OrdinalIgnoreCase)
+        || dir.TrimEnd('\\', '/').EndsWith(OldSuffix, StringComparison.OrdinalIgnoreCase);
+
+    /// <summary>
+    /// What an install cut off during <see cref="SwapIn"/> left beside <paramref name="dest"/>: an old add-on that
+    /// never got its name back gets it; the rest is deleted.
+    /// </summary>
+    public static void CleanUpSwap(string dest)
+    {
+        var old = dest + OldSuffix;
+        if (Directory.Exists(old) && !Directory.Exists(dest))
+        {
+            Directory.Move(old, dest);
+        }
+
+        DeleteFolder(old);
+        DeleteFolder(dest + NewSuffix);
+    }
+
+    /// <summary>
+    /// Puts <paramref name="fresh"/> in <paramref name="dest"/>'s place: the add-on there is renamed out of the way,
+    /// the new one renamed in (tried again for a moment while something has a file open), and only then is the old
+    /// one deleted. When the new one can't go in, the old one gets its name back and this throws.
+    /// </summary>
+    public static void SwapIn(string fresh, string dest)
+    {
+        var old = dest + OldSuffix;
+        DeleteFolder(old);
+        var hadOld = Directory.Exists(dest);
+        if (hadOld)
+        {
+            Directory.Move(dest, old);
+        }
+
+        try
+        {
+            for (var i = 0; ; i++)
+            {
+                try
+                {
+                    Directory.Move(fresh, dest);
+                    break;
+                }
+                catch (Exception e)
+                    when ((e is IOException or UnauthorizedAccessException) && i < 5)
+                {
+                    Thread.Sleep(200);
+                }
+            }
+        }
+        catch
+        {
+            if (hadOld)
+            {
+                try
+                {
+                    Directory.Move(old, dest);
+                }
+                catch (Exception e) when (e is IOException or UnauthorizedAccessException)
+                { /* CleanUpSwap gives it its name back on the next install */
+                }
+            }
+            throw;
+        }
+
+        TryDeleteFolder(old);
+    }
+
+    /// <summary><see cref="DeleteFolder"/>, for cleaning up after a failure: never throws.</summary>
+    public static void TryDeleteFolder(string dir)
+    {
+        try
+        {
+            DeleteFolder(dir);
+        }
+        catch (Exception e) when (e is IOException or UnauthorizedAccessException) { }
+    }
+
     /// <summary>Removes <paramref name="dir"/> when nothing is left in it.</summary>
     public static void DeleteIfEmpty(string dir)
     {

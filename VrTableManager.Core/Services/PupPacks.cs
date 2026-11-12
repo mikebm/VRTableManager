@@ -94,7 +94,7 @@ public static class PupPacks
 
         var folders = Directory
             .EnumerateDirectories(root)
-            .Where(IsPackFolder)
+            .Where(d => !Addons.IsSwapFolder(d) && IsPackFolder(d))
             .Select(d => Path.GetFileName(d)!)
             .OrderBy(n => n, StringComparer.OrdinalIgnoreCase)
             .ToList();
@@ -207,17 +207,32 @@ public static class PupPacks
             var dest = Path.Combine(pupDir, TableInstaller.SafeName(name));
             status?.Invoke($"Installing to {FolderName}\\{Path.GetFileName(dest)}…");
 
+            // In beside the old pack first, and only then swapped for it: a copy that fails halfway (a full disk)
+            // leaves the old pack as it was.
+            var fresh = dest + Addons.NewSuffix;
+            Addons.CleanUpSwap(dest); // what an install cut off here left behind
+            try
+            {
+                Addons.MoveTree(root, fresh);
+                Addons.SwapIn(fresh, dest);
+            }
+            catch
+            {
+                Addons.TryDeleteFolder(fresh);
+                throw;
+            }
+
             // An update may come under another folder name; the old one would only take up space.
             if (
                 table.Manifest.PupPack is { Folder: { Length: > 0 } old }
                 && !old.Equals(Path.GetFileName(dest), StringComparison.OrdinalIgnoreCase)
             )
             {
-                Addons.DeleteFolder(Path.Combine(pupDir, old));
+                Addons.TryDeleteFolder(Path.Combine(pupDir, old));
+                Addons.TryDeleteFolder(Path.Combine(pupDir, old) + Addons.OldSuffix);
+                Addons.TryDeleteFolder(Path.Combine(pupDir, old) + Addons.NewSuffix);
             }
 
-            Addons.DeleteFolder(dest);
-            Addons.MoveTree(root, dest);
             status?.Invoke("Checking the pack's layouts…");
             var layout = PupPackOptions.SetUpForVr(dest);
             return new(Addons.NewRecord(file, FolderName, Path.GetFileName(dest)), layout);
@@ -243,6 +258,9 @@ public static class PupPacks
 
         var pupDir = Path.Combine(table.Folder, FolderName);
         Addons.DeleteFolder(Path.Combine(pupDir, folder));
+        // Leftovers of an update that was cut short (Addons.SwapIn) go with it.
+        Addons.DeleteFolder(Path.Combine(pupDir, folder) + Addons.OldSuffix);
+        Addons.DeleteFolder(Path.Combine(pupDir, folder) + Addons.NewSuffix);
         Addons.DeleteIfEmpty(pupDir);
     }
 

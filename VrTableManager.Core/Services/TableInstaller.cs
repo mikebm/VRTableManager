@@ -343,30 +343,7 @@ public static class TableInstaller
                 }
                 else
                 {
-                    // Theirs stays, except your render scale and where you put the table in VR, which you set
-                    // for this PC; settings before any [section] heading aren't VPX's and are left out.
-                    var theirs = IniFile.Read(newIni);
-                    foreach (
-                        var section in IniFile
-                            .Read(oldIni)
-                            .Where(kv =>
-                                kv.Key.Section != ""
-                                && kv.Value != ""
-                                && (
-                                    YourTableSettings.Contains(kv.Key)
-                                    || string.IsNullOrEmpty(theirs.GetValueOrDefault(kv.Key))
-                                )
-                            )
-                            .GroupBy(kv => kv.Key.Section, StringComparer.OrdinalIgnoreCase)
-                    )
-                    {
-                        IniFile.SetMany(
-                            newIni,
-                            section.Key,
-                            section.Select(kv => (kv.Key.Key, kv.Value))
-                        );
-                    }
-                    File.Delete(oldIni);
+                    MergeTableIni(oldIni, newIni);
                 }
             }
         }
@@ -388,6 +365,33 @@ public static class TableInstaller
                 // Kept for this session; the question may come back after a restart.
             }
         }
+    }
+
+    /// <summary>
+    /// The download's own table .ini (<paramref name="newIni"/>) stays, except your render scale and where you put the
+    /// table in VR, which you set for this PC, and the settings it leaves empty; settings before any [section] heading
+    /// aren't VPX's and are left out. <paramref name="oldIni"/> (yours) is deleted after.
+    /// </summary>
+    static void MergeTableIni(string oldIni, string newIni)
+    {
+        var theirs = IniFile.Read(newIni);
+        foreach (
+            var section in IniFile
+                .Read(oldIni)
+                .Where(kv =>
+                    kv.Key.Section != ""
+                    && kv.Value != ""
+                    && (
+                        YourTableSettings.Contains(kv.Key)
+                        || string.IsNullOrEmpty(theirs.GetValueOrDefault(kv.Key))
+                    )
+                )
+                .GroupBy(kv => kv.Key.Section, StringComparer.OrdinalIgnoreCase)
+        )
+        {
+            IniFile.SetMany(newIni, section.Key, section.Select(kv => (kv.Key.Key, kv.Value)));
+        }
+        File.Delete(oldIni);
     }
 
     // ---- VPX ---------------------------------------------------------------
@@ -413,9 +417,123 @@ public static class TableInstaller
             )
         );
 
+        // An update or reinstall goes into the folder the table is in. Your high scores and the machine's settings
+        // (pinmame\nvram) stay as they are, whatever nvram the download brings; your table .ini is merged below.
+        var nvramDir = Path.Combine(folder, "pinmame", "nvram");
+        var keep = Directory.Exists(nvramDir)
+            ? Directory
+                .EnumerateFiles(nvramDir, "*", SearchOption.AllDirectories)
+                .Select(Path.GetFullPath)
+                .ToHashSet(StringComparer.OrdinalIgnoreCase)
+            : null;
+        var tableIni = VpxGraphics.TableIniPath(Path.Combine(folder, Path.GetFileName(main)));
+        string? yourIni = null;
+        if (File.Exists(tableIni))
+        {
+            yourIni = Path.Combine(
+                Path.GetTempPath(),
+                "vrtm-ini-" + Guid.NewGuid().ToString("N")[..8] + ".ini"
+            );
+            File.Copy(tableIni, yourIni);
+        }
+        // False when your .ini couldn't be put back: then its copy in Temp stays, the only one left.
+        var putBack = true;
+        try
+        {
+            try
+            {
+                CopyInto(staging, main, folder, romNames, keep);
+            }
+            catch
+            {
+                putBack = PutBack(yourIni, tableIni); // the copy stopped partway: your .ini as it was
+                throw;
+            }
+            // The download brought its own .ini under the same name: it gets your VR placement and render scale back.
+            try
+            {
+                if (yourIni != null && !SameBytes(yourIni, tableIni))
+                {
+                    MergeTableIni(yourIni, tableIni);
+                }
+            }
+            catch (Exception e) when (e is IOException or UnauthorizedAccessException)
+            {
+                putBack = PutBack(yourIni, tableIni); // couldn't merge: your own .ini rather than failing the update
+            }
+        }
+        finally
+        {
+            if (yourIni != null && !putBack)
+            {
+                // Somewhere you'll find it: beside the table, not in Temp.
+                try
+                {
+                    File.Copy(yourIni, tableIni + ".yours", overwrite: true);
+                    putBack = true;
+                }
+                catch { }
+            }
+            if (yourIni != null && putBack)
+            {
+                try
+                {
+                    File.Delete(yourIni);
+                }
+                catch { }
+            }
+        }
+
+        AltPacks.FixLayout(folder);
+        // A PuP pack that came in the table's archive gets its VR layout too, when it has one.
+        var pupDir = Path.Combine(folder, PupPacks.FolderName);
+        if (Directory.Exists(pupDir))
+        {
+            foreach (var pack in PupPacks.PackRoots(pupDir))
+            {
+                PupPackOptions.SetUpForVr(pack);
+            }
+        }
+
+        return (Path.Combine(folder, Path.GetFileName(main)), folder);
+    }
+
+    /// <summary>Copies your saved table .ini back over the table's. False when it couldn't; never throws.</summary>
+    static bool PutBack(string? yourIni, string tableIni)
+    {
+        if (yourIni == null || !File.Exists(yourIni))
+        {
+            return true;
+        }
+
+        try
+        {
+            File.Copy(yourIni, tableIni, overwrite: true);
+            return true;
+        }
+        catch (Exception e) when (e is IOException or UnauthorizedAccessException)
+        {
+            return false;
+        }
+    }
+
+    static bool SameBytes(string a, string b) =>
+        File.Exists(a)
+        && File.Exists(b)
+        && File.ReadAllBytes(a).AsSpan().SequenceEqual(File.ReadAllBytes(b));
+
+    /// <summary>Copies the pack's files into the table folder; files in <paramref name="keep"/> aren't overwritten.</summary>
+    static void CopyInto(
+        string staging,
+        string main,
+        string folder,
+        List<string> romNames,
+        HashSet<string>? keep
+    )
+    {
         // Everything next to the .vpx (b2s, ini, vbs, music/, pinmame/ …) comes along as-is.
         var contentRoot = Path.GetDirectoryName(main)!;
-        CopyTree(contentRoot, folder);
+        CopyTree(contentRoot, folder, keep);
 
         // Cabinet-style packs spread files around (Tables/, VPinMAME/roms/, Music/); pull those in too.
         foreach (
@@ -429,7 +547,7 @@ public static class TableInstaller
                 )
             )
             {
-                RelocateRomFolder(dir, contentRoot, folder);
+                RelocateRomFolder(dir, contentRoot, folder, keep);
                 continue;
             }
             var name = Path.GetFileName(dir).ToLowerInvariant();
@@ -448,7 +566,7 @@ public static class TableInstaller
             };
             if (target != null)
             {
-                CopyTree(dir, target);
+                CopyTree(dir, target, keep);
             }
         }
 
@@ -492,19 +610,6 @@ public static class TableInstaller
                 MoveFile(zip, Path.Combine(folder, "pinmame", "roms", Path.GetFileName(zip)));
             }
         }
-
-        AltPacks.FixLayout(folder);
-        // A PuP pack that came in the table's archive gets its VR layout too, when it has one.
-        var pupDir = Path.Combine(folder, PupPacks.FolderName);
-        if (Directory.Exists(pupDir))
-        {
-            foreach (var pack in PupPacks.PackRoots(pupDir))
-            {
-                PupPackOptions.SetUpForVr(pack);
-            }
-        }
-
-        return (Path.Combine(folder, Path.GetFileName(main)), folder);
     }
 
     /// <summary>
@@ -541,10 +646,14 @@ public static class TableInstaller
             var owner =
                 ReadManifest(Path.Combine(folder, ManifestName))?.TableFileId
                 ?? ReadMarker(folder)?.TableFileId;
+            // A folder this app didn't make is only used when it's empty: Remove deletes the table's whole folder.
+            var ours =
+                File.Exists(Path.Combine(folder, ManifestName))
+                || File.Exists(Path.Combine(folder, InstallingMarker));
             if (
-                owner is { Length: > 0 }
-                    ? owner == tableFileId
-                    : !Directory.EnumerateFiles(folder, "*.vpx").Any()
+                owner is { Length: > 0 } ? owner == tableFileId
+                : ours ? !Directory.EnumerateFiles(folder, "*.vpx").Any()
+                : !Directory.EnumerateFileSystemEntries(folder).Any()
             )
             {
                 return folder;
@@ -556,7 +665,12 @@ public static class TableInstaller
     /// A roms\ or nvram\ folder that came beside the .vpx (or in VPinMAME\ beside it) was copied with the table under
     /// the same path; PinMAME only looks in pinmame\roms and pinmame\nvram, so it's moved there.
     /// </summary>
-    static void RelocateRomFolder(string dir, string contentRoot, string folder)
+    static void RelocateRomFolder(
+        string dir,
+        string contentRoot,
+        string folder,
+        HashSet<string>? keep
+    )
     {
         var rel = Path.GetRelativePath(contentRoot, dir);
         var parts = rel.Split(Path.DirectorySeparatorChar, StringSplitOptions.RemoveEmptyEntries);
@@ -581,7 +695,7 @@ public static class TableInstaller
             return;
         }
 
-        CopyTree(dir, target);
+        CopyTree(dir, target, keep);
         try
         {
             Directory.Delete(copied, recursive: true);
@@ -867,7 +981,9 @@ public static class TableInstaller
     public static void Extract(string archivePath, string destDir)
     {
         Directory.CreateDirectory(destDir);
-        var root = Path.GetFullPath(destDir) + Path.DirectorySeparatorChar;
+        // "D:\" or a folder typed with a trailing backslash already ends in one; a second would refuse every entry.
+        var full = Path.GetFullPath(destDir);
+        var root = Path.EndsInDirectorySeparator(full) ? full : full + Path.DirectorySeparatorChar;
         // 7-Zip unpacks a .tar.gz only to the inner .tar, so gzip stays with SharpCompress, which reads through both.
         if (
             !Path.GetExtension(archivePath).Equals(".gz", StringComparison.OrdinalIgnoreCase)
@@ -949,16 +1065,22 @@ public static class TableInstaller
         return dest;
     }
 
-    static void CopyTree(string src, string dest)
+    static void CopyTree(string src, string dest, HashSet<string>? keep = null)
     {
         foreach (var file in Directory.EnumerateFiles(src, "*", SearchOption.AllDirectories))
         {
-            CopyFile(file, Path.Combine(dest, Path.GetRelativePath(src, file)));
+            CopyFile(file, Path.Combine(dest, Path.GetRelativePath(src, file)), keep);
         }
     }
 
-    static void CopyFile(string src, string dest)
+    /// <summary>Copies over what's there, except a file in <paramref name="keep"/> (full paths), which stays as it is.</summary>
+    static void CopyFile(string src, string dest, HashSet<string>? keep = null)
     {
+        if (keep?.Contains(Path.GetFullPath(dest)) == true)
+        {
+            return;
+        }
+
         Directory.CreateDirectory(Path.GetDirectoryName(dest)!);
         File.Copy(src, dest, overwrite: true);
     }
