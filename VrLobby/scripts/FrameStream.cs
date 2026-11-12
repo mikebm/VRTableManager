@@ -42,24 +42,27 @@ public sealed class FrameStream
         Stop();
         Failed = false;
         var run = ++_run;
-        var cts = _cts = new CancellationTokenSource();
+        // Stopped by Stop, or by the lobby closing (LobbyWork), whichever comes first.
+        var cts = _cts = CancellationTokenSource.CreateLinkedTokenSource(LobbyWork.Closing);
         var ct = cts.Token;
         _workers.RemoveAll(w => w.IsCompleted);
         _workers.Add(
-            Task.Run(
-                () =>
+            LobbyWork.Run(() =>
+            {
+                if (ct.IsCancellationRequested)
                 {
-                    before?.Invoke(ct);
-                    if (
-                        !Decode(run, folder, frames, mipmaps, topTrim, ct)
-                        && !ct.IsCancellationRequested
-                    )
-                    {
-                        Failed = true;
-                    }
-                },
-                ct
-            )
+                    return; // stopped (or the lobby closing) before it began: not even the height map
+                }
+
+                before?.Invoke(ct);
+                if (
+                    !Decode(run, folder, frames, mipmaps, topTrim, ct)
+                    && !ct.IsCancellationRequested
+                )
+                {
+                    Failed = true;
+                }
+            })
         );
     }
 
@@ -146,6 +149,7 @@ public sealed class FrameStream
     public void Stop()
     {
         _cts?.Cancel();
+        _cts?.Dispose(); // drops its link to LobbyWork.Closing (the worker only reads the token, which stays readable)
         _cts = null;
         _run++; // anything still on its way belongs to no run
         _ready.Clear();

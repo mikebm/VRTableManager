@@ -901,9 +901,16 @@ public partial class Main : Node3D
             _art.Request(cab.BackglassUrl);
         }
         // The table's own VR cabinet, read in the background the first time it's needed.
-        if (cab.Table != null && VpxFile(cab.Table) is { } vpx && !_cabs.IsKnown(vpx))
+        if (cab.Table != null && VpxFile(cab.Table) is { } vpx)
         {
-            _cabs.Request(vpx);
+            if (_cabs.IsKnown(vpx))
+            {
+                _cabs.Touch(vpx); // on show: the newest, so reading the next table forgets one that isn't
+            }
+            else
+            {
+                _cabs.Request(vpx);
+            }
         }
     }
 
@@ -1132,6 +1139,9 @@ public partial class Main : Node3D
     void Leave(string why)
     {
         GD.Print($"Lobby closing: {why}");
+        // Background work using Godot's Image (art, cabinets, height maps, video frames) stops first: the engine
+        // shutting down under a worker still inside an Image call crashed the lobby on its way out.
+        LobbyWork.StopAndWait(1500);
         GetTree().Quit();
     }
 
@@ -1591,7 +1601,12 @@ public partial class Main : Node3D
         SelectedCabinet?.SetFavourite(on);
         if (State.Filter == "Favourites" && !on)
         {
-            Rebuild(Shown[Math.Min(Selected + 1, Shown.Count - 1)].Id);
+            // It leaves the list: the next one takes its place, or the one before when it was the last.
+            Rebuild(
+                Selected + 1 < Shown.Count ? Shown[Selected + 1].Id
+                : Selected > 0 ? Shown[Selected - 1].Id
+                : ""
+            );
         }
         else if (State.IsSmart(State.Filter))
         {
@@ -1642,7 +1657,8 @@ public partial class Main : Node3D
 
         _attractLoading = t.Id;
         var id = t.Id;
-        Task.Run(() => LoadSound(file))
+        LobbyWork
+            .Run(() => LoadSound(file))
             .ContinueWith(task =>
             {
                 if (!_closing)
@@ -1655,7 +1671,12 @@ public partial class Main : Node3D
     /// <summary>Set when the lobby leaves the tree: background work finishing after that doesn't call back in.</summary>
     volatile bool _closing;
 
-    public override void _ExitTree() => _closing = true;
+    public override void _ExitTree()
+    {
+        _closing = true;
+        // Every way out, not just Leave: closing the desktop window (X, Alt+F4) quits without it.
+        LobbyWork.StopAndWait(1500);
+    }
 
     void PlayLoadedSound(Task<AudioStream?> task, string id, string file)
     {
@@ -1726,10 +1747,15 @@ public partial class Main : Node3D
             return;
         }
 
-        Task.Run(() =>
+        LobbyWork.Run(() =>
         {
             foreach (var (folder, vpx) in jobs)
             {
+                if (LobbyWork.Closing.IsCancellationRequested)
+                {
+                    return; // the rest are built on a later run
+                }
+
                 try
                 {
                     if (!File.Exists(Path.Combine(folder, PlayfieldDepth.FileName)))
@@ -1868,7 +1894,10 @@ public partial class Main : Node3D
             );
         }
         _statsCheck -= delta;
-        if (_statsCheck <= 0)
+        // Not while a table starts or is played: the launch itself changes the stats (MarkPlayed, the launcher
+        // counting the play), and re-showing the selection then put the ring back round the loading screen and
+        // flattened the frozen playfield. ComeBack re-reads them when the room returns.
+        if (_statsCheck <= 0 && !_launching)
         {
             _statsCheck = 2.0; // a file-time check every 2 s; only re-reads when the file changed
             RefreshFromStats();
@@ -2257,6 +2286,28 @@ public partial class Main : Node3D
             return;
         }
 
+        // A held key repeats: that moves along the ring and the rail and steps the height, but play, filter,
+        // favourite, random and the rest happen once per press (a held F toggled the favourite 30 times a second).
+        if (
+            k.Echo
+            && k.Keycode
+                is not (
+                    Key.Left
+                    or Key.Right
+                    or Key.Up
+                    or Key.Down
+                    or Key.Pageup
+                    or Key.Pagedown
+                    or Key.Equal
+                    or Key.Minus
+                    or Key.KpAdd
+                    or Key.KpSubtract
+                )
+        )
+        {
+            return;
+        }
+
         if (_launching)
         {
             if (k.Keycode == Key.Escape && _loading != null)
@@ -2346,7 +2397,7 @@ public partial class Main : Node3D
 
         if (_perfSteps++ == _perfStepCount)
         {
-            GetTree().Quit();
+            Leave("perf trace done");
             return;
         }
         _perfNextStep = _perfClock + 3.0;
@@ -2425,9 +2476,9 @@ public partial class Main : Node3D
         {
             StopLoading();
             _launching = false;
-            // Unfreeze: without a loading screen StopLoading does nothing, so start the video again here.
-            _video.Stop();
-            _videoCheckedFor = null;
+            // Without a loading screen StopLoading does nothing: show the table again here ("Starting …" off the
+            // title, the frozen video started again), then the error under it.
+            UpdateSelection();
             ShowError(error);
             return;
         }
@@ -2866,4 +2917,62 @@ public partial class Main : Node3D
     }
 
     static string? NullIfEmpty(string? s) => string.IsNullOrEmpty(s) ? null : s;
+}
+
+/// <summary>
+/// The lobby's background work that uses Godot's Image (art, tables' cabinets, height maps, video frames, sounds).
+/// When the lobby closes (Main.Leave) it's told to stop through <see cref="Closing"/> and given a moment to finish,
+/// so the engine never shuts down under a worker still inside an Image call.
+/// </summary>
+public static class LobbyWork
+{
+    static readonly CancellationTokenSource Stop = new();
+    static readonly List<Task> Running = [];
+
+    /// <summary>Set once the lobby is closing: work not started yet doesn't start, work under way stops when it can.</summary>
+    public static CancellationToken Closing => Stop.Token;
+
+    public static Task Run(Action work) => Start<Task>(() => Task.Run(work), Task.FromCanceled);
+
+    public static Task Run(Func<Task> work) => Start<Task>(() => Task.Run(work), Task.FromCanceled);
+
+    public static Task<T> Run<T>(Func<T> work) =>
+        Start<Task<T>>(() => Task.Run(work), Task.FromCanceled<T>);
+
+    /// <summary>
+    /// Starts the work and keeps it to wait for; once the lobby is closing, it doesn't start at all (a cancelled task).
+    /// Under the lock, so nothing can start between StopAndWait cancelling and it looking at what's running.
+    /// </summary>
+    static TTask Start<TTask>(Func<TTask> start, Func<CancellationToken, TTask> cancelled)
+        where TTask : Task
+    {
+        lock (Running)
+        {
+            if (Closing.IsCancellationRequested)
+            {
+                return cancelled(Closing);
+            }
+
+            Running.RemoveAll(t => t.IsCompleted);
+            var task = start();
+            Running.Add(task);
+            return task;
+        }
+    }
+
+    /// <summary>Tells the work to stop and waits for it, at most <paramref name="milliseconds"/>.</summary>
+    public static void StopAndWait(int milliseconds)
+    {
+        Stop.Cancel();
+        Task[] left;
+        lock (Running)
+        {
+            left = [.. Running.Where(t => !t.IsCompleted)];
+        }
+        try
+        {
+            Task.WaitAll(left, milliseconds);
+        }
+        catch (AggregateException) { } // work that failed or was cancelled has stopped all the same
+    }
 }

@@ -424,14 +424,20 @@ public partial class Cabinet : Node3D
         Index = index;
         Table = table;
         _star.Visible = favourite;
-        if (same && playfieldUrl == PlayfieldUrl && backglassUrl == BackglassUrl)
+        var samePlayfield = same && playfieldUrl == PlayfieldUrl;
+        if (samePlayfield && backglassUrl == BackglassUrl)
         {
             return;
         }
 
         PlayfieldUrl = playfieldUrl;
         BackglassUrl = backglassUrl;
-        _playfieldMat.AlbedoTexture = _playfieldArt = null;
+        // Only the backglass changed (the VPS backglass index arrived): the playfield keeps its picture, and a lobby
+        // video playing on it (its texture is only handed over once, on the first frame) keeps playing.
+        if (!samePlayfield)
+        {
+            _playfieldMat.AlbedoTexture = _playfieldArt = null;
+        }
         _backglassMat.AlbedoTexture = null;
         _plate.Text = table.Title;
         _dmd.Text = table.Title.ToUpperInvariant();

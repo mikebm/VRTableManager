@@ -158,6 +158,23 @@ public partial class RealCabinetLoader : Node
 
     public RealCabinet? Get(string vpx) => _done.GetValueOrDefault(vpx);
 
+    /// <summary>
+    /// Marks a table's cabinet as just used (it's on show). Without it the order was when each was first read, so
+    /// stepping back the way the ring had loaded forgot a cabinet still standing next to the selected one.
+    /// </summary>
+    public void Touch(string vpx)
+    {
+        if (_recent.First?.Value == vpx)
+        {
+            return;
+        }
+
+        if (_recent.Remove(vpx))
+        {
+            _recent.AddFirst(vpx);
+        }
+    }
+
     public void Request(string vpx)
     {
         _recent.Remove(vpx);
@@ -173,12 +190,13 @@ public partial class RealCabinetLoader : Node
         }
 
         var dir = CacheDir;
-        _ = Task.Run(async () =>
+        _ = LobbyWork.Run(async () =>
         {
-            await _oneAtATime.WaitAsync();
+            await _oneAtATime.WaitAsync(LobbyWork.Closing); // closing: the ones still waiting never start
             var sw = System.Diagnostics.Stopwatch.StartNew();
             try
             {
+                LobbyWork.Closing.ThrowIfCancellationRequested();
                 Parsed? parsed;
                 if (dir != null && CabinetCache.TryLoad(vpx, dir, out var cached))
                 {
@@ -297,6 +315,8 @@ public partial class RealCabinetLoader : Node
                 continue;
             }
 
+            // The lobby is closing: stop between pictures (thrown, so nothing half-read goes in the disk cache).
+            LobbyWork.Closing.ThrowIfCancellationRequested();
             var bytes = VpxImages.ExtractImage(vpx, info.Index);
             if (bytes == null)
             {
@@ -410,6 +430,18 @@ public partial class RealCabinetLoader : Node
     void Finish(string vpx, Parsed? parsed, float? glassZ, System.Diagnostics.Stopwatch sw)
     {
         _pending.Remove(vpx);
+        // Forgotten while it was read (scrolled far past): keeping it would hold it for good, as nothing would ever
+        // forget it again. It's in the disk cache now, so showing it later is quick.
+        if (!_recent.Contains(vpx) && _recent.Count >= Keep)
+        {
+            return;
+        }
+
+        if (!_recent.Contains(vpx))
+        {
+            _recent.AddLast(vpx);
+        }
+
         RealCabinet? cab = null;
         try
         {
