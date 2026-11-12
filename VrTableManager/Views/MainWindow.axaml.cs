@@ -1,6 +1,7 @@
 using System.Diagnostics;
 using Avalonia;
 using Avalonia.Controls;
+using Avalonia.Controls.Documents;
 using Avalonia.Data.Converters;
 using Avalonia.Layout;
 using Avalonia.Media;
@@ -435,6 +436,39 @@ public static class Converters
             System.Globalization.CultureInfo culture
         ) => value is true ? parameter : Avalonia.Data.BindingOperations.DoNothing;
     }
+
+    /// <summary>
+    /// An update line ("v10.8.0 → v10.8.1 (40 MB)") as "You have v10.8.0 · NEW v10.8.1 (40 MB)", the new version
+    /// in bright green so it stands out. Text without " → " is shown as it is.
+    /// </summary>
+    public static readonly IValueConverter VersionChange = new FuncValueConverter<
+        string?,
+        InlineCollection
+    >(text =>
+    {
+        var inlines = new InlineCollection();
+        var at = text?.IndexOf(" → ", StringComparison.Ordinal) ?? -1;
+        if (text == null || at < 0)
+        {
+            inlines.Add(new Run(text ?? ""));
+            return inlines;
+        }
+        var old = text[..at];
+        var next = text[(at + 3)..];
+        var space = next.IndexOf(' ');
+        var (tag, rest) = space < 0 ? (next, "") : (next[..space], next[space..]);
+        var green = new SolidColorBrush(Color.Parse("#63C46E"));
+        inlines.Add(
+            new Run($"You have {old}   ")
+            {
+                Foreground = new SolidColorBrush(Color.Parse("#9B9BA4")),
+            }
+        );
+        inlines.Add(new Run("NEW ") { Foreground = green, FontWeight = FontWeight.Bold });
+        inlines.Add(new Run(tag) { Foreground = green, FontWeight = FontWeight.Bold });
+        inlines.Add(new Run(rest));
+        return inlines;
+    });
 
     public static readonly IValueConverter StarBrush = new FuncValueConverter<bool, IBrush>(on =>
         on

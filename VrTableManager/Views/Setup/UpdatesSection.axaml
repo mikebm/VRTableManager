@@ -55,11 +55,16 @@
                   <Setter Property="FontSize" Value="13" />
                   <Setter Property="Margin" Value="0,0,12,0" />
                 </Style>
+                <!-- A row with something new to install: the same green as NEW on the VPX / UEVR / app rows. -->
+                <Style Selector="Grid > TextBlock.v.new">
+                  <Setter Property="Foreground" Value="{StaticResource Green}" />
+                  <Setter Property="FontWeight" Value="Bold" />
+                </Style>
               </Grid.Styles>
 
               <TextBlock Grid.Row="0" Classes="k" Text="VR TABLE MANAGER" />
               <StackPanel Grid.Row="0" Grid.Column="1" Spacing="4" VerticalAlignment="Center" Margin="0,0,12,0">
-                <TextBlock Classes="v" Margin="0" Text="{Binding AppUpdateText}" />
+                <TextBlock Classes="v" Margin="0" Inlines="{Binding AppUpdateText, Converter={x:Static v:Converters.VersionChange}}" />
                 <ProgressBar Value="{Binding AppUpdateProgress}" IsVisible="{Binding IsUpdatingApp}" />
               </StackPanel>
               <StackPanel Grid.Row="0" Grid.Column="2" Orientation="Horizontal" Spacing="8" VerticalAlignment="Center">
@@ -69,22 +74,24 @@
               </StackPanel>
 
               <TextBlock Grid.Row="1" Classes="k" Text="YOUR TABLES" />
-              <TextBlock Grid.Row="1" Grid.Column="1" Classes="v" Text="{Binding TableUpdateText}" />
+              <TextBlock Grid.Row="1" Grid.Column="1" Classes="v" Text="{Binding TableUpdateText}"
+                         Classes.new="{Binding TableUpdateCount, Converter={x:Static v:Converters.NonZero}}" />
               <Button Grid.Row="1" Grid.Column="2" Classes="small" Content="UPDATE TABLES" Command="{Binding UpdateAllTablesCommand}"
                       IsVisible="{Binding TableUpdateCount, Converter={x:Static v:Converters.NonZero}}" />
 
               <TextBlock Grid.Row="2" Classes="k" Text="ADD-ONS" />
-              <TextBlock Grid.Row="2" Grid.Column="1" Classes="v" Text="{Binding AddonUpdateText}" />
+              <TextBlock Grid.Row="2" Grid.Column="1" Classes="v" Text="{Binding AddonUpdateText}"
+                         Classes.new="{Binding AddonUpdateCount, Converter={x:Static v:Converters.NonZero}}" />
               <Button Grid.Row="2" Grid.Column="2" Classes="small" Content="UPDATE ADD-ONS" Command="{Binding UpdateAllAddonsCommand}"
                       IsVisible="{Binding AddonUpdateCount, Converter={x:Static v:Converters.NonZero}}" />
 
               <TextBlock Grid.Row="3" Classes="k" Text="VISUAL PINBALL X" />
-              <TextBlock Grid.Row="3" Grid.Column="1" Classes="v" Text="{Binding VpxUpdateText}" />
+              <TextBlock Grid.Row="3" Grid.Column="1" Classes="v" Inlines="{Binding VpxUpdateText, Converter={x:Static v:Converters.VersionChange}}" />
               <Button Grid.Row="3" Grid.Column="2" Classes="small" Content="UPDATE VPX" Command="{Binding InstallVpxCommand}"
                       IsVisible="{Binding HasVpxUpdate}" />
 
               <TextBlock Grid.Row="4" Classes="k" Text="UEVR" />
-              <TextBlock Grid.Row="4" Grid.Column="1" Classes="v" Text="{Binding UevrUpdateText}" />
+              <TextBlock Grid.Row="4" Grid.Column="1" Classes="v" Inlines="{Binding UevrUpdateText, Converter={x:Static v:Converters.VersionChange}}" />
               <Button Grid.Row="4" Grid.Column="2" Classes="small" Content="{Binding UevrButtonText}" Command="{Binding InstallUevrCommand}" />
 
               <TextBlock Grid.Row="5" Classes="k" Text="BAM" />

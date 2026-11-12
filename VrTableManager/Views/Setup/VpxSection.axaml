@@ -39,7 +39,7 @@
               <ProgressBar Value="{Binding VpxProgress}" IsIndeterminate="{Binding VpxProgressUnknown}" VerticalAlignment="Center" />
               <Button Grid.Column="1" Classes="small" Content="CANCEL" Command="{Binding CancelVpxInstallCommand}" />
             </Grid>
-            <TextBlock Classes="mono" Text="{Binding LatestVpx}" TextWrapping="Wrap" />
+            <TextBlock Classes="mono" Inlines="{Binding LatestVpx, Converter={x:Static v:Converters.VersionChange}}" TextWrapping="Wrap" />
             <TextBlock Classes="muted" TextWrapping="Wrap"
                        Text="Installs the official BGFX build from github.com/vpinball (VR through OpenXR)." />
             <TextBlock Classes="eyebrow" Text="BUILDS" Margin="0,6,0,0" />
