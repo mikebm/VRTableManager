@@ -21,12 +21,16 @@ public partial class MainWindow : Window, IUiHost
         InitializeComponent();
         DataContext = _vm = new MainViewModel(this);
         RestorePlacement();
-        Opened += async (_, _) => await _vm.LoadCatalogAsync();
+        Opened += async (_, _) =>
+        {
+            await _vm.WarnIfSettingsUnreadableAsync();
+            await _vm.LoadCatalogAsync();
+        };
         Closing += async (_, e) =>
         {
             // Downloads running? Ask first; if closing anyway, they're offered again next launch.
             var running = _vm.RunningJobCount;
-            if (!_closeConfirmed && running > 0)
+            if (!_closeConfirmed && running > 0 && !_vm.ClosingForUpdate)
             {
                 e.Cancel = true;
                 var pick = await ChoiceAsync(
@@ -167,7 +171,7 @@ public partial class MainWindow : Window, IUiHost
         return res.FirstOrDefault()?.TryGetLocalPath();
     }
 
-    public async Task<bool> ConfirmAsync(string title, string message)
+    public async Task<bool> ConfirmAsync(string title, string message, string okLabel = "Delete")
     {
         var result = false;
         var dialog = new Window
@@ -178,7 +182,7 @@ public partial class MainWindow : Window, IUiHost
             CanResize = false,
             WindowStartupLocation = WindowStartupLocation.CenterOwner,
         };
-        var ok = new Button { Content = "Delete", Classes = { "accent" } };
+        var ok = new Button { Content = okLabel, Classes = { "accent" } };
         var cancel = new Button { Content = "Cancel" };
         ok.Click += (_, _) =>
         {

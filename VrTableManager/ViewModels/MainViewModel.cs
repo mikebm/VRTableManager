@@ -20,7 +20,9 @@ public interface IUiHost
         string? preferredName = null,
         string? startFolder = null
     );
-    Task<bool> ConfirmAsync(string title, string message);
+
+    /// <param name="okLabel">The button that says yes (most confirmations are for deleting something).</param>
+    Task<bool> ConfirmAsync(string title, string message, string okLabel = "Delete");
 
     /// <summary>Asks for a line of text; null when cancelled.</summary>
     Task<string?> AskTextAsync(string title, string message, string initial, string okLabel);
@@ -49,6 +51,9 @@ public sealed partial class MainViewModel : ObservableObject, IAsyncDisposable
 
     /// <summary>Saved queue: downloads not finished when the app closed are offered again at the next launch.</summary>
     readonly PendingDownloads _pending = new();
+
+    /// <summary>The saved queue as it was at launch: downloads started since (while the startup checks ran) aren't resumed.</summary>
+    readonly IReadOnlyList<PendingDownload> _leftFromLastTime;
     bool _offeredResume;
     List<VpsGame> _allGames = [];
 
@@ -57,6 +62,7 @@ public sealed partial class MainViewModel : ObservableObject, IAsyncDisposable
     public MainViewModel(IUiHost ui)
     {
         _ui = ui;
+        _leftFromLastTime = _pending.Items;
         _assisted = new AssistedDownloader(ui.OpenExternal);
         if (string.IsNullOrWhiteSpace(Settings.FpDir) && FpSetup.AutoDetect() is { } fp)
         {
@@ -151,6 +157,24 @@ public sealed partial class MainViewModel : ObservableObject, IAsyncDisposable
     partial void OnEngineFilterChanged(string value) => ApplyFilter();
 
     partial void OnSelectedGameChanged(GameItem? value) => ShowVersions(value);
+
+    /// <summary>At startup: settings.json is there but couldn't be read, so nothing changed here is saved (see AppSettings.Unreadable).</summary>
+    public async Task WarnIfSettingsUnreadableAsync()
+    {
+        if (!Settings.Unreadable)
+        {
+            return;
+        }
+
+        await _ui.ChoiceAsync(
+            "Your settings couldn't be read",
+            $"VR Table Manager couldn't read {Settings.SourcePath ?? AppSettings.DefaultPath} (another program may have it open, "
+                + "or Windows won't let this app read it). It's running on default settings, and changes you make won't be saved "
+                + "until the file can be read again, so your own settings aren't written over. Close the other program, or check "
+                + "the file's permissions, then restart VR Table Manager.",
+            ["OK"]
+        );
+    }
 
     [RelayCommand]
     public async Task LoadCatalogAsync(bool force = false)
@@ -568,7 +592,11 @@ public sealed partial class MainViewModel : ObservableObject, IAsyncDisposable
             ApplyFilter();
             if (getRom)
             {
-                _ = GetRomAsync(installed);
+                // After this returns: an update holds the table busy until then, and GetRomAsync needs it free.
+                Avalonia.Threading.Dispatcher.UIThread.Post(
+                    () => _ = GetRomAsync(installed),
+                    Avalonia.Threading.DispatcherPriority.Background
+                );
             }
 
             return true;
@@ -849,14 +877,13 @@ public sealed partial class MainViewModel : ObservableObject, IAsyncDisposable
             t.Manifest.RomNames = [];
             t.Manifest.RomParents = [];
             t.Manifest.RomAlias = null;
-            try
+            // Rescan only once it's saved: a rescan reads the manifest back from disk, so after a failed save it
+            // would find the old one and land here again.
+            if (TrySaveManifest(t))
             {
-                TableInstaller.SaveManifest(t);
+                RefreshInstalledSoon();
             }
-            catch
-            { /* still corrected for this session */
-            }
-            RefreshInstalled();
+
             return;
         }
         // A parent listed as missing may be out of date: it was noted before the table's own ROM was there, or the
@@ -872,14 +899,11 @@ public sealed partial class MainViewModel : ObservableObject, IAsyncDisposable
             await Task.Run(() => RomRequirements.RefreshParents(t, Settings));
             if (before != string.Join(",", t.Manifest.RomParents))
             {
-                try
+                if (TrySaveManifest(t))
                 {
-                    TableInstaller.SaveManifest(t);
+                    RefreshInstalledSoon();
                 }
-                catch
-                { /* still corrected for this session */
-                }
-                RefreshInstalled();
+
                 return;
             }
         }
@@ -914,17 +938,48 @@ public sealed partial class MainViewModel : ObservableObject, IAsyncDisposable
         {
             _romCheckOne.Release();
         }
+        if (TrySaveManifest(t) && changed)
+        {
+            RefreshInstalledSoon();
+        }
+    }
+
+    /// <summary>False when the manifest couldn't be written (read-only folder, file in use): still corrected for this session.</summary>
+    static bool TrySaveManifest(InstalledTable t)
+    {
         try
         {
             TableInstaller.SaveManifest(t);
+            return true;
         }
         catch
-        { /* still corrected for this session */
-        }
-        if (changed)
         {
-            RefreshInstalled();
+            return false;
         }
+    }
+
+    bool _refreshQueued;
+
+    /// <summary>
+    /// <see cref="RefreshInstalled"/> once the current work is done, however many tables ask for it. The ROM recheck
+    /// calls this: <see cref="RefreshInstalled"/> starts that recheck itself, so a direct call would nest one rescan in another.
+    /// </summary>
+    void RefreshInstalledSoon()
+    {
+        if (_refreshQueued)
+        {
+            return;
+        }
+
+        _refreshQueued = true;
+        Avalonia.Threading.Dispatcher.UIThread.Post(
+            () =>
+            {
+                _refreshQueued = false;
+                RefreshInstalled();
+            },
+            Avalonia.Threading.DispatcherPriority.Background
+        );
     }
 
     [RelayCommand]
@@ -967,7 +1022,23 @@ public sealed partial class MainViewModel : ObservableObject, IAsyncDisposable
     {
         if (replacing == null)
         {
-            return await InstallCoreAsync(game, tf, null);
+            // Nothing installed to mark busy yet: the catalog file itself, so a second INSTALL (after picking the game
+            // again, or a resumed download) doesn't install it into the same folder at the same time.
+            var key = $"install:{game.Id}|{tf.Id}";
+            if (!TryBeginBusy(key))
+            {
+                CatalogStatus = $"{game.Name} is already being installed (see Downloads).";
+                return false;
+            }
+
+            try
+            {
+                return await InstallCoreAsync(game, tf, null);
+            }
+            finally
+            {
+                EndBusy(key);
+            }
         }
 
         if (!TryBeginBusy(replacing.TablePath))
@@ -1019,21 +1090,35 @@ public sealed partial class MainViewModel : ObservableObject, IAsyncDisposable
 
     async Task GetRomCoreAsync(InstalledTable table)
     {
-        // Older installs list every ROM VPS knows; read the script to find the one this table loads.
-        if (table.Manifest.RomNames.Count > 1 && RomDetector.FromVpx(table.TablePath) is { } exact)
+        HashSet<string> family;
+        try
         {
-            table.Manifest.RomNames = [exact];
-            try
+            // Older installs list every ROM VPS knows; read the script to find the one this table loads.
+            // Off the UI thread: tables run to hundreds of MB.
+            if (
+                table.Manifest.RomNames.Count > 1
+                && await Task.Run(() => RomDetector.FromVpx(table.TablePath)) is { } exact
+            )
             {
-                TableInstaller.SaveManifest(table);
+                table.Manifest.RomNames = [exact];
+                try
+                {
+                    TableInstaller.SaveManifest(table);
+                }
+                catch
+                { /* still usable this session */
+                }
             }
-            catch
-            { /* still usable this session */
-            }
-        }
 
-        // The table's ROM set and its parents: the only ROM zips that belong to it.
-        var family = await Task.Run(() => RomFamily(table));
+            // The table's ROM set and its parents: the only ROM zips that belong to it.
+            family = await Task.Run(() => RomFamily(table));
+        }
+        catch (Exception e)
+        {
+            // The table file is open elsewhere (the VPX editor) or gone.
+            PlayStatus = $"Couldn't read {table.Manifest.GameName}'s ROM needs: {e.Message}";
+            return;
+        }
         var job = new JobItem($"ROM for {table.Manifest.GameName}")
         {
             FileNames = [.. table.MissingRoms, .. family, table.Manifest.GameName],
@@ -1691,6 +1776,8 @@ public sealed partial class MainViewModel : ObservableObject, IAsyncDisposable
     async Task PlayAsync(InstalledItem item, bool vr)
     {
         var engine = Engines.For(item.Table.Manifest.Engine);
+        System.Diagnostics.Process? proc = null;
+        var waitsInBackground = false; // the background wait disposes it, once the table has closed
         try
         {
             if (vr && !await PreflightAsync(item, engine))
@@ -1709,12 +1796,7 @@ public sealed partial class MainViewModel : ObservableObject, IAsyncDisposable
                 return;
             }
             PlayStatus = $"Starting {item.Title}…";
-            using var proc = await engine.LaunchAsync(
-                Settings,
-                item.Table,
-                vr,
-                CancellationToken.None
-            );
+            proc = await engine.LaunchAsync(Settings, item.Table, vr, CancellationToken.None);
             PlayStatus = $"Playing {item.Title}…";
             var started = DateTime.Now;
             var path = item.Table.TablePath;
@@ -1722,10 +1804,18 @@ public sealed partial class MainViewModel : ObservableObject, IAsyncDisposable
             item.ApplyStats(_stats);
             if (!ReturnAfterPlay)
             {
-                // Still add the time played, in the background.
-                _ = proc.WaitForExitAsync()
+                // Still add the time played, in the background. The process stays undisposed until then: disposing it
+                // stops watching for the exit, and the wait would never end.
+                System.Diagnostics.Process running = proc;
+                waitsInBackground = true;
+                _ = running
+                    .WaitForExitAsync()
                     .ContinueWith(
-                        _ => TrySaveStats(st => st.AddTime(path, DateTime.Now - started)),
+                        _ =>
+                        {
+                            TrySaveStats(st => st.AddTime(path, DateTime.Now - started));
+                            running.Dispose();
+                        },
                         TaskScheduler.Default
                     );
                 return;
@@ -1758,6 +1848,11 @@ public sealed partial class MainViewModel : ObservableObject, IAsyncDisposable
         }
         finally
         {
+            if (!waitsInBackground)
+            {
+                proc?.Dispose();
+            }
+
             _ui.ShowAfterPlay();
         }
     }
@@ -2027,8 +2122,12 @@ public sealed partial class MainViewModel : ObservableObject, IAsyncDisposable
         {
             _stats = PlayStats.Mutate(change);
         }
-        catch
-        { /* play counting must never get in the way of playing */
+        catch (Exception e)
+        {
+            // Play counting must never get in the way of playing: just say so. (Also called from the background wait.)
+            Avalonia.Threading.Dispatcher.UIThread.Post(() =>
+                PlayStatus = "Couldn't save the play count and time: " + e.Message
+            );
         }
     }
 
@@ -2057,18 +2156,41 @@ public sealed partial class MainViewModel : ObservableObject, IAsyncDisposable
             return;
         }
 
-        TableInstaller.AddRom(item.Table, file);
+        try
+        {
+            TableInstaller.AddRom(item.Table, file);
+        }
+        catch (Exception e)
+        {
+            PlayStatus = "Couldn't add the ROM: " + e.Message;
+            return;
+        }
         RefreshInstalled();
     }
 
     [RelayCommand]
     async Task RemoveAsync(InstalledItem item)
     {
+        // A ROM fetch, update, add-on or recording for this table would write into the folder as it goes.
+        var busyText =
+            $"{item.Title} has a job running (see Downloads): wait for it, or cancel it, then remove the table.";
+        if (_busyTables.Contains(item.Table.TablePath))
+        {
+            PlayStatus = busyText;
+            return;
+        }
+
         var what = item.Table.IsVpx
             ? $"the folder\n{item.Table.Folder}"
             : $"\n{item.Table.TablePath}";
         if (!await _ui.ConfirmAsync("Remove table", $"Delete {item.Title}?\n\nThis removes {what}"))
         {
+            return;
+        }
+
+        if (_busyTables.Contains(item.Table.TablePath))
+        {
+            PlayStatus = busyText; // one started while you were asked
             return;
         }
 
@@ -2369,14 +2491,32 @@ public sealed partial class MainViewModel : ObservableObject, IAsyncDisposable
                         Settings.ApplyPinballUevrProfile
                             ? "Pinball settings will also be switched off, so they aren't re-applied at the next launch."
                             : ""
-                    )
+                    ),
+                "Restore"
             )
         )
         {
             return;
         }
 
-        UevrPinballProfile.RestoreOriginal(g);
+        try
+        {
+            UevrPinballProfile.RestoreOriginal(g);
+        }
+        catch (Exception e)
+        {
+            var msg = "Couldn't restore the UEVR profile: " + e.Message;
+            if (g == ZenGames.PinballM)
+            {
+                PmStatus = msg;
+            }
+            else
+            {
+                PfxStatus = msg;
+            }
+
+            return;
+        }
         ApplyPinballUevrProfile = false;
         RefreshSetupStatus();
     }
@@ -2544,6 +2684,11 @@ public sealed partial class MainViewModel : ObservableObject, IAsyncDisposable
     /// <summary>Installs the build <paramref name="pick"/> chooses (null: nothing to install; it says why).</summary>
     async Task RunVpxInstallAsync(Func<CancellationToken, Task<VpxRelease?>> pick)
     {
+        if (IsInstallingVpx)
+        {
+            return; // UPDATE ALL while an install from the VPX section runs: one at a time into the VPX folder
+        }
+
         IsInstallingVpx = true;
         VpxProgress = 0;
         VpxProgressUnknown = true;
@@ -2979,9 +3124,17 @@ public sealed partial class MainViewModel : ObservableObject, IAsyncDisposable
         }
     }
 
+    bool _installingUevr;
+
     [RelayCommand]
     async Task InstallUevrAsync()
     {
+        if (_installingUevr)
+        {
+            return; // UPDATE ALL while UPDATE UEVR runs
+        }
+
+        _installingUevr = true;
         var job = new JobItem("UEVR");
         Jobs.Insert(0, job);
         try
@@ -3003,6 +3156,7 @@ public sealed partial class MainViewModel : ObservableObject, IAsyncDisposable
         }
         finally
         {
+            _installingUevr = false;
             RefreshSetupStatus();
             await CheckUpdatesAsync();
         }
@@ -3060,7 +3214,7 @@ public sealed partial class MainViewModel : ObservableObject, IAsyncDisposable
 
     async Task OfferResumeAsync()
     {
-        var items = _pending.Items;
+        var items = _leftFromLastTime;
         if (items.Count == 0)
         {
             return;
@@ -3074,7 +3228,11 @@ public sealed partial class MainViewModel : ObservableObject, IAsyncDisposable
             $"These hadn't finished when VR Table Manager last closed:\n\n{list}\n\nThey'll start again from the beginning.",
             ["RESUME", "DISCARD"]
         );
-        _pending.Clear(); // resumed jobs add themselves back
+        // Resumed jobs add themselves back. Only last time's entries go: ones for downloads started since stay.
+        foreach (var i in items)
+        {
+            _pending.Remove(i.Id);
+        }
         if (pick != 0)
         {
             return;

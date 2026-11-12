@@ -193,15 +193,11 @@ public sealed class AssistedDownloader
                     {
                         // A file you already had before this download started is yours to keep: only one saved
                         // for this job is cleaned up afterwards.
-                        got.Add(
-                            CopyIn(
-                                picked,
-                                destDir,
-                                job,
-                                mayDelete: File.GetCreationTimeUtc(picked) >= started
-                                    || File.GetLastWriteTimeUtc(picked) >= started
-                            )
-                        );
+                        // Off the UI thread (this loop runs on it): a PuP pack can be gigabytes.
+                        var mayDelete =
+                            File.GetCreationTimeUtc(picked) >= started
+                            || File.GetLastWriteTimeUtc(picked) >= started;
+                        got.Add(await Task.Run(() => CopyIn(picked, destDir, job, mayDelete)));
                         lastGot = DateTime.UtcNow;
                         if (!many)
                         {
@@ -238,7 +234,7 @@ public sealed class AssistedDownloader
                         );
                         continue;
                     }
-                    got.Add(CopyIn(file, destDir, job));
+                    got.Add(await Task.Run(() => CopyIn(file, destDir, job)));
                     lastGot = DateTime.UtcNow;
                     if (!many)
                     {

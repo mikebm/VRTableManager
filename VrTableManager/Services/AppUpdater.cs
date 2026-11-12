@@ -237,6 +237,12 @@ public static class AppUpdater
             $$"""
             $ErrorActionPreference = 'SilentlyContinue'
             Wait-Process -Id {{Environment.ProcessId}} -Timeout 120
+            # Still running: copying now would replace some files and not the ones in use, a mix of two versions.
+            if (Get-Process -Id {{Environment.ProcessId}} -ErrorAction SilentlyContinue) {
+                (New-Object -ComObject WScript.Shell).Popup("VR Table Manager didn't close, so the update to {{rel.Version}} wasn't installed. Nothing was changed. Close the app and update again from Setup > Updates.", 0, "VR Table Manager", 48) | Out-Null
+                Remove-Item -LiteralPath '{{Esc(work)}}' -Recurse -Force
+                exit
+            }
             Start-Sleep -Milliseconds 500
             # /E: everything, keeping files the new version doesn't have (the lobby's imported assets etc.).
             robocopy '{{Esc(newFiles)}}' '{{Esc(

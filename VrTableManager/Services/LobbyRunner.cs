@@ -56,7 +56,11 @@ public static class LobbyRunner
 
         return Directory
             .EnumerateFiles(GodotDir, "Godot_v*_mono_win64.exe", SearchOption.AllDirectories)
-            .FirstOrDefault(f => !f.EndsWith("_console.exe", StringComparison.OrdinalIgnoreCase));
+            .FirstOrDefault(f =>
+                !f.EndsWith("_console.exe", StringComparison.OrdinalIgnoreCase)
+                // An unpack cut short before this change could leave the exe without its .NET files.
+                && Directory.Exists(Path.Combine(Path.GetDirectoryName(f)!, "GodotSharp"))
+            );
     }
 
     public static async Task<string> EnsureGodotAsync(
@@ -81,7 +85,40 @@ public static class LobbyRunner
         status($"Downloading Godot {GodotVersion} (.NET), 117 MB, one time…");
         await Http.DownloadFileAsync(GodotUrl, tmp, progress, ct);
         status("Unpacking Godot…");
-        await Task.Run(() => TableInstaller.Extract(tmp, GodotDir), ct);
+        // Unpacked beside it and moved in whole: an unpack cut off halfway would otherwise leave the exe without its
+        // .NET files, and FindGodot would take that for an install from then on.
+        var staging = GodotDir + ".part";
+        await Task.Run(
+            () =>
+            {
+                if (Directory.Exists(staging))
+                {
+                    Directory.Delete(staging, recursive: true);
+                }
+
+                TableInstaller.Extract(tmp, staging);
+                if (Directory.Exists(GodotDir))
+                {
+                    Directory.Delete(GodotDir, recursive: true); // a broken one from before
+                }
+
+                // A virus scanner often has the fresh exe open for a moment, which blocks renaming the folder.
+                for (var attempt = 1; ; attempt++)
+                {
+                    try
+                    {
+                        Directory.Move(staging, GodotDir);
+                        break;
+                    }
+                    catch (Exception e)
+                        when (attempt < 10 && e is IOException or UnauthorizedAccessException)
+                    {
+                        Thread.Sleep(500);
+                    }
+                }
+            },
+            ct
+        );
         try
         {
             File.Delete(tmp);
@@ -258,7 +295,22 @@ public static class LobbyRunner
         var sb = new StringBuilder();
         var o = p.StandardOutput.ReadToEndAsync(ct);
         var e = p.StandardError.ReadToEndAsync(ct);
-        await p.WaitForExitAsync(ct);
+        try
+        {
+            await p.WaitForExitAsync(ct);
+        }
+        catch (OperationCanceledException)
+        {
+            // Cancelled: stop the build or import too, rather than leave it running headless.
+            try
+            {
+                p.Kill(entireProcessTree: true);
+            }
+            catch
+            { /* already gone */
+            }
+            throw;
+        }
         sb.Append(await o).Append(await e);
         return (p.ExitCode, sb.ToString());
     }

@@ -160,10 +160,18 @@ public sealed partial class MainViewModel
         var ini = VpxGraphics.TableIniPath(item.Table.TablePath);
         if (!File.Exists(ini))
         {
-            File.WriteAllText(
-                ini,
-                "; Settings for this table only. They override VPX's own settings.\r\n"
-            );
+            try
+            {
+                File.WriteAllText(
+                    ini,
+                    "; Settings for this table only. They override VPX's own settings.\r\n"
+                );
+            }
+            catch (Exception e)
+            {
+                PlayStatus = $"Couldn't make {item.Title}'s settings file: " + e.Message;
+                return;
+            }
         }
 
         _ui.OpenExternal(ini);
@@ -273,6 +281,10 @@ public sealed partial class MainViewModel
 
             StorageStatus = $"{DiskUsage.Format(entries.Sum(e => e.Bytes))} in total";
         }
+        catch (Exception e)
+        {
+            StorageStatus = "Couldn't measure the folders: " + e.Message;
+        }
         finally
         {
             IsSurveyingStorage = false;
@@ -310,7 +322,18 @@ public sealed partial class MainViewModel
             return;
         }
 
-        var freed = await Task.Run(() => AppFolders.Clear(entry));
+        // Running and queued jobs download into downloads\<job id>: those stay.
+        var keep = Jobs.Where(j => j.IsRunning).Select(j => j.Id).ToList();
+        long freed;
+        try
+        {
+            freed = await Task.Run(() => AppFolders.Clear(entry, keep));
+        }
+        catch (Exception e)
+        {
+            StorageStatus = "Couldn't clear it: " + e.Message;
+            return;
+        }
         await RefreshStorageAsync();
         StorageStatus = $"✓ Freed {DiskUsage.Format(freed)}. " + StorageStatus;
     }
@@ -392,6 +415,7 @@ public sealed partial class MainViewModel
     {
         var s = AppSettings.Load();
         s.ManagerExe = Settings.ManagerExe; // this install's path, not the backed-up one
+        Settings.Unreadable = s.Unreadable; // a restored file that reads fine can be saved again
         // Set first: each property below saves Settings, and would otherwise write the old choice over the restored one.
         Settings.ControlsTarget = s.ControlsTarget;
         VpxDir = s.VpxDir;

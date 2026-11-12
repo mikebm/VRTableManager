@@ -24,6 +24,9 @@ public sealed partial class MainViewModel
     [ObservableProperty]
     public partial double AppUpdateProgress { get; set; }
 
+    /// <summary>The app is closing so the update can be copied in (the script waits for it to exit).</summary>
+    public bool ClosingForUpdate { get; private set; }
+
     /// <summary>At startup: say how the last update went, then offer a new release unless it was skipped.</summary>
     async Task StartupAppUpdateAsync()
     {
@@ -132,7 +135,8 @@ public sealed partial class MainViewModel
             running > 0
             && !await _ui.ConfirmAsync(
                 "Update now?",
-                $"{running} job{(running == 1 ? " is" : "s are")} still running. Unfinished downloads are offered again after the update."
+                $"{running} job{(running == 1 ? " is" : "s are")} still running. Unfinished downloads are offered again after the update.",
+                "Update now"
             )
         )
         {
@@ -149,6 +153,8 @@ public sealed partial class MainViewModel
                 s => Avalonia.Threading.Dispatcher.UIThread.Post(() => AppUpdateText = s),
                 CancellationToken.None
             );
+            // You were asked about running jobs above: the window closes without asking again.
+            ClosingForUpdate = true;
             (
                 Avalonia.Application.Current?.ApplicationLifetime
                 as IClassicDesktopStyleApplicationLifetime

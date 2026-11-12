@@ -100,6 +100,14 @@ public sealed partial class MainViewModel
             return;
         }
 
+        // Replacing: an update, ROM fetch or add-on running for the table would be writing into the same folder.
+        if (replacing != null && !TryBeginBusy(replacing.TablePath))
+        {
+            PlayStatus =
+                $"{game.Name} has a job running (see Downloads): wait for it, then add the file again.";
+            return;
+        }
+
         var job = new JobItem($"{(replacing == null ? "" : "Update: ")}{game.Name} — from {name}")
         {
             FileNames = [game.Name],
@@ -127,6 +135,8 @@ public sealed partial class MainViewModel
             ApplyFilter();
             if (getRom)
             {
+                // Its ROM fetch marks the table busy itself.
+                ReleaseReplacing();
                 _ = GetRomAsync(installed);
             }
         }
@@ -137,6 +147,19 @@ public sealed partial class MainViewModel
         catch (Exception e)
         {
             job.Finish("Failed: " + e.Message, error: true);
+        }
+        finally
+        {
+            ReleaseReplacing();
+        }
+
+        void ReleaseReplacing()
+        {
+            if (replacing != null)
+            {
+                EndBusy(replacing.TablePath);
+                replacing = null;
+            }
         }
     }
 }
