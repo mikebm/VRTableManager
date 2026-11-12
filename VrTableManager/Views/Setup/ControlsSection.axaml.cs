@@ -79,10 +79,12 @@ public partial class ControlsSection : UserControl
         base.OnDetachedFromVisualTree(e);
     }
 
+    /// <summary>Leaving the section or the window: no row waits, and VPX's SDL library is let go.</summary>
     void StopWaiting()
     {
         _pendingModifier = PhysicalKey.None;
         Vm?.CancelKeyCapture();
+        Vm?.ReleaseControllers();
     }
 
     /// <summary>Back from a table (VPX's menu may have remapped keys), or from editing an ini by hand.</summary>

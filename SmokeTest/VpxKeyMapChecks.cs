@@ -17,7 +17,11 @@ static class VpxKeyMapChecks
         yield return (
             VpxKeyMap.Describe("", 225) == "Left Shift (default)"
                 && VpxKeyMap.Describe("Key;29 | OpenXR;16", 225) == "Z + VR controller"
-                && VpxKeyMap.Describe("SDLJoy_03000000_1;4", 225) == "No key + controller button",
+                && VpxKeyMap.Describe(
+                    "SDLJoy_03000000_1;4 | SDLJoy_03000000_1;258 | SDLJoy_03000000_1;512;+;0.5",
+                    225,
+                    d => d == "SDLJoy_03000000_1" ? "PinOne" : null
+                ) == "PinOne button 5 / PinOne d-pad up + controller axis",
             "keymap: mappings are described by key name"
         );
         yield return (
@@ -338,15 +342,99 @@ static class VpxKeyMapChecks
             // RESET keeps a controller binding next to the default key, and the device list gets the keyboard.
             File.WriteAllText(
                 own,
-                "[Input]\nDevices = SDLJoy_x_1\nMapping.LeftFlipper = Key;4 | SDLJoy_x_1;3\n"
+                "[Input]\nDevices = SDLJoy_x_1\nMapping.LeftFlipper = Key;4 | SDLJoy_x_1;3 | OpenXR;16;o;0.3\n"
             );
             File.Delete(vrIni);
             VpxKeyMap.Reset(s, "LeftFlipper", ControlsTarget.Everywhere);
             yield return (
-                Get(own, "LeftFlipper") == "Key;225 | SDLJoy_x_1;3"
+                Get(own, "LeftFlipper") == "Key;225 | OpenXR;16;o;0.3"
                     && IniFile.Read(own).GetValueOrDefault((VpxInput.Section, "Devices"))
                         == "Key;SDLJoy_x_1",
-                "keymap: RESET keeps a gamepad binding and makes sure the keyboard is in the device list"
+                "keymap: RESET drops controller buttons, keeps the VR controller, and makes sure the keyboard is in the device list"
+            );
+
+            // Controller buttons, as VPX writes them.
+            const string pad = "SDLJoy_03008fe54c050000c405000000016800_1";
+            const string board = "SDLJoy_03008a6d091200004aea000000000000_1";
+            yield return (
+                VpxKeyMap.WithInput("", 225, $"{pad};4") == $"Key;225 | {pad};4"
+                    && VpxKeyMap.WithInput(
+                        $"Key;4 | {pad};1 | {board};2 | OpenXR;16",
+                        225,
+                        $"{pad};4"
+                    ) == $"Key;4 | {pad};4 | {board};2 | OpenXR;16"
+                    && VpxKeyMap.WithAddedInput($"Key;4 | {pad};1", 225, $"{pad};4")
+                        == $"Key;4 | {pad};1 | {pad};4"
+                    && VpxKeyMap.WithKey($"Key;4 | {pad};1", 29) == $"Key;29 | {pad};1",
+                "keymap: a button replaces that controller's buttons only; a key keeps the buttons; the default key stays"
+            );
+
+            File.WriteAllText(
+                own,
+                "[Input]\nDevices = Key\nMapping.LeftFlipper = \nMapping.LeftStagedFlipper = \nMapping.UILeft = Key;80\n"
+            );
+            File.Delete(vrIni);
+            VpxKeyMap.Set(
+                s,
+                "LeftFlipper",
+                $"{pad.ToUpperInvariant()};4",
+                ControlsTarget.Everywhere
+            );
+            yield return (
+                Get(own, "LeftFlipper") == $"Key;225 | {pad};4"
+                    && Get(own, "LeftStagedFlipper") == $"Key;225 | {pad};4"
+                    && Get(own, "UILeft") == "Key;80"
+                    && IniFile.Read(own).GetValueOrDefault((VpxInput.Section, "Devices"))
+                        == $"Key;{pad}",
+                "keymap: SET with a button keeps the default key, moves the staged flipper, and lists the controller"
+            );
+            yield return (
+                VpxKeyMap
+                    .SharedWith(VpxIniLayers.Effective(s, vr: false), "Start", $"{pad};4")
+                    .Contains("Left flipper"),
+                "keymap: a button another action uses is reported"
+            );
+            var addAgain = VpxKeyMap.Add(s, "LeftFlipper", $"{pad};4", ControlsTarget.Everywhere);
+            yield return (
+                addAgain.Contains("already") && Get(own, "LeftFlipper") == $"Key;225 | {pad};4",
+                "keymap: ADD of a button the action has changes nothing"
+            );
+            VpxKeyMap.Reset(s, "LeftFlipper", ControlsTarget.Everywhere);
+            yield return (
+                Get(own, "LeftFlipper") == "" && Get(own, "LeftStagedFlipper") == "",
+                "keymap: RESET takes the button off the flipper and the staged flipper"
+            );
+
+            // A button VPX's menu gave only the flipper doesn't stop a new key moving the staged flipper too.
+            File.WriteAllText(
+                own,
+                $"[Input]\nDevices = Key;{pad}\nMapping.LeftFlipper = Key;225 | {pad};4\nMapping.LeftStagedFlipper = Key;225\n"
+            );
+            VpxKeyMap.Set(s, "LeftFlipper", 29, ControlsTarget.Everywhere);
+            yield return (
+                Get(own, "LeftFlipper") == $"Key;29 | {pad};4"
+                    && Get(own, "LeftStagedFlipper") == "Key;29",
+                "keymap: a key moves a follower with the same keys, whatever buttons the flipper has"
+            );
+
+            // ADD of a button the action has, from a controller VPX's device list leaves out: the list gets it.
+            File.WriteAllText(own, $"[Input]\nDevices = Key\nMapping.Start = Key;30 | {pad};9\n");
+            var addListed = VpxKeyMap.Add(s, "Start", $"{pad};9", ControlsTarget.Everywhere);
+            yield return (
+                !addListed.Contains("already")
+                    && IniFile.Read(own).GetValueOrDefault((VpxInput.Section, "Devices"))
+                        == $"Key;{pad}",
+                "keymap: ADD of a button from an unlisted controller adds the controller to the device list"
+            );
+
+            // No VPX installed yet: controllers can't be read, and it says so (the keyboard still works).
+            var noVpx = JoystickCapture.TryOpen(
+                new AppSettings { VpxDir = Path.Combine(dir, "no vpx") },
+                out var why
+            );
+            yield return (
+                noVpx == null && why?.Contains("VPX installed first") == true,
+                "keymap: controller buttons without VPX say it's needed, without failing"
             );
         }
         finally

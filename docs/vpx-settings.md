@@ -111,13 +111,15 @@ VR play uses the controls from your own `VPinballX.ini` until the VR file has ma
 
 ### Setting keys on the Setup tab
 
-Setup → **Controls** lists VPX's actions (flippers, magna-saves, plunger, Start, coins, nudge and tilt, Exit, the in-game menu, Align VR view…) with the key each one has in desktop play and in VR play. This needs VPX 10.8.1 or later. Each row has three buttons:
+Setup → **Controls** lists VPX's actions (flippers, magna-saves, plunger, Start, coins, nudge and tilt, Exit, the in-game menu, Align VR view…) with the keys and buttons each one has in desktop play and in VR play. This needs VPX 10.8.1 or later. Each row has three buttons:
 
-- **SET**: press a key, and it becomes the action's only keyboard key.
-- **ADD**: press a key, and it works for the action as well as the keys it already has (VPX's default one included). For example, ADD on Left flipper with Z gives "Left Shift / Z".
-- **RESET**: the action's keyboard key goes back to VPX's default. VR controller, gamepad and cabinet bindings stay, as do key combinations. If the action has none of those, its mapping is emptied, which is VPX's own default. If that empties a mapping in the VR or desktop file while your own `VPinballX.ini` has one for the action, the manager also notes it in that file (`[VrTableManager.Defaults]`, see above), so your own key doesn't come back in that mode.
+- **SET**: press a key, or a button on a game controller or cabinet board. A key becomes the action's only keyboard key. A button becomes its only button on that controller: its keys, and buttons on other controllers, stay.
+- **ADD**: press a key or a button, and it works for the action as well as the ones it already has (VPX's default key included). For example, ADD on Left flipper with Z gives "Left Shift / Z".
+- **RESET**: the action goes back to VPX's default key. Its other keys and its controller buttons go; Quest controller bindings, analog axes and key combinations stay. If the action has none of those, its mapping is emptied, which is VPX's own default. If that empties a mapping in the VR or desktop file while your own `VPinballX.ini` has one for the action, the manager also notes it in that file (`[VrTableManager.Defaults]`, see above), so your own key doesn't come back in that mode.
 
-All three only change keyboard keys. To give an action a second button on a gamepad, a cabinet board or the VR controllers, use VPX's own input menu.
+**Controllers and cabinet boards.** Xbox, PlayStation and other USB or Bluetooth game controllers should work, and so should cabinet boards in joystick mode (Pinscape, PinOne and the like). A board in keyboard mode sends keys, which work as keys. The manager reads them with VPX's own SDL library, so VPX has to be installed first; the button is written the way VPX writes it (`SDLJoy_<ID>_1;4`), and the controller is added to VPX's device list. Buttons count, and so do d-pad directions; analog sticks, triggers and plungers don't, so map those in VPX's menu. A row shows a button as "PS4 Controller button 5", numbered from 1 as in Windows' game controller settings. If you have two identical controllers, which one is "1" follows the order Windows lists them in.
+
+The Quest controllers' buttons can't be set here: VPX only sees them in the headset, so set those in VPX's own menu during VR play.
 
 **Save keys for** picks where the key goes:
 

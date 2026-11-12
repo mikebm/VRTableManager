@@ -87,9 +87,14 @@ public sealed partial class MainViewModel
                 var c = row.Control;
                 row.DesktopKeys = VpxKeyMap.Describe(
                     VpxKeyMap.Value(desktop, c.Mapping),
-                    c.DefaultKey
+                    c.DefaultKey,
+                    d => ControllerName(d, desktop)
                 );
-                row.VrKeys = VpxKeyMap.Describe(VpxKeyMap.Value(vr, c.Mapping), c.DefaultKey);
+                row.VrKeys = VpxKeyMap.Describe(
+                    VpxKeyMap.Value(vr, c.Mapping),
+                    c.DefaultKey,
+                    d => ControllerName(d, vr)
+                );
             }
         }
         catch (Exception e)
@@ -97,6 +102,24 @@ public sealed partial class MainViewModel
             KeyMapStatus = "Couldn't read VPX's controls: " + e.Message;
         }
     }
+
+    /// <summary>Controller names by device (<c>SDLJoy_…_1</c>), from VPX's settings and the controllers seen here.</summary>
+    readonly Dictionary<string, string> _controllerNames = new(StringComparer.OrdinalIgnoreCase);
+
+    /// <summary>The controllers watched while a row waits; null otherwise (VPX's SDL library isn't held).</summary>
+    JoystickCapture? _joysticks;
+
+    Avalonia.Threading.DispatcherTimer? _joystickTimer;
+
+    string? ControllerName(
+        string device,
+        IReadOnlyDictionary<(string Section, string Key), string> ini
+    ) =>
+        _controllerNames.TryGetValue(device, out var n) ? n
+        : ini.GetValueOrDefault((VpxInput.Section, $"Device.{device}.Name"))
+            is { Length: > 0 } saved
+            ? saved
+        : null;
 
     /// <summary>SET on a row: wait for the key that replaces its keyboard keys (click again to stop waiting).</summary>
     [RelayCommand]
@@ -116,10 +139,131 @@ public sealed partial class MainViewModel
 
         row.CaptureAdds = adds;
         row.IsCapturing = !was;
+        if (!row.IsCapturing)
+        {
+            PauseControllers();
+            KeyMapStatus = "";
+            return;
+        }
+
+        var controllers = WatchControllers(out var why);
         KeyMapStatus =
-            !row.IsCapturing ? ""
-            : adds ? $"Press the key to add to {row.Label}. Click the button again to cancel."
-            : $"Press the key for {row.Label}. Click the button again to cancel.";
+            (
+                adds
+                    ? $"Press the key or controller button to add to {row.Label}."
+                    : $"Press the key or controller button for {row.Label}."
+            )
+            + " Click the button again to cancel."
+            + (
+                why != null ? " " + why
+                : controllers == 0
+                    ? " (No controller is plugged in: plug one in now, or use the keyboard.)"
+                : ""
+            );
+    }
+
+    /// <summary>
+    /// Starts reading game controllers and cabinet boards through VPX's SDL library, polled on the UI thread. The
+    /// library stays loaded while the Controls section is open (<see cref="ReleaseControllers"/>). Returns how many
+    /// are plugged in; <paramref name="why"/> says why they can't be read (no VPX yet).
+    /// </summary>
+    int WatchControllers(out string? why)
+    {
+        why = null;
+        if (_joysticks == null)
+        {
+            _joysticks = JoystickCapture.TryOpen(Settings, out why);
+            if (_joysticks == null)
+            {
+                return 0;
+            }
+        }
+        else
+        {
+            _joysticks.Restart(); // what's held now doesn't count
+        }
+
+        if (_joystickTimer == null)
+        {
+            _joystickTimer = new Avalonia.Threading.DispatcherTimer
+            {
+                Interval = TimeSpan.FromMilliseconds(30),
+            };
+            _joystickTimer.Tick += (_, _) => PollControllers();
+            _joystickTimer.Start();
+        }
+
+        return _joysticks.Count;
+    }
+
+    /// <summary>No row waits: stop polling, keeping the library for the next SET or ADD.</summary>
+    void PauseControllers()
+    {
+        _joystickTimer?.Stop();
+        _joystickTimer = null;
+        if (_joysticks != null)
+        {
+            foreach (var (device, name) in _joysticks.Names)
+            {
+                _controllerNames[device] = name;
+            }
+        }
+    }
+
+    /// <summary>
+    /// Leaving the Controls section, the window or the app: lets VPX's SDL library go, so a VPX update can replace it.
+    /// </summary>
+    public void ReleaseControllers()
+    {
+        PauseControllers();
+        if (_joysticks == null)
+        {
+            return;
+        }
+
+        var joysticks = _joysticks;
+        _joysticks = null;
+        try
+        {
+            joysticks.Dispose();
+        }
+        catch (Exception e)
+        {
+            KeyMapStatus = "Couldn't close the controllers: " + e.Message;
+        }
+    }
+
+    void PollControllers()
+    {
+        if (_joysticks == null)
+        {
+            return;
+        }
+
+        if (CapturingRow is not { } row)
+        {
+            PauseControllers();
+            return;
+        }
+
+        try
+        {
+            if (_joysticks.Poll() is { } pressed)
+            {
+                foreach (var (device, name) in _joysticks.Names)
+                {
+                    _controllerNames[device] = name;
+                }
+
+                Capture(row, pressed.Binding);
+            }
+        }
+        catch (Exception e)
+        {
+            ReleaseControllers();
+            KeyMapStatus =
+                "Couldn't read the controllers: " + e.Message + " The keyboard still works.";
+        }
     }
 
     /// <summary>RESET on a row: its keyboard key back to VPX's default, where "Save keys for" points.</summary>
@@ -131,7 +275,8 @@ public sealed partial class MainViewModel
         {
             var target = Settings.ControlsTarget;
             var status = VpxKeyMap.Reset(Settings, row.Control.Mapping, target);
-            KeyMapStatus = status + AlsoDoes(row, row.Control.DefaultKey, target);
+            KeyMapStatus =
+                status + AlsoDoes(row, VpxKeyMap.KeyInput(row.Control.DefaultKey), target);
         }
         catch (Exception e)
         {
@@ -143,6 +288,7 @@ public sealed partial class MainViewModel
 
     public void CancelKeyCapture()
     {
+        PauseControllers();
         if (CapturingRow is { } row)
         {
             row.IsCapturing = false;
@@ -168,26 +314,34 @@ public sealed partial class MainViewModel
             return true;
         }
 
-        row.IsCapturing = false;
-        var target = Settings.ControlsTarget; // the saved choice, not the dropdown's index (-1 while it's torn down)
-        try
-        {
-            var status = row.CaptureAdds
-                ? VpxKeyMap.Add(Settings, row.Control.Mapping, sdl, target)
-                : VpxKeyMap.Set(Settings, row.Control.Mapping, sdl, target);
-            KeyMapStatus = status + AlsoDoes(row, sdl, target);
-        }
-        catch (Exception e)
-        {
-            KeyMapStatus = "Couldn't save the key: " + e.Message;
-        }
-
-        RefreshControls();
+        Capture(row, VpxKeyMap.KeyInput(sdl));
         return true;
     }
 
-    /// <summary>" Z also does: Nudge left." when other actions use the key where it now applies, else "".</summary>
-    string AlsoDoes(ControlRow row, int sdl, ControlsTarget target)
+    /// <summary>The key or controller button given to the waiting row: saved where "Save keys for" points.</summary>
+    void Capture(ControlRow row, string input)
+    {
+        row.IsCapturing = false;
+        PauseControllers();
+        var target = Settings.ControlsTarget; // the saved choice, not the dropdown's index (-1 while it's torn down)
+        string? Name(string d) => _controllerNames.GetValueOrDefault(d);
+        try
+        {
+            var status = row.CaptureAdds
+                ? VpxKeyMap.Add(Settings, row.Control.Mapping, input, target, Name)
+                : VpxKeyMap.Set(Settings, row.Control.Mapping, input, target, Name);
+            KeyMapStatus = status + AlsoDoes(row, input, target);
+        }
+        catch (Exception e)
+        {
+            KeyMapStatus = "Couldn't save it: " + e.Message;
+        }
+
+        RefreshControls();
+    }
+
+    /// <summary>" Z also does: Nudge left." when other actions use the input where it now applies, else "".</summary>
+    string AlsoDoes(ControlRow row, string input, ControlsTarget target)
     {
         // The modes the key now applies in: both for "desktop and VR".
         var modes = target switch
@@ -198,12 +352,16 @@ public sealed partial class MainViewModel
         };
         var shared = modes
             .SelectMany(vr =>
-                VpxKeyMap.SharedWith(VpxIniLayers.Effective(Settings, vr), row.Control.Mapping, sdl)
+                VpxKeyMap.SharedWith(
+                    VpxIniLayers.Effective(Settings, vr),
+                    row.Control.Mapping,
+                    input
+                )
             )
             .Distinct()
             .ToList();
         return shared.Count > 0
-            ? $" {VpxKeyMap.KeyName(sdl)} also does: {string.Join(", ", shared)}."
+            ? $" {VpxKeyMap.InputName(input, d => _controllerNames.GetValueOrDefault(d))} also does: {string.Join(", ", shared)}."
             : "";
     }
 }

@@ -48,6 +48,8 @@ public partial class MainWindow : Window, IUiHost
                 return;
             }
             SavePlacement();
+            _vm.CancelKeyCapture();
+            _vm.ReleaseControllers(); // SDL shut down before the process ends, not torn down under it
             _vm.PrepareToClose();
             await _vm.DisposeAsync();
         };
