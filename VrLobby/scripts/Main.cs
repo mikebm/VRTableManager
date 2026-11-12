@@ -1801,7 +1801,9 @@ public partial class Main : Node3D
             return;
         }
 
-        LobbyWork.Run(() =>
+        // Unhurried: with lobby videos on hundreds of tables this reads hundreds of .vpx files, and at normal priority
+        // every cabinet you turned to waited behind it on a hard drive.
+        LobbyWork.RunUnhurried(() =>
         {
             foreach (var (folder, vpx) in jobs)
             {
@@ -1814,7 +1816,7 @@ public partial class Main : Node3D
                 {
                     if (!File.Exists(Path.Combine(folder, PlayfieldDepth.FileName)))
                     {
-                        PlayfieldDepth.Load(folder, vpx);
+                        PlayfieldDepth.Load(folder, vpx, LobbyWork.Closing);
                     }
                 }
                 catch (Exception e)
@@ -2992,6 +2994,48 @@ public static class LobbyWork
 
     public static Task<T> Run<T>(Func<T> work) =>
         Start<Task<T>>(() => Task.Run(work), Task.FromCanceled<T>);
+
+    /// <summary>
+    /// Work nobody is waiting for, on its own thread in Windows' background mode: low CPU and, above all, low disk
+    /// priority, so the cabinets and pictures you're looking at are read first. On a hard drive, a warm-up reading
+    /// hundreds of .vpx files at normal priority made each new cabinet wait many seconds behind it.
+    /// </summary>
+    public static Task RunUnhurried(Action work) =>
+        Start<Task>(
+            () =>
+                Task.Factory.StartNew(
+                    () =>
+                    {
+                        var background =
+                            OperatingSystem.IsWindows()
+                            && SetThreadPriority(GetCurrentThread(), ThreadModeBackgroundBegin);
+                        try
+                        {
+                            work();
+                        }
+                        finally
+                        {
+                            if (background)
+                            {
+                                SetThreadPriority(GetCurrentThread(), ThreadModeBackgroundEnd);
+                            }
+                        }
+                    },
+                    CancellationToken.None,
+                    TaskCreationOptions.LongRunning, // a thread of its own, not one the art loads share
+                    TaskScheduler.Default
+                ),
+            Task.FromCanceled
+        );
+
+    const int ThreadModeBackgroundBegin = 0x00010000,
+        ThreadModeBackgroundEnd = 0x00020000;
+
+    [System.Runtime.InteropServices.DllImport("kernel32.dll")]
+    static extern IntPtr GetCurrentThread();
+
+    [System.Runtime.InteropServices.DllImport("kernel32.dll")]
+    static extern bool SetThreadPriority(IntPtr thread, int priority);
 
     /// <summary>
     /// Starts the work and keeps it to wait for; once the lobby is closing, it doesn't start at all (a cancelled task).

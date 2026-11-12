@@ -89,14 +89,15 @@
             <TextBlock Classes="mono" VerticalAlignment="Center" Text="{Binding MaxParallelDownloads, StringFormat='{}{0} at a time · change on Setup'}" />
           </StackPanel>
         </DockPanel>
+        <!-- Only the rows on screen are built: a batch over a big library leaves hundreds of finished jobs here. -->
         <ScrollViewer>
           <ItemsControl ItemsSource="{Binding Jobs}">
             <ItemsControl.ItemsPanel>
-              <ItemsPanelTemplate><StackPanel Spacing="8" /></ItemsPanelTemplate>
+              <ItemsPanelTemplate><VirtualizingStackPanel /></ItemsPanelTemplate>
             </ItemsControl.ItemsPanel>
             <ItemsControl.ItemTemplate>
               <DataTemplate x:DataType="vm:JobItem">
-                <Grid ColumnDefinitions="280,200,*,Auto">
+                <Grid ColumnDefinitions="280,200,*,Auto" Margin="0,0,0,8">
                   <TextBlock Classes="title" FontSize="13" Text="{Binding Title}" TextTrimming="CharacterEllipsis" VerticalAlignment="Center" />
                   <ProgressBar Grid.Column="1" Value="{Binding Progress}" IsIndeterminate="{Binding IsIndeterminate}" Margin="12,0" VerticalAlignment="Center" />
                   <TextBlock Grid.Column="2" FontSize="12.5" Text="{Binding Status}" TextWrapping="Wrap" VerticalAlignment="Center"

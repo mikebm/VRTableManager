@@ -1,4 +1,3 @@
-using System.Collections.Concurrent;
 using System.Security.Cryptography;
 using System.Text;
 using Avalonia;
@@ -21,8 +20,52 @@ public sealed class ImageLoader : AvaloniaObject
 
     public static void SetUrl(Image img, string? value) => img.SetValue(UrlProperty, value);
 
-    static readonly ConcurrentDictionary<string, Task<Bitmap?>> Memory = new();
+    /// <summary>
+    /// The pictures kept in memory, most recently shown first. Each decoded card picture is about 2 MB, so keeping
+    /// every one (a 450-table library is 900 MB) pushed PCs short on memory into the page file. Past
+    /// <see cref="KeepInMemory"/> the least recently shown are let go (a card still showing one keeps it until it
+    /// scrolls away) and read again from the disk cache, which takes a few milliseconds.
+    /// </summary>
+    static readonly Dictionary<string, LinkedListNode<(string Url, Task<Bitmap?> Load)>> Memory =
+    [];
+    static readonly LinkedList<(string Url, Task<Bitmap?> Load)> RecentFirst = new();
+    const int KeepInMemory = 120;
     static readonly SemaphoreSlim Throttle = new(6);
+
+    static Task<Bitmap?> Remembered(string url)
+    {
+        lock (Memory)
+        {
+            if (Memory.TryGetValue(url, out var node))
+            {
+                RecentFirst.Remove(node);
+                RecentFirst.AddFirst(node);
+                return node.Value.Load;
+            }
+
+            var load = LoadAsync(url);
+            Memory[url] = RecentFirst.AddFirst((url, load));
+            while (RecentFirst.Count > KeepInMemory && RecentFirst.Last is { } oldest)
+            {
+                RecentFirst.RemoveLast();
+                Memory.Remove(oldest.Value.Url);
+            }
+            return load;
+        }
+    }
+
+    static void Forget(string url, Task<Bitmap?> load)
+    {
+        lock (Memory)
+        {
+            if (Memory.TryGetValue(url, out var node) && node.Value.Load == load)
+            {
+                RecentFirst.Remove(node);
+                Memory.Remove(url);
+            }
+        }
+    }
+
     static string CacheDir =>
         Directory.CreateDirectory(Path.Combine(AppSettings.DataDir, "img-cache")).FullName;
 
@@ -37,12 +80,12 @@ public sealed class ImageLoader : AvaloniaObject
                     return;
                 }
 
-                var load = Memory.GetOrAdd(url, LoadAsync);
+                var load = Remembered(url);
                 var bmp = await load;
                 if (bmp == null)
                 {
                     // Don't remember a failure (a network blip, a timeout): the next time the card is shown it tries again.
-                    Memory.TryRemove(new KeyValuePair<string, Task<Bitmap?>>(url, load));
+                    Forget(url, load);
                 }
                 if (GetUrl(img) == url)
                 {

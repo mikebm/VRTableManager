@@ -113,7 +113,7 @@ public static class PlayfieldDepth
     /// <paramref name="videoFolder"/>), or null when the table has nothing standing on its playfield worth showing.
     /// Slow the first time (reads the .vpx): call off the main thread. Never throws.
     /// </summary>
-    public static Image? Load(string videoFolder, string vpxPath)
+    public static Image? Load(string videoFolder, string vpxPath, CancellationToken stop = default)
     {
         var cache = Path.Combine(videoFolder, FileName);
         try
@@ -128,6 +128,12 @@ public static class PlayfieldDepth
                 // Unreadable (left over from a crash): made again below.
             }
             var map = VpxCabinet.HeightMap(vpxPath);
+            if (stop.IsCancellationRequested)
+            {
+                // The lobby is closing: the .vpx read took long (the unhurried warm-up on a hard drive), and the engine
+                // mustn't shut down under this thread's Image calls. Built on a later run.
+                return null;
+            }
             if (map == null || map.Coverage < 0.03f)
             {
                 return null;

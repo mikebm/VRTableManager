@@ -41,7 +41,7 @@ public partial class PlayfieldVideo : Node
             {
                 if (
                     vpxPath != null
-                    && PlayfieldDepth.Load(folder, vpxPath) is { } h
+                    && PlayfieldDepth.Load(folder, vpxPath, LobbyWork.Closing) is { } h
                     && !ct.IsCancellationRequested
                 )
                 {
