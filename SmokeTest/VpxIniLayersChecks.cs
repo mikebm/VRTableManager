@@ -348,6 +348,64 @@ static class VpxIniLayersChecks
                 )
             );
 
+            // A VR override put back to VPX's default during VR play (VPX writes an empty value): that wins over the
+            // player's own value from then on, in VR only, until VR play gives it a value again.
+            var vrIniBefore = File.ReadAllBytes(VpxSetup.VrIniPath(s));
+            (string, string) leftFlipper = ("Input", "Mapping.LeftFlipper");
+            IniFile.SetMany(VpxSetup.VrIniPath(s), "Input", [("Mapping.LeftFlipper", "Key;7")]);
+            var resetPlay = VpxIniLayers.Build(s, vr: true);
+            var resetStarted = IniFile.Read(resetPlay.Path).GetValueOrDefault(leftFlipper);
+            IniFile.SetMany(resetPlay.Path, "Input", [("Mapping.LeftFlipper", "")]);
+            var resetKept = resetPlay.SaveBack();
+            var resetPlayed = IniFile
+                .Read(VpxIniLayers.Build(s, vr: true).Path)
+                .GetValueOrDefault(leftFlipper);
+            var resetVr = VpxIniLayers.Effective(s, vr: true).GetValueOrDefault(leftFlipper);
+            var resetDesktop = VpxIniLayers.Effective(s, vr: false).GetValueOrDefault(leftFlipper);
+            var againPlay = VpxIniLayers.Build(s, vr: true);
+            IniFile.SetMany(againPlay.Path, "Input", [("Mapping.LeftFlipper", "Key;5")]);
+            againPlay.SaveBack();
+            var again = VpxIniLayers.Effective(s, vr: true).GetValueOrDefault(leftFlipper);
+            var notesCleared = IniFile
+                .ReadSection(VpxSetup.VrIniPath(s), "VrTableManager.Defaults")
+                .All(kv => kv.Value == "");
+            File.WriteAllBytes(VpxSetup.VrIniPath(s), vrIniBefore);
+            results.Add(
+                (
+                    resetStarted == "Key;7"
+                        && resetKept == 1
+                        && resetPlayed == ""
+                        && resetVr == ""
+                        && resetDesktop == "SDL.Pad;4"
+                        && again == "Key;5"
+                        && notesCleared
+                        && File.ReadAllBytes(own).SequenceEqual(ownBefore),
+                    "layers: a setting put back to VPX's default during play stays at the default in that mode, over the player's own value, until it's given a value again"
+                )
+            );
+
+            // VPX also empties a value it finds at its default. One from the player's own file, or one set for that
+            // launch only, isn't noted as a choice: the player's file still decides next time.
+            var quietPlay = VpxIniLayers.Build(
+                s,
+                vr: true,
+                extra: [("PlayerVR", "AddBackglass", "0")]
+            );
+            IniFile.SetMany(quietPlay.Path, "PlayerVR", [("AddBackglass", "")]);
+            IniFile.SetMany(quietPlay.Path, "Player", [("AAFactor", "")]); // 1.5 in the player's file
+            quietPlay.SaveBack();
+            var quietNotes = IniFile.ReadSection(VpxSetup.VrIniPath(s), "VrTableManager.Defaults");
+            var quietAa = VpxIniLayers
+                .Effective(s, vr: true)
+                .GetValueOrDefault(("Player", "AAFactor"));
+            File.WriteAllBytes(VpxSetup.VrIniPath(s), vrIniBefore);
+            results.Add(
+                (
+                    quietNotes.Count == 0 && quietAa == "1.5",
+                    "layers: an emptied value that came from the player's own file or from the launch itself isn't kept as a reset to VPX's default"
+                )
+            );
+
             // No VPinballX.ini in the preferences folder: VPX uses the one beside the exe.
             File.Delete(own);
             results.Add(

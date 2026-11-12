@@ -126,7 +126,7 @@ public static class VpxInput
         );
         if (changes.Count > 0)
         {
-            IniFile.SetMany(vrIni, Section, changes);
+            VpxIniLayers.SetOverrides(vrIni, Section, changes);
         }
 
         var mapped = changes.Count(c =>

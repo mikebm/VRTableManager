@@ -12,7 +12,9 @@ namespace VrTableManager.Services;
 /// only with the VR graphics switched off, when it holds the graphics VR play uses),</item>
 /// <item>the overrides for the mode: <c>VrTableManager-VR.ini</c> or <c>VrTableManager-Desktop.ini</c> beside VPX.
 /// Only keys with a value count; VPX writes an empty value for anything left at its default, so the VR file from
-/// before this change works as an override file as it is.</item>
+/// before this change works as an override file as it is. A setting the file had a value for that's put back to VPX's
+/// default during play in that mode is noted in the file's own section, so the default wins there
+/// (<see cref="DefaultsSection"/>).</item>
 /// </list>
 /// The result goes to <c>…-VR.play.ini</c> / <c>…-Desktop.play.ini</c>, which VPX runs with (<c>-Ini</c>). Whatever
 /// VPX changed in it during play (the in-game menu, lining the table up in VR) is saved into that mode's overrides
@@ -52,7 +54,12 @@ public static class VpxIniLayers
             candidates.AddRange(
                 Directory
                     .EnumerateDirectories(prefs)
-                    .OrderByDescending(Path.GetFileName, StringComparer.Ordinal)
+                    // By version, not as text: "10.10" is newer than "10.8".
+                    .OrderByDescending(d =>
+                        Version.TryParse(Path.GetFileName(d), out var folderVersion)
+                            ? folderVersion
+                            : new Version(0, 0)
+                    )
                     .Select(d => Path.Combine(d, "VPinballX.ini"))
             );
         }
@@ -80,14 +87,92 @@ public static class VpxIniLayers
     static IEnumerable<KeyValuePair<(string Section, string Key), string>> Overrides(
         AppSettings s,
         bool vr
+    )
+    {
+        var file = IniFile.Read(OverridePath(s, vr));
+        bool Counts((string Section, string Key) k) =>
+            !NotSettings.Contains(k.Section, StringComparer.OrdinalIgnoreCase)
+            && !k.Section.Equals(DefaultsSection, StringComparison.OrdinalIgnoreCase)
+            && (!vr || s.UseVrGraphics || !VpxGraphics.IsGraphicsKey(k));
+        foreach (var kv in file)
+        {
+            if (kv.Value != "" && Counts(kv.Key))
+            {
+                yield return kv;
+            }
+        }
+
+        // Set back to VPX's default in this mode: empty, over what the player's own file has. A value set since wins.
+        foreach (var k in DefaultKeys(file))
+        {
+            if (Counts(k) && string.IsNullOrEmpty(file.GetValueOrDefault(k)))
+            {
+                yield return new(k, "");
+            }
+        }
+    }
+
+    /// <summary>
+    /// The override file's own section listing settings it had a value for that were put back to VPX's default during
+    /// play in that mode, as <c>Section/Key = 1</c>. Any write of the setting by the manager (<see cref="SetOverrides"/>)
+    /// takes the note away; so does deleting its line. An empty value is no override (VPX writes one for everything at its default), so
+    /// without this a setting the player's VPinballX.ini has a value for couldn't be put back to the default there.
+    /// VPX ignores the section, and it never reaches the play file.
+    /// </summary>
+    const string DefaultsSection = "VrTableManager.Defaults";
+
+    static string DefaultsKey(string section, string key) => section + "/" + key;
+
+    /// <summary>
+    /// Writes settings into an override file as the manager means them: a value is an override, and an empty value is
+    /// none, so the player's own VPinballX.ini decides again. A note that the setting was put back to VPX's default
+    /// during play (<see cref="DefaultsSection"/>) goes with either; otherwise a reset would leave it at the default.
+    /// </summary>
+    public static void SetOverrides(
+        string overridePath,
+        string section,
+        IEnumerable<(string Key, string Value)> values
+    )
+    {
+        var list = values.ToList();
+        IniFile.SetMany(overridePath, section, list);
+        var noted = IniFile
+            .ReadSection(overridePath, DefaultsSection)
+            .Where(d => d.Value != "")
+            .Select(d => d.Key)
+            .ToHashSet(StringComparer.OrdinalIgnoreCase);
+        var cleared = list.Select(v => DefaultsKey(section, v.Key))
+            .Where(noted.Contains)
+            .Select(k => (k, ""))
+            .ToList();
+        if (cleared.Count > 0)
+        {
+            IniFile.SetMany(overridePath, DefaultsSection, cleared);
+        }
+    }
+
+    /// <summary>The settings this override file puts back to VPX's default (<see cref="DefaultsSection"/>) and hasn't given a value since.</summary>
+    internal static HashSet<(string Section, string Key)> SetToDefault(string overridePath)
+    {
+        var file = IniFile.Read(overridePath);
+        return DefaultKeys(file)
+            .Where(k => string.IsNullOrEmpty(file.GetValueOrDefault(k)))
+            .ToHashSet(IniFile.SectionKeyComparer.Instance);
+    }
+
+    static IEnumerable<(string Section, string Key)> DefaultKeys(
+        Dictionary<(string Section, string Key), string> file
     ) =>
-        IniFile
-            .Read(OverridePath(s, vr))
-            .Where(kv =>
-                kv.Value != ""
-                && !NotSettings.Contains(kv.Key.Section, StringComparer.OrdinalIgnoreCase)
-                && (!vr || s.UseVrGraphics || !VpxGraphics.IsGraphicsKey(kv.Key))
-            );
+        file.Where(kv =>
+                kv.Key.Section.Equals(DefaultsSection, StringComparison.OrdinalIgnoreCase)
+                && kv.Value == "1"
+                && kv.Key.Key.IndexOf('/') > 0
+            )
+            .Select(kv =>
+            {
+                var at = kv.Key.Key.IndexOf('/');
+                return (kv.Key.Key[..at], kv.Key.Key[(at + 1)..]);
+            });
 
     /// <summary>
     /// What a table does when its play is saved back (<see cref="Build"/>). <see cref="NotKept"/> runs first and
@@ -129,22 +214,29 @@ public static class VpxIniLayers
             File.WriteAllText(path, "");
         }
 
+        var overrides = Overrides(s, vr).ToList();
         foreach (
-            var section in Overrides(s, vr)
-                .GroupBy(kv => kv.Key.Section, StringComparer.OrdinalIgnoreCase)
+            var section in overrides.GroupBy(kv => kv.Key.Section, StringComparer.OrdinalIgnoreCase)
         )
         {
             IniFile.SetMany(path, section.Key, section.Select(kv => (kv.Key.Key, kv.Value)));
         }
 
-        foreach (
-            var section in Forced(s, vr)
-                .Concat(extra ?? [])
-                .GroupBy(e => e.Section, StringComparer.OrdinalIgnoreCase)
-        )
+        var launch = Forced(s, vr).Concat(extra ?? []).ToList();
+        foreach (var section in launch.GroupBy(e => e.Section, StringComparer.OrdinalIgnoreCase))
         {
             IniFile.SetMany(path, section.Key, section.Select(e => (e.Key, e.Value)));
         }
+
+        // The keys this launch plays with the override's own value (not one for this launch only): only those can be
+        // put back to VPX's default by the player as far as the override file is concerned (see SaveBack).
+        var launchOnly = launch
+            .Select(e => (e.Section, e.Key))
+            .ToHashSet(IniFile.SectionKeyComparer.Instance);
+        var overridden = overrides
+            .Where(kv => kv.Value != "" && !launchOnly.Contains(kv.Key))
+            .Select(kv => kv.Key)
+            .ToHashSet(IniFile.SectionKeyComparer.Instance);
 
         return new Play(
             path,
@@ -156,7 +248,9 @@ public static class VpxIniLayers
             // goes back into their VPinballX.ini, as it would outside the manager, and not into the panel's settings
             // (it would replace them when switched back on).
             graphicsToOwn: vr && !s.UseVrGraphics,
-            ownPath: BasePath(s)
+            ownPath: BasePath(s),
+            overridden: overridden,
+            launchOnly: launchOnly
         );
     }
 
@@ -186,7 +280,9 @@ public static class VpxIniLayers
         (string Section, string Key)[] notKept,
         AfterPlay? afterPlay = null,
         bool graphicsToOwn = false,
-        string? ownPath = null
+        string? ownPath = null,
+        IReadOnlySet<(string Section, string Key)>? overridden = null,
+        IReadOnlySet<(string Section, string Key)>? launchOnly = null
     )
     {
         public string Path { get; } = path;
@@ -243,6 +339,11 @@ public static class VpxIniLayers
                             && k.Key.Equals(c.Key, StringComparison.OrdinalIgnoreCase)
                         )
                     )
+                    // A value set for this launch only (Forced, extra) that VPX emptied because it's VPX's default
+                    // isn't a change of the player's: it mustn't empty what the override file holds for that key.
+                    .Where(c =>
+                        !(c.Value == "" && launchOnly?.Contains((c.Section, c.Key)) == true)
+                    )
                     .ToList();
                 var toOwn = graphicsToOwn
                     ? changed.Where(c => VpxGraphics.IsGraphicsKey((c.Section, c.Key))).ToList()
@@ -255,11 +356,21 @@ public static class VpxIniLayers
                     )
                 )
                 {
-                    IniFile.SetMany(
-                        overridePath,
-                        section.Key,
-                        section.Select(c => (c.Key, c.Value))
-                    );
+                    // Clears any note for these keys (DefaultsSection); a reset to the default is noted again below.
+                    SetOverrides(overridePath, section.Key, section.Select(c => (c.Key, c.Value)));
+                }
+
+                // A setting the override gave a value of its own, which VPX now leaves empty: the player put it back
+                // to VPX's default in this mode. Noted, so the default keeps winning over the player's own file
+                // (DefaultsSection). Only those: VPX also empties a value it finds at its default, so one from the
+                // player's own file or set for this launch only (Forced, extra) emptied isn't a choice to keep.
+                var notes = toOverrides
+                    .Where(c => c.Value == "" && overridden?.Contains((c.Section, c.Key)) == true)
+                    .Select(c => (DefaultsKey(c.Section, c.Key), "1"))
+                    .ToList();
+                if (notes.Count > 0)
+                {
+                    IniFile.SetMany(overridePath, DefaultsSection, notes);
                 }
 
                 // Last, and on its own: the player's file may be read-only or open elsewhere, and that mustn't lose

@@ -241,22 +241,28 @@ public static class VpxKeyMap
     )
     {
         var values = IniFile.Read(VpxIniLayers.OverridePath(s, vr));
+        // Put back to VPX's default in this mode during play: the mode uses the default, not the player's file.
+        var setToDefault = VpxIniLayers.SetToDefault(VpxIniLayers.OverridePath(s, vr));
+        bool Pinned(string m) => setToDefault.Contains((VpxInput.Section, "Mapping." + m));
         var before = VpxIniLayers.Effective(s, vr);
         var changes = new List<(string Key, string Value)>();
         var leader = Value(values, control.Mapping);
-        if (leader != "")
+        if (leader != "" || Pinned(control.Mapping))
         {
             changes.Add(("Mapping." + control.Mapping, WithKey(leader, sdl)));
         }
 
-        // What the mode uses once both files are written: the override's value, else the player's new or old one.
+        // What the mode uses once both files are written: the override's value (empty: VPX's default, when it was
+        // put back to it), else the player's new or old one.
         string After(string m)
         {
             var key = "Mapping." + m;
             var own = Value(values, m);
-            return own != "" ? own
-                : ownChanges.FirstOrDefault(c => c.Key.Equals(key, StringComparison.OrdinalIgnoreCase)) is
-                { Key: not null } c
+            return own != "" || Pinned(m) ? own
+                : ownChanges.FirstOrDefault(c =>
+                    c.Key.Equals(key, StringComparison.OrdinalIgnoreCase)
+                )
+                    is { Key: not null } c
                     ? c.Value
                 : Value(ownValues, m);
         }
@@ -273,13 +279,20 @@ public static class VpxKeyMap
             {
                 // Following: the key, keeping the mode's other bindings. Not following: pin what it had.
                 changes.Add(
-                    ("Mapping." + m, followed ? WithKey(was, sdl) : was != "" ? was : $"Key;{def}")
+                    (
+                        "Mapping." + m,
+                        followed ? WithKey(was, sdl)
+                        : was != "" ? was
+                        : $"Key;{def}"
+                    )
                 );
             }
         }
 
         // The mode's device list once the player's file is written, which the override's own list replaces.
-        var modeDevices = Devices(values) is { Length: > 0 } d ? d : ownDevicesFixed ?? Devices(ownValues);
+        var modeDevices = Devices(values) is { Length: > 0 } d
+            ? d
+            : ownDevicesFixed ?? Devices(ownValues);
         if (WithKeyboard(modeDevices) is { } fixedDevices)
         {
             changes.Add(("Devices", fixedDevices));
@@ -297,9 +310,7 @@ public static class VpxKeyMap
     /// </summary>
     static string? WithKeyboard(string devices) =>
         devices != ""
-        && !devices
-            .Split(';')
-            .Any(d => d.Trim().Equals("Key", StringComparison.OrdinalIgnoreCase))
+        && !devices.Split(';').Any(d => d.Trim().Equals("Key", StringComparison.OrdinalIgnoreCase))
             ? "Key;" + devices
             : null;
 
@@ -334,7 +345,10 @@ public static class VpxKeyMap
     )
     {
         var leader = value(control.Mapping);
-        var result = new List<(string, string)> { ("Mapping." + control.Mapping, WithKey(leader, sdl)) };
+        var result = new List<(string, string)>
+        {
+            ("Mapping." + control.Mapping, WithKey(leader, sdl)),
+        };
         var leaderKeys = EffectiveKeys(leader, control.DefaultKey);
         if (leaderKeys.Count == 0)
         {
@@ -361,7 +375,7 @@ public static class VpxKeyMap
             foreach (var (file, changes) in writes.Where(w => w.Changes.Count > 0))
             {
                 var before = File.Exists(file) ? File.ReadAllBytes(file) : null;
-                IniFile.SetMany(file, VpxInput.Section, changes);
+                VpxIniLayers.SetOverrides(file, VpxInput.Section, changes); // the player's own file has no notes
                 written.Add((file, before));
             }
         }

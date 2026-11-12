@@ -500,7 +500,8 @@ public sealed partial class MainViewModel
             "Go back to the default VR fit?",
             $"Every table gets a real cabinet's lockbar ({VrFit.Format(VrFit.StandardLockbarHeight, FitUseInches)} high), "
                 + $"your eyes {VrFit.FormatEyes(VrFit.StandardEyesBehind, FitUseInches)} behind it, at its real size, "
-                + "and the table goes back straight ahead. Forgets the values you set here and any position set in the headset.",
+                + "and the table goes back straight ahead, unless your own VPinballX.ini sets them. "
+                + "Forgets the values you set here and any position set in the headset.",
             ["RESET", "CANCEL"]
         );
         if (pick != 0)
@@ -629,8 +630,9 @@ public sealed partial class MainViewModel
     async Task ResetVrViewAsync()
     {
         var pick = await _ui.ChoiceAsync(
-            "Put the table back where VPX starts it?",
-            "Forgets the position, height and turn you set in the headset. You can line it up again with the left thumbstick click while playing.",
+            "Forget the position you set in the headset?",
+            "Forgets the position, height and turn you set in the headset, so the table goes back to where VR play starts it "
+                + "(your own VPinballX.ini still counts). You can line it up again with the left thumbstick click while playing.",
             ["RESET", "CANCEL"]
         );
         if (pick != 0)

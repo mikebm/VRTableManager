@@ -482,7 +482,7 @@ public static class VpxSetup
     public static void EnsureVrIni(AppSettings s)
     {
         var ini = VrIniPath(s);
-        IniFile.Set(ini, "PlayerVR", "AskToTurnOn", "0");
+        SetOverride(ini, "PlayerVR", "AskToTurnOn", "0");
         var rate = s.VrRefreshRate switch
         {
             72 => 1,
@@ -491,7 +491,7 @@ public static class VpxSetup
             120 => 4,
             _ => 0,
         };
-        IniFile.Set(ini, "PlayerVR", "DisplayRefreshRate", rate.ToString());
+        SetOverride(ini, "PlayerVR", "DisplayRefreshRate", rate.ToString());
         SetPlugins(s, ini);
         // VPX's default backglass ([PlayerVR] AddBackglass) isn't set here: it's picked per table at launch
         // (VrBackglassFor), or left to VPX's own setting when that's turned off.
@@ -523,7 +523,7 @@ public static class VpxSetup
     public static void EnsureDesktopIni(AppSettings s)
     {
         var ini = DesktopIniPath(s);
-        IniFile.Set(ini, "PlayerVR", "AskToTurnOn", "2");
+        SetOverride(ini, "PlayerVR", "AskToTurnOn", "2");
         SetPlugins(s, ini);
     }
 
@@ -535,18 +535,22 @@ public static class VpxSetup
         var on = s.UseBuiltInPinmame ? "1" : "0";
         foreach (var plugin in BuiltInPinmamePlugins)
         {
-            IniFile.Set(ini, "Plugin." + plugin, "Enable", on);
+            SetOverride(ini, "Plugin." + plugin, "Enable", on);
         }
         // PinUP Player plugin: plays a table's pupvideos\<pack> on the backglass/DMD; tables without one are unaffected.
-        IniFile.Set(ini, "Plugin." + PupPlugin, "Enable", s.UsePupPlugin ? "1" : "0");
+        SetOverride(ini, "Plugin." + PupPlugin, "Enable", s.UsePupPlugin ? "1" : "0");
         // FlexDMD stands in for the FlexDMD/UltraDMD components many originals draw their DMD with (Jaws,
         // Mass Effect); B2S shows a table's .directb2s backglass. Set explicitly rather than left to VPX's default.
         var display = s.UseDisplayPlugins ? "1" : "0";
         foreach (var plugin in DisplayPlugins)
         {
-            IniFile.Set(ini, "Plugin." + plugin, "Enable", display);
+            SetOverride(ini, "Plugin." + plugin, "Enable", display);
         }
     }
+
+    /// <summary>One setting in an override file, taking away any note that VPX's default wins for it there.</summary>
+    static void SetOverride(string ini, string section, string key, string value) =>
+        VpxIniLayers.SetOverrides(ini, section, [(key, value)]);
 
     /// <summary>Id of VPX's PinUP Player plugin (plugins\pup\plugin.cfg).</summary>
     public const string PupPlugin = "PUP";

@@ -148,8 +148,8 @@ public static class VrFit
         {
             vr.AddRange([("TableX", ""), ("TableY", eyes), ("Orientation", "")]);
         }
-        IniFile.SetMany(vrIni, "Player", player);
-        IniFile.SetMany(vrIni, "PlayerVR", vr);
+        VpxIniLayers.SetOverrides(vrIni, "Player", player);
+        VpxIniLayers.SetOverrides(vrIni, "PlayerVR", vr);
     }
 
     /// <summary>
@@ -159,7 +159,7 @@ public static class VrFit
     /// </summary>
     public static void Reset(string vrIni)
     {
-        IniFile.SetMany(
+        VpxIniLayers.SetOverrides(
             vrIni,
             "Player",
             [
@@ -169,7 +169,7 @@ public static class VrFit
                 ("ScreenPlayerY", ""),
             ]
         );
-        IniFile.SetMany(
+        VpxIniLayers.SetOverrides(
             vrIni,
             "PlayerVR",
             [
@@ -208,8 +208,11 @@ public static class VrFit
     {
         List<(string, string, string)> extra = [];
         List<(string, string)> notKept = [];
+        // Put back to VPX's default in VR play is set, to the default (VpxIniLayers' DefaultsSection), not unset.
+        var atDefault = VpxIniLayers.SetToDefault(VpxIniLayers.OverridePath(s, vr: true));
         bool Unset(string section, string key) =>
-            string.IsNullOrWhiteSpace(vrSettings.GetValueOrDefault((section, key)));
+            string.IsNullOrWhiteSpace(vrSettings.GetValueOrDefault((section, key)))
+            && !atDefault.Contains((section, key));
 
         if (!s.VrFitSaved)
         {
@@ -359,13 +362,28 @@ public static class VrFit
         Dictionary<(string Section, string Key), string> vrSettings,
         AppSettings s
     ) =>
-        Value(vrSettings, "LockbarHeight", s.VrFitSaved ? VpxLockbarHeight : StandardLockbarHeight);
+        Value(
+            vrSettings,
+            "LockbarHeight",
+            s.VrFitSaved || AtVpxDefault(s, "LockbarHeight")
+                ? VpxLockbarHeight
+                : StandardLockbarHeight
+        );
 
     /// <summary>The eye distance VR play uses on recenter, like <see cref="LockbarHeight"/>.</summary>
     public static double EyesBehind(
         Dictionary<(string Section, string Key), string> vrSettings,
         AppSettings s
-    ) => Value(vrSettings, "ScreenPlayerY", s.VrFitSaved ? VpxEyesBehind : StandardEyesBehind);
+    ) =>
+        Value(
+            vrSettings,
+            "ScreenPlayerY",
+            s.VrFitSaved || AtVpxDefault(s, "ScreenPlayerY") ? VpxEyesBehind : StandardEyesBehind
+        );
+
+    /// <summary>A [Player] setting put back to VPX's default in VR play, which launches leave at that default (see <see cref="LaunchSettings"/>).</summary>
+    static bool AtVpxDefault(AppSettings s, string key) =>
+        VpxIniLayers.SetToDefault(VpxIniLayers.OverridePath(s, vr: true)).Contains(("Player", key));
 
     /// <summary>What VR play will use now, as one line for the Setup tab.</summary>
     public static string Describe(

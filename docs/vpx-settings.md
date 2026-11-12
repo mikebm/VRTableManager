@@ -50,6 +50,15 @@ AAFactor = 0.8
 
 To go back to your own value for a setting, empty it (`AAFactor = `) or delete the line.
 
+One exception: if the VR or desktop file had a value for a setting and you put it back to its default in VPX's own menu during play, the manager remembers that, so VPX's default keeps winning over your own value in that mode. It's noted at the end of the file:
+
+```ini
+[VrTableManager.Defaults]
+Player/AAFactor = 1
+```
+
+Delete that line (or the whole section) to bring your own value back. Changing the setting from the Setup tab, or in VPX's menu during play, also clears it. A value you type into the file by hand wins while it's there, but emptying it again brings back VPX's default until you delete the line.
+
 Some settings are best changed from the Setup tab instead, because the manager writes them before every launch. If you edit one of these by hand, your value is replaced at the next launch:
 
 - `[PlayerVR] AskToTurnOn`

@@ -172,10 +172,7 @@ public sealed record VpxGraphics
             ("Sharpen", Sharpen.ToString()),
             ("ShowFPS", FpsOverlay.ToString()),
         };
-        foreach (var (k, v) in values)
-        {
-            IniFile.Set(iniPath, "Player", k, v);
-        }
+        VpxIniLayers.SetOverrides(iniPath, "Player", values);
     }
 
     // ---- Per-table render scale -----------------------------------------------------
@@ -365,11 +362,11 @@ public static class MetaAsw
         try
         {
             await File.WriteAllTextAsync(script, $"server: {cmd}\nexit\n");
+            // Its output isn't read, so it isn't redirected either: a pipe nobody empties would stall the tool once full.
             var psi = new ProcessStartInfo(ToolPath)
             {
                 UseShellExecute = false,
                 CreateNoWindow = true,
-                RedirectStandardOutput = true,
             };
             psi.ArgumentList.Add("-f");
             psi.ArgumentList.Add(script);
@@ -437,5 +434,5 @@ public sealed record VrView(double? X, double? Y, double? Z, double? Orientation
     }
 
     public static void Reset(string iniPath) =>
-        IniFile.SetMany(iniPath, "PlayerVR", Keys.Select(k => (k, "")));
+        VpxIniLayers.SetOverrides(iniPath, "PlayerVR", Keys.Select(k => (k, "")));
 }
