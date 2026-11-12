@@ -211,9 +211,7 @@ public sealed partial class MainViewModel
     IReadOnlyList<(MediaPackAudio.Source Source, bool WheelPack)> WheelArtSourcesFor(
         InstalledTable t
     ) =>
-        t.HasOwnFolder
-        && t.Manifest.GameId != ""
-        && CatalogGame(t.Manifest.GameId) is { } game
+        t.HasOwnFolder && t.Manifest.GameId != "" && CatalogGame(t.Manifest.GameId) is { } game
             ? WheelArt.SourcesFor(game)
             : [];
 
