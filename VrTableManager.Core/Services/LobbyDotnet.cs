@@ -289,17 +289,17 @@ public static class LobbyDotnet
             return true;
         }
 
+        // Both paths always in quotes, written out here: ArgumentList quotes only paths with a space, and cmd reads an
+        // unquoted "&" or "^" (allowed in user and folder names, as in C:\Users\Tom&Jerry) as its own. Neither path
+        // can hold a quote, and cmd keeps quotes after /c when the line doesn't start with one.
         var psi = new ProcessStartInfo("cmd.exe")
         {
+            Arguments = $"/d /c mklink /J \"{link}\" \"{target}\"",
             UseShellExecute = false,
             CreateNoWindow = true,
             RedirectStandardOutput = true,
             RedirectStandardError = true,
         };
-        foreach (var a in new[] { "/d", "/c", "mklink", "/J", link, target })
-        {
-            psi.ArgumentList.Add(a);
-        }
 
         using var p = Process.Start(psi);
         if (p == null)

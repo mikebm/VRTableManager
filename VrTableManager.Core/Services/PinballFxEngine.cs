@@ -424,42 +424,71 @@ public class ZenUevrEngine(ZenGame game) : IPinballEngine
             );
         }
 
-        Process.Start(new ProcessStartInfo(found.LaunchUri) { UseShellExecute = true });
-
-        // The store launcher starts the real game process; wait for it to appear.
-        var deadline = DateTime.UtcNow.AddMinutes(3);
         Process? running = null;
-        while (running == null && DateTime.UtcNow < deadline)
+        try
         {
-            running = Process.GetProcessesByName(processName).FirstOrDefault();
+            Process
+                .Start(new ProcessStartInfo(found.LaunchUri) { UseShellExecute = true })
+                ?.Dispose();
+
+            // The store launcher starts the real game process; wait for it to appear.
+            var deadline = DateTime.UtcNow.AddMinutes(3);
+            while (running == null && DateTime.UtcNow < deadline)
+            {
+                var all = Process.GetProcessesByName(processName);
+                running = all.FirstOrDefault();
+                foreach (var other in all.Skip(1))
+                {
+                    other.Dispose();
+                }
+
+                if (running == null)
+                {
+                    await Task.Delay(1000, ct);
+                }
+            }
             if (running == null)
             {
-                await Task.Delay(1000, ct);
+                throw new TimeoutException($"{Game.Title} didn't start within 3 minutes.");
             }
-        }
-        if (running == null)
-        {
-            CloseQuietly(injector);
-            throw new TimeoutException($"{Game.Title} didn't start within 3 minutes.");
-        }
 
-        // UEVR's injector stays open after injecting; close it when the game exits.
-        // (Own Process handle: the caller disposes the one we return.)
-        if (injector != null)
-        {
-            var watch = Process.GetProcessById(running.Id);
-            _ = watch
-                .WaitForExitAsync()
-                .ContinueWith(
-                    _ =>
+            // UEVR's injector stays open after injecting; close it when the game exits. (Own Process handle: the
+            // caller disposes the one we return.) In --play mode a foreground thread: the launcher returns once the
+            // game exits, and its process would end before a background one closed the injector, leaving it to inject
+            // into the next start of the game, VR or not. In the manager a background one, so closing the manager
+            // closes it rather than keeping it running, with no window, until the game exits.
+            if (injector != null)
+            {
+                var watch = Process.GetProcessById(running.Id); // throws when the game has already gone
+                var closing = injector;
+                new Thread(() =>
+                {
+                    using (watch)
                     {
-                        CloseQuietly(injector);
-                        watch.Dispose();
-                    },
-                    TaskScheduler.Default
-                );
+                        watch.WaitForExit();
+                    }
+
+                    CloseQuietly(closing);
+                    closing.Dispose();
+                })
+                {
+                    IsBackground = !PlaySession.IsPlayCommand(
+                        Environment.GetCommandLineArgs()[1..]
+                    ),
+                    Name = "Close UEVR injector",
+                }.Start();
+                injector = null; // the thread has it now
+            }
+            return running;
         }
-        return running;
+        catch
+        {
+            // Failed or cancelled, or the game closed at once: the injector mustn't keep waiting for it.
+            running?.Dispose();
+            CloseQuietly(injector);
+            injector?.Dispose();
+            throw;
+        }
     }
 
     static void CloseQuietly(Process? p)

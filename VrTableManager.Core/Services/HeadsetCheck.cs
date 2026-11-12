@@ -35,44 +35,103 @@ public static class HeadsetCheck
             return new(HeadsetState.Unknown, "Headset check is Windows-only.");
         }
 
-        var loader = FindLoader(s);
-        if (loader == null)
-        {
-            return new(HeadsetState.Unknown, "No OpenXR loader found (install VPX first).");
-        }
-
-        // Some runtimes (SteamVR) start up on first contact, which can take a while; don't hang on it.
-        var work = Task.Run(() => Query(loader));
+        // Looking for the loader touches the disk too, so it's off the caller's (UI) thread with the rest. Some
+        // runtimes (SteamVR) start up on first contact, which can take a while; don't hang on it.
+        var work = Task.Run(() =>
+            FindLoader(s) is { } loader
+                ? Query(loader)
+                : new(HeadsetState.Unknown, "No OpenXR loader found (install VPX first).")
+        );
         var done = await Task.WhenAny(work, Task.Delay(timeout));
         return done == work
             ? work.Result
             : new(HeadsetState.Unknown, "The VR runtime didn't answer in time.");
     }
 
+    /// <summary>Folders the loader never ships in, and that can hold thousands of files (tables, PuP videos, ROMs).</summary>
+    static readonly HashSet<string> NotLoaderFolders = new(StringComparer.OrdinalIgnoreCase)
+    {
+        "Tables",
+        "pupvideos",
+        "VPinMAME",
+        "pinmame",
+        "roms",
+        "Music",
+        "medias",
+        "cache",
+        "user",
+        "scripts",
+        "altsound",
+        "altcolor",
+    };
+
+    /// <summary>
+    /// The OpenXR loader from VPX or UEVR: beside the exe, else a few folders down (VPX keeps it in its own folder,
+    /// UEVR builds in a subfolder), leaving out folders of tables and media. Null when there's none. Never throws.
+    /// </summary>
     public static string? FindLoader(AppSettings s)
     {
         string[] names = ["openxr_loader64.dll", "openxr_loader.dll"];
         foreach (var dir in new[] { s.VpxDir, s.UevrDir })
         {
-            if (string.IsNullOrWhiteSpace(dir) || !Directory.Exists(dir))
+            try
             {
-                continue;
+                if (string.IsNullOrWhiteSpace(dir) || !Directory.Exists(dir))
+                {
+                    continue;
+                }
+
+                foreach (var n in names)
+                {
+                    if (Find(dir, n, depth: 3) is { } hit)
+                    {
+                        return hit;
+                    }
+                }
+            }
+            catch (Exception e)
+                when (e is IOException or UnauthorizedAccessException or ArgumentException)
+            {
+                // an unreadable or odd folder: try the next one
+            }
+        }
+        return null;
+
+        // The folder itself first, then its subfolders, at most `depth` deep; unreadable ones are skipped.
+        static string? Find(string dir, string name, int depth)
+        {
+            var file = Path.Combine(dir, name);
+            if (File.Exists(file))
+            {
+                return file;
             }
 
-            foreach (var n in names)
+            if (depth == 0)
+            {
+                return null;
+            }
+
+            IEnumerable<string> subs;
+            try
+            {
+                subs = Directory.EnumerateDirectories(dir).ToList();
+            }
+            catch (Exception e) when (e is IOException or UnauthorizedAccessException)
+            {
+                return null;
+            }
+            foreach (var sub in subs)
             {
                 if (
-                    Directory
-                        .EnumerateFiles(dir, n, SearchOption.AllDirectories)
-                        .FirstOrDefault() is
-                    { } hit
+                    !NotLoaderFolders.Contains(Path.GetFileName(sub))
+                    && Find(sub, name, depth - 1) is { } hit
                 )
                 {
                     return hit;
                 }
             }
+            return null;
         }
-        return null;
     }
 
     // ---- OpenXR, just enough for xrCreateInstance / xrGetSystem / xrDestroyInstance ----
