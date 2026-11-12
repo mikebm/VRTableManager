@@ -54,6 +54,11 @@ public static class PinmameInfo
 
         lock (RomAudio.OneAtATime)
         {
+            if (RomAudio.Stuck)
+            {
+                return result; // a recording's PinMAME never stopped: as if there were none to ask
+            }
+
             try
             {
                 var lib = NativeLibrary.Load(dll);

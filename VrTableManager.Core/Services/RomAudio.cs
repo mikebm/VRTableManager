@@ -23,6 +23,9 @@ public static partial class RomAudio
 
     static string NoneFor(string rom) => Path.Combine(CacheDir, rom.ToLowerInvariant() + ".none");
 
+    /// <summary>Left when a ROM's PinMAME didn't stop after recording and gave no sound: it isn't tried again.</summary>
+    static string StuckFor(string rom) => Path.Combine(CacheDir, rom.ToLowerInvariant() + ".stuck");
+
     /// <summary>The ROM this table loads, if it's in the table's pinmame/roms folder.</summary>
     public static string? RomOf(InstalledTable table) =>
         table.IsVpx
@@ -37,7 +40,10 @@ public static partial class RomAudio
 
     /// <summary>True when this table has a ROM that hasn't been recorded (or tried) yet.</summary>
     public static bool NeedsRecording(InstalledTable table) =>
-        RomOf(table) is { } rom && !File.Exists(FileFor(rom)) && !File.Exists(NoneFor(rom));
+        RomOf(table) is { } rom
+        && !File.Exists(FileFor(rom))
+        && !File.Exists(NoneFor(rom))
+        && !File.Exists(StuckFor(rom));
 
     public static string PinmameDll(AppSettings settings) =>
         Path.Combine(settings.VpxDir, "plugins", "pinmame", "pinmame64.dll");
@@ -62,7 +68,7 @@ public static partial class RomAudio
     )
     {
         var rom = RomOf(table);
-        if (rom == null || !File.Exists(pinmameDll))
+        if (rom == null || !File.Exists(pinmameDll) || File.Exists(StuckFor(rom)))
         {
             return null;
         }
@@ -87,6 +93,7 @@ public static partial class RomAudio
                 File.Copy(zip, Path.Combine(roms, Path.GetFileName(zip)));
             }
 
+            var wasStuck = _stuck;
             var (samples, channels, rate) = Run(
                 pinmameDll,
                 scratch + Path.DirectorySeparatorChar,
@@ -98,6 +105,18 @@ public static partial class RomAudio
             var clip = Clip(samples, channels, rate);
             if (clip == null)
             {
+                if (_stuck && !wasStuck)
+                {
+                    // This ROM's PinMAME wouldn't stop and gave nothing: remembered, so the next lobby run (a new
+                    // process) doesn't spend another 50 s on it.
+                    File.WriteAllText(StuckFor(rom), "");
+                    return null;
+                }
+                if (_stuck)
+                {
+                    return null; // an earlier ROM's PinMAME is still running: not this ROM's fault
+                }
+
                 log?.Invoke(
                     $"{rom}: nothing to keep ({samples.Length / Math.Max(1, channels) / (double)rate:F1} s recorded)"
                 );
@@ -323,6 +342,15 @@ public static partial class RomAudio
     /// <summary>libpinmame has one global state: one user at a time (also <see cref="PinmameInfo"/>).</summary>
     internal static readonly object OneAtATime = new();
 
+    /// <summary>A recording's PinMAME didn't stop: nothing more is recorded in this process.</summary>
+    static volatile bool _stuck;
+
+    /// <summary>A recording's PinMAME didn't stop in this process: PinMAME can't be used again until it ends.</summary>
+    internal static bool Stuck => _stuck;
+
+    /// <summary>The callbacks of a PinMAME that didn't stop, which it may still call.</summary>
+    static readonly List<Delegate> KeptAlive = [];
+
     [StructLayout(LayoutKind.Sequential, CharSet = CharSet.Ansi)]
     struct Config
     {
@@ -408,6 +436,11 @@ public static partial class RomAudio
     {
         lock (OneAtATime)
         {
+            if (_stuck)
+            {
+                return ([], 1, SampleRate);
+            }
+
             var lib = NativeLibrary.Load(dll);
             T Fn<T>(string name) =>
                 Marshal.GetDelegateForFunctionPointer<T>(NativeLibrary.GetExport(lib, name));
@@ -523,6 +556,16 @@ public static partial class RomAudio
             }
             finally
             {
+                if (isRunning() != 0)
+                {
+                    // Still running: PinMAME keeps calling these, so they must never be collected, and the one
+                    // PinMAME this process has can't be set up for another ROM.
+                    _stuck = true;
+                    KeptAlive.AddRange([onAvailable, onUpdated, onDisplay, isKeyPressed]);
+                    log?.Invoke(
+                        $"{rom}: PinMAME didn't stop; no more recordings until the app restarts"
+                    );
+                }
                 GC.KeepAlive(onAvailable);
                 GC.KeepAlive(onUpdated);
                 GC.KeepAlive(onDisplay);
