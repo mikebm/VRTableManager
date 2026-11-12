@@ -1814,6 +1814,13 @@ public sealed partial class MainViewModel : ObservableObject, IAsyncDisposable
                         _ =>
                         {
                             TrySaveStats(st => st.AddTime(path, DateTime.Now - started));
+                            if (item.Table.IsVpx)
+                            {
+                                VpxIniLayers.Finish(running); // waits for the save back, so the panels read it
+                                Avalonia.Threading.Dispatcher.UIThread.Post(() =>
+                                    ShowVpxSettingsAfterPlay(item)
+                                );
+                            }
                             running.Dispose();
                         },
                         TaskScheduler.Default
@@ -1831,9 +1838,7 @@ public sealed partial class MainViewModel : ObservableObject, IAsyncDisposable
             {
                 // Save what VPX changed now, not on the background wait, so the panel and card show it.
                 VpxIniLayers.Finish(proc);
-                RefreshControls(); // keys remapped in VPX's menu are saved only now, after the window came back
-                LoadVrView(); // VPX saves the table position when it closes
-                item.TableVrHeight = VrFit.ReadTableHeight(item.Table.TablePath);
+                ShowVpxSettingsAfterPlay(item);
             }
 
             await ExplainVpxExitAsync(item, started);
@@ -1855,6 +1860,18 @@ public sealed partial class MainViewModel : ObservableObject, IAsyncDisposable
 
             _ui.ShowAfterPlay();
         }
+    }
+
+    /// <summary>
+    /// After a VPX table closes and what it changed is saved: the Setup panels show it without a restart. Keys
+    /// remapped in VPX's menu, graphics changed in its F12 menu (LoadGraphics also reloads the table position, which
+    /// VPX saves when it closes), and this table's own VR height.
+    /// </summary>
+    void ShowVpxSettingsAfterPlay(InstalledItem item)
+    {
+        RefreshControls();
+        LoadGraphics();
+        item.TableVrHeight = VrFit.ReadTableHeight(item.Table.TablePath);
     }
 
     static string MetaLinkApp =>
