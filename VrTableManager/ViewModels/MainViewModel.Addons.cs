@@ -42,7 +42,7 @@ public sealed partial class MainViewModel
         if (
             !Addons.CanHold(t, Settings)
             || t.Manifest.GameId == ""
-            || _allGames.FirstOrDefault(g => g.Id == t.Manifest.GameId) is not { } game
+            || CatalogGame(t.Manifest.GameId) is not { } game
         )
         {
             return [];

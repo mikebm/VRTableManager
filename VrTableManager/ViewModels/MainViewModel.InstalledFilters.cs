@@ -68,14 +68,19 @@ public sealed partial class MainViewModel
     Dictionary<string, VpsGame> _gamesById = [];
     List<VpsGame>? _gamesByIdFor;
 
-    VpsGame? CatalogGameOf(InstalledItem i)
+    VpsGame? CatalogGameOf(InstalledItem i) => CatalogGame(i.Table.Manifest.GameId);
+
+    /// <summary>
+    /// The catalog game with this id (the first, if listed twice), or null. A dictionary, rebuilt when the catalog
+    /// is: a rescan asks this several times per table, and walking a catalog of thousands each time adds up.
+    /// </summary>
+    VpsGame? CatalogGame(string id)
     {
         if (!ReferenceEquals(_gamesByIdFor, _allGames))
         {
             _gamesById = _allGames.GroupBy(g => g.Id).ToDictionary(g => g.Key, g => g.First());
             _gamesByIdFor = _allGames;
         }
-        var id = i.Table.Manifest.GameId;
         return id != "" && _gamesById.TryGetValue(id, out var g) ? g : null;
     }
 

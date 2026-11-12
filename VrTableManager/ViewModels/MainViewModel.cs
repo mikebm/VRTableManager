@@ -782,7 +782,7 @@ public sealed partial class MainViewModel : ObservableObject, IAsyncDisposable
             return null;
         }
 
-        var game = _allGames.FirstOrDefault(g => g.Id == t.Manifest.GameId);
+        var game = CatalogGame(t.Manifest.GameId);
         bool Matches(VpsFile r, string name) =>
             string.Equals(r.Version, name, StringComparison.OrdinalIgnoreCase)
             && UsableRomUrl(r) != null;
@@ -814,7 +814,7 @@ public sealed partial class MainViewModel : ObservableObject, IAsyncDisposable
             return false;
         }
 
-        var game = _allGames.FirstOrDefault(g => g.Id == t.Manifest.GameId);
+        var game = CatalogGame(t.Manifest.GameId);
         return string.Equals(
                 t.Manifest.Manufacturer ?? game?.Manufacturer,
                 "Stern",
@@ -828,7 +828,7 @@ public sealed partial class MainViewModel : ObservableObject, IAsyncDisposable
     /// <summary>The catalog's links to Stern's game code search, or a search by the machine's name.</summary>
     List<string> SternSearchUrls(InstalledTable t)
     {
-        var game = _allGames.FirstOrDefault(g => g.Id == t.Manifest.GameId);
+        var game = CatalogGame(t.Manifest.GameId);
         var urls = (game?.RomFiles ?? [])
             .SelectMany(r => r.Urls ?? [])
             .Where(u => !u.Broken && SternGameCode.IsSternUrl(u.Url))
@@ -3077,7 +3077,7 @@ public sealed partial class MainViewModel : ObservableObject, IAsyncDisposable
         )
         {
             var m = item.Table.Manifest;
-            var game = m.GameId == "" ? null : _allGames.FirstOrDefault(g => g.Id == m.GameId);
+            var game = CatalogGame(m.GameId);
             item.Rules = RuleSheets
                 .LinksFor(game?.Name ?? m.GameName, game?.Year ?? m.Year, game, _primer)
                 .Select(l => new RuleChoice(item, l.Label, l.Url))

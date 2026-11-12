@@ -11,7 +11,7 @@ public sealed partial class MainViewModel
     IReadOnlyList<MediaPackAudio.Source> AttractAudioSourcesFor(InstalledTable t) =>
         t.IsVpx
         && t.Manifest.GameId != ""
-        && _allGames.FirstOrDefault(g => g.Id == t.Manifest.GameId) is { } game
+        && CatalogGame(t.Manifest.GameId) is { } game
             ? MediaPackAudio.SourcesFor(game)
             : [];
 
