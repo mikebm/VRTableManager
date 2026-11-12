@@ -463,7 +463,9 @@ public sealed partial class InstalledItem : ObservableObject
     public AddonSlot Pup { get; }
     public AddonSlot Colour { get; }
     public AddonSlot Sound { get; }
-    public IReadOnlyList<AddonSlot> Addons => [Pup, Colour, Sound];
+
+    // Made once: a new list on every read would rebuild each card's add-on buttons whenever a rescan refreshes it.
+    public IReadOnlyList<AddonSlot> Addons => field ??= [Pup, Colour, Sound];
 
     /// <summary>Where to read the rules (set by the view model): The Pinball Primer, then instruction cards.</summary>
     [ObservableProperty, NotifyPropertyChangedFor(nameof(HasRules))]

@@ -206,10 +206,13 @@ public sealed class AppSettings
     {
         get
         {
-            var dir = Path.Combine(
-                Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData),
-                "VrTableManager"
-            );
+            // VRTM_DATA_DIR (for testing): a whole other set of settings, stats and caches, e.g. a big fake library.
+            var dir = Environment.GetEnvironmentVariable("VRTM_DATA_DIR") is { Length: > 0 } other
+                ? Path.GetFullPath(other) // the app and the lobby it starts agree, whatever their working folder
+                : Path.Combine(
+                    Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData),
+                    "VrTableManager"
+                );
             Directory.CreateDirectory(dir);
             return dir;
         }

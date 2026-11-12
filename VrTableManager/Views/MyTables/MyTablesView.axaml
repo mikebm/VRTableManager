@@ -5,6 +5,7 @@
              xmlns:v="using:VrTableManager.Views"
              xmlns:services="using:VrTableManager.Services"
              xmlns:mt="using:VrTableManager.Views.MyTables"
+             xmlns:sh="using:VrTableManager.Views.Shared"
              x:Class="VrTableManager.Views.MyTables.MyTablesView"
              x:DataType="vm:MainViewModel">
   <!-- Everything above the cards stays put; only the cards scroll. -->
@@ -113,14 +114,24 @@
     <!-- A–Z rail: a letter jumps to its first table, as in the VR lobby (only while the list is A–Z). -->
     <ItemsControl DockPanel.Dock="Right" Classes="letterRail" Margin="0,8,6,8"
                   x:Name="InstalledLetterRail" ItemsSource="{Binding InstalledLetters}" IsVisible="{Binding ShowInstalledLetters}" />
+    <!-- Cards in rows (CardRows, set in code: as many across as fit), and only the rows on screen are built. -->
     <ScrollViewer x:Name="InstalledScroll">
-      <ItemsControl x:Name="InstalledGrid" ItemsSource="{Binding Installed}" Margin="28,8,28,28">
+      <ItemsControl x:Name="InstalledGrid" Margin="28,8,28,28">
         <ItemsControl.ItemsPanel>
-          <ItemsPanelTemplate><WrapPanel /></ItemsPanelTemplate>
+          <ItemsPanelTemplate><VirtualizingStackPanel /></ItemsPanelTemplate>
         </ItemsControl.ItemsPanel>
         <ItemsControl.ItemTemplate>
-          <DataTemplate x:DataType="vm:InstalledItem">
-            <mt:TableCard />
+          <DataTemplate x:DataType="sh:CardRow">
+            <ItemsControl ItemsSource="{Binding Items}">
+              <ItemsControl.ItemsPanel>
+                <ItemsPanelTemplate><StackPanel Orientation="Horizontal" /></ItemsPanelTemplate>
+              </ItemsControl.ItemsPanel>
+              <ItemsControl.ItemTemplate>
+                <DataTemplate x:DataType="vm:InstalledItem">
+                  <mt:TableCard />
+                </DataTemplate>
+              </ItemsControl.ItemTemplate>
+            </ItemsControl>
           </DataTemplate>
         </ItemsControl.ItemTemplate>
       </ItemsControl>

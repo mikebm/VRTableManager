@@ -20,6 +20,7 @@ public sealed class LetterRail
     readonly Func<string, object?> _firstAt;
     readonly Func<bool> _shown;
     readonly Action<IReadOnlySet<string>> _light;
+    readonly CardRows? _rows;
     bool _queued;
 
     /// <param name="rail">The rail's ItemsControl of <see cref="LetterChoice"/> buttons.</param>
@@ -30,6 +31,7 @@ public sealed class LetterRail
     /// <param name="light">Lights these letters and no others.</param>
     /// <param name="items">The grid's items: a change looks at the letters again.</param>
     /// <param name="owner">Raises <paramref name="shownProperty"/> when the rail shows or hides.</param>
+    /// <param name="rows">When the grid shows these rows of cards (virtualized) rather than the cards themselves.</param>
     public LetterRail(
         ItemsControl rail,
         ItemsControl grid,
@@ -39,9 +41,11 @@ public sealed class LetterRail
         Action<IReadOnlySet<string>> light,
         INotifyCollectionChanged items,
         INotifyPropertyChanged owner,
-        string shownProperty
+        string shownProperty,
+        CardRows? rows = null
     )
     {
+        _rows = rows;
         _grid = grid;
         _scroll = scroll;
         _firstAt = firstAt;
@@ -75,6 +79,12 @@ public sealed class LetterRail
             return;
         }
 
+        if (_rows != null)
+        {
+            JumpToRow(item);
+            return;
+        }
+
         _grid.UpdateLayout(); // cards a page just added need their place before it's measured
         if (
             _grid.ContainerFromItem(item) is { } card
@@ -87,6 +97,41 @@ public sealed class LetterRail
     }
 
     /// <summary>
+    /// Virtualized rows: the row isn't built until it's near the screen, so bring it in first, then put its top at
+    /// the top. Rows above it may only now be measured, which moves it, so it's placed again once they are.
+    /// </summary>
+    void JumpToRow(object item)
+    {
+        _rows!.Rebuild(); // the list may have just changed: rows as they are now
+        var r = _rows.RowOf(item);
+        if (r < 0 || _scroll.Content is not Visual content)
+        {
+            return;
+        }
+
+        _grid.ScrollIntoView(r);
+        for (var pass = 0; pass < 3; pass++)
+        {
+            _grid.UpdateLayout();
+            if (
+                _grid.ContainerFromIndex(r) is not { } row
+                || row.TranslatePoint(default, content) is not { } at
+            )
+            {
+                return;
+            }
+
+            var y = Math.Max(0, at.Y - 8);
+            if (Math.Abs(y - _scroll.Offset.Y) < 1)
+            {
+                return;
+            }
+
+            _scroll.Offset = new Vector(_scroll.Offset.X, y);
+        }
+    }
+
+    /// <summary>
     /// Lights the letters of the cards on screen: every card at least half showing. Cards are laid out in list
     /// order, row by row, so two binary searches find the first and last of them however long the list is.
     /// </summary>
@@ -94,6 +139,12 @@ public sealed class LetterRail
     {
         if (!_shown() || _scroll.Content is not Visual content)
         {
+            return;
+        }
+
+        if (_rows != null)
+        {
+            TrackRows(content);
             return;
         }
 
@@ -149,6 +200,48 @@ public sealed class LetterRail
         }
         _light(letters);
     }
+
+    /// <summary>Virtualized rows: only the rows built are near the screen, so look at those whose middle is showing.</summary>
+    void TrackRows(Visual content)
+    {
+        var top = _scroll.Offset.Y;
+        var bottom = top + _scroll.Viewport.Height;
+        var letters = new HashSet<string>();
+        foreach (var row in _grid.GetRealizedContainers())
+        {
+            if (
+                !row.IsVisible
+                || _grid.ItemFromContainer(row) is not CardRow cards
+                || row.TranslatePoint(default, content) is not { } at
+            )
+            {
+                continue;
+            }
+
+            var middle = at.Y + row.Bounds.Height / 2;
+            if (middle < top || middle > bottom)
+            {
+                continue;
+            }
+
+            foreach (var i in cards.Items)
+            {
+                if (TitleOf(i) is { } title)
+                {
+                    letters.Add(LobbyNav.LetterOf(title));
+                }
+            }
+        }
+        _light(letters);
+    }
+
+    static string? TitleOf(object? item) =>
+        item switch
+        {
+            InstalledItem t => t.Title,
+            GameItem g => g.Title,
+            _ => null,
+        };
 
     /// <summary>One look once layout has caught up, however many cards a refill adds one by one.</summary>
     void TrackSoon()

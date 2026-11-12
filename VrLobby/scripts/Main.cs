@@ -1521,14 +1521,9 @@ public partial class Main : Node3D
         }
         else
         {
-            // Too few to go round: the other end slides in from the side we're heading.
-            var wrapped = to - _lap * n != t;
+            // Too few to go round (the same table would stand twice): the ring turns back across the few there are,
+            // smoothly, rather than every cabinet jumping to the other side in one frame.
             Select(t);
-            if (wrapped)
-            {
-                _scroll = Target - Math.Sign(steps);
-                Layout();
-            }
         }
     }
 
