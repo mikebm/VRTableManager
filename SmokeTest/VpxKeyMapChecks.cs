@@ -245,6 +245,109 @@ static class VpxKeyMapChecks
                     == "Key;SDLJoy_x_1",
                 "keymap: VR only adds the keyboard to the device list VR play uses"
             );
+
+            // ADD: one more key, the ones it had still working.
+            yield return (
+                VpxKeyMap.WithAddedKey("", 225, 29) == "Key;225 | Key;29"
+                    && VpxKeyMap.WithAddedKey("Key;4 | OpenXR;16", 225, 29)
+                        == "Key;4 | OpenXR;16 | Key;29"
+                    && VpxKeyMap.WithAddedKey("Key;4", 225, 4) == "Key;4",
+                "keymap: an added key keeps the keys (VPX's default one too) and the VR controller"
+            );
+            yield return (
+                VpxKeyMap.WithDefaultKey("Key;4 | OpenXR;16", 225) == "Key;225 | OpenXR;16"
+                    && VpxKeyMap.WithDefaultKey("Key;4 | Key;5", 225) == "",
+                "keymap: a reset keeps other bindings, and with none it's VPX's default (empty)"
+            );
+
+            File.WriteAllText(
+                own,
+                "[Input]\nDevices = Key\nMapping.LeftFlipper = Key;4\nMapping.LeftStagedFlipper = Key;4\nMapping.UILeft = Key;4\n"
+            );
+            File.Delete(vrIni);
+            VpxKeyMap.Add(s, "LeftFlipper", 29, ControlsTarget.Everywhere);
+            yield return (
+                Get(own, "LeftFlipper") == "Key;4 | Key;29"
+                    && Get(own, "LeftStagedFlipper") == "Key;4 | Key;29"
+                    && Get(own, "UILeft") == "Key;4 | Key;29",
+                "keymap: ADD for desktop and VR gives the flipper and its followers the second key"
+            );
+
+            VpxKeyMap.Reset(s, "LeftFlipper", ControlsTarget.Everywhere);
+            yield return (
+                Get(own, "LeftFlipper") == ""
+                    && Get(own, "LeftStagedFlipper") == ""
+                    && Get(own, "UILeft") == "",
+                "keymap: RESET for desktop and VR puts the flipper and its followers back to VPX's default"
+            );
+
+            // VR only, with the player's own key: the VR file empties it and notes VPX's default, so it doesn't come back.
+            File.WriteAllText(own, "[Input]\nDevices = Key\nMapping.Start = Key;31\n");
+            VpxKeyMap.Set(s, "Start", 5, ControlsTarget.VrOnly);
+            VpxKeyMap.Reset(s, "Start", ControlsTarget.VrOnly);
+            yield return (
+                Get(vrIni, "Start") == ""
+                    && VpxKeyMap
+                        .EffectiveKeys(
+                            VpxKeyMap.Value(VpxIniLayers.Effective(s, vr: true), "Start"),
+                            30
+                        )
+                        .SequenceEqual([30])
+                    && VpxKeyMap.Value(VpxIniLayers.Effective(s, vr: false), "Start") == "Key;31",
+                "keymap: RESET for VR only gives VR play VPX's default key, and desktop keeps the player's"
+            );
+            VpxKeyMap.Set(s, "Start", 6, ControlsTarget.VrOnly);
+            yield return (
+                VpxKeyMap.Value(VpxIniLayers.Effective(s, vr: true), "Start") == "Key;6",
+                "keymap: setting a key after a reset takes the default note away"
+            );
+
+            // RESET everywhere, with a VR follower that followed there but not in the player's file: VR play gets the
+            // follower's default (noted, as the player's own key would come back), desktop keeps the player's.
+            File.WriteAllText(
+                own,
+                "[Input]\nDevices = Key\nMapping.LeftFlipper = Key;4\nMapping.LeftStagedFlipper = Key;7\n"
+            );
+            File.WriteAllText(
+                vrIni,
+                "[Input]\nDevices = Key;OpenXR\nMapping.LeftStagedFlipper = Key;4\n"
+            );
+            VpxKeyMap.Reset(s, "LeftFlipper", ControlsTarget.Everywhere);
+            var vrReset = VpxIniLayers.Effective(s, vr: true);
+            var deskReset = VpxIniLayers.Effective(s, vr: false);
+            yield return (
+                Get(vrIni, "LeftStagedFlipper") == ""
+                    && VpxKeyMap
+                        .EffectiveKeys(VpxKeyMap.Value(vrReset, "LeftStagedFlipper"), 225)
+                        .SequenceEqual([225])
+                    && VpxKeyMap.Value(deskReset, "LeftStagedFlipper") == "Key;7"
+                    && VpxKeyMap.Value(deskReset, "LeftFlipper") == "",
+                "keymap: RESET everywhere resets a VR follower that followed there, and a desktop one on another key stays"
+            );
+
+            // ADD of a key the mode already uses (its VPX default, here) writes nothing.
+            File.WriteAllText(own, "[Input]\nDevices = Key\nMapping.Start = Key;31\n");
+            File.WriteAllText(vrIni, "[Input]\nDevices = Key;OpenXR\n");
+            var vrBeforeAdd = File.ReadAllText(vrIni);
+            var addStatus = VpxKeyMap.Add(s, "Start", 31, ControlsTarget.VrOnly);
+            yield return (
+                File.ReadAllText(vrIni) == vrBeforeAdd && addStatus.Contains("already"),
+                "keymap: ADD of a key the action already has changes no file"
+            );
+
+            // RESET keeps a controller binding next to the default key, and the device list gets the keyboard.
+            File.WriteAllText(
+                own,
+                "[Input]\nDevices = SDLJoy_x_1\nMapping.LeftFlipper = Key;4 | SDLJoy_x_1;3\n"
+            );
+            File.Delete(vrIni);
+            VpxKeyMap.Reset(s, "LeftFlipper", ControlsTarget.Everywhere);
+            yield return (
+                Get(own, "LeftFlipper") == "Key;225 | SDLJoy_x_1;3"
+                    && IniFile.Read(own).GetValueOrDefault((VpxInput.Section, "Devices"))
+                        == "Key;SDLJoy_x_1",
+                "keymap: RESET keeps a gamepad binding and makes sure the keyboard is in the device list"
+            );
         }
         finally
         {

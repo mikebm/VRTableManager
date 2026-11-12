@@ -14,7 +14,7 @@
           <TextBlock Classes="eyebrow" Text="03 · PINBALL" />
           <TextBlock Classes="display" FontSize="42" Text="Controls" />
           <TextBlock Classes="body" TextWrapping="Wrap"
-                     Text="The keyboard keys VPX uses for each action, set here instead of in VPX's in-game menu. Click SET, then press the key. Buttons on the VR controllers, a gamepad or a cabinet board stay mapped as they are." />
+                     Text="The keyboard keys VPX uses for each action, set here instead of in VPX's in-game menu. Click SET and press a key to make it the action's key, ADD to give it another key as well, or RESET for VPX's default. Buttons on the VR controllers, a gamepad or a cabinet board stay mapped as they are." />
         </StackPanel>
 
         <Border Classes="panel" IsVisible="{Binding !ControlsSupported}">
@@ -50,9 +50,19 @@
                       <TextBlock Grid.Column="1" Text="{Binding DesktopKeys}" VerticalAlignment="Center" TextWrapping="Wrap" />
                       <TextBlock Grid.Column="2" Text="{Binding VrKeys}" VerticalAlignment="Center" TextWrapping="Wrap" />
                       <Panel Grid.Column="3">
-                        <Button Classes="small" Content="SET" IsVisible="{Binding !IsCapturing}"
-                                Command="{ReflectionBinding $parent[ItemsControl].DataContext.CaptureKeyCommand}" CommandParameter="{Binding}" />
+                        <StackPanel Orientation="Horizontal" Spacing="6" IsVisible="{Binding !IsCapturing}">
+                          <Button Classes="small" Content="SET"
+                                  ToolTip.Tip="Press a key: it becomes this action's only keyboard key. VR controller, gamepad and cabinet buttons stay."
+                                  Command="{ReflectionBinding $parent[ItemsControl].DataContext.CaptureKeyCommand}" CommandParameter="{Binding}" />
+                          <Button Classes="small" Content="ADD"
+                                  ToolTip.Tip="Press a key: it works for this action as well as the keys it has."
+                                  Command="{ReflectionBinding $parent[ItemsControl].DataContext.AddKeyCommand}" CommandParameter="{Binding}" />
+                          <Button Classes="small" Content="RESET"
+                                  ToolTip.Tip="Back to VPX's default key, where Save keys for points. VR controller, gamepad and cabinet buttons stay."
+                                  Command="{ReflectionBinding $parent[ItemsControl].DataContext.ResetKeyCommand}" CommandParameter="{Binding}" />
+                        </StackPanel>
                         <Button Classes="small" Content="PRESS A KEY…" Foreground="{StaticResource Lamp}" IsVisible="{Binding IsCapturing}"
+                                ToolTip.Tip="Click to cancel"
                                 Command="{ReflectionBinding $parent[ItemsControl].DataContext.CaptureKeyCommand}" CommandParameter="{Binding}" />
                       </Panel>
                     </Grid>

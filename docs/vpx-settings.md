@@ -111,7 +111,13 @@ VR play uses the controls from your own `VPinballX.ini` until the VR file has ma
 
 ### Setting keys on the Setup tab
 
-Setup → **Controls** lists VPX's actions (flippers, magna-saves, plunger, Start, coins, nudge and tilt, Exit, the in-game menu, Align VR view…) with the key each one has in desktop play and in VR play. Click **SET** and press a key. This needs VPX 10.8.1 or later.
+Setup → **Controls** lists VPX's actions (flippers, magna-saves, plunger, Start, coins, nudge and tilt, Exit, the in-game menu, Align VR view…) with the key each one has in desktop play and in VR play. This needs VPX 10.8.1 or later. Each row has three buttons:
+
+- **SET**: press a key, and it becomes the action's only keyboard key.
+- **ADD**: press a key, and it works for the action as well as the keys it already has (VPX's default one included). For example, ADD on Left flipper with Z gives "Left Shift / Z".
+- **RESET**: the action's keyboard key goes back to VPX's default. VR controller, gamepad and cabinet bindings stay, as do key combinations. If the action has none of those, its mapping is emptied, which is VPX's own default. If that empties a mapping in the VR or desktop file while your own `VPinballX.ini` has one for the action, the manager also notes it in that file (`[VrTableManager.Defaults]`, see above), so your own key doesn't come back in that mode.
+
+All three only change keyboard keys. To give an action a second button on a gamepad, a cabinet board or the VR controllers, use VPX's own input menu.
 
 **Save keys for** picks where the key goes:
 
@@ -121,7 +127,7 @@ Setup → **Controls** lists VPX's actions (flippers, magna-saves, plunger, Star
 | VR play only | `VrTableManager-VR.ini` | VR play. Your `VPinballX.ini` isn't changed. |
 | Desktop play only | `VrTableManager-Desktop.ini` | Desktop play. Your `VPinballX.ini` isn't changed. |
 
-A new key replaces the keyboard keys for that action only. Bindings on the VR controllers, a gamepad or a cabinet board stay, as do key combinations. The staged flipper and the in-game menu's navigation keys move with the flipper or magna-save key they share, unless you gave them a different key. If another action already uses the key, the page says so; VPX allows it, but it's usually a mistake. Gamepad and cabinet-board buttons are still mapped in VPX's own menu.
+A key set with SET replaces the keyboard keys for that action only. Bindings on the VR controllers, a gamepad or a cabinet board stay, as do key combinations. The staged flipper and the in-game menu's navigation keys move with the flipper or magna-save key they share (for SET, ADD and RESET), unless you gave them a different key. If another action already uses the key, the page says so; VPX allows it, but it's usually a mistake. Gamepad and cabinet-board buttons are still mapped in VPX's own menu.
 
 ## Backups
 

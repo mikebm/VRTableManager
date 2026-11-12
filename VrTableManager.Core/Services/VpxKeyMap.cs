@@ -112,6 +112,51 @@ public static class VpxKeyMap
             new[] { $"Key;{sdl}" }.Concat(Alternatives(mapping).Where(a => KeyOf(a) is null))
         );
 
+    /// <summary>
+    /// The mapping with <paramref name="sdl"/> added as one more key: its keys (VPX's default one, when it's empty)
+    /// still work, as does everything else in it. Unchanged when it already has that key.
+    /// </summary>
+    public static string WithAddedKey(string? mapping, int defaultKey, int sdl)
+    {
+        if (EffectiveKeys(mapping, defaultKey).Contains(sdl))
+        {
+            return mapping ?? "";
+        }
+
+        var alternatives = string.IsNullOrWhiteSpace(mapping)
+            ? [$"Key;{defaultKey}"]
+            : Alternatives(mapping);
+        return string.Join(" | ", alternatives.Append($"Key;{sdl}"));
+    }
+
+    /// <summary>
+    /// The mapping with VPX's default key as its only key, keeping the other alternatives (VR controllers, gamepads,
+    /// cabinet boards, key combinations). Empty (VPX's default) when nothing else is left.
+    /// </summary>
+    public static string WithDefaultKey(string? mapping, int defaultKey) =>
+        WithKey(mapping, defaultKey) is var m && m == $"Key;{defaultKey}" ? "" : m;
+
+    /// <summary>What a key change on the Setup tab does to an action's keyboard keys.</summary>
+    internal enum KeyEdit
+    {
+        /// <summary>The pressed key becomes its only key.</summary>
+        Replace,
+
+        /// <summary>The pressed key works as well as the ones it has.</summary>
+        Add,
+
+        /// <summary>Back to VPX's default key.</summary>
+        Reset,
+    }
+
+    static string Apply(KeyEdit edit, string? mapping, int defaultKey, int sdl) =>
+        edit switch
+        {
+            KeyEdit.Add => WithAddedKey(mapping, defaultKey, sdl),
+            KeyEdit.Reset => WithDefaultKey(mapping, defaultKey),
+            _ => WithKey(mapping, sdl),
+        };
+
     /// <summary>"Left Shift", "Left Shift (default)", "Z + VR controller", "Left Alt+1"… for the Setup tab.</summary>
     public static string Describe(string? mapping, int defaultKey)
     {
@@ -163,32 +208,86 @@ public static class VpxKeyMap
     }
 
     /// <summary>
-    /// Sets the key for one action in the settings <paramref name="target"/> names, and moves the mappings that follow
-    /// it (<see cref="Followers"/>) along when they had the same keys. Every file is worked out before any is written,
-    /// and if one can't be written the ones already written are put back. Returns a line for the Setup tab.
+    /// Sets the key for one action in the settings <paramref name="target"/> names: it becomes the action's only
+    /// keyboard key. The mappings that follow it (<see cref="Followers"/>) move along when they had the same keys.
+    /// Every file is worked out before any is written, and if one can't be written the ones already written are put
+    /// back. Returns a line for the Setup tab.
     /// </summary>
     /// <exception cref="InvalidOperationException">There's no VPinballX.ini of the player's to write into.</exception>
-    public static string Set(AppSettings s, string mapping, int sdl, ControlsTarget target)
+    public static string Set(AppSettings s, string mapping, int sdl, ControlsTarget target) =>
+        Edit(s, mapping, sdl, target, KeyEdit.Replace);
+
+    /// <summary>As <see cref="Set"/>, but the key works as well as the ones the action has.</summary>
+    /// <exception cref="InvalidOperationException">There's no VPinballX.ini of the player's to write into.</exception>
+    public static string Add(AppSettings s, string mapping, int sdl, ControlsTarget target) =>
+        Edit(s, mapping, sdl, target, KeyEdit.Add);
+
+    /// <summary>
+    /// Puts the action's keyboard key back to VPX's default in the settings <paramref name="target"/> names (its
+    /// followers too, when they had the same keys). Other bindings stay; with none, the mapping is emptied, so it's
+    /// VPX's own default. For VR or desktop only, that's noted in the override file, so the player's own mapping
+    /// doesn't come back in that mode.
+    /// </summary>
+    /// <exception cref="InvalidOperationException">There's no VPinballX.ini of the player's to write into.</exception>
+    public static string Reset(AppSettings s, string mapping, ControlsTarget target) =>
+        Edit(s, mapping, 0, target, KeyEdit.Reset);
+
+    sealed record Write(string File, List<(string Key, string Value)> Changes, List<string> Pins);
+
+    static string Edit(AppSettings s, string mapping, int sdl, ControlsTarget target, KeyEdit edit)
     {
         var control = Controls.First(c =>
             c.Mapping.Equals(mapping, StringComparison.OrdinalIgnoreCase)
         );
-        var writes = new List<(string File, List<(string Key, string Value)> Changes)>();
-        string done;
+        var writes = new List<Write>();
+        // ADD of a key the action already has wherever it applies: nothing to write (writing the mode's mapping into
+        // its override would stop later changes to the player's own file reaching that mode).
+        if (edit == KeyEdit.Add)
+        {
+            bool[] modes = target switch
+            {
+                ControlsTarget.VrOnly => [true],
+                ControlsTarget.DesktopOnly => [false],
+                _ => [false, true],
+            };
+            if (
+                modes.All(vr =>
+                    EffectiveKeys(
+                            Value(VpxIniLayers.Effective(s, vr), control.Mapping),
+                            control.DefaultKey
+                        )
+                        .Contains(sdl)
+                )
+            )
+            {
+                return $"{control.Label} already works with {KeyName(sdl)}.";
+            }
+        }
+
+        // Every edit may leave a keyboard key (a reset keeps other bindings next to the default key), so the device
+        // list gets the keyboard if it leaves it out, as for SET.
+        string where;
         if (target is ControlsTarget.VrOnly or ControlsTarget.DesktopOnly)
         {
             // The mode's whole mapping (the player's own, or the override's) goes into the override.
             var vr = target == ControlsTarget.VrOnly;
             var effective = VpxIniLayers.Effective(s, vr);
             string Mode(string m) => Value(effective, m);
-            var changes = Changes(Mode, control, sdl);
+            var changes = Changes(Mode, control, edit, sdl);
             if (WithKeyboard(Devices(effective)) is { } devices)
             {
                 changes.Add(("Devices", devices));
             }
 
-            writes.Add((VpxIniLayers.OverridePath(s, vr), changes));
-            done = $"✓ {control.Label} is {KeyName(sdl)} in {(vr ? "VR" : "desktop")} play.";
+            var ownValues = VpxIniLayers.BasePath(s) is { } b ? IniFile.Read(b) : IniFile.Read("");
+            writes.Add(
+                new(
+                    VpxIniLayers.OverridePath(s, vr),
+                    changes,
+                    Pins(changes, key => ownValues.GetValueOrDefault((VpxInput.Section, key)) ?? "")
+                )
+            );
+            where = vr ? "in VR play" : "in desktop play";
         }
         else
         {
@@ -201,70 +300,94 @@ public static class VpxKeyMap
 
             var ownValues = IniFile.Read(own);
             string Own(string m) => Value(ownValues, m);
-            var ownChanges = Changes(Own, control, sdl);
+            var ownChanges = Changes(Own, control, edit, sdl);
             var ownDevices = WithKeyboard(Devices(ownValues));
             if (ownDevices != null)
             {
                 ownChanges.Add(("Devices", ownDevices));
             }
 
-            writes.Add((own, ownChanges));
+            writes.Add(new(own, ownChanges, []));
             foreach (var vr in new[] { true, false })
             {
                 writes.Add(
-                    (
-                        VpxIniLayers.OverridePath(s, vr),
-                        ModeChanges(s, vr, ownValues, ownChanges, ownDevices, control, sdl)
-                    )
+                    ModeChanges(s, vr, ownValues, ownChanges, ownDevices, control, edit, sdl)
                 );
             }
-            done = $"✓ {control.Label} is {KeyName(sdl)} in desktop and VR play (saved in {own}).";
+            where = $"in desktop and VR play (saved in {own})";
         }
 
         WriteAll(writes);
-        return done;
+        return edit switch
+        {
+            KeyEdit.Add => $"✓ {control.Label} also works with {KeyName(sdl)} {where}.",
+            KeyEdit.Reset =>
+                $"✓ {control.Label} is back to VPX's default key ({KeyName(control.DefaultKey)}) {where}.",
+            _ => $"✓ {control.Label} is {KeyName(sdl)} {where}.",
+        };
     }
 
     /// <summary>
+    /// The mappings an override empties while the layer under it (<paramref name="below"/>) has a value: an empty
+    /// value is no override, so they're noted as put back to VPX's default instead.
+    /// </summary>
+    static List<string> Pins(
+        List<(string Key, string Value)> changes,
+        Func<string, string> below
+    ) =>
+        changes
+            .Where(c =>
+                c.Value == ""
+                && c.Key.StartsWith("Mapping.", StringComparison.OrdinalIgnoreCase)
+                && below(c.Key) != ""
+            )
+            .Select(c => c.Key)
+            .ToList();
+
+    /// <summary>
     /// "Desktop and VR": what one mode's override needs so that, with the player's own file changed, the mode ends up
-    /// as if the key were set in it: the leader gets the key even where the override has its own mapping, followers
+    /// as if the change were made in it: the leader gets it even where the override has its own mapping, followers
     /// that followed in this mode (by what it used before) get it too, and followers that didn't keep what they had.
     /// </summary>
-    static List<(string Key, string Value)> ModeChanges(
+    static Write ModeChanges(
         AppSettings s,
         bool vr,
         Dictionary<(string Section, string Key), string> ownValues,
         List<(string Key, string Value)> ownChanges,
         string? ownDevicesFixed,
         Control control,
+        KeyEdit edit,
         int sdl
     )
     {
-        var values = IniFile.Read(VpxIniLayers.OverridePath(s, vr));
+        var path = VpxIniLayers.OverridePath(s, vr);
+        var values = IniFile.Read(path);
         // Put back to VPX's default in this mode during play: the mode uses the default, not the player's file.
-        var setToDefault = VpxIniLayers.SetToDefault(VpxIniLayers.OverridePath(s, vr));
+        var setToDefault = VpxIniLayers.SetToDefault(path);
         bool Pinned(string m) => setToDefault.Contains((VpxInput.Section, "Mapping." + m));
         var before = VpxIniLayers.Effective(s, vr);
         var changes = new List<(string Key, string Value)>();
         var leader = Value(values, control.Mapping);
         if (leader != "" || Pinned(control.Mapping))
         {
-            changes.Add(("Mapping." + control.Mapping, WithKey(leader, sdl)));
+            changes.Add(
+                ("Mapping." + control.Mapping, Apply(edit, leader, control.DefaultKey, sdl))
+            );
         }
+
+        // The player's own value once it's written.
+        string OwnAfter(string key) =>
+            ownChanges.FirstOrDefault(c => c.Key.Equals(key, StringComparison.OrdinalIgnoreCase))
+                is { Key: not null } c
+                ? c.Value
+                : ownValues.GetValueOrDefault((VpxInput.Section, key)) ?? "";
 
         // What the mode uses once both files are written: the override's value (empty: VPX's default, when it was
         // put back to it), else the player's new or old one.
         string After(string m)
         {
-            var key = "Mapping." + m;
             var own = Value(values, m);
-            return own != "" || Pinned(m) ? own
-                : ownChanges.FirstOrDefault(c =>
-                    c.Key.Equals(key, StringComparison.OrdinalIgnoreCase)
-                )
-                    is { Key: not null } c
-                    ? c.Value
-                : Value(ownValues, m);
+            return own != "" || Pinned(m) ? own : OwnAfter("Mapping." + m);
         }
 
         var leaderBefore = EffectiveKeys(Value(before, control.Mapping), control.DefaultKey);
@@ -274,14 +397,14 @@ public static class VpxKeyMap
             var followed =
                 leaderBefore.Count > 0
                 && EffectiveKeys(was, def).ToHashSet().SetEquals(leaderBefore);
-            var wantKeys = followed ? [sdl] : EffectiveKeys(was, def);
-            if (!EffectiveKeys(After(m), def).ToHashSet().SetEquals(wantKeys))
+            var want = followed ? Apply(edit, was, def, sdl) : was;
+            if (!EffectiveKeys(After(m), def).ToHashSet().SetEquals(EffectiveKeys(want, def)))
             {
-                // Following: the key, keeping the mode's other bindings. Not following: pin what it had.
+                // Following: the change, keeping the mode's other bindings. Not following: pin what it had.
                 changes.Add(
                     (
                         "Mapping." + m,
-                        followed ? WithKey(was, sdl)
+                        followed ? want
                         : was != "" ? was
                         : $"Key;{def}"
                     )
@@ -298,7 +421,7 @@ public static class VpxKeyMap
             changes.Add(("Devices", fixedDevices));
         }
 
-        return changes;
+        return new(path, changes, Pins(changes, OwnAfter));
     }
 
     static string Devices(IReadOnlyDictionary<(string Section, string Key), string> ini) =>
@@ -338,16 +461,17 @@ public static class VpxKeyMap
     /// <paramref name="value"/>. A follower moves when it had the same keys as the leader; a leader with no key of its
     /// own (joystick or VR controller only) moves none.
     /// </summary>
-    internal static List<(string Key, string Value)> Changes(
+    static List<(string Key, string Value)> Changes(
         Func<string, string> value,
         Control control,
+        KeyEdit edit,
         int sdl
     )
     {
         var leader = value(control.Mapping);
         var result = new List<(string, string)>
         {
-            ("Mapping." + control.Mapping, WithKey(leader, sdl)),
+            ("Mapping." + control.Mapping, Apply(edit, leader, control.DefaultKey, sdl)),
         };
         var leaderKeys = EffectiveKeys(leader, control.DefaultKey);
         if (leaderKeys.Count == 0)
@@ -360,23 +484,26 @@ public static class VpxKeyMap
             var current = value(m);
             if (EffectiveKeys(current, def).ToHashSet().SetEquals(leaderKeys))
             {
-                result.Add(("Mapping." + m, WithKey(current, sdl)));
+                result.Add(("Mapping." + m, Apply(edit, current, def, sdl)));
             }
         }
         return result;
     }
 
     /// <summary>Writes each file's changes; if one fails, the files already written are put back as they were.</summary>
-    static void WriteAll(List<(string File, List<(string Key, string Value)> Changes)> writes)
+    static void WriteAll(List<Write> writes)
     {
         var written = new List<(string File, byte[]? Before)>();
         try
         {
-            foreach (var (file, changes) in writes.Where(w => w.Changes.Count > 0))
+            foreach (var (file, changes, pins) in writes.Where(w => w.Changes.Count > 0))
             {
-                var before = File.Exists(file) ? File.ReadAllBytes(file) : null;
+                written.Add((file, File.Exists(file) ? File.ReadAllBytes(file) : null));
                 VpxIniLayers.SetOverrides(file, VpxInput.Section, changes); // the player's own file has no notes
-                written.Add((file, before));
+                if (pins.Count > 0)
+                {
+                    VpxIniLayers.NoteSetToDefault(file, VpxInput.Section, pins);
+                }
             }
         }
         catch

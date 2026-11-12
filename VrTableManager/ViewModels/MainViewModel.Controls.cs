@@ -24,6 +24,9 @@ public sealed partial class ControlRow(VpxKeyMap.Control control, bool firstInGr
     /// <summary>Waiting for the key to give this action.</summary>
     [ObservableProperty]
     public partial bool IsCapturing { get; set; }
+
+    /// <summary>While it waits: the key is added to the action's keys (ADD) rather than replacing them (SET).</summary>
+    public bool CaptureAdds { get; set; }
 }
 
 // Setup → Controls: VPX's keyboard mappings, set here instead of in VPX's in-game menu.
@@ -95,9 +98,15 @@ public sealed partial class MainViewModel
         }
     }
 
-    /// <summary>SET on a row: wait for a key (again to stop waiting).</summary>
+    /// <summary>SET on a row: wait for the key that replaces its keyboard keys (click again to stop waiting).</summary>
     [RelayCommand]
-    void CaptureKey(ControlRow row)
+    void CaptureKey(ControlRow row) => StartCapture(row, adds: false);
+
+    /// <summary>ADD on a row: wait for one more key for it, its other keys still working.</summary>
+    [RelayCommand]
+    void AddKey(ControlRow row) => StartCapture(row, adds: true);
+
+    void StartCapture(ControlRow row, bool adds)
     {
         var was = row.IsCapturing;
         foreach (var r in ControlRows)
@@ -105,10 +114,31 @@ public sealed partial class MainViewModel
             r.IsCapturing = false;
         }
 
+        row.CaptureAdds = adds;
         row.IsCapturing = !was;
-        KeyMapStatus = row.IsCapturing
-            ? $"Press the key for {row.Label}. Click SET again to cancel."
-            : "";
+        KeyMapStatus =
+            !row.IsCapturing ? ""
+            : adds ? $"Press the key to add to {row.Label}. Click the button again to cancel."
+            : $"Press the key for {row.Label}. Click the button again to cancel.";
+    }
+
+    /// <summary>RESET on a row: its keyboard key back to VPX's default, where "Save keys for" points.</summary>
+    [RelayCommand]
+    void ResetKey(ControlRow row)
+    {
+        CancelKeyCapture();
+        try
+        {
+            var target = Settings.ControlsTarget;
+            var status = VpxKeyMap.Reset(Settings, row.Control.Mapping, target);
+            KeyMapStatus = status + AlsoDoes(row, row.Control.DefaultKey, target);
+        }
+        catch (Exception e)
+        {
+            KeyMapStatus = "Couldn't reset the key: " + e.Message;
+        }
+
+        RefreshControls();
     }
 
     public void CancelKeyCapture()
@@ -134,7 +164,7 @@ public sealed partial class MainViewModel
         if (VpxKeyMap.FromCode(physicalKey) is not { } sdl)
         {
             KeyMapStatus =
-                $"VPX can't use that key ({physicalKey}). Press another, or click SET again to cancel.";
+                $"VPX can't use that key ({physicalKey}). Press another, or click the button again to cancel.";
             return true;
         }
 
@@ -142,31 +172,10 @@ public sealed partial class MainViewModel
         var target = Settings.ControlsTarget; // the saved choice, not the dropdown's index (-1 while it's torn down)
         try
         {
-            var status = VpxKeyMap.Set(Settings, row.Control.Mapping, sdl, target);
-            // The modes the key now applies in: both for "desktop and VR".
-            var modes = target switch
-            {
-                ControlsTarget.VrOnly => new[] { true },
-                ControlsTarget.DesktopOnly => [false],
-                _ => [false, true],
-            };
-            var shared = modes
-                .SelectMany(vr =>
-                    VpxKeyMap.SharedWith(
-                        VpxIniLayers.Effective(Settings, vr),
-                        row.Control.Mapping,
-                        sdl
-                    )
-                )
-                .Distinct()
-                .ToList();
-            KeyMapStatus =
-                status
-                + (
-                    shared.Count > 0
-                        ? $" {VpxKeyMap.KeyName(sdl)} also does: {string.Join(", ", shared)}."
-                        : ""
-                );
+            var status = row.CaptureAdds
+                ? VpxKeyMap.Add(Settings, row.Control.Mapping, sdl, target)
+                : VpxKeyMap.Set(Settings, row.Control.Mapping, sdl, target);
+            KeyMapStatus = status + AlsoDoes(row, sdl, target);
         }
         catch (Exception e)
         {
@@ -175,5 +184,26 @@ public sealed partial class MainViewModel
 
         RefreshControls();
         return true;
+    }
+
+    /// <summary>" Z also does: Nudge left." when other actions use the key where it now applies, else "".</summary>
+    string AlsoDoes(ControlRow row, int sdl, ControlsTarget target)
+    {
+        // The modes the key now applies in: both for "desktop and VR".
+        var modes = target switch
+        {
+            ControlsTarget.VrOnly => new[] { true },
+            ControlsTarget.DesktopOnly => [false],
+            _ => [false, true],
+        };
+        var shared = modes
+            .SelectMany(vr =>
+                VpxKeyMap.SharedWith(VpxIniLayers.Effective(Settings, vr), row.Control.Mapping, sdl)
+            )
+            .Distinct()
+            .ToList();
+        return shared.Count > 0
+            ? $" {VpxKeyMap.KeyName(sdl)} also does: {string.Join(", ", shared)}."
+            : "";
     }
 }

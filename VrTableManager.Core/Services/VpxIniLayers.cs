@@ -151,6 +151,21 @@ public static class VpxIniLayers
         }
     }
 
+    /// <summary>
+    /// Notes settings an override file empties as put back to VPX's default (<see cref="DefaultsSection"/>), so the
+    /// player's own value doesn't come back in that mode. Call it after writing their empty values.
+    /// </summary>
+    public static void NoteSetToDefault(
+        string overridePath,
+        string section,
+        IEnumerable<string> keys
+    ) =>
+        IniFile.SetMany(
+            overridePath,
+            DefaultsSection,
+            keys.Select(k => (DefaultsKey(section, k), "1"))
+        );
+
     /// <summary>The settings this override file puts back to VPX's default (<see cref="DefaultsSection"/>) and hasn't given a value since.</summary>
     internal static HashSet<(string Section, string Key)> SetToDefault(string overridePath)
     {
