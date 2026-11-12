@@ -447,6 +447,7 @@ public sealed partial class MainViewModel
         _loadingGraphics = false;
         AutoVrRoom = s.AutoVrRoom;
         LobbyRecordsRomAudio = s.LobbyRecordsRomAudio;
+        LobbyPlayfieldVideos = s.LobbyPlayfieldVideos;
         LobbyWaitsForTable = s.LobbyWaitsForTable;
         LobbyStaysOpen = s.LobbyStaysOpen;
         LobbyLoadingVideos = s.LobbyLoadingVideos;

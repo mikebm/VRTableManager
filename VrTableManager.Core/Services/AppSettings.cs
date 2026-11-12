@@ -146,6 +146,15 @@ public sealed class AppSettings
     public bool LobbyRecordsRomAudio { get; set; } = true;
 
     /// <summary>
+    /// The selected cabinet's playfield plays the table's lobby video (medias\lobby-video), with its depth map. Off:
+    /// still playfields, and the lobby never reads the videos or builds depth maps (weaker PCs, slow drives, testing).
+    /// </summary>
+    public bool LobbyPlayfieldVideos { get; set; } = true;
+
+    /// <summary>On LAUNCH VR LOBBY, offer PREPARE TABLES while many tables haven't been read for the lobby yet.</summary>
+    public bool AskToPrepareLobbyTables { get; set; } = true;
+
+    /// <summary>
     /// After you pick a table, the VR lobby stays in the headset on a loading screen until the table takes the
     /// headset over (or fails, and says why). Off: the lobby closes at once, as before, and the headset shows
     /// an empty view while the table loads. For OpenXR runtimes that won't hand the headset from one app to another.

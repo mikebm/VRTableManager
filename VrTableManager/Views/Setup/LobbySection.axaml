@@ -71,6 +71,23 @@
           </StackPanel>
         </Border>
 
+        <!-- What the lobby reads from each table file the first time it shows it, and switching off the playfield videos. -->
+        <Border Classes="panel">
+          <StackPanel Spacing="10">
+            <TextBlock Classes="h2" Text="Tables in the ring" />
+            <TextBlock Classes="muted" TextWrapping="Wrap"
+                       Text="The first time the lobby shows a table, it reads the table's file for its cabinet and playfield: a few seconds a table, longer on a hard drive. Prepare them all now and every table comes round the ring at once. Only tables not yet prepared (new or updated ones) are read again." />
+            <WrapPanel>
+              <Button Classes="small" Content="PREPARE TABLES" Margin="0,0,8,0" Command="{Binding PrepareLobbyTablesCommand}"
+                      IsEnabled="{Binding !IsPreparingLobbyTables}"
+                      ToolTip.Tip="Reads every table now, in the background: follow it under Downloads. A big library on a hard drive can take an hour or more the first time; you can keep using the app meanwhile." />
+            </WrapPanel>
+            <CheckBox IsChecked="{Binding LobbyPlayfieldVideos}"
+                      Content="Play lobby videos on the selected cabinet's playfield"
+                      ToolTip.Tip="Off: playfields stay still pictures, and the lobby neither reads the videos nor works out their depth. For slower PCs and hard drives, or to compare." />
+          </StackPanel>
+        </Border>
+
         <Border Classes="panel">
           <StackPanel Spacing="10">
             <TextBlock Classes="h2" Text="Music" />

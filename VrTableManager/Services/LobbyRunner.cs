@@ -245,6 +245,75 @@ public static class LobbyRunner
         return Process.Start(psi) ?? throw new InvalidOperationException("Godot didn't start.");
     }
 
+    /// <summary>
+    /// Runs the lobby without a window to read every table ahead of time (VrLobby's PrepareTables), handing each
+    /// line it prints to <paramref name="line"/> (off the UI thread). Below normal priority, so the PC stays usable
+    /// meanwhile. Cancelling stops it; what it finished is kept. Returns its exit code.
+    /// </summary>
+    public static async Task<int> PrepareTablesAsync(
+        string godot,
+        string lobbyDir,
+        string? dotnetRoot,
+        Action<string> line,
+        CancellationToken ct
+    )
+    {
+        var psi = new ProcessStartInfo(ConsoleExe(godot))
+        {
+            WorkingDirectory = lobbyDir,
+            UseShellExecute = false,
+            RedirectStandardOutput = true,
+            RedirectStandardError = true,
+            StandardOutputEncoding = Encoding.UTF8, // how PrepareTables writes its lines
+            CreateNoWindow = true,
+        };
+        foreach (var a in new[] { "--headless", "--path", lobbyDir, "--", "--prepare-tables" })
+        {
+            psi.ArgumentList.Add(a);
+        }
+        if (dotnetRoot != null)
+        {
+            LobbyDotnet.Apply(psi, dotnetRoot);
+        }
+
+        using var p =
+            Process.Start(psi) ?? throw new InvalidOperationException("Godot didn't start.");
+        try
+        {
+            p.PriorityClass = ProcessPriorityClass.BelowNormal;
+        }
+        catch
+        { /* already gone, or not allowed: it runs at normal priority */
+        }
+        p.OutputDataReceived += (_, e) =>
+        {
+            if (e.Data != null)
+            {
+                line(e.Data);
+            }
+        };
+        p.ErrorDataReceived += (_, _) => { }; // read, so a full error pipe can't stall it
+        p.BeginOutputReadLine();
+        p.BeginErrorReadLine();
+        try
+        {
+            await p.WaitForExitAsync(ct);
+        }
+        catch (OperationCanceledException)
+        {
+            try
+            {
+                p.Kill(entireProcessTree: true); // the console exe runs Godot itself as its child
+            }
+            catch
+            { /* already gone */
+            }
+            throw;
+        }
+        p.WaitForExit(); // the last lines' events
+        return p.ExitCode;
+    }
+
     static string ConsoleExe(string godot)
     {
         var console = Path.Combine(

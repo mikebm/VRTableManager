@@ -14,6 +14,36 @@ public static class PlayfieldDepth
     /// <summary>Cached next to the lobby video's frames, so re-recording the video drops it too.</summary>
     public const string FileName = "heights-v3.png"; // v2: recorded up to 22 cm; v3: VPX ramps too
 
+    /// <summary>
+    /// Marks a table read and found to have nothing standing on its playfield worth a height map, so it isn't read
+    /// again on every lobby start (each one read its whole .vpx again). It holds the table file's size and date: an
+    /// updated table is read again. A read that failed leaves no marker, and is tried again next time.
+    /// </summary>
+    public const string NoneFileName = "heights-v3.none";
+
+    /// <summary>True once this video folder's height map has been worked out (the map, or that there's none).</summary>
+    public static bool IsKnown(string videoFolder, string vpxPath) =>
+        File.Exists(Path.Combine(videoFolder, FileName)) || NoneFor(videoFolder, vpxPath);
+
+    static bool NoneFor(string videoFolder, string vpxPath)
+    {
+        try
+        {
+            var marker = Path.Combine(videoFolder, NoneFileName);
+            return File.Exists(marker) && File.ReadAllText(marker) == Stamp(vpxPath);
+        }
+        catch (Exception e) when (e is IOException or UnauthorizedAccessException)
+        {
+            return false;
+        }
+    }
+
+    static string Stamp(string vpxPath)
+    {
+        var fi = new FileInfo(vpxPath);
+        return fi.Exists ? $"{fi.Length}|{fi.LastWriteTimeUtc.Ticks}" : "";
+    }
+
     const string Code = """
         shader_type spatial;
         render_mode unshaded, cull_back;
@@ -118,6 +148,10 @@ public static class PlayfieldDepth
         var cache = Path.Combine(videoFolder, FileName);
         try
         {
+            if (NoneFor(videoFolder, vpxPath))
+            {
+                return null; // worked out before: nothing worth showing
+            }
             if (File.Exists(cache))
             {
                 var img = new Image();
@@ -134,8 +168,18 @@ public static class PlayfieldDepth
                 // mustn't shut down under this thread's Image calls. Built on a later run.
                 return null;
             }
-            if (map == null || map.Coverage < 0.03f)
+            if (map == null)
             {
+                return null; // couldn't be read (busy, locked, damaged): tried again next time
+            }
+
+            if (map.Coverage < 0.03f)
+            {
+                try
+                {
+                    File.WriteAllText(Path.Combine(videoFolder, NoneFileName), Stamp(vpxPath));
+                }
+                catch (Exception e) when (e is IOException or UnauthorizedAccessException) { }
                 return null;
             }
 

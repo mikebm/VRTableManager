@@ -291,6 +291,13 @@ public partial class Main : Node3D
             GetTree().Quit(file != null ? 0 : 1);
             return;
         }
+        // --prepare-tables (headless, from the manager's PREPARE TABLES): read every table now that the lobby would
+        // otherwise read the first time it shows it (cabinet, playfield picture, depth map), then quit.
+        if (args.ContainsKey("prepare-tables"))
+        {
+            GetTree().Quit(PrepareTables.Run(Library, Settings, _cabs.CacheDir));
+            return;
+        }
         _recordRoms = !selfTest && Settings.LobbyRecordsRomAudio;
         _recorder.SettingsPath = _settingsPath;
         _borrowAll = args.ContainsKey("borrow-all");
@@ -339,7 +346,7 @@ public partial class Main : Node3D
         }
         Rebuild(args.GetValueOrDefault("select", ""));
         LoadBackglassIndex();
-        if (!_noDepth)
+        if (!_noDepth && Settings.LobbyPlayfieldVideos)
         {
             WarmPlayfieldDepth();
         }
@@ -927,7 +934,7 @@ public partial class Main : Node3D
     }
 
     /// <summary>The table's .vpx, if it's a VPX table (only those carry a VR cabinet).</summary>
-    static string? VpxFile(LobbyTable t) =>
+    internal static string? VpxFile(LobbyTable t) =>
         t.Engine == VrTableManager.Models.TableManifest.Vpx
         && t.Source.TablePath.EndsWith(".vpx", StringComparison.OrdinalIgnoreCase)
             ? t.Source.TablePath
@@ -1814,7 +1821,7 @@ public partial class Main : Node3D
 
                 try
                 {
-                    if (!File.Exists(Path.Combine(folder, PlayfieldDepth.FileName)))
+                    if (!PlayfieldDepth.IsKnown(folder, vpx))
                     {
                         PlayfieldDepth.Load(folder, vpx, LobbyWork.Closing);
                     }
@@ -1834,6 +1841,7 @@ public partial class Main : Node3D
             _video.Playing != null
             || Shown.Count == 0
             || SelectedCabinet is not { Table: { } t } cab
+            || !Settings.LobbyPlayfieldVideos // turned off on Setup (weaker PCs, slow drives)
             || _videoCheckedFor == t.Id
         )
         {

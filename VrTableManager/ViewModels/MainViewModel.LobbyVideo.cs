@@ -18,7 +18,7 @@ public sealed partial class MainViewModel
     /// </summary>
     async Task<bool> LobbyVideoTipAsync()
     {
-        if (!Settings.ShowLobbyVideoTip || IsBatchRecording)
+        if (!Settings.ShowLobbyVideoTip || !Settings.LobbyPlayfieldVideos || IsBatchRecording)
         {
             return true;
         }
@@ -225,9 +225,8 @@ public sealed partial class MainViewModel
             return;
         }
 
-        if (IsLobbyRunning)
+        if (CantRecordNow())
         {
-            PlayStatus = "Close the VR lobby first: recording runs the tables in VPX.";
             return;
         }
         var without = _allInstalled

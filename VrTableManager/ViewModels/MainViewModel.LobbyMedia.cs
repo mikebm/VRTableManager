@@ -310,9 +310,8 @@ public sealed partial class MainViewModel
 
         if (buttons[pick] == "RECORD VIDEOS ONLY")
         {
-            if (IsLobbyRunning)
+            if (CantRecordNow())
             {
-                PlayStatus = "Close the VR lobby first: recording runs the tables in VPX.";
                 return;
             }
             await RecordLobbyVideosAsync(toRecord);
@@ -320,9 +319,8 @@ public sealed partial class MainViewModel
         }
 
         var record = recordable > 0 && pick == 0;
-        if (record && IsLobbyRunning)
+        if (record && CantRecordNow())
         {
-            PlayStatus = "Close the VR lobby first: recording runs the tables in VPX.";
             return;
         }
 
@@ -415,14 +413,15 @@ public sealed partial class MainViewModel
             _batchJob = null;
         }
 
-        PlayStatus = LobbyMedia.BatchSummary(
-            filled,
-            recorded,
-            stillMissing,
-            needRom,
-            notRecorded,
-            skipped,
-            stopped
-        );
+        PlayStatus =
+            LobbyMedia.BatchSummary(
+                filled,
+                recorded,
+                stillMissing,
+                needRom,
+                notRecorded,
+                skipped,
+                stopped
+            ) + await PrepareHintAsync();
     }
 }

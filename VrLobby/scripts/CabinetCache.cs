@@ -1,6 +1,4 @@
 using System.Runtime.InteropServices;
-using System.Security.Cryptography;
-using System.Text;
 using Godot;
 using VrTableManager.Services;
 using Parsed = VrLobby.RealCabinetLoader.Parsed;
@@ -29,15 +27,35 @@ static class CabinetCache
     static readonly byte[] Magic = "VTMCAB"u8.ToArray();
     static readonly byte[] DumpMagic = "VTMDEF"u8.ToArray();
 
-    public static string DefaultDir => Path.Combine(AppSettings.DataDir, "cabinet-cache");
+    // Named in the shared library, so the manager finds the same files (it counts the tables not yet read).
+    public static string DefaultDir => VrTableManager.Lobby.CabinetFiles.DefaultDir;
 
     public static string FileFor(string vpx, string dir) =>
-        Path.Combine(
-            dir,
-            Convert.ToHexString(
-                SHA1.HashData(Encoding.UTF8.GetBytes(Path.GetFullPath(vpx).ToLowerInvariant()))
-            ) + ".cab"
-        );
+        VrTableManager.Lobby.CabinetFiles.FileFor(vpx, dir);
+
+    /// <summary>True if the cache holds this version of the table (reads only the file's header, not the cabinet).</summary>
+    public static bool IsCurrent(string vpx, string dir)
+    {
+        try
+        {
+            var fi = new FileInfo(vpx);
+            var file = FileFor(vpx, dir);
+            if (!fi.Exists || !File.Exists(file))
+            {
+                return false;
+            }
+
+            using var r = new BinaryReader(File.OpenRead(file));
+            return r.ReadBytes(Magic.Length).AsSpan().SequenceEqual(Magic)
+                && r.ReadInt32() == Version
+                && r.ReadInt64() == fi.Length
+                && r.ReadInt64() == fi.LastWriteTimeUtc.Ticks;
+        }
+        catch
+        {
+            return false;
+        }
+    }
 
     /// <summary>True if the cache knows this version of the table: its cabinet, or null when it has none.</summary>
     public static bool TryLoad(string vpx, string dir, out Parsed? parsed)

@@ -290,7 +290,7 @@ public partial class RealCabinetLoader : Node
     }
 
     /// <summary>Background part: read the cabinet, decode its pictures (Godot Images are fine off the main thread) and merge its parts.</summary>
-    static Parsed? Parse(string vpx)
+    internal static Parsed? Parse(string vpx)
     {
         var model = VpxCabinet.Load(vpx, CabinetKit.Front);
         if (model == null)

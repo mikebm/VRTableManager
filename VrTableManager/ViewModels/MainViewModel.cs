@@ -115,6 +115,7 @@ public sealed partial class MainViewModel : ObservableObject, IAsyncDisposable
         _loadingGraphics = false;
         AutoVrRoom = Settings.AutoVrRoom;
         LobbyRecordsRomAudio = Settings.LobbyRecordsRomAudio;
+        LobbyPlayfieldVideos = Settings.LobbyPlayfieldVideos;
         LobbyWaitsForTable = Settings.LobbyWaitsForTable;
         LobbyStaysOpen = Settings.LobbyStaysOpen;
         LobbyLoadingVideos = Settings.LobbyLoadingVideos;
@@ -2040,7 +2041,21 @@ public sealed partial class MainViewModel : ObservableObject, IAsyncDisposable
             return;
         }
 
-        if (IsLobbyRunning || !await LobbyVideoTipAsync())
+        if (IsPreparingLobbyTables)
+        {
+            PlayStatus =
+                "Tables are being prepared for the VR lobby: wait for it, or cancel it under Downloads, then launch.";
+            return;
+        }
+
+        if (IsLobbyRunning)
+        {
+            return;
+        }
+
+        // One question per launch: preparing the tables first, else the lobby video tip.
+        var prepare = await LobbyPrepareTipAsync();
+        if (!prepare.Launch || (!prepare.Shown && !await LobbyVideoTipAsync()))
         {
             return;
         }
@@ -2471,6 +2486,9 @@ public sealed partial class MainViewModel : ObservableObject, IAsyncDisposable
                 break;
             case nameof(LobbyRecordsRomAudio):
                 Settings.LobbyRecordsRomAudio = LobbyRecordsRomAudio;
+                break;
+            case nameof(LobbyPlayfieldVideos):
+                Settings.LobbyPlayfieldVideos = LobbyPlayfieldVideos;
                 break;
             case nameof(LobbyWaitsForTable):
                 Settings.LobbyWaitsForTable = LobbyWaitsForTable;

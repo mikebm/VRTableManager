@@ -40,6 +40,10 @@ public sealed partial class MainViewModel
     [ObservableProperty]
     public partial bool LobbyRecordsRomAudio { get; set; }
 
+    /// <summary>The VR lobby plays lobby videos on the selected cabinet's playfield.</summary>
+    [ObservableProperty]
+    public partial bool LobbyPlayfieldVideos { get; set; }
+
     /// <summary>The VR lobby shows a loading screen until the picked table takes the headset over.</summary>
     [ObservableProperty]
     public partial bool LobbyWaitsForTable { get; set; }

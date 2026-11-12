@@ -183,6 +183,42 @@ public static class VpxImages
     /// <summary>Raised when the choice of picture changes, so cached picks are made again (2: no "lower"/"upper" parts).</summary>
     const int PickVersion = 2;
 
+    /// <summary>True when <see cref="CachedPlayfield"/> would answer from the cache, without reading the table.</summary>
+    public static bool HasCachedPlayfield(string vpxPath, string cacheDir)
+    {
+        try
+        {
+            return PlayfieldCacheFiles(vpxPath, cacheDir) is var (file, none)
+                && (File.Exists(file) || File.Exists(none));
+        }
+        catch
+        {
+            return false;
+        }
+    }
+
+    /// <summary>The cached picture and the "no usable picture" marker for this version of the table; null if it's gone.</summary>
+    static (string File, string None)? PlayfieldCacheFiles(string vpxPath, string cacheDir)
+    {
+        var fi = new FileInfo(vpxPath);
+        if (!fi.Exists)
+        {
+            return null;
+        }
+
+        var key = Convert.ToHexString(
+            SHA1.HashData(
+                Encoding.UTF8.GetBytes(
+                    $"{Path.GetFullPath(vpxPath).ToLowerInvariant()}|{fi.Length}|{fi.LastWriteTimeUtc.Ticks}|{PickVersion}"
+                )
+            )
+        );
+        return (
+            Path.Combine(cacheDir, "vpx-" + key + ".img"),
+            Path.Combine(cacheDir, "vpx-" + key + ".none")
+        );
+    }
+
     /// <summary>
     /// The playfield picture as a file in <paramref name="cacheDir"/>, extracting it the first time.
     /// Keyed on the table's path, size and date, so an updated table gets its new picture. A table with
@@ -192,22 +228,12 @@ public static class VpxImages
     {
         try
         {
-            var fi = new FileInfo(vpxPath);
-            if (!fi.Exists)
+            if (PlayfieldCacheFiles(vpxPath, cacheDir) is not var (file, none))
             {
                 return null;
             }
 
-            var key = Convert.ToHexString(
-                SHA1.HashData(
-                    Encoding.UTF8.GetBytes(
-                        $"{Path.GetFullPath(vpxPath).ToLowerInvariant()}|{fi.Length}|{fi.LastWriteTimeUtc.Ticks}|{PickVersion}"
-                    )
-                )
-            );
             Directory.CreateDirectory(cacheDir);
-            var file = Path.Combine(cacheDir, "vpx-" + key + ".img");
-            var none = Path.Combine(cacheDir, "vpx-" + key + ".none");
             if (File.Exists(file))
             {
                 return file;
