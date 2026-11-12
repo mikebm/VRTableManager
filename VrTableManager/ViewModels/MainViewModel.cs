@@ -1534,9 +1534,24 @@ public sealed partial class MainViewModel : ObservableObject, IAsyncDisposable
     {
         // Re-read stats every time: the VR lobby and its launcher write them too.
         _stats = PlayStats.Load();
+        // Tables found again keep their item (and so their card): a rescan runs after every table you play, install
+        // or fix, and building 300 cards afresh each time is what made a big library slow.
+        var before = new Dictionary<string, InstalledItem>(StringComparer.OrdinalIgnoreCase);
+        foreach (var old in _allInstalled)
+        {
+            before.TryAdd(old.Table.TablePath, old);
+        }
         _allInstalled = TableInstaller
             .Scan(Settings)
-            .Select(t => new InstalledItem(t, this))
+            .Select(t =>
+            {
+                if (before.Remove(t.TablePath, out var kept))
+                {
+                    kept.Rescanned(t);
+                    return kept;
+                }
+                return new InstalledItem(t, this);
+            })
             .ToList();
         LoadCollections();
         foreach (var item in _allInstalled)
@@ -1655,6 +1670,44 @@ public sealed partial class MainViewModel : ObservableObject, IAsyncDisposable
     }
 
     /// <summary>
+    /// Makes the grid's list match <paramref name="shown"/> with as few changes as it takes: a card leaves only when its
+    /// table does, so narrowing a search or a rescan doesn't rebuild the cards that stay.
+    /// </summary>
+    void SyncInstalled(List<InstalledItem> shown)
+    {
+        if (Installed.SequenceEqual(shown))
+        {
+            return;
+        }
+
+        var keep = shown.ToHashSet();
+        for (var i = Installed.Count - 1; i >= 0; i--)
+        {
+            if (!keep.Contains(Installed[i]))
+            {
+                Installed.RemoveAt(i);
+            }
+        }
+        for (var i = 0; i < shown.Count; i++)
+        {
+            if (i < Installed.Count && Installed[i] == shown[i])
+            {
+                continue;
+            }
+
+            var at = Installed.IndexOf(shown[i]);
+            if (at > i)
+            {
+                Installed.Move(at, i);
+            }
+            else
+            {
+                Installed.Insert(i, shown[i]);
+            }
+        }
+    }
+
+    /// <summary>
     /// Fills the My Tables grid using the chosen search, filters and order. Typing in the search box runs this on
     /// every keystroke, so it leaves the update check alone, and the cards alone when the list hasn't changed.
     /// </summary>
@@ -1701,14 +1754,7 @@ public sealed partial class MainViewModel : ObservableObject, IAsyncDisposable
             },
         };
         var shown = q.ToList();
-        if (!Installed.SequenceEqual(shown))
-        {
-            Installed.Clear();
-            foreach (var i in shown)
-            {
-                Installed.Add(i);
-            }
-        }
+        SyncInstalled(shown);
         UpdateInstalledLetters(
             search == null
                 && InstalledFilter switch

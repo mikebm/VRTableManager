@@ -218,6 +218,33 @@ public static class LobbyNav
         return i;
     }
 
+    /// <summary>
+    /// <see cref="Jump"/>, going round: down from the last group comes back to the first table, and up from the
+    /// first group's start goes to the last group's.
+    /// </summary>
+    public static int JumpWrap(IReadOnlyList<LobbyGroup> groups, int i, int dir)
+    {
+        var to = Jump(groups, i, dir);
+        if (to != i)
+        {
+            return to;
+        }
+
+        for (
+            var k = dir > 0 ? 0 : groups.Count - 1;
+            k >= 0 && k < groups.Count;
+            k += dir > 0 ? 1 : -1
+        )
+        {
+            if (groups[k].Index != -1)
+            {
+                return groups[k].Index;
+            }
+        }
+
+        return i;
+    }
+
     /// <summary>Index to select for rail group g; an empty letter goes to the next letter that has tables.</summary>
     public static int IndexForGroup(IReadOnlyList<LobbyGroup> groups, int g)
     {

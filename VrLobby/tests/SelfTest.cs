@@ -178,10 +178,18 @@ public static class SelfTest
             "default cabinet size and count: the ring is as it always was (real size, 2.1 m away)"
         );
         await BiggestRingKeepsEveryCabinet(lobby);
-        Check(
-            lobby.Cabinets.Count(c => c.Visible) == 6,
-            "at the first table: it plus 5 to its right (nothing to the left)"
-        );
+        {
+            var n = lobby.Shown.Count;
+            var atStart = lobby
+                .Cabinets.Where(c => c.Visible)
+                .Select(c => c.Index)
+                .OrderBy(i => i)
+                .ToList();
+            Check(
+                atStart.SequenceEqual(Enumerable.Range(0, 6).Concat(Enumerable.Range(n - 5, 5))),
+                "at the first table: 5 to its right, and the list's last 5 to its left (the ring goes round)"
+            );
+        }
         var sel = lobby.SelectedCabinet;
         Check(
             sel != null
@@ -226,6 +234,31 @@ public static class SelfTest
             reassigned == 1,
             $"one step re-uses the pool: only one cabinet changed table ({reassigned})"
         );
+
+        // ---- Round the end of the list -------------------------------------------------
+        {
+            var n = lobby.Shown.Count;
+            var back = lobby.Selected;
+            lobby.Select(n - 1);
+            await Seconds(lobby, 1.5);
+            var atEnd = lobby.Cabinets.ToDictionary(c => c.Slot, c => c.Index);
+            lobby.Step(1);
+            await Seconds(lobby, 1.5);
+            var moved = lobby.Cabinets.Count(c => atEnd[c.Slot] != c.Index);
+            var sel0 = lobby.SelectedCabinet;
+            Check(
+                lobby.Selected == 0
+                    && moved == 1
+                    && sel0 != null
+                    && Mathf.IsZeroApprox(sel0.Position.X),
+                $"→ on the last table goes round to the first, one step like any other ({moved} re-assigned)"
+            );
+            lobby.Step(-1);
+            await Seconds(lobby, 1.5);
+            Check(lobby.Selected == n - 1, "← on the first table goes back round to the last");
+            lobby.Select(back);
+            await Seconds(lobby, 1.5);
+        }
 
         // ---- Art -----------------------------------------------------------------------
         for (var i = 0; i < 600 && !lobby.BackglassIndexReady; i++)

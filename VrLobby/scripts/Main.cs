@@ -125,7 +125,18 @@ public partial class Main : Node3D
     bool _heightDirty;
 
     bool _vr;
+
+    // The ring scrolls in "ring positions": table i sits at i + _lap × Shown.Count, so stepping past the last table
+    // lands on the first one a single step further on (and back), and the cabinets either side of the seam show
+    // the other end of the list. _scroll eases towards Target; cabinets are pooled by ring position.
     float _scroll;
+    int _lap;
+
+    /// <summary>The selected table's ring position (Selected, plus whole laps of the list).</summary>
+    int Target => Selected + _lap * Shown.Count;
+
+    /// <summary>The ring wraps only when the list fills it: fewer tables would show the same table twice.</summary>
+    bool RingWraps => Shown.Count >= PoolSize;
     int _hoverSlot = -1,
         _hoverRail = -1;
     Vector3 _aimAtSelect; // where the laser pointed when the selection last changed
@@ -851,7 +862,8 @@ public partial class Main : Node3D
             0,
             Shown.FindIndex(t => string.Equals(t.Id, selectId, StringComparison.OrdinalIgnoreCase))
         );
-        _scroll = Selected;
+        _lap = 0;
+        _scroll = Target;
         foreach (var cab in _pool)
         {
             cab.Park(); // the list changed: every cabinet gets re-assigned
@@ -988,25 +1000,32 @@ public partial class Main : Node3D
     }
 
     /// <summary>
-    /// Places the pooled cabinets around the ring. Table i always lands in slot i mod 11, so scrolling
-    /// one step re-assigns just one cabinet. Art is only requested once the ring has (nearly) stopped,
-    /// so flying through the alphabet doesn't decode pictures nobody sees.
+    /// Places the pooled cabinets around the ring. Ring position i always lands in slot i mod 11, so
+    /// scrolling one step re-assigns just one cabinet, across the end-to-start seam too. Art is only
+    /// requested once the ring has (nearly) stopped, so flying through the alphabet doesn't decode
+    /// pictures nobody sees.
     /// </summary>
     void Layout()
     {
+        var n = Shown.Count;
         var centre = (int)MathF.Round(_scroll);
-        var settledEnough = Mathf.Abs(_scroll - Selected) < 2.5f;
+        var settledEnough = Mathf.Abs(_scroll - Target) < 2.5f;
         for (var i = centre - Side; i <= centre + Side; i++)
         {
             var cab = _pool[((i % PoolSize) + PoolSize) % PoolSize];
-            if (i < 0 || i >= Shown.Count)
+            // Which table stands at ring position i: past either end of the list, the other end's.
+            var t =
+                n == 0 ? -1
+                : RingWraps ? ((i % n) + n) % n
+                : i - _lap * n;
+            if (t < 0 || t >= n)
             {
                 cab.Park();
                 continue;
             }
-            if (cab.Index != i || cab.Table != Shown[i])
+            if (cab.Index != t || cab.Table != Shown[t])
             {
-                AssignCabinet(cab, i, settledEnough);
+                AssignCabinet(cab, t, settledEnough);
             }
             else if (settledEnough)
             {
@@ -1018,7 +1037,7 @@ public partial class Main : Node3D
             var spot = LobbyLayout.Place(_layout, i - _scroll);
             cab.Position = new Vector3((float)spot.X, 0, (float)spot.Z);
             cab.Rotation = new Vector3(0, (float)spot.Yaw, 0);
-            cab.SetFocus((float)spot.Focus, i == Selected);
+            cab.SetFocus((float)spot.Focus, i == Target);
         }
     }
 
@@ -1482,23 +1501,63 @@ public partial class Main : Node3D
 
     public string ScoresText => _scores.Text;
 
-    public void Select(int i)
+    /// <summary>
+    /// Moves the selection by steps (← →, cabinet buttons): past the last table comes the first, and before the
+    /// first the last, one step away like any other.
+    /// </summary>
+    public void Step(int steps)
+    {
+        var n = Shown.Count;
+        if (n < 2 || steps == 0)
+        {
+            return;
+        }
+
+        var to = Target + steps;
+        var t = ((to % n) + n) % n;
+        if (RingWraps)
+        {
+            Select(t, lap: (to - t) / n); // stays on the ring position it stepped to, across the seam
+        }
+        else
+        {
+            // Too few to go round: the other end slides in from the side we're heading.
+            var wrapped = to - _lap * n != t;
+            Select(t);
+            if (wrapped)
+            {
+                _scroll = Target - Math.Sign(steps);
+                Layout();
+            }
+        }
+    }
+
+    /// <summary>Selects table i (clicked, typed, jumped to), approaching it the short way round the ring.</summary>
+    public void Select(int i) => Select(i, lap: null);
+
+    void Select(int i, int? lap)
     {
         if (Shown.Count == 0)
         {
             return;
         }
 
-        var before = Selected;
+        var before = Target;
         Selected = Math.Clamp(i, 0, Shown.Count - 1);
-        if (Selected == before)
+        if (RingWraps)
+        {
+            // Unless stepping says which lap: the copy of it nearest where the ring is now, so clicking a cabinet
+            // across the seam, or Z → A, is a short turn.
+            _lap = lap ?? (int)MathF.Round((_scroll - Selected) / Shown.Count);
+        }
+        if (Target == before)
         {
             return;
         }
         // Long jumps (A → M) start the animation a few cabinets away instead of spinning through dozens.
-        if (Mathf.Abs(Selected - _scroll) > Side * 2)
+        if (Mathf.Abs(Target - _scroll) > Side * 2)
         {
-            _scroll = Selected + Mathf.Sign(_scroll - Selected) * Side;
+            _scroll = Target + Mathf.Sign(_scroll - Target) * Side;
         }
 
         UpdateSelection();
@@ -1833,21 +1892,21 @@ public partial class Main : Node3D
         KeepKeyboard(delta);
 
         var d = (float)delta;
-        if (!Mathf.IsEqualApprox(_scroll, Selected))
+        if (!Mathf.IsEqualApprox(_scroll, Target))
         {
-            _scroll = Mathf.Lerp(_scroll, Selected, 1f - Mathf.Exp(-9f * d));
+            _scroll = Mathf.Lerp(_scroll, Target, 1f - Mathf.Exp(-9f * d));
             // Ease all the way in before the last step: a cabinet travels 1.2 m per step, so snapping at 1% left
             // stopped it dead from 11 cm/s, a visible jerk in the headset. At 0.05% it's under 6 mm/s.
-            if (Mathf.Abs(_scroll - Selected) < SnapAt)
+            if (Mathf.Abs(_scroll - Target) < SnapAt)
             {
-                _scroll = Selected;
+                _scroll = Target;
                 Trace("snap");
             }
             Layout();
         }
         if (Shown.Count > 0 && !_launching)
         {
-            var away = Mathf.Abs(_scroll - Selected);
+            var away = Mathf.Abs(_scroll - Target);
             // The playfield video starts while the table is still coming in (decoding its first frame takes a
             // moment), so it's already playing when it arrives instead of swapping in after it stops.
             if (away < VideoFrom)
@@ -2070,7 +2129,7 @@ public partial class Main : Node3D
         var step = Stick("x", x, delta);
         if (step != 0)
         {
-            Select(Selected + step);
+            Step(step);
             if (_held["x"] > 0.6)
             {
                 ShowFlash(); // moving fast: show which letter we're passing
@@ -2079,7 +2138,7 @@ public partial class Main : Node3D
         var j = Stick("jump", y, delta);
         if (j != 0)
         {
-            Select(LobbyNav.Jump(Groups, Selected, -j)); // stick up = earlier letter
+            Select(LobbyNav.JumpWrap(Groups, Selected, -j)); // stick up = earlier letter
             ShowFlash();
         }
     }
@@ -2114,12 +2173,12 @@ public partial class Main : Node3D
             // The first step happens on the press, so a quick tap during a slow frame (pressed and let go
             // before _Process sees it held) still moves. _Process repeats it while held, after the usual pause.
             case CabinetAction.PrevTable or CabinetAction.NextTable:
-                Select(Selected + (action == CabinetAction.NextTable ? 1 : -1));
+                Step(action == CabinetAction.NextTable ? 1 : -1);
                 PrimeRepeat("x");
                 break;
             case CabinetAction.PrevLetter or CabinetAction.NextLetter:
                 Select(
-                    LobbyNav.Jump(Groups, Selected, action == CabinetAction.NextLetter ? 1 : -1)
+                    LobbyNav.JumpWrap(Groups, Selected, action == CabinetAction.NextLetter ? 1 : -1)
                 );
                 ShowFlash();
                 PrimeRepeat("jump");
@@ -2320,17 +2379,17 @@ public partial class Main : Node3D
         switch (k.Keycode)
         {
             case Key.Right:
-                Select(Selected + 1);
+                Step(1);
                 break;
             case Key.Left:
-                Select(Selected - 1);
+                Step(-1);
                 break;
             case Key.Down or Key.Pagedown:
-                Select(LobbyNav.Jump(Groups, Selected, 1));
+                Select(LobbyNav.JumpWrap(Groups, Selected, 1));
                 ShowFlash();
                 break;
             case Key.Up or Key.Pageup:
-                Select(LobbyNav.Jump(Groups, Selected, -1));
+                Select(LobbyNav.JumpWrap(Groups, Selected, -1));
                 ShowFlash();
                 break;
             case Key.Enter or Key.KpEnter or Key.Space:
@@ -2385,7 +2444,7 @@ public partial class Main : Node3D
         if (delta > 0.010)
         {
             GD.Print(
-                $"SLOW {delta * 1000:0} ms at {_perfClock:0.00}s (scroll {_scroll - Selected:0.000}, settled {_settled:0.00}): {string.Join(", ", _perfEvents)}"
+                $"SLOW {delta * 1000:0} ms at {_perfClock:0.00}s (scroll {_scroll - Target:0.000}, settled {_settled:0.00}): {string.Join(", ", _perfEvents)}"
             );
         }
 
@@ -2411,7 +2470,7 @@ public partial class Main : Node3D
                 + $"{Performance.GetMonitor(Performance.Monitor.RenderTotalPrimitivesInFrame) / 1e6:0.0} M triangles, "
                 + $"{Performance.GetMonitor(Performance.Monitor.RenderVideoMemUsed) / 1048576:0} MB video memory"
         );
-        Select(Selected + 1);
+        Step(1);
     }
 
     void OnArtLoaded(string url, Texture2D tex, Color average)

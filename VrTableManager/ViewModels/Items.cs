@@ -157,7 +157,22 @@ public sealed partial class InstalledItem : ObservableObject
         Sound = new AddonSlot(this, AddonKind.AltSound);
     }
 
-    public InstalledTable Table { get; }
+    public InstalledTable Table { get; private set; }
+
+    /// <summary>
+    /// A rescan found this table again: take its fresh details but keep this item, so its card (and its picture)
+    /// stays as it is instead of every card in My Tables being thrown away and built again.
+    /// </summary>
+    public void Rescanned(InstalledTable table)
+    {
+        if (ReferenceEquals(table, Table))
+        {
+            return;
+        }
+
+        Table = table;
+        OnPropertyChanged(string.Empty); // everything read from Table may have changed
+    }
 
     /// <summary>For the card's menu: flyouts sit outside the window's visual tree, so they bind commands through this.</summary>
     public MainViewModel? Owner { get; }

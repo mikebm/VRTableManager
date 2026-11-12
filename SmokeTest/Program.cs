@@ -701,6 +701,22 @@ Check(
     LobbyNav.GroupAt(all.Groups, LobbyNav.Jump(all.Groups, mIdx, -1)) == 12,
     "up at a group start goes to the previous letter"
 );
+{
+    var lastStart = all.Groups.Last(g => g.Index != -1).Index;
+    var firstStart = all.Groups.First(g => g.Index != -1).Index;
+    Check(
+        LobbyNav.JumpWrap(all.Groups, all.List.Count - 1, 1) == firstStart,
+        "down from the last letter wraps round to the first table"
+    );
+    Check(
+        LobbyNav.JumpWrap(all.Groups, firstStart, -1) == lastStart,
+        "up from the first letter wraps round to the last letter's start"
+    );
+    Check(
+        LobbyNav.JumpWrap(all.Groups, mIdx, 1) == LobbyNav.Jump(all.Groups, mIdx, 1),
+        "away from the ends, the wrapping jump is the plain jump"
+    );
+}
 Check(
     LobbyNav.GroupForKey(all.Groups, 'm') == 13 && LobbyNav.GroupForKey(all.Groups, '2') == 0,
     "typed keys map to letters, digits to #"
