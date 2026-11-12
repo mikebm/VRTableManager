@@ -48,44 +48,162 @@ public sealed class PlayStats
         }
     }
 
-    public static PlayStats Load(string? path = null)
+    public static PlayStats Load(string? path = null) =>
+        TryLoad(path ?? DefaultPath, out var s, out _) ? s : new PlayStats(); // unreadable: shown as empty
+
+    /// <summary>
+    /// The stats in the file (empty when there's none). False when the file is there but can't be read or parsed;
+    /// <paramref name="corrupt"/> says it was read and isn't stats (bad JSON, or zeros left by a power cut).
+    /// </summary>
+    static bool TryLoad(string path, out PlayStats stats, out bool corrupt)
     {
-        path ??= DefaultPath;
+        stats = new PlayStats();
+        corrupt = false;
+        string? text;
         try
         {
-            if (
-                File.Exists(path)
-                && JsonSerializer.Deserialize<PlayStats>(File.ReadAllText(path)) is { } s
-            )
+            text = ReadShared(path);
+        }
+        catch (Exception e) when (e is IOException or UnauthorizedAccessException)
+        {
+            return false;
+        }
+        if (string.IsNullOrWhiteSpace(text))
+        {
+            return true; // none, or empty: nothing to lose
+        }
+
+        try
+        {
+            if (JsonSerializer.Deserialize<PlayStats>(text) is { } s)
             {
                 // Re-key case-insensitively (the deserializer builds an ordinal dictionary).
                 s.Tables = new Dictionary<string, TableStats>(
-                    s.Tables,
+                    s.Tables ?? new Dictionary<string, TableStats>(),
                     StringComparer.OrdinalIgnoreCase
                 );
-                return s;
+                stats = s;
             }
+            return true;
         }
-        catch
-        { /* corrupt or mid-write: treat as empty */
+        catch (JsonException)
+        {
+            corrupt = true;
+            return false;
         }
-        return new PlayStats();
     }
 
-    /// <summary>Read-modify-write under a cross-process lock. Returns the saved stats.</summary>
+    /// <summary>
+    /// Read-modify-write under a cross-process lock. Returns the saved stats. Throws <see cref="IOException"/>, and
+    /// writes nothing, when the lock can't be had or the file is there but can't be opened (in use, no access):
+    /// saving then would replace every table's stats with this one change. A file that was read but isn't stats is
+    /// kept as .bad and the stats start again, rather than no change ever being saved.
+    /// </summary>
     public static PlayStats Mutate(Action<PlayStats> change, string? path = null)
     {
         path ??= DefaultPath;
         Directory.CreateDirectory(Path.GetDirectoryName(path)!);
-        using var _ = AcquireLock(path + ".lock");
-        var stats = Load(path);
+        using var _ =
+            AcquireLock(path + ".lock")
+            ?? throw new IOException("The play stats are busy in another program; try again.");
+        if (!TryLoad(path, out var stats, out var corrupt))
+        {
+            if (!corrupt)
+            {
+                throw new IOException(
+                    $"{Path.GetFileName(path)} can't be read, so it's left as it is."
+                );
+            }
+
+            SetAsideBad(path);
+        }
+
         change(stats);
-        var tmp = path + ".tmp";
-        File.WriteAllText(tmp, JsonSerializer.Serialize(stats, Json));
-        File.Move(tmp, path, overwrite: true);
+        WriteAtomic(path, JsonSerializer.Serialize(stats, Json));
         return stats;
     }
 
+    /// <summary>
+    /// A file the manager and the VR lobby share, or null when there's none. Opened so the other program can still
+    /// swap in a new copy (File.Move over it), and tried again for a moment while it's doing so.
+    /// </summary>
+    internal static string? ReadShared(string path)
+    {
+        for (var i = 0; ; i++)
+        {
+            try
+            {
+                using var fs = new FileStream(
+                    path,
+                    FileMode.Open,
+                    FileAccess.Read,
+                    FileShare.ReadWrite | FileShare.Delete
+                );
+                using var sr = new StreamReader(fs);
+                return sr.ReadToEnd();
+            }
+            catch (Exception e) when (e is FileNotFoundException or DirectoryNotFoundException)
+            {
+                return null;
+            }
+            // Access denied too: opening it just as another process swaps it in can say so for a moment.
+            catch (Exception e) when (i < 10 && e is IOException or UnauthorizedAccessException)
+            {
+                Thread.Sleep(30);
+            }
+        }
+    }
+
+    /// <summary>A shared file that was read but isn't what it should be: kept as &lt;file&gt;.bad (throws when it can't be).</summary>
+    internal static void SetAsideBad(string path) =>
+        File.Copy(path, path + ".bad", overwrite: true);
+
+    /// <summary>
+    /// Writes a copy beside the file, on disk before it's swapped in (a power cut can't leave an empty or zeroed
+    /// file), then swaps it in.
+    /// </summary>
+    internal static void WriteAtomic(string path, string text)
+    {
+        var tmp = path + ".tmp";
+        using (var fs = new FileStream(tmp, FileMode.Create, FileAccess.Write, FileShare.None))
+        {
+            var bytes = new System.Text.UTF8Encoding(false).GetBytes(text);
+            fs.Write(bytes);
+            fs.Flush(flushToDisk: true);
+        }
+        MoveReplacing(tmp, path);
+    }
+
+    /// <summary>
+    /// Moves <paramref name="tmp"/> over <paramref name="path"/>, tried again for a moment while a reader has it
+    /// open; deletes <paramref name="tmp"/> when it still can't.
+    /// </summary>
+    internal static void MoveReplacing(string tmp, string path)
+    {
+        for (var i = 0; ; i++)
+        {
+            try
+            {
+                File.Move(tmp, path, overwrite: true);
+                return;
+            }
+            catch (Exception e) when ((e is IOException or UnauthorizedAccessException) && i < 10)
+            {
+                Thread.Sleep(30);
+            }
+            catch
+            {
+                try
+                {
+                    File.Delete(tmp);
+                }
+                catch { }
+                throw;
+            }
+        }
+    }
+
+    /// <summary>The cross-process lock for a shared file; null when it can't be had within 2 s.</summary>
     internal static FileStream? AcquireLock(string lockPath)
     {
         for (var i = 0; i < 50; i++)
@@ -106,7 +224,7 @@ public sealed class PlayStats
                 Thread.Sleep(40);
             }
         }
-        return null; // couldn't lock in 2 s: write anyway rather than lose the change
+        return null; // couldn't lock in 2 s: the caller gives up rather than race the other writer
     }
 
     TableStats? Get(string tablePath) => Tables.GetValueOrDefault(Key(tablePath));

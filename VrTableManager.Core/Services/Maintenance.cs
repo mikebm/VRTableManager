@@ -170,12 +170,21 @@ public static class AppFolders
         ];
     }
 
-    /// <summary>Deletes what's inside the folders (not the folders themselves). Returns the bytes freed.</summary>
-    public static long Clear(StorageEntry entry)
+    /// <summary>
+    /// Deletes what's inside the folders (not the folders themselves). Returns the bytes freed.
+    /// <paramref name="keepDownloads"/>: folders of <see cref="Downloads"/> to leave alone (the downloads still running).
+    /// </summary>
+    public static long Clear(StorageEntry entry, IReadOnlyCollection<string>? keepDownloads = null)
     {
         long freed = 0;
+        var downloads = Path.GetFullPath(Downloads).TrimEnd('\\', '/');
         foreach (var dir in entry.Paths.Where(Directory.Exists))
         {
+            var inDownloads = string.Equals(
+                Path.GetFullPath(dir).TrimEnd('\\', '/'),
+                downloads,
+                StringComparison.OrdinalIgnoreCase
+            );
             foreach (var f in Directory.EnumerateFiles(dir))
             {
                 try
@@ -189,6 +198,17 @@ public static class AppFolders
 
             foreach (var d in Directory.EnumerateDirectories(dir))
             {
+                if (
+                    inDownloads
+                    && keepDownloads?.Contains(
+                        Path.GetFileName(d),
+                        StringComparer.OrdinalIgnoreCase
+                    ) == true
+                )
+                {
+                    continue; // a download still running: its files are on their way to being installed
+                }
+
                 try
                 {
                     var len = DiskUsage.SizeOf(d);
@@ -418,7 +438,7 @@ public static class VpxLog
 }
 
 /// <summary>
-/// Backs up what you'd hate to lose and can't download again: favourites and play stats, app and
+/// Backs up what you'd hate to lose and can't download again: favourites, play stats and collections, app and
 /// VPX settings, per-table settings and high scores (PinMAME nvram/cfg), and the UEVR profiles.
 /// Tables, ROMs and caches aren't included (they can be downloaded again).
 /// </summary>
@@ -429,17 +449,43 @@ public static class Backup
         VpxPrefs = "vpx-prefs/",
         Tables = "tables/",
         Uevr = "uevr/";
-    static readonly string[] AppFiles = ["settings.json", "play-stats.json", "lobby-state.json"];
+    static readonly string[] AppFiles =
+    [
+        "settings.json",
+        "play-stats.json",
+        "collections.json",
+        "lobby-state.json",
+    ];
 
     public sealed record Result(int Files, List<string> Skipped);
 
+    /// <summary>
+    /// Written beside <paramref name="zipPath"/> and swapped in once complete, so a backup that fails halfway leaves
+    /// an earlier one of the same name as it was.
+    /// </summary>
     public static Result Create(string zipPath, AppSettings s)
     {
-        if (File.Exists(zipPath))
+        var tmp = zipPath + ".tmp";
+        try
         {
-            File.Delete(zipPath);
+            File.Delete(tmp);
+            var count = Write(tmp, s);
+            File.Move(tmp, zipPath, overwrite: true);
+            return new Result(count, []);
         }
+        catch
+        {
+            try
+            {
+                File.Delete(tmp);
+            }
+            catch { }
+            throw;
+        }
+    }
 
+    static int Write(string zipPath, AppSettings s)
+    {
         using var zip = ZipFile.Open(zipPath, ZipArchiveMode.Create);
         var count = 0;
         void Add(string file, string entry)
@@ -532,7 +578,7 @@ public static class Backup
                 Add(f, $"{Uevr}{Path.GetFileName(dir)}/{Path.GetFileName(f)}");
             }
         }
-        return new Result(count, []);
+        return count;
     }
 
     /// <summary>Puts files back where they came from. Tables that aren't installed any more are skipped.</summary>
@@ -561,7 +607,22 @@ public static class Backup
             }
 
             Directory.CreateDirectory(Path.GetDirectoryName(dest)!);
-            e.ExtractToFile(dest, overwrite: true);
+            // Swapped in whole: the VR lobby may be reading the shared files (stats, collections) right now.
+            var tmp = dest + ".vrtm-restore";
+            try
+            {
+                e.ExtractToFile(tmp, overwrite: true);
+            }
+            catch
+            {
+                try
+                {
+                    File.Delete(tmp);
+                }
+                catch { }
+                throw;
+            }
+            PlayStats.MoveReplacing(tmp, dest); // tried again a moment while it's open; the tmp never left behind
             count++;
         }
         return new Result(count, [.. skipped]);

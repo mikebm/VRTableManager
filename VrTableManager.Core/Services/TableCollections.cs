@@ -39,38 +39,76 @@ public sealed class TableCollections
 
     static readonly JsonSerializerOptions Json = new() { WriteIndented = true };
 
-    public static TableCollections Load(string? path = null)
+    public static TableCollections Load(string? path = null) =>
+        TryLoad(path ?? DefaultPath, out var c, out _) ? c : new TableCollections(); // unreadable: shown as empty
+
+    /// <summary>
+    /// The collections in the file (none when there's no file). False when it's there but can't be read or parsed;
+    /// <paramref name="corrupt"/> says it was read and isn't collections (bad JSON, or zeros left by a power cut).
+    /// </summary>
+    static bool TryLoad(string path, out TableCollections collections, out bool corrupt)
     {
-        path ??= DefaultPath;
+        collections = new TableCollections();
+        corrupt = false;
+        string? text;
         try
         {
-            if (
-                File.Exists(path)
-                && JsonSerializer.Deserialize<TableCollections>(File.ReadAllText(path)) is { } c
-            )
+            text = PlayStats.ReadShared(path);
+        }
+        catch (Exception e) when (e is IOException or UnauthorizedAccessException)
+        {
+            return false;
+        }
+        if (string.IsNullOrWhiteSpace(text))
+        {
+            return true; // none, or empty: nothing to lose
+        }
+
+        try
+        {
+            if (JsonSerializer.Deserialize<TableCollections>(text) is { } c)
             {
+                c.Collections ??= [];
                 c.Tidy();
-                return c;
+                collections = c;
             }
+            return true;
         }
-        catch
-        { /* corrupt or mid-write: treat as empty */
+        catch (JsonException)
+        {
+            corrupt = true;
+            return false;
         }
-        return new TableCollections();
     }
 
-    /// <summary>Read-modify-write under a cross-process lock. Returns the saved collections.</summary>
+    /// <summary>
+    /// Read-modify-write under a cross-process lock. Returns the saved collections. Throws <see cref="IOException"/>,
+    /// and writes nothing, when the lock can't be had or the file is there but can't be opened (in use, no access):
+    /// saving then would replace all your collections with this one change. A file that was read but isn't
+    /// collections is kept as .bad and they start again, rather than no change ever being saved.
+    /// </summary>
     public static TableCollections Mutate(Action<TableCollections> change, string? path = null)
     {
         path ??= DefaultPath;
         Directory.CreateDirectory(Path.GetDirectoryName(path)!);
-        using var _ = PlayStats.AcquireLock(path + ".lock");
-        var c = Load(path);
+        using var _ =
+            PlayStats.AcquireLock(path + ".lock")
+            ?? throw new IOException("Your collections are busy in another program; try again.");
+        if (!TryLoad(path, out var c, out var corrupt))
+        {
+            if (!corrupt)
+            {
+                throw new IOException(
+                    $"{Path.GetFileName(path)} can't be read, so it's left as it is."
+                );
+            }
+
+            PlayStats.SetAsideBad(path);
+        }
+
         change(c);
         c.Tidy();
-        var tmp = path + ".tmp";
-        File.WriteAllText(tmp, JsonSerializer.Serialize(c, Json));
-        File.Move(tmp, path, overwrite: true);
+        PlayStats.WriteAtomic(path, JsonSerializer.Serialize(c, Json));
         return c;
     }
 

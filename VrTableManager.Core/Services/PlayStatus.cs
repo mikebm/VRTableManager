@@ -35,9 +35,9 @@ public sealed class PlayStatus
         try
         {
             Directory.CreateDirectory(Path.GetDirectoryName(path)!);
-            var tmp = path + ".tmp";
-            File.WriteAllText(
-                tmp,
+            // Tried again for a moment while the lobby has the file open.
+            PlayStats.WriteAtomic(
+                path,
                 JsonSerializer.Serialize(
                     new PlayStatus
                     {
@@ -47,7 +47,6 @@ public sealed class PlayStatus
                     }
                 )
             );
-            File.Move(tmp, path, overwrite: true);
         }
         catch
         { /* the status is a courtesy to the lobby; it must never stop a table */
@@ -58,8 +57,8 @@ public sealed class PlayStatus
     {
         try
         {
-            return File.Exists(path)
-                ? JsonSerializer.Deserialize<PlayStatus>(File.ReadAllText(path))
+            return PlayStats.ReadShared(path) is { } text
+                ? JsonSerializer.Deserialize<PlayStatus>(text)
                 : null;
         }
         catch

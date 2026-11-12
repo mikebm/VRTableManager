@@ -135,27 +135,34 @@ public sealed class LobbyState
         {
             var favs = s.LegacyFavourites ?? [];
             var recent = s.LegacyRecent ?? [];
-            s.Stats = PlayStats.Mutate(
-                st =>
-                {
-                    foreach (var f in favs)
+            try
+            {
+                s.Stats = PlayStats.Mutate(
+                    st =>
                     {
-                        st.SetFavourite(f, true);
-                    }
-                    // Keep the old order: newest first, a minute apart, for tables not seen yet.
-                    for (var i = 0; i < recent.Count; i++)
-                    {
-                        if (st.LastPlayedOf(recent[i]) == null)
+                        foreach (var f in favs)
                         {
-                            st.Touch(recent[i], DateTime.Now.AddMinutes(-i - 1));
+                            st.SetFavourite(f, true);
                         }
-                    }
-                },
-                s.StatsPath
-            );
-            s.LegacyFavourites = null;
-            s.LegacyRecent = null;
-            s.Save();
+                        // Keep the old order: newest first, a minute apart, for tables not seen yet.
+                        for (var i = 0; i < recent.Count; i++)
+                        {
+                            if (st.LastPlayedOf(recent[i]) == null)
+                            {
+                                st.Touch(recent[i], DateTime.Now.AddMinutes(-i - 1));
+                            }
+                        }
+                    },
+                    s.StatsPath
+                );
+                s.LegacyFavourites = null;
+                s.LegacyRecent = null;
+                s.Save();
+            }
+            catch (Exception e) when (e is IOException or UnauthorizedAccessException)
+            { /* stats busy, unreadable or read-only: keep the old lists and move them over next time */
+                s.RefreshStats();
+            }
         }
         else
         {
@@ -248,9 +255,76 @@ public sealed class LobbyState
             return false;
         }
 
+        if (stamp == default)
+        {
+            Stats = new PlayStats(); // no file (yet)
+        }
+        else if (ReadStats(StatsPath) is { } read)
+        {
+            Stats = read;
+        }
+        else
+        {
+            return false; // couldn't read it just now (being replaced): the time isn't kept, so the next check tries again
+        }
+
         _statsStamp = stamp;
-        Stats = PlayStats.Load(StatsPath);
         return true;
+    }
+
+    /// <summary>
+    /// The shared stats, or null when the file couldn't be read or parsed just now. Read the way PlayStats does
+    /// (letting the other apps go on replacing it; an empty file, or one without tables, is no stats), but in one try:
+    /// this runs on the lobby's main thread, and PlayStats.ReadShared's retries (up to 10 × 30 ms) would stall the
+    /// headset. The check two seconds later is the retry.
+    /// </summary>
+    static PlayStats? ReadStats(string path)
+    {
+        try
+        {
+            string text;
+            using (
+                var stream = new FileStream(
+                    path,
+                    FileMode.Open,
+                    FileAccess.Read,
+                    FileShare.ReadWrite | FileShare.Delete
+                )
+            )
+            using (var reader = new StreamReader(stream))
+            {
+                text = reader.ReadToEnd();
+            }
+
+            var s =
+                (
+                    string.IsNullOrWhiteSpace(text)
+                        ? null
+                        : JsonSerializer.Deserialize<PlayStats>(text)
+                ) ?? new PlayStats();
+            // Re-keyed case-insensitively, as PlayStats.Load does (the deserializer builds an ordinal dictionary).
+            s.Tables = new Dictionary<string, TableStats>(
+                s.Tables ?? new Dictionary<string, TableStats>(),
+                StringComparer.OrdinalIgnoreCase
+            );
+            return s;
+        }
+        catch (Exception e) when (e is IOException or UnauthorizedAccessException or JsonException)
+        {
+            return null; // busy, gone or half-written: next time
+        }
+    }
+
+    /// <summary>Keeps the stats file's time after a change made here, so the next check doesn't read our own write back.</summary>
+    void StatsWritten()
+    {
+        try
+        {
+            _statsStamp = File.Exists(StatsPath) ? File.GetLastWriteTimeUtc(StatsPath) : default;
+        }
+        catch
+        { /* the next check reads it again: no harm */
+        }
     }
 
     public bool IsFavourite(string id) => Stats.IsFavourite(id);
@@ -262,6 +336,7 @@ public sealed class LobbyState
         try
         {
             Stats = PlayStats.Mutate(st => st.SetFavourite(id, on), StatsPath);
+            StatsWritten();
         }
         catch
         {
@@ -280,6 +355,7 @@ public sealed class LobbyState
         try
         {
             Stats = PlayStats.Mutate(st => st.Touch(id, now), StatsPath);
+            StatsWritten();
         }
         catch
         {

@@ -220,25 +220,60 @@ public sealed class AppSettings
 
     public static AppSettings Load() => LoadFrom(DefaultPath);
 
+    /// <summary>
+    /// settings.json was there but couldn't be read (in use, no access), so these are defaults: <see cref="Save"/>
+    /// leaves the file alone rather than write defaults over every setting. A later load that reads it clears it
+    /// (copy the loaded value across when reloading into an existing instance).
+    /// </summary>
+    [JsonIgnore]
+    public bool Unreadable { get; set; }
+
     public static AppSettings LoadFrom(string path)
     {
         var s = new AppSettings();
+        string? text = null;
         try
         {
-            if (File.Exists(path))
-            {
-                s = JsonSerializer.Deserialize<AppSettings>(File.ReadAllText(path)) ?? s;
-            }
+            // Shared with the VR lobby and the --play launcher; read while another one saves it.
+            text = PlayStats.ReadShared(path);
         }
-        catch
-        { /* corrupt settings: fall back to defaults */
+        catch (Exception e) when (e is IOException or UnauthorizedAccessException)
+        {
+            s.Unreadable = true;
+        }
+        if (!string.IsNullOrWhiteSpace(text))
+        {
+            try
+            {
+                s = JsonSerializer.Deserialize<AppSettings>(text) ?? s;
+            }
+            catch (JsonException)
+            {
+                // Corrupt settings: fall back to defaults, keeping the file beside them so nothing is lost for good.
+                try
+                {
+                    File.Copy(path, path + ".bad", overwrite: true);
+                }
+                catch (Exception e) when (e is IOException or UnauthorizedAccessException)
+                {
+                    s.Unreadable = true;
+                }
+            }
         }
         s.SourcePath = path;
         return s;
     }
 
-    public void Save() =>
-        File.WriteAllText(SourcePath ?? DefaultPath, JsonSerializer.Serialize(this, Json));
+    /// <summary>Written beside the file and swapped in, so a crash or power cut mid-save leaves the old settings whole.</summary>
+    public void Save()
+    {
+        if (Unreadable)
+        {
+            return;
+        }
+
+        PlayStats.WriteAtomic(SourcePath ?? DefaultPath, JsonSerializer.Serialize(this, Json));
+    }
 }
 
 /// <summary>
