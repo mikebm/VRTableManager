@@ -359,18 +359,7 @@ public sealed partial class CatalogViewModel(MainViewModel app) : ChildViewModel
     readonly System.Runtime.CompilerServices.ConditionalWeakTable<VpsGame, SearchEntry> _gameIndex =
         new();
 
-    static SearchEntry IndexGame(VpsGame g) =>
-        TableSearch.Index(
-            new SearchFields(
-                g.Name,
-                g.Manufacturer,
-                g.Year,
-                g.TableFiles?.SelectMany(t => t.Authors ?? [])
-                    .Distinct(StringComparer.OrdinalIgnoreCase),
-                g.Theme,
-                g.Designers
-            )
-        );
+    static SearchEntry IndexGame(VpsGame g) => TableSearch.Index(g);
 
     /// <summary>Makers with at least 3 machines and themes with at least 20, most first (built once the catalog has loaded).</summary>
     void UpdateManufacturers()

@@ -156,16 +156,7 @@ public static class TableInstaller
             }
 
             var main = PickMainTable(tables, tf);
-            // (*.BIN entries are Stern firmware files, not PinMAME ROM names.)
-            var vpsRoms = (game.RomFiles ?? [])
-                .Select(r => r.Version)
-                .OfType<string>()
-                .Where(v =>
-                    !string.IsNullOrWhiteSpace(v)
-                    && !v.EndsWith(".bin", StringComparison.OrdinalIgnoreCase)
-                )
-                .Distinct()
-                .ToList();
+            var vpsRoms = VpsRomNames(game);
             // The script names the one ROM this table loads; fall back to VPS's list if it can't be read.
             // Originals that don't use PinMAME need no ROM even if they set cGameName.
             // VPS's "no ROM" tag on the table file settles it either way.
@@ -1093,6 +1084,106 @@ public static class TableInstaller
         {
             // Not saved: keep showing the name that's on disk.
             (m.GameName, m.OriginalName) = (oldName, oldOriginal);
+            throw;
+        }
+        return true;
+    }
+
+    /// <summary>The ROM sets the catalog lists for a game (*.BIN entries are Stern firmware files, not PinMAME ROM names).</summary>
+    public static List<string> VpsRomNames(VpsGame game) =>
+        (game.RomFiles ?? [])
+            .Select(r => r.Version)
+            .OfType<string>()
+            .Where(v =>
+                !string.IsNullOrWhiteSpace(v)
+                && !v.EndsWith(".bin", StringComparison.OrdinalIgnoreCase)
+            )
+            .Distinct()
+            .ToList();
+
+    /// <summary>
+    /// ⋯ → Fix table match…: links the table to the catalog game and table file (version) you picked, as if it
+    /// had been installed from them: it gets that game's ROM, add-ons, picture and rules, and update checks
+    /// compare against that version. The files on disk stay as they are; a name you gave the table stays.
+    /// Needs a manifest to keep the link in (<see cref="CanRename"/>). Returns false when nothing changed.
+    /// <paramref name="script"/> is what <see cref="RomDetector.Inspect"/> read from the table (slow on big
+    /// tables, so read beforehand off the UI thread); without it the ROMs aren't looked at.
+    /// </summary>
+    public static bool Relink(
+        InstalledTable table,
+        VpsGame game,
+        VpsTableFile tf,
+        VpxRomInfo? script = null
+    )
+    {
+        if (!CanRename(table))
+        {
+            throw new InvalidOperationException(
+                "This table has no vrtm.json to keep the catalog link in."
+            );
+        }
+
+        var m = table.Manifest;
+        if (m.GameId == game.Id && m.TableFileId == tf.Id)
+        {
+            return false;
+        }
+
+        var before = JsonSerializer.Serialize(m, Json);
+        // A table never matched (or matched to another game) carries that one's name: take the new game's,
+        // unless you renamed it yourself.
+        var renamed = m.OriginalName != null;
+        (m.GameName, m.OriginalName) = renamed ? (m.GameName, game.Name) : (game.Name, null);
+        if (m.GameName == m.OriginalName)
+        {
+            m.OriginalName = null;
+        }
+
+        m.GameId = game.Id;
+        m.Manufacturer = game.Manufacturer;
+        m.Year = game.Year;
+        m.TableFileId = tf.Id;
+        m.Version = tf.Version;
+        m.Authors = tf.Authors ?? [];
+        m.Features = tf.Features ?? [];
+        m.SourceUrl = tf.Urls?.FirstOrDefault()?.Url;
+        m.ImgUrl =
+            !string.IsNullOrWhiteSpace(tf.ImgUrl) ? tf.ImgUrl
+            : !string.IsNullOrWhiteSpace(game.ImgUrl) ? game.ImgUrl
+            : null;
+        // The version you picked is the one you have: newer catalog versions of it show as updates.
+        m.SourceUpdatedAt = tf.UpdatedAt;
+        // Linked by hand: the automatic matching for imported tables leaves it alone.
+        m.CatalogLink = Math.Max(m.CatalogLink, CatalogLink.Version);
+        // ROMs, as installing works them out: the one the script names stays. A script that doesn't name one
+        // gets the new game's catalog list, instead of the wrongly matched game's (or none, when it wasn't in
+        // the catalog). A ROM set up as an alias (Stern game code) is the one it plays: left as it is.
+        if (script != null && table.IsVpx)
+        {
+            if (script.NoRomNeeded || RomRequirements.TaggedNoRom(m))
+            {
+                m.RomNames = [];
+                m.RomParents = [];
+                m.RomAlias = null;
+            }
+            else if (script.RomName == null && m.RomAlias == null)
+            {
+                m.RomNames = VpsRomNames(game);
+                m.RomParents = [];
+            }
+        }
+        try
+        {
+            SaveManifest(table);
+        }
+        catch
+        {
+            // Not saved: keep showing what's on disk.
+            var old = JsonSerializer.Deserialize<TableManifest>(before)!;
+            foreach (var p in typeof(TableManifest).GetProperties().Where(p => p.CanWrite))
+            {
+                p.SetValue(m, p.GetValue(old));
+            }
             throw;
         }
         return true;

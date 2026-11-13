@@ -85,6 +85,20 @@ public sealed class TableSearch
         );
     }
 
+    /// <summary>What a catalog machine is found by in Get Tables (and ADD A TABLE FILE…'s catalog search).</summary>
+    public static SearchEntry Index(Models.VpsGame g) =>
+        Index(
+            new SearchFields(
+                g.Name,
+                g.Manufacturer,
+                g.Year,
+                g.TableFiles?.SelectMany(t => t.Authors ?? [])
+                    .Distinct(StringComparer.OrdinalIgnoreCase),
+                g.Theme,
+                g.Designers
+            )
+        );
+
     public static SearchEntry Index(SearchFields f)
     {
         var e = new SearchEntry { Year = f.Year is > 0 ? f.Year : null };

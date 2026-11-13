@@ -23,6 +23,20 @@ public interface IUiHost
     /// <summary>Shows a message with several buttons; returns the index pressed, or -1 if the window was closed.</summary>
     /// <param name="details">Optional monospaced text (e.g. log lines) shown in a scrolling box under the message.</param>
     Task<int> ChoiceAsync(string title, string message, string[] buttons, string? details = null);
+
+    /// <summary>
+    /// A list to pick one item from; null when cancelled. With <paramref name="query"/> (not null) a search box
+    /// above the list refills it as you type: <paramref name="items"/> gives the list for what's typed ("" with
+    /// no box). The first item starts selected.
+    /// </summary>
+    Task<T?> PickAsync<T>(
+        string title,
+        string message,
+        Func<string, IReadOnlyList<(T Value, string Label)>> items,
+        string okLabel,
+        string? query = null
+    )
+        where T : class;
     Task<string?> PickSaveFileAsync(
         string title,
         string suggestedName,

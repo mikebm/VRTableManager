@@ -176,6 +176,170 @@ static class RenameChecks
             )
         );
 
+        // ⋯ → Fix table match…: a table added as Not in the catalog, linked to its catalog game and version.
+        var twdFolder = Path.Combine(root, "relink", "The Walking Dead LE Premium 4K Stern 2014");
+        Directory.CreateDirectory(twdFolder);
+        var twdVpx = Path.Combine(twdFolder, "TWD LE 4K.vpx");
+        File.WriteAllText(twdVpx, "x");
+        var twdManifest = Path.Combine(twdFolder, "vrtm.json");
+        var unmatched = new TableManifest
+        {
+            GameName = "The Walking Dead LE Premium 4K Stern 2014",
+            VpxFile = "TWD LE 4K.vpx",
+            RomNames = ["twd_160"],
+        };
+        File.WriteAllText(twdManifest, JsonSerializer.Serialize(unmatched));
+        var twdTable = new InstalledTable(unmatched, twdVpx, twdFolder);
+        var flupper = new VpsTableFile
+        {
+            Id = "twd-flupper",
+            Version = "1.1.0",
+            TableFormat = "VPX",
+            Authors = ["Flupper"],
+            UpdatedAt = 1234,
+        };
+        var le = new VpsGame
+        {
+            Id = "twdle",
+            Name = "The Walking Dead (Limited Edition)",
+            Manufacturer = "Stern",
+            Year = 2014,
+            ImgUrl = "https://example.invalid/twd.png",
+            TableFiles = [flupper],
+        };
+        TableManifest SavedTwd() =>
+            JsonSerializer.Deserialize<TableManifest>(File.ReadAllText(twdManifest))!;
+        var relinked = TableInstaller.Relink(twdTable, le, flupper);
+        var s = SavedTwd();
+        results.Add(
+            (
+                relinked
+                    && s.GameId == "twdle"
+                    && s.TableFileId == "twd-flupper"
+                    && s.SourceUpdatedAt == 1234
+                    && s.GameName == "The Walking Dead (Limited Edition)"
+                    && s.OriginalName == null
+                    && s.Year == 2014
+                    && s.ImgUrl == le.ImgUrl
+                    && s.RomNames.SequenceEqual(["twd_160"])
+                    && s.CatalogLink >= CatalogLink.Version
+                    && !TableInstaller.Relink(twdTable, le, flupper)
+                    && TableUpdates.Find([twdTable], [le]).Count == 0,
+                "fix table match: a table not in the catalog is linked to the game and version picked, takes its name, keeps its ROM"
+            )
+        );
+        TableInstaller.Rename(twdTable, "TWD");
+        var newer = new VpsTableFile
+        {
+            Id = "twd-vpw",
+            Urls = [new VpsUrl { Url = "https://example.invalid/twd" }],
+            Version = "1.6",
+            TableFormat = "VPX",
+            UpdatedAt = 99,
+        };
+        le.TableFiles = [flupper, newer];
+        TableInstaller.Relink(twdTable, le, newer);
+        var upToDate = TableUpdates.Find([twdTable], [le]).Count == 0;
+        newer.Version = "1.7"; // the author releases a new version of the one picked
+        s = SavedTwd();
+        results.Add(
+            (
+                s.GameName == "TWD"
+                    && s.OriginalName == "The Walking Dead (Limited Edition)"
+                    && s.TableFileId == "twd-vpw"
+                    && upToDate
+                    && TableUpdates.Find([twdTable], [le]).Count == 1,
+                "fix table match: a name you gave the table stays, and updates are checked against the version picked"
+            )
+        );
+
+        // Fix table match and ROMs: a script that doesn't name its ROM takes the new game's catalog list.
+        var romFolder = Path.Combine(root, "relink", "Unreadable ROM");
+        Directory.CreateDirectory(romFolder);
+        var romVpx = Path.Combine(romFolder, "Mars.vpx");
+        File.WriteAllText(romVpx, "x");
+        var romManifest = Path.Combine(romFolder, "vrtm.json");
+        var wrong = new TableManifest
+        {
+            GameId = "wrong",
+            TableFileId = "wrong1",
+            GameName = "Attack",
+            VpxFile = "Mars.vpx",
+            RomNames = ["atk_l1"], // the wrongly matched game's catalog ROM
+        };
+        File.WriteAllText(romManifest, JsonSerializer.Serialize(wrong));
+        var romTable = new InstalledTable(wrong, romVpx, romFolder);
+        var afmFile = new VpsTableFile
+        {
+            Id = "afm1",
+            Version = "2.0",
+            TableFormat = "VPX",
+        };
+        var afmGame = new VpsGame
+        {
+            Id = "afm",
+            Name = "Attack from Mars",
+            TableFiles = [afmFile],
+            RomFiles =
+            [
+                new VpsFile { Version = "afm_113b" },
+                new VpsFile { Version = "afm_113" },
+                new VpsFile { Version = "AFM_FW.bin" },
+            ],
+        };
+        TableInstaller.Relink(romTable, afmGame, afmFile, new VpxRomInfo(null, true));
+        var fromCatalog = JsonSerializer
+            .Deserialize<TableManifest>(File.ReadAllText(romManifest))!
+            .RomNames.SequenceEqual(["afm_113b", "afm_113"]);
+
+        // The ROM the script names stays; a ROM set up as an alias stays; no ROM needed clears them.
+        var named = new TableManifest
+        {
+            GameName = "A",
+            VpxFile = "Mars.vpx",
+            RomNames = ["afm_113b"],
+        };
+        File.WriteAllText(romManifest, JsonSerializer.Serialize(named));
+        var namedTable = new InstalledTable(named, romVpx, romFolder);
+        TableInstaller.Relink(namedTable, afmGame, afmFile, new VpxRomInfo("afm_113b", true));
+        var aliased = new TableManifest
+        {
+            GameName = "B",
+            VpxFile = "Mars.vpx",
+            RomNames = ["sw_101"],
+            RomAlias = "sw_le",
+        };
+        File.WriteAllText(romManifest, JsonSerializer.Serialize(aliased));
+        TableInstaller.Relink(
+            new InstalledTable(aliased, romVpx, romFolder),
+            afmGame,
+            afmFile,
+            new VpxRomInfo(null, true)
+        );
+        var original = new TableManifest
+        {
+            GameName = "C",
+            VpxFile = "Mars.vpx",
+            RomNames = ["x"],
+        };
+        File.WriteAllText(romManifest, JsonSerializer.Serialize(original));
+        TableInstaller.Relink(
+            new InstalledTable(original, romVpx, romFolder),
+            afmGame,
+            afmFile,
+            new VpxRomInfo("mygame", false) // sets cGameName, never runs PinMAME
+        );
+        results.Add(
+            (
+                fromCatalog
+                    && named.RomNames.SequenceEqual(["afm_113b"])
+                    && aliased.RomNames.SequenceEqual(["sw_101"])
+                    && aliased.RomAlias == "sw_le"
+                    && original.RomNames.Count == 0,
+                "fix table match: ROMs as installing works them out (script's ROM, else the new game's list; an alias stays)"
+            )
+        );
+
         return results;
     }
 }

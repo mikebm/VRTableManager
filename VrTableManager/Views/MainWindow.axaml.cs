@@ -382,6 +382,143 @@ public partial class MainWindow : Window, IUiHost
         return result;
     }
 
+    public async Task<T?> PickAsync<T>(
+        string title,
+        string message,
+        Func<string, IReadOnlyList<(T Value, string Label)>> items,
+        string okLabel,
+        string? query = null
+    )
+        where T : class
+    {
+        T? result = null;
+        var dialog = new Window
+        {
+            Title = title,
+            Width = 640,
+            SizeToContent = SizeToContent.Height,
+            CanResize = false,
+            WindowStartupLocation = WindowStartupLocation.CenterOwner,
+            Icon = Icon,
+        };
+        IReadOnlyList<(T Value, string Label)> shown = [];
+        var list = new ListBox { Height = 320 };
+        var empty = new TextBlock
+        {
+            Classes = { "body" },
+            Opacity = 0.7,
+            Margin = new(4, 0),
+            IsVisible = false,
+        };
+        var ok = new Button
+        {
+            Content = okLabel,
+            Classes = { "primary" },
+            IsDefault = true,
+            IsEnabled = false,
+        };
+        var cancel = new Button { Content = "CANCEL", IsCancel = true };
+        void Fill(string text)
+        {
+            shown = items(text);
+            list.ItemsSource = shown
+                .Select(i => new TextBlock { Text = i.Label, TextWrapping = TextWrapping.Wrap })
+                .ToList();
+            list.SelectedIndex = shown.Count > 0 ? 0 : -1;
+            empty.IsVisible = shown.Count == 0;
+            empty.Text = string.IsNullOrWhiteSpace(text)
+                ? "Type the table's name."
+                : "Nothing in the catalog matches that.";
+        }
+        void Pick()
+        {
+            if (list.SelectedIndex >= 0 && list.SelectedIndex < shown.Count)
+            {
+                result = shown[list.SelectedIndex].Value;
+                dialog.Close();
+            }
+        }
+        list.SelectionChanged += (_, _) => ok.IsEnabled = list.SelectedIndex >= 0;
+        // Only a double-tap on a row picks it, not one on the empty space below the rows.
+        list.DoubleTapped += (_, e) =>
+        {
+            if (
+                e.Source is Avalonia.Visual v
+                && Avalonia.VisualTree.VisualExtensions.FindAncestorOfType<ListBoxItem>(v, true)
+                    != null
+            )
+            {
+                Pick();
+            }
+        };
+        ok.Click += (_, _) => Pick();
+        cancel.Click += (_, _) => dialog.Close();
+
+        var panel = new StackPanel
+        {
+            Margin = new(24),
+            Spacing = 14,
+            Children =
+            {
+                new TextBlock { Text = title, Classes = { "h2" } },
+                new TextBlock
+                {
+                    Text = message,
+                    TextWrapping = TextWrapping.Wrap,
+                    Classes = { "body" },
+                },
+            },
+        };
+        TextBox? box = null;
+        if (query != null)
+        {
+            box = new TextBox
+            {
+                Text = query,
+                MaxLength = 80,
+                PlaceholderText = "Search the catalog",
+            };
+            box.TextChanged += (_, _) => Fill(box.Text ?? "");
+            // Down arrow from the box goes to the list, as in a search field.
+            box.KeyDown += (_, e) =>
+            {
+                if (e.Key == Avalonia.Input.Key.Down && shown.Count > 0)
+                {
+                    list.Focus();
+                    e.Handled = true;
+                }
+            };
+            panel.Children.Add(box);
+        }
+        panel.Children.Add(empty);
+        panel.Children.Add(list);
+        panel.Children.Add(
+            new StackPanel
+            {
+                Orientation = Orientation.Horizontal,
+                Spacing = 8,
+                HorizontalAlignment = HorizontalAlignment.Right,
+                Children = { cancel, ok },
+            }
+        );
+        dialog.Content = panel;
+        Fill(query ?? "");
+        dialog.Opened += (_, _) =>
+        {
+            if (box != null)
+            {
+                box.Focus();
+                box.SelectAll();
+            }
+            else
+            {
+                list.Focus();
+            }
+        };
+        await dialog.ShowDialog(this);
+        return result;
+    }
+
     public void HideForPlay() => WindowState = WindowState.Minimized;
 
     public void ShowAfterPlay()

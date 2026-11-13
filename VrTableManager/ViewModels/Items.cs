@@ -266,6 +266,13 @@ public sealed partial class InstalledItem : ObservableObject
     public bool HasUserArtwork =>
         UserCard != null || UserPlayfield != null || UserBackglass != null || UserWheel != null;
 
+    /// <summary>⋯ → Fix table match…: the manifest now names another catalog game, so its name, picture and the rest change.</summary>
+    public void Relinked()
+    {
+        RefreshUserArtwork();
+        OnPropertyChanged(string.Empty);
+    }
+
     public void RefreshUserArtwork()
     {
         UserCard = UserArtwork.Key(Table, UserArtwork.Kind.Card);

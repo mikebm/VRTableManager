@@ -380,6 +380,9 @@
                 <MenuItem Header="Rename…" IsVisible="{Binding CanRename}" IsEnabled="{Binding !IsBusy}"
                           ToolTip.Tip="The name shown in My Tables and the VR lobby. The table keeps its catalog link, collections, play history and pictures."
                           Command="{Binding Owner.Library.RenameTableCommand}" CommandParameter="{Binding}" />
+                <MenuItem Header="Fix table match…" IsVisible="{Binding CanRename}" IsEnabled="{Binding !IsBusy}"
+                          ToolTip.Tip="Link this table to the catalog table it really is, so it gets that table's ROM, add-ons, picture and update checks. Its files stay as they are."
+                          Command="{Binding Owner.Library.FixTableMatchCommand}" CommandParameter="{Binding}" />
                 <MenuItem Header="Open">
                   <MenuItem Header="{Binding SourcePageMenuHeader}" IsVisible="{Binding HasSourcePage}"
                             ToolTip.Tip="The page the author posted this table on: rate it, leave a comment, report a problem or say thanks"
