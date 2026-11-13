@@ -34,7 +34,9 @@ public static partial class RomDetector
         string? gameName = null,
             pupName = null,
             controllerRom = null;
-        var pinMame = false;
+        bool loadsPinMame = false,
+            createsController = false,
+            startsGame = false;
         var pup = false;
         bool? pupSwitch = null;
         bool ownDmd = false,
@@ -47,7 +49,7 @@ public static partial class RomDetector
         // both answers are in rather than the whole file (tables run to hundreds of MB).
         while (chunksAfter < 2 && (read = fs.Read(buffer, carry, Chunk)) > 0)
         {
-            if (gameName != null && pinMame)
+            if (gameName != null && PinMame())
             {
                 chunksAfter++;
             }
@@ -55,7 +57,9 @@ public static partial class RomDetector
             var total = carry + read;
             var text = Encoding.Latin1.GetString(buffer, 0, total);
             gameName ??= FromScript(text);
-            pinMame = pinMame || UsesPinMame(text);
+            loadsPinMame = loadsPinMame || LoadsPinMame(text);
+            createsController = createsController || CreatesController(text);
+            startsGame = startsGame || StartsGame(text);
             controllerRom ??= ControllerRomFromScript(text);
             pup = pup || UsesPup(text);
             pupName ??= PupNameFromScript(text, gameName);
@@ -74,7 +78,7 @@ public static partial class RomDetector
             Buffer.BlockCopy(buffer, total - keep, buffer, 0, keep);
             carry = keep;
         }
-        return new(gameName, pinMame)
+        return new(gameName, PinMame())
         {
             ControllerRom = controllerRom,
             AliasTargets = aliasTargets,
@@ -83,6 +87,8 @@ public static partial class RomDetector
             PupOff = pupSwitch == false,
             UsesOwnDmd = ownDmd && !ownDmdOff,
         };
+
+        bool PinMame() => loadsPinMame || (createsController && startsGame);
     }
 
     public static bool UsesPup(string script) => PupRegex().IsMatch(script);
@@ -212,10 +218,16 @@ public static partial class RomDetector
         return null;
     }
 
-    /// <summary>ROM names on (uncommented) script lines that mention an alias, e.g. <c>EnsureVPMAlias cGameName, "afm_113b"</c>.</summary>
+    /// <summary>
+    /// ROM names cGameName may stand for: on (uncommented) script lines that mention an alias, e.g.
+    /// <c>EnsureVPMAlias cGameName, "afm_113b"</c>, or whose PinMAME settings the script changes,
+    /// e.g. <c>.Games("hs_l4")</c> in Dukes of Hazzard, which runs High Speed's ROM as "dukes".
+    /// Only used when cGameName itself isn't a real ROM set.
+    /// </summary>
     public static List<string> AliasTargetsIn(string script) =>
         CodeLinesWith(script, "alias")
             .Select(l => AliasRegex().Match(l))
+            .Concat(CodeLinesWith(script, ".Games").Select(l => GamesRegex().Match(l)))
             .Where(m => m.Success)
             .Select(m => m.Groups[1].Value)
             .Distinct(StringComparer.OrdinalIgnoreCase)
@@ -231,14 +243,16 @@ public static partial class RomDetector
     /// doesn't count (Harry Potter's VR room calls <c>LoadController("EM")</c> and needs no ROM).
     /// </remarks>
     public static bool UsesPinMame(string script) =>
+        LoadsPinMame(script) || (CreatesController(script) && StartsGame(script));
+
+    /// <summary>The table's own code calls a controller.vbs loader that starts PinMAME (LoadVPM, LoadController("VPM"), LoadVPinMAME).</summary>
+    static bool LoadsPinMame(string script) =>
         CodeLinesAt(script, "LoadVPM")
             .Any(l =>
                 PinMameRegex().IsMatch(l.code)
                 && !LoaderDefinitionRegex().IsMatch(l.code)
                 && !InLoaderRoutine(script, l.index)
             )
-        || CodeLinesAt(script, "VPinMAME.Controller")
-            .Any(l => PinMameRegex().IsMatch(l.code) && !InLoaderRoutine(script, l.index))
         // The table's own code calling the loaders below LoadVPM: LoadController("VPM"), LoadVPinMAME.
         || CodeLinesAt(script, "LoadController")
             .Any(l => PinMameLoaderCallRegex().IsMatch(l.code) && !InLoaderRoutine(script, l.index))
@@ -248,6 +262,19 @@ public static partial class RomDetector
                 && !LoaderDefinitionRegex().IsMatch(l.code)
                 && !InLoaderRoutine(script, l.index)
             );
+
+    /// <summary>The table's own code creates VPinMAME.Controller directly (not inside controller.vbs's loaders).</summary>
+    static bool CreatesController(string script) =>
+        CodeLinesAt(script, "VPinMAME.Controller")
+            .Any(l => PinMameRegex().IsMatch(l.code) && !InLoaderRoutine(script, l.index));
+
+    /// <summary>
+    /// The script gives the controller a game (<c>.GameName = …</c>) or runs it (<c>Controller.Run</c>). Creating
+    /// VPinMAME.Controller alone loads no ROM: Get Smart creates one only as a stand-in for B2S when the backglass is off.
+    /// </summary>
+    static bool StartsGame(string script) =>
+        CodeLinesWith(script, ".GameName").Any(l => ControllerGameNameRegex().IsMatch(l))
+        || CodeLinesWith(script, ".Run").Any(l => ControllerRunRegex().IsMatch(l));
 
     /// <summary>
     /// The position sits inside controller.vbs's own loader routines (LoadVPM, LoadVPMALT, LoadController, LoadVPinMAME),
@@ -363,6 +390,14 @@ public static partial class RomDetector
 
     [GeneratedRegex("alias[^\"]*\"([a-z0-9_]{2,32})\"", RegexOptions.IgnoreCase)]
     private static partial Regex AliasRegex();
+
+    /// <summary><c>.Games("hs_l4")</c>: the PinMAME game whose settings the script changes.</summary>
+    [GeneratedRegex("\\.Games[ \\t]*\\([ \\t]*\"([a-z0-9_]{2,32})\"", RegexOptions.IgnoreCase)]
+    private static partial Regex GamesRegex();
+
+    /// <summary><c>Controller.Run</c>, or <c>.Run GetPlayerHWnd</c> inside <c>With Controller</c>.</summary>
+    [GeneratedRegex("(?:\\bController|^[ \\t]*)\\.Run\\b", RegexOptions.IgnoreCase)]
+    private static partial Regex ControllerRunRegex();
 
     [GeneratedRegex("LoadVPM|VPinMAME\\.Controller", RegexOptions.IgnoreCase)]
     private static partial Regex PinMameRegex();

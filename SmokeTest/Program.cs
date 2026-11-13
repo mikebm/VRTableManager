@@ -2555,7 +2555,8 @@ Console.WriteLine($"   gamepad connected: {Gamepad.IsConnected()?.ToString() ?? 
                     + "LoadVPM \"02700000\",\"WPC.vbs\",3.56\r\n"
             )
             && RomDetector.UsesPinMame(
-                "Sub Table1_Init\r\n\tSet Controller = CreateObject(\"VPinMAME.Controller\")\r\nEnd Sub\r\n"
+                "Sub Table1_Init\r\n\tSet Controller = CreateObject(\"VPinMAME.Controller\")\r\n"
+                    + "\tWith Controller\r\n\t\t.GameName = cGameName\r\n\t\t.Run GetPlayerHWnd\r\n\tEnd With\r\nEnd Sub\r\n"
             )
             // The table's own code calling the lower loaders directly does start PinMAME.
             && RomDetector.UsesPinMame(
@@ -2565,6 +2566,30 @@ Console.WriteLine($"   gamepad connected: {Gamepad.IsConnected()?.ToString() ?? 
                 controllerVbs + "Sub Table1_Init\r\n\tLoadVPinMAME\r\nEnd Sub\r\n"
             ),
         "controller.vbs pasted into an original doesn't make it need a ROM; calling LoadVPM does"
+    );
+    // Get Smart: creates VPinMAME.Controller as a stand-in for B2S, but never gives it a game or runs it.
+    Check(
+        !RomDetector.UsesPinMame(
+            "Const cGameName = \"getsmart\"\r\n"
+                + "If B2Son=1 then Set Controller = CreateObject(\"b2s.server\") end if\r\n"
+                + "If B2Son=0 then Set Controller = CreateObject(\"VPinMAME.Controller\") end if\r\n"
+                + "Sub Table1_Init\r\n\tController.B2SSetData 1, 1\r\nEnd Sub\r\n"
+        )
+            && RomDetector.UsesPinMame(
+                "Set Controller = CreateObject(\"VPinMAME.Controller\")\r\nController.GameName = \"mm_109c\"\r\n"
+            ),
+        "a VPinMAME.Controller that's never given a game doesn't need a ROM"
+    );
+    // Dukes of Hazzard runs High Speed's ROM under its own name.
+    Check(
+        RomDetector
+            .AliasTargetsIn(
+                "With Controller\r\n.GameName = cGameName\r\n"
+                    + ".Games(\"hs_l4\").Settings.Value(\"sound\") = 0\r\n"
+                    + "' .Games(\"hs_l3\").Settings.Value(\"sound\") = 0\r\n"
+            )
+            .SequenceEqual(["hs_l4"]),
+        "a .Games(\"rom\") line names the ROM a made-up cGameName stands for"
     );
     Check(
         RomDetector.ControllerRomFromScript(
@@ -2629,7 +2654,13 @@ Console.WriteLine($"   gamepad connected: {Gamepad.IsConnected()?.ToString() ?? 
     // Read-only look at this PC's real tables, if they're here.
     var mine = AppSettings.Load();
     foreach (
-        var name in new[] { "Jaws (Original 2025)", "Metallica (Premium Monsters) (Stern 2013)" }
+        var name in new[]
+        {
+            "Jaws (Original 2025)",
+            "Metallica (Premium Monsters) (Stern 2013)",
+            "Get Smart (Original 2021)",
+            "The Dukes of Hazzard (Original 2022)",
+        }
     )
     {
         var tblDir = Path.Combine(mine.TablesDir, name);
