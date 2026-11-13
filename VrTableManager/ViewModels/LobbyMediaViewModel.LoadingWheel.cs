@@ -1,12 +1,14 @@
+using System.Collections.ObjectModel;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
+using VrTableManager.Models;
 using VrTableManager.Services;
 
 namespace VrTableManager.ViewModels;
 
 // The VR lobby's loading video (played on a big screen while a table starts) and wheel art (the game's logo over
-// the selected cabinet): My Tables → MORE for one table, Setup → VR lobby for the loading video every table shares.
-public sealed partial class MainViewModel
+// the selected cabinet) for one table: My Tables → MORE.
+public sealed partial class LobbyMediaViewModel
 {
     const string VideoFiles = "*.mp4;*.m4v;*.mov;*.wmv;*.avi;*.mkv;*.f4v";
 
@@ -17,7 +19,7 @@ public sealed partial class MainViewModel
     async Task GetLoadingVideo(InstalledItem item)
     {
         var table = item.Table;
-        if (!item.CanGetLoadingVideo || !TryBeginBusy(table.TablePath))
+        if (!item.CanGetLoadingVideo || !App.Library.TryBeginBusy(table.TablePath))
         {
             return;
         }
@@ -33,7 +35,7 @@ public sealed partial class MainViewModel
         }
         finally
         {
-            EndBusy(table.TablePath);
+            App.Library.EndBusy(table.TablePath);
         }
     }
 
@@ -51,7 +53,7 @@ public sealed partial class MainViewModel
             return;
         }
 
-        if (!TryBeginBusy(table.TablePath))
+        if (!App.Library.TryBeginBusy(table.TablePath))
         {
             return;
         }
@@ -72,7 +74,7 @@ public sealed partial class MainViewModel
         }
         finally
         {
-            EndBusy(table.TablePath);
+            App.Library.EndBusy(table.TablePath);
         }
     }
 
@@ -90,11 +92,11 @@ public sealed partial class MainViewModel
         }
         catch (Exception e)
         {
-            PlayStatus = "Couldn't remove the loading video: " + e.Message;
+            App.Library.PlayStatus = "Couldn't remove the loading video: " + e.Message;
             return;
         }
         SetHasLoadingVideo(item.Table.TablePath, false);
-        PlayStatus = HasDefaultLoadingVideo
+        App.Library.PlayStatus = App.Lobby.HasDefaultLoadingVideo
             ? $"Removed {item.Title}'s loading video: it plays the one for every table now."
             : $"Removed {item.Title}'s loading video.";
     }
@@ -102,7 +104,7 @@ public sealed partial class MainViewModel
     void SetHasLoadingVideo(string tablePath, bool on)
     {
         foreach (
-            var i in _allInstalled.Where(i =>
+            var i in App.Library._allInstalled.Where(i =>
                 string.Equals(i.Table.TablePath, tablePath, StringComparison.OrdinalIgnoreCase)
             )
         )
@@ -111,70 +113,18 @@ public sealed partial class MainViewModel
         }
     }
 
-    // ---- Loading video: every table (Setup → VR lobby) ----
-
-    /// <summary>"Loading video for every table: 24 s, with sound" or "None…".</summary>
-    [ObservableProperty]
-    public partial string DefaultLoadingVideoText { get; set; } = "";
-
-    [ObservableProperty]
-    public partial bool HasDefaultLoadingVideo { get; set; }
-
-    void RefreshDefaultLoadingVideo()
-    {
-        var v = LoadingVideo.In(LoadingVideo.DefaultFolder);
-        HasDefaultLoadingVideo = v != null;
-        DefaultLoadingVideoText =
-            v == null
-                ? "None: tables without their own loading video show only the table and its lamps."
-                : $"{v.Info.Frames / (double)v.Info.Fps:0.#} s, {v.Info.Width}×{v.Info.Height}, "
-                    + (v.Audio != null ? "with sound." : "no sound.")
-                    + " Plays for every table without its own.";
-    }
-
-    [RelayCommand]
-    async Task ChooseDefaultLoadingVideo()
-    {
-        if (await PickLoadingVideoAsync("Choose a loading video for every table") is not { } file)
-        {
-            return;
-        }
-
-        await MakeLoadingVideoAsync(
-            file,
-            LoadingVideo.DefaultFolder,
-            "every table",
-            "while a table without its own starts"
-        );
-        RefreshDefaultLoadingVideo();
-    }
-
-    [RelayCommand]
-    void RemoveDefaultLoadingVideo()
-    {
-        try
-        {
-            LoadingVideo.Remove(LoadingVideo.DefaultFolder);
-        }
-        catch (Exception e)
-        {
-            PlayStatus = "Couldn't remove the loading video: " + e.Message;
-        }
-        RefreshDefaultLoadingVideo();
-    }
-
-    Task<string?> PickLoadingVideoAsync(string title) =>
-        _ui.PickFileAsync(
+    internal Task<string?> PickLoadingVideoAsync(string title) =>
+        Ui.PickFileAsync(
             title,
             VideoFiles,
             startFolder: Environment.GetFolderPath(Environment.SpecialFolder.MyVideos)
         );
 
     /// <summary>Turns a video into a loading video in <paramref name="folder"/>, as a job. True when it worked.</summary>
-    async Task<bool> MakeLoadingVideoAsync(string video, string folder, string forWhat, string when)
+    internal async Task<bool> MakeLoadingVideoAsync(string video, string folder, string forWhat, string when)
     {
         var job = new JobItem($"Loading video for {forWhat}") { FileNames = [forWhat] };
-        Jobs.Insert(0, job);
+        App.Downloads.Jobs.Insert(0, job);
         try
         {
             job.Report("Making the loading screen's frames…");
@@ -208,10 +158,10 @@ public sealed partial class MainViewModel
 
     // ---- Wheel art ----
 
-    IReadOnlyList<(MediaPackAudio.Source Source, bool WheelPack)> WheelArtSourcesFor(
+    internal IReadOnlyList<(MediaPackAudio.Source Source, bool WheelPack)> WheelArtSourcesFor(
         InstalledTable t
     ) =>
-        t.HasOwnFolder && t.Manifest.GameId != "" && CatalogGame(t.Manifest.GameId) is { } game
+        t.HasOwnFolder && t.Manifest.GameId != "" && App.Catalog.CatalogGame(t.Manifest.GameId) is { } game
             ? WheelArt.SourcesFor(game)
             : [];
 
@@ -220,7 +170,7 @@ public sealed partial class MainViewModel
     async Task GetWheelArt(InstalledItem item)
     {
         var table = item.Table;
-        if (!item.CanGetWheelArt || !TryBeginBusy(table.TablePath))
+        if (!item.CanGetWheelArt || !App.Library.TryBeginBusy(table.TablePath))
         {
             return;
         }
@@ -235,7 +185,7 @@ public sealed partial class MainViewModel
         }
         finally
         {
-            EndBusy(table.TablePath);
+            App.Library.EndBusy(table.TablePath);
         }
     }
 
@@ -253,17 +203,17 @@ public sealed partial class MainViewModel
         }
         catch (Exception e)
         {
-            PlayStatus = "Couldn't remove the wheel art: " + e.Message;
+            App.Library.PlayStatus = "Couldn't remove the wheel art: " + e.Message;
             return;
         }
         SetHasWheelArt(item.Table.TablePath, false);
-        PlayStatus = $"Removed {item.Title}'s wheel art.";
+        App.Library.PlayStatus = $"Removed {item.Title}'s wheel art.";
     }
 
     void SetHasWheelArt(string tablePath, bool on)
     {
         foreach (
-            var i in _allInstalled.Where(i =>
+            var i in App.Library._allInstalled.Where(i =>
                 string.Equals(i.Table.TablePath, tablePath, StringComparison.OrdinalIgnoreCase)
             )
         )
@@ -271,4 +221,5 @@ public sealed partial class MainViewModel
             i.HasWheelArt = on;
         }
     }
+
 }

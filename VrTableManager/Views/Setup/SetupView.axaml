@@ -62,7 +62,7 @@
                 <TextBlock Classes="navTitle" Text="Headset" />
                 <TextBlock Classes="navSub" Text="Runtime, smoothness" />
               </StackPanel>
-              <Border Grid.Column="2" Classes="chip hot" Padding="7,1" VerticalAlignment="Center" IsVisible="{Binding IsRuntimeWarning}"
+              <Border Grid.Column="2" Classes="chip hot" Padding="7,1" VerticalAlignment="Center" IsVisible="{Binding Headset.IsRuntimeWarning}"
                       ToolTip.Tip="Check the OpenXR runtime">
                 <TextBlock Text="!" />
               </Border>
@@ -131,8 +131,8 @@
                 <TextBlock Classes="navSub" Text="App, tables, add-ons, VPX" />
               </StackPanel>
               <Border Grid.Column="2" Classes="chip hot" Padding="7,1" VerticalAlignment="Center"
-                      IsVisible="{Binding UpdateCount, Converter={x:Static v:Converters.NonZero}}">
-                <TextBlock Text="{Binding UpdateCount}" />
+                      IsVisible="{Binding Updates.UpdateCount, Converter={x:Static v:Converters.NonZero}}">
+                <TextBlock Text="{Binding Updates.UpdateCount}" />
               </Border>
             </Grid>
           </RadioButton>
@@ -153,27 +153,27 @@
     <!-- Sections: only the one picked in the rail shows; each scrolls on its own. -->
     <Panel Grid.Column="1">
       <!-- 01 Visual Pinball X -->
-      <setup:VpxSection IsVisible="{Binding SetupSection, Converter={x:Static v:Converters.SectionIs}, ConverterParameter=vpx}" />
+      <setup:VpxSection DataContext="{Binding Vpx}" IsVisible="{Binding $parent.((vm:MainViewModel)DataContext).SetupSection, Converter={x:Static v:Converters.SectionIs}, ConverterParameter=vpx}" />
       <!-- 02 Playing tables -->
-      <setup:PlaySection IsVisible="{Binding SetupSection, Converter={x:Static v:Converters.SectionIs}, ConverterParameter=play}" />
+      <setup:PlaySection DataContext="{Binding Play}" IsVisible="{Binding $parent.((vm:MainViewModel)DataContext).SetupSection, Converter={x:Static v:Converters.SectionIs}, ConverterParameter=play}" />
       <!-- 03 Controls -->
-      <setup:ControlsSection IsVisible="{Binding SetupSection, Converter={x:Static v:Converters.SectionIs}, ConverterParameter=controls}" />
+      <setup:ControlsSection DataContext="{Binding Controls}" IsVisible="{Binding $parent.((vm:MainViewModel)DataContext).SetupSection, Converter={x:Static v:Converters.SectionIs}, ConverterParameter=controls}" />
       <!-- 04 Headset -->
-      <setup:HeadsetSection IsVisible="{Binding SetupSection, Converter={x:Static v:Converters.SectionIs}, ConverterParameter=headset}" />
+      <setup:HeadsetSection DataContext="{Binding Headset}" IsVisible="{Binding $parent.((vm:MainViewModel)DataContext).SetupSection, Converter={x:Static v:Converters.SectionIs}, ConverterParameter=headset}" />
       <!-- 05 Fit & position -->
-      <setup:FitSection IsVisible="{Binding SetupSection, Converter={x:Static v:Converters.SectionIs}, ConverterParameter=fit}" />
+      <setup:FitSection DataContext="{Binding Fit}" IsVisible="{Binding $parent.((vm:MainViewModel)DataContext).SetupSection, Converter={x:Static v:Converters.SectionIs}, ConverterParameter=fit}" />
       <!-- 06 VR graphics -->
-      <setup:GraphicsSection IsVisible="{Binding SetupSection, Converter={x:Static v:Converters.SectionIs}, ConverterParameter=graphics}" />
+      <setup:GraphicsSection DataContext="{Binding Graphics}" IsVisible="{Binding $parent.((vm:MainViewModel)DataContext).SetupSection, Converter={x:Static v:Converters.SectionIs}, ConverterParameter=graphics}" />
       <!-- 07 VR lobby -->
-      <setup:LobbySection IsVisible="{Binding SetupSection, Converter={x:Static v:Converters.SectionIs}, ConverterParameter=lobby}" />
+      <setup:LobbySection DataContext="{Binding Lobby}" IsVisible="{Binding $parent.((vm:MainViewModel)DataContext).SetupSection, Converter={x:Static v:Converters.SectionIs}, ConverterParameter=lobby}" />
       <!-- 08 Downloads -->
-      <setup:DownloadsSection IsVisible="{Binding SetupSection, Converter={x:Static v:Converters.SectionIs}, ConverterParameter=downloads}" />
+      <setup:DownloadsSection DataContext="{Binding Downloads}" IsVisible="{Binding $parent.((vm:MainViewModel)DataContext).SetupSection, Converter={x:Static v:Converters.SectionIs}, ConverterParameter=downloads}" />
       <!-- 09 Other games -->
-      <setup:OtherGamesSection IsVisible="{Binding SetupSection, Converter={x:Static v:Converters.SectionIs}, ConverterParameter=games}" />
+      <setup:OtherGamesSection DataContext="{Binding OtherGames}" IsVisible="{Binding $parent.((vm:MainViewModel)DataContext).SetupSection, Converter={x:Static v:Converters.SectionIs}, ConverterParameter=games}" />
       <!-- 10 Updates -->
-      <setup:UpdatesSection IsVisible="{Binding SetupSection, Converter={x:Static v:Converters.SectionIs}, ConverterParameter=updates}" />
+      <setup:UpdatesSection DataContext="{Binding Updates}" IsVisible="{Binding $parent.((vm:MainViewModel)DataContext).SetupSection, Converter={x:Static v:Converters.SectionIs}, ConverterParameter=updates}" />
       <!-- 11 Maintenance -->
-      <setup:MaintenanceSection IsVisible="{Binding SetupSection, Converter={x:Static v:Converters.SectionIs}, ConverterParameter=maintenance}" />
+      <setup:MaintenanceSection DataContext="{Binding Maintenance}" IsVisible="{Binding $parent.((vm:MainViewModel)DataContext).SetupSection, Converter={x:Static v:Converters.SectionIs}, ConverterParameter=maintenance}" />
     </Panel>
   </Grid>
 </UserControl>

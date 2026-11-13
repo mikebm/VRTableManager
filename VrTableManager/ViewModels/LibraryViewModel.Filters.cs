@@ -10,7 +10,7 @@ namespace VrTableManager.ViewModels;
 /// My Tables: the maker / era / type / theme filters (the same ones as Get Tables) and the forgiving search.
 /// Type and theme come from the table's catalog entry, so tables that aren't linked to one only pass "Any".
 /// </summary>
-public sealed partial class MainViewModel
+public sealed partial class LibraryViewModel
 {
     /// <summary>Makers and themes of the installed tables, most common first.</summary>
     public ObservableCollection<string> InstalledMakers { get; } = [TableFilters.AnyMaker];
@@ -65,24 +65,7 @@ public sealed partial class MainViewModel
 
     // ---- The catalog entry behind an installed table ----
 
-    Dictionary<string, VpsGame> _gamesById = [];
-    List<VpsGame>? _gamesByIdFor;
-
-    VpsGame? CatalogGameOf(InstalledItem i) => CatalogGame(i.Table.Manifest.GameId);
-
-    /// <summary>
-    /// The catalog game with this id (the first, if listed twice), or null. A dictionary, rebuilt when the catalog
-    /// is: a rescan asks this several times per table, and walking a catalog of thousands each time adds up.
-    /// </summary>
-    VpsGame? CatalogGame(string id)
-    {
-        if (!ReferenceEquals(_gamesByIdFor, _allGames))
-        {
-            _gamesById = _allGames.GroupBy(g => g.Id).ToDictionary(g => g.Key, g => g.First());
-            _gamesByIdFor = _allGames;
-        }
-        return id != "" && _gamesById.TryGetValue(id, out var g) ? g : null;
-    }
+    VpsGame? CatalogGameOf(InstalledItem i) => App.Catalog.CatalogGame(i.Table.Manifest.GameId);
 
     TableFacts FactsOf(InstalledItem i) => TableFilters.FactsOf(i.Table.Manifest, CatalogGameOf(i));
 
@@ -129,14 +112,14 @@ public sealed partial class MainViewModel
         if (
             _installedIndex.TryGetValue(i, out var c)
             && c.Key == key
-            && ReferenceEquals(c.Games, _allGames)
+            && ReferenceEquals(c.Games, App.Catalog._allGames)
         )
         {
             return c.Entry;
         }
 
         var entry = TableSearch.Index(i.Table.Manifest, CatalogGameOf(i));
-        _installedIndex[i] = (key, _allGames, entry);
+        _installedIndex[i] = (key, App.Catalog._allGames, entry);
         return entry;
     }
 
@@ -156,7 +139,7 @@ public sealed partial class MainViewModel
             details.Add(i.Table.Manifest.GameId);
             details.Add(i.Table.Manifest.Manufacturer);
         }
-        var key = (_allInstalled, _allGames, details.ToHashCode());
+        var key = (_allInstalled, App.Catalog._allGames, details.ToHashCode());
         if (_choicesFor == key)
         {
             return;

@@ -5,7 +5,7 @@ namespace VrTableManager.ViewModels;
 
 // My Tables → MORE → My artwork: your own card picture, VR lobby playfield and backglass, and lobby video
 // (UserArtwork; the files sit in the table's artwork\ folder, where you can also drop them by hand).
-public sealed partial class MainViewModel
+public sealed partial class LobbyMediaViewModel
 {
     static string Pictures => string.Join(";", UserArtwork.PictureExts.Select(e => "*" + e));
     static string PicturesFolder => Environment.GetFolderPath(Environment.SpecialFolder.MyPictures);
@@ -29,7 +29,7 @@ public sealed partial class MainViewModel
     async Task ChooseArtAsync(InstalledItem item, UserArtwork.Kind kind, string what)
     {
         if (
-            await _ui.PickFileAsync(
+            await Ui.PickFileAsync(
                 $"Choose a picture for {what} ({item.Title})",
                 Pictures,
                 startFolder: PicturesFolder
@@ -46,11 +46,11 @@ public sealed partial class MainViewModel
         }
         catch (Exception e)
         {
-            PlayStatus = $"Couldn't use that picture: {e.Message}";
+            App.Library.PlayStatus = $"Couldn't use that picture: {e.Message}";
             return;
         }
         RefreshArtwork(item.Table.TablePath);
-        PlayStatus =
+        App.Library.PlayStatus =
             kind == UserArtwork.Kind.Card
                 ? $"{item.Title} now shows your picture."
                 : $"{item.Title}'s cabinet uses your picture the next time the VR lobby opens.";
@@ -68,16 +68,16 @@ public sealed partial class MainViewModel
         }
         catch (Exception e)
         {
-            PlayStatus = "Couldn't remove your pictures: " + e.Message;
+            App.Library.PlayStatus = "Couldn't remove your pictures: " + e.Message;
             return;
         }
         RefreshArtwork(item.Table.TablePath);
-        PlayStatus = $"{item.Title} is back to the catalog's and the table's own pictures.";
+        App.Library.PlayStatus = $"{item.Title} is back to the catalog's and the table's own pictures.";
     }
 
     [RelayCommand]
     void OpenArtworkFolder(InstalledItem item) =>
-        _ui.OpenExternal(Directory.CreateDirectory(UserArtwork.FolderFor(item.Table)).FullName);
+        Ui.OpenExternal(Directory.CreateDirectory(UserArtwork.FolderFor(item.Table)).FullName);
 
     /// <summary>Turns a video you have (any length; the first 12 s are used) into the table's VR lobby video.</summary>
     [RelayCommand(AllowConcurrentExecutions = true)]
@@ -90,7 +90,7 @@ public sealed partial class MainViewModel
         }
 
         if (
-            await _ui.PickFileAsync(
+            await Ui.PickFileAsync(
                 $"Choose a playfield video for {item.Title}",
                 "*.mp4;*.m4v;*.mov;*.wmv;*.avi;*.mkv",
                 startFolder: Environment.GetFolderPath(Environment.SpecialFolder.MyVideos)
@@ -101,7 +101,7 @@ public sealed partial class MainViewModel
             return;
         }
 
-        if (!TryBeginBusy(table.TablePath))
+        if (!App.Library.TryBeginBusy(table.TablePath))
         {
             return;
         }
@@ -110,7 +110,7 @@ public sealed partial class MainViewModel
         {
             FileNames = [table.Manifest.MatchName],
         };
-        Jobs.Insert(0, job);
+        App.Downloads.Jobs.Insert(0, job);
         try
         {
             job.Report("Making the lobby frames…");
@@ -140,14 +140,14 @@ public sealed partial class MainViewModel
         }
         finally
         {
-            EndBusy(table.TablePath);
+            App.Library.EndBusy(table.TablePath);
         }
     }
 
     void RefreshArtwork(string tablePath)
     {
         foreach (
-            var i in _allInstalled.Where(i =>
+            var i in App.Library._allInstalled.Where(i =>
                 string.Equals(i.Table.TablePath, tablePath, StringComparison.OrdinalIgnoreCase)
             )
         )

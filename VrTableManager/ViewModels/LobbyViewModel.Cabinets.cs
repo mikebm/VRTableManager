@@ -6,7 +6,7 @@ namespace VrTableManager.ViewModels;
 
 // Setup → VR lobby → Cabinets: how big the lobby's cabinets are and how many stand in its ring (LobbyLayout).
 // The lobby reads them from the settings file when it starts, like its other settings.
-public sealed partial class MainViewModel
+public sealed partial class LobbyViewModel
 {
     public IReadOnlyList<int> LobbyCabinetCounts => LobbyLayout.Counts;
     public IReadOnlyList<int> LobbyCabinetScales => LobbyLayout.Scales;

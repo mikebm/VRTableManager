@@ -15,10 +15,10 @@ public partial class MyTablesView : UserControl
     public MyTablesView()
     {
         InitializeComponent();
-        // The view model arrives with the window's DataContext.
+        // The view model arrives with the DataContext MainWindow gives it (Library).
         DataContextChanged += (_, _) =>
         {
-            if (_letters == null && DataContext is MainViewModel vm)
+            if (_letters == null && DataContext is LibraryViewModel vm)
             {
                 _rows = new CardRows(vm.Installed, vm.Installed);
                 InstalledGrid.ItemsSource = _rows.Rows;
@@ -26,7 +26,7 @@ public partial class MyTablesView : UserControl
                 InstalledScroll.SizeChanged += (_, _) => FitRows(vm);
                 vm.PropertyChanged += (_, e) =>
                 {
-                    if (e.PropertyName == nameof(MainViewModel.CardWidth))
+                    if (e.PropertyName == nameof(LibraryViewModel.CardWidth))
                     {
                         FitRows(vm);
                     }
@@ -37,10 +37,10 @@ public partial class MyTablesView : UserControl
                     InstalledScroll,
                     vm.FirstInstalledAt,
                     () => vm.ShowInstalledLetters,
-                    letters => vm.SetActiveLetters(installed: true, letters),
+                    letters => vm.SetActiveLetters(letters),
                     _rows.Rows,
                     vm,
-                    nameof(MainViewModel.ShowInstalledLetters),
+                    nameof(LibraryViewModel.ShowInstalledLetters),
                     _rows
                 );
             }
@@ -48,7 +48,7 @@ public partial class MyTablesView : UserControl
     }
 
     /// <summary>As many cards across as the grid's width takes, as the WrapPanel it replaced fitted them.</summary>
-    void FitRows(MainViewModel vm)
+    void FitRows(LibraryViewModel vm)
     {
         if (_rows == null)
         {

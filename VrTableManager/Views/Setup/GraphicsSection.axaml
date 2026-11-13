@@ -5,7 +5,7 @@
              xmlns:v="using:VrTableManager.Views"
              xmlns:services="using:VrTableManager.Services"
              x:Class="VrTableManager.Views.Setup.GraphicsSection"
-             x:DataType="vm:MainViewModel">
+             x:DataType="vm:GraphicsViewModel">
   <ScrollViewer>
     <Grid>
       <Grid.ColumnDefinitions>
@@ -41,7 +41,7 @@
                 <ItemsControl.ItemTemplate>
                   <DataTemplate x:DataType="x:String">
                     <Button Classes="small" Content="{Binding}"
-                            Command="{ReflectionBinding $parent[Window].DataContext.ApplyGraphicsPresetCommand}" CommandParameter="{Binding}" />
+                            Command="{Binding $parent[UserControl].((vm:GraphicsViewModel)DataContext).ApplyGraphicsPresetCommand}" CommandParameter="{Binding}" />
                   </DataTemplate>
                 </ItemsControl.ItemTemplate>
               </ItemsControl>
@@ -100,12 +100,12 @@
             <TextBlock Classes="muted" TextWrapping="Wrap"
                        Text="Saved in the VR settings file, on top of your own VPinballX.ini, so desktop play keeps its own settings. A table's own .ini can still override these." />
             <WrapPanel>
-              <Button Classes="small" Content="OPEN VR SETTINGS FILE" Margin="0,0,8,0" Command="{Binding OpenVrIniCommand}" />
+              <Button Classes="small" Content="OPEN VR SETTINGS FILE" Margin="0,0,8,0" Command="{Binding App.Vpx.OpenVrIniCommand}" />
             </WrapPanel>
           </StackPanel>
         </Border>
 
-        <Button Classes="small setupNext" Content="NEXT: VR LOBBY  ›" Command="{Binding ShowSetupSectionCommand}" CommandParameter="lobby" />
+        <Button Classes="small setupNext" Content="NEXT: VR LOBBY  ›" Command="{Binding App.ShowSetupSectionCommand}" CommandParameter="lobby" />
       </StackPanel>
     </Grid>
   </ScrollViewer>

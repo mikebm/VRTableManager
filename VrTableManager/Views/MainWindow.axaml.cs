@@ -25,13 +25,13 @@ public partial class MainWindow : Window, IUiHost
         Opened += async (_, _) =>
         {
             await _vm.WarnIfSettingsUnreadableAsync();
-            await _vm.LoadCatalogAsync();
+            await _vm.Catalog.LoadCatalogAsync();
         };
         Closing += async (_, e) =>
         {
             // Downloads running? Ask first; if closing anyway, they're offered again next launch.
-            var running = _vm.RunningJobCount;
-            if (!_closeConfirmed && running > 0 && !_vm.ClosingForUpdate)
+            var running = _vm.Downloads.RunningJobCount;
+            if (!_closeConfirmed && running > 0 && !_vm.Updates.ClosingForUpdate)
             {
                 e.Cancel = true;
                 var pick = await ChoiceAsync(
@@ -49,8 +49,8 @@ public partial class MainWindow : Window, IUiHost
                 return;
             }
             SavePlacement();
-            _vm.CancelKeyCapture();
-            _vm.ReleaseControllers(); // SDL shut down before the process ends, not torn down under it
+            _vm.Controls.CancelKeyCapture();
+            _vm.Controls.ReleaseControllers(); // SDL shut down before the process ends, not torn down under it
             _vm.PrepareToClose();
             await _vm.DisposeAsync();
         };

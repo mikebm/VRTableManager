@@ -6,7 +6,7 @@
              xmlns:services="using:VrTableManager.Services"
              xmlns:gt="using:VrTableManager.Views.GetTables"
              x:Class="VrTableManager.Views.GetTables.GetTablesView"
-             x:DataType="vm:MainViewModel">
+             x:DataType="vm:CatalogViewModel">
   <Grid ColumnDefinitions="*,Auto">
 
     <!-- Everything above the cards stays put; only the cards scroll. -->

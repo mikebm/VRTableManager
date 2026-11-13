@@ -7,7 +7,7 @@ namespace VrTableManager.ViewModels;
 // and wheel art (LobbyMedia). Every Get… command in My Tables → MORE goes through GetLobbyMediaCoreAsync, asking for
 // one piece (plus what it can take for free from the same download) or, for Get all VR lobby media, every missing one.
 // GET LOBBY MEDIA does the tables shown, one after another.
-public sealed partial class MainViewModel
+public sealed partial class LobbyMediaViewModel(MainViewModel app) : ChildViewModel(app)
 {
     /// <summary>Every catalog download this table's lobby media can come from (LobbyMedia.Next picks the order).</summary>
     List<(MediaPackAudio.Source Source, LobbyMedia.Kind Kind)> LobbyMediaSources(InstalledTable t)
@@ -60,7 +60,7 @@ public sealed partial class MainViewModel
         {
             FileNames = [table.Manifest.MatchName],
         };
-        Jobs.Insert(0, job);
+        App.Downloads.Jobs.Insert(0, job);
         started?.Invoke(job);
         var take = wanted.Or(bonus ?? new());
         var got = new List<string>();
@@ -102,7 +102,7 @@ public sealed partial class MainViewModel
                 }
                 finally
                 {
-                    CleanJobDownloads(job); // the pack's other files aren't kept
+                    DownloadsViewModel.CleanJobDownloads(job); // the pack's other files aren't kept
                 }
             }
 
@@ -135,7 +135,7 @@ public sealed partial class MainViewModel
         }
         finally
         {
-            CleanJobDownloads(job);
+            DownloadsViewModel.CleanJobDownloads(job);
             ShowLobbyMedia(table); // also after a cancel: what was saved before it stays
         }
     }
@@ -154,14 +154,14 @@ public sealed partial class MainViewModel
     {
         if (item.NeedsRom)
         {
-            PlayStatus =
+            App.Library.PlayStatus =
                 why
                 + $" VPX could record {item.Title}'s attract mode instead, once the table has its ROM.";
             return;
         }
 
         if (
-            await _ui.ChoiceAsync(
+            await Ui.ChoiceAsync(
                 $"Record {item.Title}'s attract mode?",
                 why
                     + "\n\nVPX can record the table's attract mode instead: a small VPX window opens for about half a minute "
@@ -188,12 +188,12 @@ public sealed partial class MainViewModel
         var needs = LobbyMedia.Needs.Of(table);
         if (!needs.Any)
         {
-            PlayStatus =
+            App.Library.PlayStatus =
                 $"{item.Title} already has all its VR lobby media. MORE has Replace items to swap one.";
             return;
         }
 
-        if (!TryBeginBusy(table.TablePath))
+        if (!App.Library.TryBeginBusy(table.TablePath))
         {
             return;
         }
@@ -205,7 +205,7 @@ public sealed partial class MainViewModel
         }
         finally
         {
-            EndBusy(table.TablePath);
+            App.Library.EndBusy(table.TablePath);
         }
 
         if (r == null)
@@ -219,7 +219,7 @@ public sealed partial class MainViewModel
         }
         else if (!r.Ran)
         {
-            PlayStatus =
+            App.Library.PlayStatus =
                 $"The catalog has no media pack, wheel art or sound file for {item.Title}. "
                 + "MORE → My artwork and the Use my own… items take files you have.";
         }
@@ -240,7 +240,7 @@ public sealed partial class MainViewModel
             return;
         }
 
-        var shown = Installed
+        var shown = App.Library.Installed
             .Where(i => i.Table.HasOwnFolder && !i.Table.IsIncomplete)
             .DistinctBy(i => i.Table.TablePath, StringComparer.OrdinalIgnoreCase)
             .Select(i => (Item: i, Needs: LobbyMedia.Needs.Of(i.Table)))
@@ -256,14 +256,14 @@ public sealed partial class MainViewModel
             .ToList();
         if (fromCatalog == 0 && recordable == 0)
         {
-            PlayStatus =
+            App.Library.PlayStatus =
                 shown.Count == 0
                     ? "Every table shown already has all its VR lobby media."
                     : "The catalog has nothing more for the tables shown, and none can be recorded (they need a ROM first).";
             return;
         }
 
-        var filtered = Installed.Count < _allInstalled.Count ? " shown" : "";
+        var filtered = App.Library.Installed.Count < App.Library._allInstalled.Count ? " shown" : "";
         var message =
             $"{shown.Count} of the tables{filtered} are missing some VR lobby media: a playfield video, loading video, "
             + "attract audio or wheel art. Only what's missing is added; nothing you have is replaced.\n\n"
@@ -302,7 +302,7 @@ public sealed partial class MainViewModel
                 : recordable > 0
                     ? ["RECORD IN VPX", "CANCEL"]
                     : ["GET ALL", "CANCEL"];
-        var pick = await _ui.ChoiceAsync("Get the VR lobby media?", message, buttons);
+        var pick = await Ui.ChoiceAsync("Get the VR lobby media?", message, buttons);
         if (pick < 0 || pick == buttons.Length - 1)
         {
             return;
@@ -310,7 +310,7 @@ public sealed partial class MainViewModel
 
         if (buttons[pick] == "RECORD VIDEOS ONLY")
         {
-            if (CantRecordNow())
+            if (App.Lobby.CantRecordNow())
             {
                 return;
             }
@@ -319,7 +319,7 @@ public sealed partial class MainViewModel
         }
 
         var record = recordable > 0 && pick == 0;
-        if (record && CantRecordNow())
+        if (record && App.Lobby.CantRecordNow())
         {
             return;
         }
@@ -347,7 +347,7 @@ public sealed partial class MainViewModel
                 var (item, before) = shown[n];
                 var table = item.Table;
                 BatchRecordingText = $"■  STOP ({n + 1}/{shown.Count})";
-                if (!TryBeginBusy(table.TablePath))
+                if (!App.Library.TryBeginBusy(table.TablePath))
                 {
                     skipped++; // something else is running for this table
                     continue;
@@ -360,7 +360,7 @@ public sealed partial class MainViewModel
                 }
                 finally
                 {
-                    EndBusy(table.TablePath);
+                    App.Library.EndBusy(table.TablePath);
                 }
 
                 if (r == null)
@@ -413,7 +413,7 @@ public sealed partial class MainViewModel
             _batchJob = null;
         }
 
-        PlayStatus =
+        App.Library.PlayStatus =
             LobbyMedia.BatchSummary(
                 filled,
                 recorded,
@@ -422,6 +422,6 @@ public sealed partial class MainViewModel
                 notRecorded,
                 skipped,
                 stopped
-            ) + await PrepareHintAsync();
+            ) + await App.Lobby.PrepareHintAsync();
     }
 }

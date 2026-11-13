@@ -11,10 +11,10 @@ public partial class GetTablesView : UserControl
     public GetTablesView()
     {
         InitializeComponent();
-        // The view model arrives with the window's DataContext.
+        // The view model arrives with the DataContext MainWindow gives it (Catalog).
         DataContextChanged += (_, _) =>
         {
-            if (_letters == null && DataContext is MainViewModel vm)
+            if (_letters == null && DataContext is CatalogViewModel vm)
             {
                 _letters = new LetterRail(
                     CatalogLetterRail,
@@ -22,10 +22,10 @@ public partial class GetTablesView : UserControl
                     CatalogScroll,
                     vm.FirstCatalogAt, // may show more of the list first
                     () => vm.ShowCatalogLetters,
-                    letters => vm.SetActiveLetters(installed: false, letters),
+                    letters => vm.SetActiveLetters(letters),
                     vm.Games,
                     vm,
-                    nameof(MainViewModel.ShowCatalogLetters)
+                    nameof(CatalogViewModel.ShowCatalogLetters)
                 );
             }
         };

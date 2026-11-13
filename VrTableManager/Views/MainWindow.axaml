@@ -44,18 +44,18 @@
           <StackPanel Orientation="Horizontal" Spacing="8">
             <TextBlock Text="MY TABLES" VerticalAlignment="Center" />
             <Border Classes="chip hot" Padding="6,1" VerticalAlignment="Center"
-                    IsVisible="{Binding TableUpdateCount, Converter={x:Static v:Converters.NonZero}}"
+                    IsVisible="{Binding Library.TableUpdateCount, Converter={x:Static v:Converters.NonZero}}"
                     ToolTip.Tip="Table updates available">
-              <TextBlock Text="{Binding TableUpdateCount}" />
+              <TextBlock Text="{Binding Library.TableUpdateCount}" />
             </Border>
           </StackPanel>
         </TabItem.Header>
-        <mt:MyTablesView />
+        <mt:MyTablesView DataContext="{Binding Library}" />
       </TabItem>
 
       <!-- ================= Get tables ================= -->
       <TabItem Header="GET TABLES">
-        <gt:GetTablesView />
+        <gt:GetTablesView DataContext="{Binding Catalog}" />
       </TabItem>
 
       <!-- ================= Setup ================= -->
@@ -80,18 +80,18 @@
     <!-- Downloads tray: installs and updates from any tab -->
     <Border Grid.Row="1" Background="#0E0E10" BorderBrush="{StaticResource Line}" BorderThickness="0,1,0,0"
             Padding="28,14" MaxHeight="220"
-            IsVisible="{Binding Jobs.Count, Converter={x:Static v:Converters.NonZero}}">
+            IsVisible="{Binding Downloads.Jobs.Count, Converter={x:Static v:Converters.NonZero}}">
       <DockPanel>
         <DockPanel DockPanel.Dock="Top" Margin="0,0,0,10">
-          <Button DockPanel.Dock="Right" Classes="small" Content="CLEAR FINISHED" Command="{Binding ClearFinishedJobsCommand}" />
+          <Button DockPanel.Dock="Right" Classes="small" Content="CLEAR FINISHED" Command="{Binding Downloads.ClearFinishedJobsCommand}" />
           <StackPanel Orientation="Horizontal" Spacing="12" VerticalAlignment="Center">
             <TextBlock Classes="eyebrow" Text="DOWNLOADS" VerticalAlignment="Center" />
-            <TextBlock Classes="mono" VerticalAlignment="Center" Text="{Binding MaxParallelDownloads, StringFormat='{}{0} at a time · change on Setup'}" />
+            <TextBlock Classes="mono" VerticalAlignment="Center" Text="{Binding Downloads.MaxParallelDownloads, StringFormat='{}{0} at a time · change on Setup'}" />
           </StackPanel>
         </DockPanel>
         <!-- Only the rows on screen are built: a batch over a big library leaves hundreds of finished jobs here. -->
         <ScrollViewer>
-          <ItemsControl ItemsSource="{Binding Jobs}">
+          <ItemsControl ItemsSource="{Binding Downloads.Jobs}">
             <ItemsControl.ItemsPanel>
               <ItemsPanelTemplate><VirtualizingStackPanel /></ItemsPanelTemplate>
             </ItemsControl.ItemsPanel>
@@ -106,13 +106,13 @@
                     <Button Classes="small" Content="OPEN PAGE AGAIN" Command="{Binding OpenWaitingPageCommand}"
                             IsVisible="{Binding IsWaitingForUser}" ToolTip.Tip="Opens the file's page in your browser again" />
                     <Button Classes="small" Content="I SAVED IT…" IsVisible="{Binding IsWaitingForUser}"
-                            Command="{Binding $parent[ItemsControl].((vm:MainViewModel)DataContext).PickDownloadedFileCommand}" CommandParameter="{Binding}"
+                            Command="{Binding $parent[ItemsControl].((vm:MainViewModel)DataContext).Downloads.PickDownloadedFileCommand}" CommandParameter="{Binding}"
                             ToolTip.Tip="Saved the file somewhere other than your Downloads folder? Point to it." />
                     <Button Classes="small primary" Content="DONE" Command="{Binding DoneWaitingCommand}" IsVisible="{Binding WaitingForMany}"
                             ToolTip.Tip="Finished downloading the files you want from this page" />
                     <Button Classes="small danger" Content="CANCEL" Command="{Binding CancelCommand}" IsVisible="{Binding IsRunning}" />
                     <Button Classes="small" Content="✕" IsVisible="{Binding !IsRunning}" ToolTip.Tip="Remove from the list"
-                            Command="{Binding $parent[ItemsControl].((vm:MainViewModel)DataContext).DismissJobCommand}" CommandParameter="{Binding}" />
+                            Command="{Binding $parent[ItemsControl].((vm:MainViewModel)DataContext).Downloads.DismissJobCommand}" CommandParameter="{Binding}" />
                   </StackPanel>
                 </Grid>
               </DataTemplate>

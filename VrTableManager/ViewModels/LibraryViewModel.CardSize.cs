@@ -1,9 +1,10 @@
 using CommunityToolkit.Mvvm.ComponentModel;
+using VrTableManager.Services;
 
 namespace VrTableManager.ViewModels;
 
 // My Tables → SIZE: large cards (the original), medium, small, or text only (no pictures), remembered in settings.
-public sealed partial class MainViewModel
+public sealed partial class LibraryViewModel
 {
     public string[] CardSizes { get; } = ["Large", "Medium", "Small", "Text"];
 
@@ -35,6 +36,8 @@ public sealed partial class MainViewModel
         Settings.CardSize = value;
         Settings.Save();
     }
+
+    internal override void LoadSettings(AppSettings s) => CardSize = s.CardSize;
 
     /// <summary>Below Large, a card's buttons are just Play and MORE; the rest move into MORE's menu (narrow cards got tall otherwise).</summary>
     public bool IsCompactCards => CardSize != "Large";

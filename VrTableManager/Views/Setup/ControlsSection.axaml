@@ -3,7 +3,7 @@
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
              xmlns:vm="using:VrTableManager.ViewModels"
              x:Class="VrTableManager.Views.Setup.ControlsSection"
-             x:DataType="vm:MainViewModel">
+             x:DataType="vm:ControlsViewModel">
   <ScrollViewer>
     <Grid>
       <Grid.ColumnDefinitions>
@@ -53,17 +53,17 @@
                         <StackPanel Orientation="Horizontal" Spacing="6" IsVisible="{Binding !IsCapturing}">
                           <Button Classes="small" Content="SET"
                                   ToolTip.Tip="Press a key or a controller button. A key replaces the action's keys; a button replaces its buttons on that controller. Quest controller buttons stay."
-                                  Command="{ReflectionBinding $parent[ItemsControl].DataContext.CaptureKeyCommand}" CommandParameter="{Binding}" />
+                                  Command="{Binding $parent[ItemsControl].((vm:ControlsViewModel)DataContext).CaptureKeyCommand}" CommandParameter="{Binding}" />
                           <Button Classes="small" Content="ADD"
                                   ToolTip.Tip="Press a key or a controller button: it works for this action as well as the ones it has."
-                                  Command="{ReflectionBinding $parent[ItemsControl].DataContext.AddKeyCommand}" CommandParameter="{Binding}" />
+                                  Command="{Binding $parent[ItemsControl].((vm:ControlsViewModel)DataContext).AddKeyCommand}" CommandParameter="{Binding}" />
                           <Button Classes="small" Content="RESET"
                                   ToolTip.Tip="Back to VPX's default key, where Save keys for points: the action's other keys and controller buttons go. Quest controller buttons stay."
-                                  Command="{ReflectionBinding $parent[ItemsControl].DataContext.ResetKeyCommand}" CommandParameter="{Binding}" />
+                                  Command="{Binding $parent[ItemsControl].((vm:ControlsViewModel)DataContext).ResetKeyCommand}" CommandParameter="{Binding}" />
                         </StackPanel>
                         <Button Classes="small" Content="PRESS A KEY…" Foreground="{StaticResource Lamp}" IsVisible="{Binding IsCapturing}"
                                 ToolTip.Tip="Click to cancel"
-                                Command="{ReflectionBinding $parent[ItemsControl].DataContext.CaptureKeyCommand}" CommandParameter="{Binding}" />
+                                Command="{Binding $parent[ItemsControl].((vm:ControlsViewModel)DataContext).CaptureKeyCommand}" CommandParameter="{Binding}" />
                       </Panel>
                     </Grid>
                   </StackPanel>
@@ -87,7 +87,7 @@
           </StackPanel>
         </Border>
 
-        <Button Classes="small setupNext" Content="NEXT: HEADSET  ›" Command="{Binding ShowSetupSectionCommand}" CommandParameter="headset" />
+        <Button Classes="small setupNext" Content="NEXT: HEADSET  ›" Command="{Binding App.ShowSetupSectionCommand}" CommandParameter="headset" />
       </StackPanel>
     </Grid>
   </ScrollViewer>

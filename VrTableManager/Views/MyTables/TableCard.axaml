@@ -20,24 +20,24 @@
               </MenuItem.ItemTemplate>
               <MenuItem.Styles>
                 <Style Selector="MenuItem > MenuItem" x:DataType="vm:AddonChoice">
-                  <Setter Property="Command" Value="{Binding Slot.Item.Owner.GetAddonCommand}" />
+                  <Setter Property="Command" Value="{Binding Slot.Item.Owner.Addons.GetAddonCommand}" />
                   <Setter Property="CommandParameter" Value="{Binding}" />
                 </Style>
               </MenuItem.Styles>
             </MenuItem>
-            <MenuItem Header="{Binding FileMenuHeader}" IsVisible="{Binding CanAddFile}" Command="{Binding Item.Owner.InstallAddonFileCommand}" CommandParameter="{Binding}" />
-            <MenuItem Header="Open folder" IsVisible="{Binding IsInstalled}" Command="{Binding Item.Owner.OpenAddonFolderCommand}" CommandParameter="{Binding}" />
-            <MenuItem Header="Remove" IsVisible="{Binding IsInstalled}" Command="{Binding Item.Owner.RemoveAddonCommand}" CommandParameter="{Binding}" />
+            <MenuItem Header="{Binding FileMenuHeader}" IsVisible="{Binding CanAddFile}" Command="{Binding Item.Owner.Addons.InstallAddonFileCommand}" CommandParameter="{Binding}" />
+            <MenuItem Header="Open folder" IsVisible="{Binding IsInstalled}" Command="{Binding Item.Owner.Addons.OpenAddonFolderCommand}" CommandParameter="{Binding}" />
+            <MenuItem Header="Remove" IsVisible="{Binding IsInstalled}" Command="{Binding Item.Owner.Addons.RemoveAddonCommand}" CommandParameter="{Binding}" />
           </MenuFlyout>
         </Button.Flyout>
       </Button>
     </DataTemplate>
   </UserControl.Resources>
 
-  <Border Classes="tile" Width="{ReflectionBinding $parent[Window].DataContext.CardWidth}" Margin="0,0,16,16" Cursor="Arrow">
+  <Border Classes="tile" Width="{Binding Owner.Library.CardWidth}" Margin="0,0,16,16" Cursor="Arrow">
     <DockPanel>
-      <Border Classes="tileArt" DockPanel.Dock="Top" Height="{ReflectionBinding $parent[Window].DataContext.CardArtHeight}"
-            IsVisible="{ReflectionBinding $parent[Window].DataContext.ShowCardArt}">
+      <Border Classes="tileArt" DockPanel.Dock="Top" Height="{Binding Owner.Library.CardArtHeight}"
+            IsVisible="{Binding Owner.Library.ShowCardArt}">
       <Grid>
         <Border Background="{StaticResource Stripes}" />
         <TextBlock Classes="mono" Text="NO ARTWORK" HorizontalAlignment="Center" VerticalAlignment="Center"
@@ -45,11 +45,11 @@
         <Image v:ImageLoader.Url="{Binding ImgUrl}" Stretch="UniformToFill" />
         <Border Background="{StaticResource CardFade}" />
         <Border Classes="chip" Margin="10" HorizontalAlignment="Left" VerticalAlignment="Top"
-                IsVisible="{ReflectionBinding $parent[Window].DataContext.BadgesOnArt}">
+                IsVisible="{Binding Owner.Library.BadgesOnArt}">
           <TextBlock Text="{Binding EngineBadge}" />
         </Border>
         <StackPanel Orientation="Horizontal" Spacing="5" Margin="10" HorizontalAlignment="Right" VerticalAlignment="Top"
-                    IsVisible="{ReflectionBinding $parent[Window].DataContext.BadgesOnArt}">
+                    IsVisible="{Binding Owner.Library.BadgesOnArt}">
           <Border Classes="chip hot" IsVisible="{Binding IsIncomplete}"><TextBlock Text="INCOMPLETE" /></Border>
           <Border Classes="chip hot" IsVisible="{Binding HasUpdate}"><TextBlock Text="UPDATE" /></Border>
           <Border Classes="chip hot" IsVisible="{Binding NeedsRom}"><TextBlock Text="NEEDS ROM" /></Border>
@@ -64,31 +64,31 @@
         <StackPanel DockPanel.Dock="Bottom">
           <Button Classes="primary" Content="⟳  REINSTALL" Margin="0,8,0,0" IsVisible="{Binding IsIncomplete}"
                   HorizontalAlignment="Stretch" HorizontalContentAlignment="Center"
-                  IsEnabled="{Binding !IsBusy}" Command="{ReflectionBinding $parent[Window].DataContext.ReinstallCommand}" CommandParameter="{Binding}" />
+                  IsEnabled="{Binding !IsBusy}" Command="{Binding Owner.Library.ReinstallCommand}" CommandParameter="{Binding}" />
           <WrapPanel Margin="0,4,0,0">
             <Panel IsVisible="{Binding !Compact}">
               <Button Classes="small" Content="DESKTOP" Margin="0,0,6,6" IsVisible="{Binding CanPlayDesktop}"
-                      Command="{ReflectionBinding $parent[Window].DataContext.PlayDesktopCommand}" CommandParameter="{Binding}" />
+                      Command="{Binding Owner.Play.PlayDesktopCommand}" CommandParameter="{Binding}" />
             </Panel>
             <Panel IsVisible="{Binding !Compact}">
               <Button Classes="small primary" Content="GET ROM" Margin="0,0,6,6" IsVisible="{Binding CanGetRom}"
                       ToolTip.Tip="Download this table's ROM from the catalog (usually VPForums) and install it"
-                      IsEnabled="{Binding !IsBusy}" Command="{ReflectionBinding $parent[Window].DataContext.GetRomCommand}" CommandParameter="{Binding}" />
+                      IsEnabled="{Binding !IsBusy}" Command="{Binding Owner.Roms.GetRomCommand}" CommandParameter="{Binding}" />
             </Panel>
             <Panel IsVisible="{Binding !Compact}">
               <Button Classes="small" Content="ALL ROMS" Margin="0,0,6,6" IsVisible="{Binding CanGetAllRoms}"
                       ToolTip.Tip="Download every ROM version from this table's ROM page (some versions need another one beside them)"
-                      IsEnabled="{Binding !IsBusy}" Command="{ReflectionBinding $parent[Window].DataContext.GetRomCommand}" CommandParameter="{Binding}" />
+                      IsEnabled="{Binding !IsBusy}" Command="{Binding Owner.Roms.GetRomCommand}" CommandParameter="{Binding}" />
             </Panel>
             <Panel IsVisible="{Binding !Compact}">
               <Button Classes="small" Content="SEARCH VPUNIVERSE" Margin="0,0,6,6" IsVisible="{Binding RomUnavailable}"
                       ToolTip.Tip="Search VPUniverse's files for this ROM in your browser"
-                      Command="{ReflectionBinding $parent[Window].DataContext.SearchRomCommand}" CommandParameter="{Binding}" />
+                      Command="{Binding Owner.Roms.SearchRomCommand}" CommandParameter="{Binding}" />
             </Panel>
             <Panel IsVisible="{Binding !Compact}">
               <Button Classes="small" Content="ADD ROM" Margin="0,0,6,6" IsVisible="{Binding NeedsRom}"
                       ToolTip.Tip="Install a ROM zip you already have"
-                      Command="{ReflectionBinding $parent[Window].DataContext.AddRomCommand}" CommandParameter="{Binding}" />
+                      Command="{Binding Owner.Roms.AddRomCommand}" CommandParameter="{Binding}" />
             </Panel>
             <Panel IsVisible="{Binding !Compact}">
               <ContentControl Content="{Binding Pup}" ContentTemplate="{StaticResource AddonButton}" IsVisible="{Binding Pup.ShowButton}" />
@@ -118,24 +118,24 @@
             </Panel>
             <Panel IsVisible="{Binding !Compact}">
               <Button Classes="small" Content="FOLDER" Margin="0,0,6,6"
-                      Command="{ReflectionBinding $parent[Window].DataContext.OpenTableFolderCommand}" CommandParameter="{Binding}" />
+                      Command="{Binding Owner.Library.OpenTableFolderCommand}" CommandParameter="{Binding}" />
             </Panel>
             <Panel IsVisible="{Binding !Compact}">
               <Button Classes="small danger" Content="REMOVE" Margin="0,0,6,6" IsVisible="{Binding CanRemove}"
-                    Command="{ReflectionBinding $parent[Window].DataContext.RemoveCommand}" CommandParameter="{Binding}" />
+                    Command="{Binding Owner.Library.RemoveCommand}" CommandParameter="{Binding}" />
             </Panel>
           </WrapPanel>
           <!-- The bottom row of every card: Play and MORE, lined up across a row of cards. -->
           <Grid ColumnDefinitions="*,Auto" Margin="0,4,0,0">
-            <Button Grid.Column="0" Classes="primary" Content="{ReflectionBinding $parent[Window].DataContext.PlayLabel}" IsVisible="{Binding CanPlay}"
+            <Button Grid.Column="0" Classes="primary" Content="{Binding Owner.Library.PlayLabel}" IsVisible="{Binding CanPlay}"
                     HorizontalAlignment="Stretch" HorizontalContentAlignment="Center"
-                    Command="{ReflectionBinding $parent[Window].DataContext.PlayVrCommand}" CommandParameter="{Binding}" />
+                    Command="{Binding Owner.Play.PlayVrCommand}" CommandParameter="{Binding}" />
           <Button Grid.Column="1" Classes="small" Content="⋯" FontSize="20" Padding="12,0" Margin="8,0,0,0" VerticalAlignment="Stretch" VerticalContentAlignment="Center" ToolTip.Tip="More: add-ons, collections, VR lobby media, artwork, table settings, folders">
             <Button.Flyout>
               <MenuFlyout Placement="BottomEdgeAlignedLeft">
                 <!-- Grouped: what the card's buttons do (compact cards only), add-ons, VR lobby media, artwork,
                      the table's own settings, then folders and pages. Each group is a sub-menu. -->
-                <MenuItem Header="Play on desktop" Command="{Binding Owner.PlayDesktopCommand}" CommandParameter="{Binding}">
+                <MenuItem Header="Play on desktop" Command="{Binding Owner.Play.PlayDesktopCommand}" CommandParameter="{Binding}">
                 <MenuItem.IsVisible>
                   <MultiBinding Converter="{x:Static BoolConverters.And}">
                     <Binding Path="Compact" />
@@ -155,10 +155,10 @@
                     </MultiBinding>
                   </MultiBinding>
                 </MenuItem.IsVisible>
-                  <MenuItem Header="Get ROM" IsVisible="{Binding CanGetRom}" Command="{Binding Owner.GetRomCommand}" CommandParameter="{Binding}" />
-                  <MenuItem Header="Get all ROM versions" IsVisible="{Binding CanGetAllRoms}" Command="{Binding Owner.GetRomCommand}" CommandParameter="{Binding}" />
-                  <MenuItem Header="Search VPUniverse for the ROM" IsVisible="{Binding RomUnavailable}" Command="{Binding Owner.SearchRomCommand}" CommandParameter="{Binding}" />
-                  <MenuItem Header="Add a ROM zip you have…" IsVisible="{Binding NeedsRom}" Command="{Binding Owner.AddRomCommand}" CommandParameter="{Binding}" />
+                  <MenuItem Header="Get ROM" IsVisible="{Binding CanGetRom}" Command="{Binding Owner.Roms.GetRomCommand}" CommandParameter="{Binding}" />
+                  <MenuItem Header="Get all ROM versions" IsVisible="{Binding CanGetAllRoms}" Command="{Binding Owner.Roms.GetRomCommand}" CommandParameter="{Binding}" />
+                  <MenuItem Header="Search VPUniverse for the ROM" IsVisible="{Binding RomUnavailable}" Command="{Binding Owner.Roms.SearchRomCommand}" CommandParameter="{Binding}" />
+                  <MenuItem Header="Add a ROM zip you have…" IsVisible="{Binding NeedsRom}" Command="{Binding Owner.Roms.AddRomCommand}" CommandParameter="{Binding}" />
                 </MenuItem>
                 <MenuItem Header="Add-ons">
                 <MenuItem.IsVisible>
@@ -177,14 +177,14 @@
                       </MenuItem.ItemTemplate>
                       <MenuItem.Styles>
                         <Style Selector="MenuItem > MenuItem" x:DataType="vm:AddonChoice">
-                          <Setter Property="Command" Value="{Binding Slot.Item.Owner.GetAddonCommand}" />
+                          <Setter Property="Command" Value="{Binding Slot.Item.Owner.Addons.GetAddonCommand}" />
                           <Setter Property="CommandParameter" Value="{Binding}" />
                         </Style>
                       </MenuItem.Styles>
                     </MenuItem>
-                    <MenuItem Header="{Binding Pup.FileMenuHeader}" IsVisible="{Binding Pup.CanAddFile}" Command="{Binding Owner.InstallAddonFileCommand}" CommandParameter="{Binding Pup}" />
-                    <MenuItem Header="Open folder" IsVisible="{Binding Pup.IsInstalled}" Command="{Binding Owner.OpenAddonFolderCommand}" CommandParameter="{Binding Pup}" />
-                    <MenuItem Header="Remove" IsVisible="{Binding Pup.IsInstalled}" Command="{Binding Owner.RemoveAddonCommand}" CommandParameter="{Binding Pup}" />
+                    <MenuItem Header="{Binding Pup.FileMenuHeader}" IsVisible="{Binding Pup.CanAddFile}" Command="{Binding Owner.Addons.InstallAddonFileCommand}" CommandParameter="{Binding Pup}" />
+                    <MenuItem Header="Open folder" IsVisible="{Binding Pup.IsInstalled}" Command="{Binding Owner.Addons.OpenAddonFolderCommand}" CommandParameter="{Binding Pup}" />
+                    <MenuItem Header="Remove" IsVisible="{Binding Pup.IsInstalled}" Command="{Binding Owner.Addons.RemoveAddonCommand}" CommandParameter="{Binding Pup}" />
                   </MenuItem>
                   <MenuItem Header="{Binding Colour.Name}" IsEnabled="{Binding !IsBusy}" IsVisible="{Binding Colour.ShowButton}">
                     <MenuItem Header="{Binding Colour.MenuHeader}" IsVisible="{Binding Colour.HasChoices}" ItemsSource="{Binding Colour.Choices}">
@@ -193,14 +193,14 @@
                       </MenuItem.ItemTemplate>
                       <MenuItem.Styles>
                         <Style Selector="MenuItem > MenuItem" x:DataType="vm:AddonChoice">
-                          <Setter Property="Command" Value="{Binding Slot.Item.Owner.GetAddonCommand}" />
+                          <Setter Property="Command" Value="{Binding Slot.Item.Owner.Addons.GetAddonCommand}" />
                           <Setter Property="CommandParameter" Value="{Binding}" />
                         </Style>
                       </MenuItem.Styles>
                     </MenuItem>
-                    <MenuItem Header="{Binding Colour.FileMenuHeader}" IsVisible="{Binding Colour.CanAddFile}" Command="{Binding Owner.InstallAddonFileCommand}" CommandParameter="{Binding Colour}" />
-                    <MenuItem Header="Open folder" IsVisible="{Binding Colour.IsInstalled}" Command="{Binding Owner.OpenAddonFolderCommand}" CommandParameter="{Binding Colour}" />
-                    <MenuItem Header="Remove" IsVisible="{Binding Colour.IsInstalled}" Command="{Binding Owner.RemoveAddonCommand}" CommandParameter="{Binding Colour}" />
+                    <MenuItem Header="{Binding Colour.FileMenuHeader}" IsVisible="{Binding Colour.CanAddFile}" Command="{Binding Owner.Addons.InstallAddonFileCommand}" CommandParameter="{Binding Colour}" />
+                    <MenuItem Header="Open folder" IsVisible="{Binding Colour.IsInstalled}" Command="{Binding Owner.Addons.OpenAddonFolderCommand}" CommandParameter="{Binding Colour}" />
+                    <MenuItem Header="Remove" IsVisible="{Binding Colour.IsInstalled}" Command="{Binding Owner.Addons.RemoveAddonCommand}" CommandParameter="{Binding Colour}" />
                   </MenuItem>
                   <MenuItem Header="{Binding Sound.Name}" IsEnabled="{Binding !IsBusy}" IsVisible="{Binding Sound.ShowButton}">
                     <MenuItem Header="{Binding Sound.MenuHeader}" IsVisible="{Binding Sound.HasChoices}" ItemsSource="{Binding Sound.Choices}">
@@ -209,21 +209,21 @@
                       </MenuItem.ItemTemplate>
                       <MenuItem.Styles>
                         <Style Selector="MenuItem > MenuItem" x:DataType="vm:AddonChoice">
-                          <Setter Property="Command" Value="{Binding Slot.Item.Owner.GetAddonCommand}" />
+                          <Setter Property="Command" Value="{Binding Slot.Item.Owner.Addons.GetAddonCommand}" />
                           <Setter Property="CommandParameter" Value="{Binding}" />
                         </Style>
                       </MenuItem.Styles>
                     </MenuItem>
-                    <MenuItem Header="{Binding Sound.FileMenuHeader}" IsVisible="{Binding Sound.CanAddFile}" Command="{Binding Owner.InstallAddonFileCommand}" CommandParameter="{Binding Sound}" />
-                    <MenuItem Header="Open folder" IsVisible="{Binding Sound.IsInstalled}" Command="{Binding Owner.OpenAddonFolderCommand}" CommandParameter="{Binding Sound}" />
-                    <MenuItem Header="Remove" IsVisible="{Binding Sound.IsInstalled}" Command="{Binding Owner.RemoveAddonCommand}" CommandParameter="{Binding Sound}" />
+                    <MenuItem Header="{Binding Sound.FileMenuHeader}" IsVisible="{Binding Sound.CanAddFile}" Command="{Binding Owner.Addons.InstallAddonFileCommand}" CommandParameter="{Binding Sound}" />
+                    <MenuItem Header="Open folder" IsVisible="{Binding Sound.IsInstalled}" Command="{Binding Owner.Addons.OpenAddonFolderCommand}" CommandParameter="{Binding Sound}" />
+                    <MenuItem Header="Remove" IsVisible="{Binding Sound.IsInstalled}" Command="{Binding Owner.Addons.RemoveAddonCommand}" CommandParameter="{Binding Sound}" />
                   </MenuItem>
                   <MenuItem Header="Fix the PuP DMD for VR" IsVisible="{Binding CanApplyDmdFix}"
                             ToolTip.Tip="Shows the PuP pack's DMD on the VR cabinet in VPX 10.8.1 (switches the table's PuP display to VPX's Score View; the original file is kept)"
-                            Command="{Binding Owner.ApplyDmdFixCommand}" CommandParameter="{Binding}" />
+                            Command="{Binding Owner.Play.ApplyDmdFixCommand}" CommandParameter="{Binding}" />
                   <MenuItem Header="Undo the PuP DMD fix (put the original table back)" IsVisible="{Binding HasDmdFix}"
                             ToolTip.Tip="Restores the table file saved before its VR DMD was switched to VPX's Score View"
-                            Command="{Binding Owner.UndoDmdFixCommand}" CommandParameter="{Binding}" />
+                            Command="{Binding Owner.Play.UndoDmdFixCommand}" CommandParameter="{Binding}" />
                 </MenuItem>
                 <MenuItem Header="Rules" ItemsSource="{Binding Rules}">
                 <MenuItem.IsVisible>
@@ -251,7 +251,7 @@
                     <Style Selector="MenuItem > MenuItem" x:DataType="vm:CollectionChoice">
                       <Setter Property="ToggleType" Value="{Binding ToggleType}" />
                       <Setter Property="IsChecked" Value="{Binding IsIn, Mode=OneWay}" />
-                      <Setter Property="Command" Value="{Binding Item.Owner.ChooseCollectionCommand}" />
+                      <Setter Property="Command" Value="{Binding Item.Owner.Library.ChooseCollectionCommand}" />
                       <Setter Property="CommandParameter" Value="{Binding}" />
                     </Style>
                   </MenuItem.Styles>
@@ -272,7 +272,7 @@
                 </MenuItem.IsVisible>
                   <MenuItem Header="Get all VR lobby media" IsVisible="{Binding CanGetLobbyMedia}"
                             ToolTip.Tip="Fills in what this table is missing for the VR lobby (playfield video, loading video, attract audio, wheel art) from one media pack download, then offers to record the playfield in VPX if the pack has none. Nothing it already has is replaced."
-                            IsEnabled="{Binding !IsBusy}" Command="{Binding Owner.GetLobbyMediaCommand}" CommandParameter="{Binding}" />
+                            IsEnabled="{Binding !IsBusy}" Command="{Binding Owner.Media.GetLobbyMediaCommand}" CommandParameter="{Binding}" />
                   <MenuItem Header="Playfield video">
                   <MenuItem.IsVisible>
                     <MultiBinding Converter="{x:Static BoolConverters.Or}">
@@ -282,23 +282,23 @@
                   </MenuItem.IsVisible>
                     <MenuItem Header="{Binding LobbyVideoMenuHeader}" IsVisible="{Binding CanHaveLobbyVideo}"
                               ToolTip.Tip="A moving playfield for this table's cabinet in the VR lobby: the playfield video from the catalog's media pack, or VPX's own recording of the attract mode when there isn't one"
-                              IsEnabled="{Binding !IsBusy}" Command="{Binding Owner.GetLobbyVideoCommand}" CommandParameter="{Binding}" />
+                              IsEnabled="{Binding !IsBusy}" Command="{Binding Owner.Media.GetLobbyVideoCommand}" CommandParameter="{Binding}" />
                     <MenuItem Header="Record lobby video in VPX" IsVisible="{Binding HasMediaPack}"
                               ToolTip.Tip="Records the attract mode with VPX instead of using the media pack (a small VPX window opens for about half a minute, sound off)"
-                              IsEnabled="{Binding !IsBusy}" Command="{Binding Owner.RecordLobbyVideoCommand}" CommandParameter="{Binding}" />
+                              IsEnabled="{Binding !IsBusy}" Command="{Binding Owner.Media.RecordLobbyVideoCommand}" CommandParameter="{Binding}" />
                     <MenuItem Header="Use my own lobby video…" IsVisible="{Binding CanHaveLobbyVideo}"
                               ToolTip.Tip="Turns a video file you have (.mp4 works best) into this cabinet's moving playfield in the VR lobby; the first 12 seconds loop"
-                              IsEnabled="{Binding !IsBusy}" Command="{Binding Owner.UseOwnLobbyVideoCommand}" CommandParameter="{Binding}" />
-                    <MenuItem Header="Remove lobby video" IsVisible="{Binding HasLobbyVideo}" IsEnabled="{Binding !IsBusy}" Command="{Binding Owner.RemoveLobbyVideoCommand}" CommandParameter="{Binding}" />
+                              IsEnabled="{Binding !IsBusy}" Command="{Binding Owner.Media.UseOwnLobbyVideoCommand}" CommandParameter="{Binding}" />
+                    <MenuItem Header="Remove lobby video" IsVisible="{Binding HasLobbyVideo}" IsEnabled="{Binding !IsBusy}" Command="{Binding Owner.Media.RemoveLobbyVideoCommand}" CommandParameter="{Binding}" />
                   </MenuItem>
                   <MenuItem Header="Loading video" IsVisible="{Binding CanHaveLoadingVideo}">
                     <MenuItem Header="{Binding LoadingVideoMenuHeader}" IsVisible="{Binding CanGetLoadingVideo}"
                               ToolTip.Tip="A video the VR lobby plays on a big screen, with its sound, while this table starts: the loading video from the catalog's media pack (the pack's other files are deleted)"
-                              IsEnabled="{Binding !IsBusy}" Command="{Binding Owner.GetLoadingVideoCommand}" CommandParameter="{Binding}" />
+                              IsEnabled="{Binding !IsBusy}" Command="{Binding Owner.Media.GetLoadingVideoCommand}" CommandParameter="{Binding}" />
                     <MenuItem Header="{Binding OwnLoadingVideoMenuHeader}"
                               ToolTip.Tip="Turns a video file you have (.mp4 works best) into the video the VR lobby plays while this table starts, with its sound; the first 30 seconds, looping if the table takes longer"
-                              IsEnabled="{Binding !IsBusy}" Command="{Binding Owner.UseOwnLoadingVideoCommand}" CommandParameter="{Binding}" />
-                    <MenuItem Header="Remove loading video" IsVisible="{Binding HasLoadingVideo}" IsEnabled="{Binding !IsBusy}" Command="{Binding Owner.RemoveLoadingVideoCommand}" CommandParameter="{Binding}" />
+                              IsEnabled="{Binding !IsBusy}" Command="{Binding Owner.Media.UseOwnLoadingVideoCommand}" CommandParameter="{Binding}" />
+                    <MenuItem Header="Remove loading video" IsVisible="{Binding HasLoadingVideo}" IsEnabled="{Binding !IsBusy}" Command="{Binding Owner.Media.RemoveLoadingVideoCommand}" CommandParameter="{Binding}" />
                   </MenuItem>
                   <MenuItem Header="Attract audio">
                   <MenuItem.IsVisible>
@@ -309,8 +309,8 @@
                   </MenuItem.IsVisible>
                     <MenuItem Header="{Binding AttractAudioMenuHeader}" IsVisible="{Binding CanGetAttractAudio}"
                               ToolTip.Tip="Download this table's sound file or media pack and keep only its audio, as music\attract (the pack's videos are deleted)"
-                              IsEnabled="{Binding !IsBusy}" Command="{Binding Owner.GetAttractAudioCommand}" CommandParameter="{Binding}" />
-                    <MenuItem Header="Remove attract audio" IsVisible="{Binding HasAttractAudio}" Command="{Binding Owner.RemoveAttractAudioCommand}" CommandParameter="{Binding}" />
+                              IsEnabled="{Binding !IsBusy}" Command="{Binding Owner.Media.GetAttractAudioCommand}" CommandParameter="{Binding}" />
+                    <MenuItem Header="Remove attract audio" IsVisible="{Binding HasAttractAudio}" Command="{Binding Owner.Media.RemoveAttractAudioCommand}" CommandParameter="{Binding}" />
                   </MenuItem>
                   <MenuItem Header="Wheel art">
                   <MenuItem.IsVisible>
@@ -321,19 +321,19 @@
                   </MenuItem.IsVisible>
                     <MenuItem Header="{Binding WheelArtMenuHeader}" IsVisible="{Binding CanGetWheelArt}"
                               ToolTip.Tip="The game's logo, shown over the cabinet in the VR lobby when you pick it: from the catalog's wheel art, or its media pack's Wheel folder"
-                              IsEnabled="{Binding !IsBusy}" Command="{Binding Owner.GetWheelArtCommand}" CommandParameter="{Binding}" />
-                    <MenuItem Header="Remove wheel art" IsVisible="{Binding HasWheelArt}" IsEnabled="{Binding !IsBusy}" Command="{Binding Owner.RemoveWheelArtCommand}" CommandParameter="{Binding}" />
+                              IsEnabled="{Binding !IsBusy}" Command="{Binding Owner.Media.GetWheelArtCommand}" CommandParameter="{Binding}" />
+                    <MenuItem Header="Remove wheel art" IsVisible="{Binding HasWheelArt}" IsEnabled="{Binding !IsBusy}" Command="{Binding Owner.Media.RemoveWheelArtCommand}" CommandParameter="{Binding}" />
                   </MenuItem>
                 </MenuItem>
                 <MenuItem Header="My artwork"
                           ToolTip.Tip="Your own pictures win over the catalog's and the table's. They're kept in the table's artwork folder (card, playfield, backglass, wheel .png/.jpg), where you can also put them by hand">
-                  <MenuItem Header="Card picture in My Tables…" Command="{Binding Owner.ChooseCardArtCommand}" CommandParameter="{Binding}" />
-                  <MenuItem Header="VR lobby playfield picture…" Command="{Binding Owner.ChoosePlayfieldArtCommand}" CommandParameter="{Binding}" />
-                  <MenuItem Header="VR lobby backglass picture…" Command="{Binding Owner.ChooseBackglassArtCommand}" CommandParameter="{Binding}" />
-                  <MenuItem Header="VR lobby wheel art (the game's logo)…" Command="{Binding Owner.ChooseWheelArtCommand}" CommandParameter="{Binding}"
+                  <MenuItem Header="Card picture in My Tables…" Command="{Binding Owner.Media.ChooseCardArtCommand}" CommandParameter="{Binding}" />
+                  <MenuItem Header="VR lobby playfield picture…" Command="{Binding Owner.Media.ChoosePlayfieldArtCommand}" CommandParameter="{Binding}" />
+                  <MenuItem Header="VR lobby backglass picture…" Command="{Binding Owner.Media.ChooseBackglassArtCommand}" CommandParameter="{Binding}" />
+                  <MenuItem Header="VR lobby wheel art (the game's logo)…" Command="{Binding Owner.Media.ChooseWheelArtCommand}" CommandParameter="{Binding}"
                             ToolTip.Tip="A logo on a transparent background (.png) works best, like a front end's wheel image" />
-                  <MenuItem Header="Open the artwork folder" Command="{Binding Owner.OpenArtworkFolderCommand}" CommandParameter="{Binding}" />
-                  <MenuItem Header="Remove my pictures" IsVisible="{Binding HasUserArtwork}" Command="{Binding Owner.RemoveUserArtworkCommand}" CommandParameter="{Binding}" />
+                  <MenuItem Header="Open the artwork folder" Command="{Binding Owner.Media.OpenArtworkFolderCommand}" CommandParameter="{Binding}" />
+                  <MenuItem Header="Remove my pictures" IsVisible="{Binding HasUserArtwork}" Command="{Binding Owner.Media.RemoveUserArtworkCommand}" CommandParameter="{Binding}" />
                 </MenuItem>
                 <MenuItem Header="Table settings" IsVisible="{Binding IsVpx}">
                   <MenuItem Header="{Binding ScaleMenuHeader}" ItemsSource="{Binding ScaleChoices}">
@@ -344,30 +344,30 @@
                     </MenuItem.ItemTemplate>
                     <MenuItem.Styles>
                       <Style Selector="MenuItem > MenuItem" x:DataType="vm:TableScaleChoice">
-                        <Setter Property="Command" Value="{Binding Item.Owner.SetTableScaleCommand}" />
+                        <Setter Property="Command" Value="{Binding Item.Owner.Play.SetTableScaleCommand}" />
                         <Setter Property="CommandParameter" Value="{Binding}" />
                       </Style>
                     </MenuItem.Styles>
                   </MenuItem>
                   <MenuItem Header="{Binding VrHeightMenuHeader}" IsVisible="{Binding HasVrHeight}"
                             ToolTip.Tip="You raised or lowered this table in the headset, and it keeps that height. Clear it to sit at the same height as every table."
-                            Command="{Binding Owner.ClearTableVrHeightCommand}" CommandParameter="{Binding}" />
-                  <MenuItem Header="Edit this table's VPX settings (.ini)" Command="{Binding Owner.OpenTableIniCommand}" CommandParameter="{Binding}" />
-                  <MenuItem Header="Clear texture cache" Command="{Binding Owner.ClearTableCacheCommand}" CommandParameter="{Binding}" />
+                            Command="{Binding Owner.Play.ClearTableVrHeightCommand}" CommandParameter="{Binding}" />
+                  <MenuItem Header="Edit this table's VPX settings (.ini)" Command="{Binding Owner.Library.OpenTableIniCommand}" CommandParameter="{Binding}" />
+                  <MenuItem Header="Clear texture cache" Command="{Binding Owner.Library.ClearTableCacheCommand}" CommandParameter="{Binding}" />
                 </MenuItem>
                 <Separator />
                 <MenuItem Header="Rename…" IsVisible="{Binding CanRename}" IsEnabled="{Binding !IsBusy}"
                           ToolTip.Tip="The name shown in My Tables and the VR lobby. The table keeps its catalog link, collections, play history and pictures."
-                          Command="{Binding Owner.RenameTableCommand}" CommandParameter="{Binding}" />
+                          Command="{Binding Owner.Library.RenameTableCommand}" CommandParameter="{Binding}" />
                 <MenuItem Header="Open">
                   <MenuItem Header="{Binding SourcePageMenuHeader}" IsVisible="{Binding HasSourcePage}"
                             ToolTip.Tip="The page the author posted this table on: rate it, leave a comment, report a problem or say thanks"
                             Command="{Binding Owner.OpenPageCommand}" CommandParameter="{Binding SourcePage}" />
-                  <MenuItem Header="Table folder" Command="{Binding Owner.OpenTableFolderCommand}" CommandParameter="{Binding}" />
-                  <MenuItem Header="ROM folder" IsVisible="{Binding IsVpx}" Command="{Binding Owner.OpenRomFolderCommand}" CommandParameter="{Binding}" />
-                  <MenuItem Header="High score (NVRAM) folder" IsVisible="{Binding IsVpx}" Command="{Binding Owner.OpenNvramFolderCommand}" CommandParameter="{Binding}" />
+                  <MenuItem Header="Table folder" Command="{Binding Owner.Library.OpenTableFolderCommand}" CommandParameter="{Binding}" />
+                  <MenuItem Header="ROM folder" IsVisible="{Binding IsVpx}" Command="{Binding Owner.Library.OpenRomFolderCommand}" CommandParameter="{Binding}" />
+                  <MenuItem Header="High score (NVRAM) folder" IsVisible="{Binding IsVpx}" Command="{Binding Owner.Library.OpenNvramFolderCommand}" CommandParameter="{Binding}" />
                 </MenuItem>
-                <MenuItem Header="Remove table…" Command="{Binding Owner.RemoveCommand}" CommandParameter="{Binding}">
+                <MenuItem Header="Remove table…" Command="{Binding Owner.Library.RemoveCommand}" CommandParameter="{Binding}">
                 <MenuItem.IsVisible>
                   <MultiBinding Converter="{x:Static BoolConverters.And}">
                     <Binding Path="Compact" />
@@ -387,10 +387,10 @@
                     Content="{Binding IsFavourite, Converter={x:Static v:Converters.Star}}"
                     Foreground="{Binding IsFavourite, Converter={x:Static v:Converters.StarBrush}}"
                     ToolTip.Tip="Favourite (shared with the VR lobby)"
-                    Command="{ReflectionBinding $parent[Window].DataContext.ToggleFavouriteCommand}" CommandParameter="{Binding}" />
+                    Command="{Binding Owner.Library.ToggleFavouriteCommand}" CommandParameter="{Binding}" />
           </Grid>
           <!-- Medium, small and text-only cards: the badges that sit on the picture on large ones. -->
-          <WrapPanel IsVisible="{ReflectionBinding $parent[Window].DataContext.BadgesInText}">
+          <WrapPanel IsVisible="{Binding Owner.Library.BadgesInText}">
             <Border Classes="chip" Margin="0,0,5,4"><TextBlock Text="{Binding EngineBadge}" /></Border>
             <Border Classes="chip hot" Margin="0,0,5,4" IsVisible="{Binding IsIncomplete}"><TextBlock Text="INCOMPLETE" /></Border>
             <Border Classes="chip hot" Margin="0,0,5,4" IsVisible="{Binding HasUpdate}"><TextBlock Text="UPDATE" /></Border>
@@ -405,13 +405,13 @@
                   ToolTip.Tip="{Binding MoreScores}">
             <TextBlock Classes="dmd" FontSize="13" Text="{Binding TopScore}" TextTrimming="CharacterEllipsis" />
           </Border>
-          <Panel IsVisible="{ReflectionBinding $parent[Window].DataContext.ShowCardDetails}">
+          <Panel IsVisible="{Binding Owner.Library.ShowCardDetails}">
             <TextBlock Classes="mono" Text="{Binding DiskInfo}" TextTrimming="CharacterEllipsis"
                        IsVisible="{Binding DiskInfo, Converter={x:Static StringConverters.IsNotNullOrEmpty}}" />
           </Panel>
           <TextBlock FontSize="12" Foreground="{StaticResource Orange}" Text="{Binding RomStatus}" TextWrapping="Wrap"
                      IsVisible="{Binding NeedsRom}" />
-          <Panel IsVisible="{ReflectionBinding $parent[Window].DataContext.ShowCardDetails}">
+          <Panel IsVisible="{Binding Owner.Library.ShowCardDetails}">
             <TextBlock Classes="muted" FontSize="11.5" TextWrapping="Wrap" Text="{Binding RomUnavailableText}"
                        IsVisible="{Binding RomUnavailable}" />
           </Panel>
@@ -419,16 +419,16 @@
             <TextBlock FontSize="12" Foreground="{StaticResource Insert}" FontWeight="SemiBold" Text="{Binding UpdateLabel}"
                        TextWrapping="Wrap" VerticalAlignment="Center" />
             <Button Grid.Column="1" Classes="small" Content="UPDATE" Margin="8,0,0,0"
-                    IsEnabled="{Binding !IsBusy}" Command="{ReflectionBinding $parent[Window].DataContext.UpdateTableCommand}" CommandParameter="{Binding}" />
+                    IsEnabled="{Binding !IsBusy}" Command="{Binding Owner.Library.UpdateTableCommand}" CommandParameter="{Binding}" />
           </Grid>
-          <ItemsControl ItemsSource="{Binding Addons}" IsVisible="{ReflectionBinding $parent[Window].DataContext.ShowCardDetails}">
+          <ItemsControl ItemsSource="{Binding Addons}" IsVisible="{Binding Owner.Library.ShowCardDetails}">
             <ItemsControl.ItemTemplate>
               <DataTemplate x:DataType="vm:AddonSlot">
                 <Grid ColumnDefinitions="*,Auto" Margin="0,2,0,0" IsVisible="{Binding IsInstalled}">
                   <TextBlock Classes="mono" Text="{Binding Status}" TextWrapping="Wrap" VerticalAlignment="Center" />
                   <Button Grid.Column="1" Classes="small" Content="UPDATE" Margin="8,0,0,0" IsVisible="{Binding HasUpdate}"
                           ToolTip.Tip="Download the catalog's newer version and replace the installed one"
-                          IsEnabled="{Binding !Item.IsBusy}" Command="{Binding Item.Owner.UpdateAddonCommand}" CommandParameter="{Binding}" />
+                          IsEnabled="{Binding !Item.IsBusy}" Command="{Binding Item.Owner.Addons.UpdateAddonCommand}" CommandParameter="{Binding}" />
                 </Grid>
               </DataTemplate>
             </ItemsControl.ItemTemplate>

@@ -8,7 +8,7 @@ namespace VrTableManager.ViewModels;
 // Add-ons from the catalog, each into the table's own folder where VPX 10.8.1's plugins look (My Tables → PUP,
 // COLOUR DMD, ALTSOUND): PuP packs (pupvideos\), DMD colorizations (serum\ or vni\) and AltSound (altsound\).
 // Tracked in the table's vrtm.json so a new catalog version shows as an update.
-public sealed partial class MainViewModel
+public sealed partial class AddonsViewModel(MainViewModel app) : ChildViewModel(app)
 {
     [ObservableProperty]
     public partial int AddonUpdateCount { get; set; }
@@ -16,33 +16,13 @@ public sealed partial class MainViewModel
     [ObservableProperty]
     public partial string AddonUpdateText { get; set; } = "Not checked yet.";
 
-    /// <summary>VR play shows PuP packs through VPX's PinUP Player plugin.</summary>
-    [ObservableProperty]
-    public partial bool UsePupPlugin { get; set; }
-
-    /// <summary>VR play turns on VPX's FlexDMD and B2S plugins.</summary>
-    [ObservableProperty]
-    public partial bool UseDisplayPlugins { get; set; }
-
-    /// <summary>VR play adds a backglass display to tables without one, for PuP packs and B2S backglasses.</summary>
-    [ObservableProperty]
-    public partial bool VrAutoBackglass { get; set; }
-
-    /// <summary>Desktop play turns off VPX's bloom.</summary>
-    [ObservableProperty]
-    public partial bool DesktopBloomOff { get; set; }
-
-    /// <summary>A table's hand-set VR room switch is turned on for VR play and off for desktop play.</summary>
-    [ObservableProperty]
-    public partial bool AutoVrRoom { get; set; }
-
     IReadOnlyList<AddonChoice> ChoicesFor(AddonSlot slot)
     {
         var t = slot.Item.Table;
         if (
             !Addons.CanHold(t, Settings)
             || t.Manifest.GameId == ""
-            || CatalogGame(t.Manifest.GameId) is not { } game
+            || App.Catalog.CatalogGame(t.Manifest.GameId) is not { } game
         )
         {
             return [];
@@ -59,7 +39,7 @@ public sealed partial class MainViewModel
                 .ToList();
     }
 
-    void RefreshAddonState(InstalledItem item)
+    internal void RefreshAddonState(InstalledItem item)
     {
         foreach (var slot in item.Addons)
         {
@@ -76,15 +56,18 @@ public sealed partial class MainViewModel
     }
 
     /// <summary>Catalog add-ons and their updates for every card (from the loaded catalog; cheap).</summary>
-    void ApplyAddons()
+    internal void ApplyAddons()
     {
-        if (_allGames.Count == 0)
+        if (App.Catalog._allGames.Count == 0)
         {
             return;
         }
 
-        var updates = Addons.FindUpdates(_allInstalled.Select(i => i.Table), _allGames);
-        foreach (var item in _allInstalled)
+        var updates = Addons.FindUpdates(
+            App.Library._allInstalled.Select(i => i.Table),
+            App.Catalog._allGames
+        );
+        foreach (var item in App.Library._allInstalled)
         {
             foreach (var slot in item.Addons)
             {
@@ -101,7 +84,7 @@ public sealed partial class MainViewModel
         }
 
         AddonUpdateCount = updates.Count;
-        var tracked = _allInstalled.Sum(i =>
+        var tracked = App.Library._allInstalled.Sum(i =>
             Enum.GetValues<AddonKind>().Count(k => Addons.Record(i.Table, k) != null)
         );
         AddonUpdateText = updates.Count switch
@@ -125,12 +108,12 @@ public sealed partial class MainViewModel
         slot.Update is { } u ? GetAddonAsync(u.Kind, u.Table, u.Game, u.File) : Task.CompletedTask;
 
     [RelayCommand]
-    async Task UpdateAllAddonsAsync()
+    internal async Task UpdateAllAddonsAsync()
     {
         // One at a time: they're big and mostly come from the same site.
         foreach (
-            var u in _allInstalled
-                .SelectMany(i => i.Addons)
+            var u in App
+                .Library._allInstalled.SelectMany(i => i.Addons)
                 .Select(s => s.Update)
                 .OfType<AddonUpdate>()
                 .ToList()
@@ -142,7 +125,7 @@ public sealed partial class MainViewModel
 
     async Task GetAddonAsync(AddonKind kind, InstalledTable table, VpsGame game, VpsFile file)
     {
-        if (!TryBeginBusy(table.TablePath))
+        if (!App.Library.TryBeginBusy(table.TablePath))
         {
             return;
         }
@@ -153,7 +136,7 @@ public sealed partial class MainViewModel
         }
         finally
         {
-            EndBusy(table.TablePath);
+            App.Library.EndBusy(table.TablePath);
         }
     }
 
@@ -180,7 +163,7 @@ public sealed partial class MainViewModel
             AddonKind.AltColor => "the colorization",
             _ => "the AltSound pack",
         };
-        return FetchAsync(url, job, hint, what);
+        return App.Downloads.FetchAsync(url, job, hint, what);
     }
 
     /// <summary>
@@ -197,7 +180,7 @@ public sealed partial class MainViewModel
         );
         // Packs people already have are often unpacked folders (an altsound\<rom> or pupvideos\<pack> from another
         // setup), so a folder will do as well as the archive. Either way it's copied; the original stays.
-        var form = await _ui.ChoiceAsync(
+        var form = await Ui.ChoiceAsync(
             $"Add a {KindName(slot.Kind)} you already have",
             $"Pick the archive you downloaded, or a folder that already holds the {KindName(slot.Kind)}. "
                 + "It's copied into the table's folder; your file or folder stays where it is.",
@@ -210,10 +193,10 @@ public sealed partial class MainViewModel
 
         var path =
             form == 1
-                ? await _ui.PickFolderAsync(
+                ? await Ui.PickFolderAsync(
                     $"Choose the folder with the {KindName(slot.Kind)} for {slot.Item.Title}"
                 )
-                : await _ui.PickFileAsync(
+                : await Ui.PickFileAsync(
                     $"Choose the {KindName(slot.Kind)} for {slot.Item.Title}",
                     slot.Kind == AddonKind.AltColor
                         ? "*.zip;*.7z;*.rar;*.crz;*.crom;*.vni;*.pal;*.pac"
@@ -230,7 +213,7 @@ public sealed partial class MainViewModel
         if (slot.Choices.Count > 0)
         {
             List<string> buttons = [.. slot.Choices.Select(c => c.Label), "NOT LISTED", "CANCEL"];
-            var pick = await _ui.ChoiceAsync(
+            var pick = await Ui.ChoiceAsync(
                 $"Which {KindName(slot.Kind)} is this?",
                 $"{name}\n\nPick the catalog version it is, so you're told when a newer one comes out. Not listed? It's installed all the same.",
                 [.. buttons]
@@ -246,10 +229,10 @@ public sealed partial class MainViewModel
             }
         }
         var game =
-            _allGames.FirstOrDefault(g => g.Id == table.Manifest.GameId)
+            App.Catalog._allGames.FirstOrDefault(g => g.Id == table.Manifest.GameId)
             ?? new VpsGame { Id = table.Manifest.GameId, Name = table.Manifest.MatchName };
 
-        if (!TryBeginBusy(table.TablePath))
+        if (!App.Library.TryBeginBusy(table.TablePath))
         {
             return;
         }
@@ -260,7 +243,7 @@ public sealed partial class MainViewModel
         }
         finally
         {
-            EndBusy(table.TablePath);
+            App.Library.EndBusy(table.TablePath);
         }
     }
 
@@ -306,11 +289,11 @@ public sealed partial class MainViewModel
                     ? [.. archives, ".crz", ".crom", ".cromc", ".vni", ".pal", ".pac"]
                     : archives,
         };
-        Jobs.Insert(0, job);
+        App.Downloads.Jobs.Insert(0, job);
         // Only a download can be resumed after a restart.
         if (localFile == null)
         {
-            _pending.Add(
+            App.Downloads.Pending.Add(
                 new PendingDownload
                 {
                     Id = job.Id,
@@ -357,13 +340,13 @@ public sealed partial class MainViewModel
                     : kind == AddonKind.AltColor ? " VPX colours the DMD with it."
                     : " VPX plays it instead of the ROM's own sounds.";
             }
-            CleanJobDownloads(job); // archives can be gigabytes
+            DownloadsViewModel.CleanJobDownloads(job); // archives can be gigabytes
             Addons.SetRecord(table, kind, record);
             TableInstaller.SaveManifest(table);
             job.Finish(
                 $"✓ {(updating ? "Updated" : "Installed")} {KindName(kind)}{(record.Version is { } v ? " v" + v : "")} in {record.Location}\\{record.Folder}.{note}"
             );
-            RefreshInstalled();
+            App.Library.RefreshInstalled();
         }
         catch (OperationCanceledException)
         {
@@ -390,7 +373,7 @@ public sealed partial class MainViewModel
                     ),
                 error: true
             );
-            RefreshInstalled();
+            App.Library.RefreshInstalled();
         }
         catch (Exception e)
         {
@@ -398,11 +381,8 @@ public sealed partial class MainViewModel
         }
         finally
         {
-            CleanJobDownloads(job);
-            if (!_closing)
-            {
-                _pending.Remove(job.Id);
-            }
+            DownloadsViewModel.CleanJobDownloads(job);
+            App.Downloads.FinishPending(job);
         }
     }
 
@@ -427,7 +407,7 @@ public sealed partial class MainViewModel
             _ => folder,
         };
         if (
-            !await _ui.ConfirmAsync(
+            !await Ui.ConfirmAsync(
                 $"Remove {slot.Name}?",
                 $"Delete {shown} from {slot.Item.Title}'s folder? The table itself stays."
             )
@@ -452,13 +432,13 @@ public sealed partial class MainViewModel
                 Addons.SetRecord(table, slot.Kind, null);
                 TableInstaller.SaveManifest(table);
             }
-            PlayStatus = $"Removed {slot.Item.Title}'s {slot.Name}.";
+            App.Library.PlayStatus = $"Removed {slot.Item.Title}'s {slot.Name}.";
         }
         catch (Exception e)
         {
-            PlayStatus = $"Couldn't remove the {slot.Name}: " + e.Message;
+            App.Library.PlayStatus = $"Couldn't remove the {slot.Name}: " + e.Message;
         }
-        RefreshInstalled();
+        App.Library.RefreshInstalled();
     }
 
     [RelayCommand]
@@ -475,14 +455,14 @@ public sealed partial class MainViewModel
         };
         if (Directory.Exists(dir))
         {
-            _ui.OpenExternal(dir);
+            Ui.OpenExternal(dir);
         }
     }
 
-    void ResumeAddon(PendingDownload d, Func<string?, InstalledTable?> find, List<string> skipped)
+    internal void ResumeAddon(PendingDownload d, Func<string?, InstalledTable?> find, List<string> skipped)
     {
         var kind = PendingDownload.AddonKindOf(d.Kind);
-        var game = _allGames.FirstOrDefault(g => g.Id == d.GameId);
+        var game = App.Catalog._allGames.FirstOrDefault(g => g.Id == d.GameId);
         var file =
             game == null || kind == null
                 ? null

@@ -5,7 +5,7 @@
              xmlns:v="using:VrTableManager.Views"
              xmlns:services="using:VrTableManager.Services"
              x:Class="VrTableManager.Views.Setup.HeadsetSection"
-             x:DataType="vm:MainViewModel">
+             x:DataType="vm:HeadsetViewModel">
   <ScrollViewer>
     <Grid>
       <Grid.ColumnDefinitions>
@@ -39,7 +39,7 @@
                     </Border>
                     <Button Classes="small" IsVisible="{Binding !IsActive}"
                             Content="{Binding Name, StringFormat='USE {0}'}"
-                            Command="{ReflectionBinding $parent[Window].DataContext.MakeRuntimeActiveCommand}" CommandParameter="{Binding}" />
+                            Command="{Binding $parent[UserControl].((vm:HeadsetViewModel)DataContext).MakeRuntimeActiveCommand}" CommandParameter="{Binding}" />
                   </Panel>
                 </DataTemplate>
               </ItemsControl.ItemTemplate>
@@ -47,7 +47,7 @@
             <CheckBox Content="Warn me before a VR launch when SteamVR is the active runtime" IsChecked="{Binding WarnSteamVrRuntime}" />
             <WrapPanel>
               <Button Classes="small" Content="OPEN META QUEST LINK" Margin="0,0,8,8" IsVisible="{Binding HasMetaLinkApp}" Command="{Binding OpenMetaLinkAppCommand}" />
-              <Button Classes="small" Content="RECHECK" Margin="0,0,8,8" Command="{Binding RecheckSetupCommand}" />
+              <Button Classes="small" Content="RECHECK" Margin="0,0,8,8" Command="{Binding App.RecheckSetupCommand}" />
             </WrapPanel>
           </StackPanel>
         </Border>
@@ -75,7 +75,7 @@
           </StackPanel>
         </Border>
 
-        <Button Classes="small setupNext" Content="NEXT: FIT &amp; POSITION  ›" Command="{Binding ShowSetupSectionCommand}" CommandParameter="fit" />
+        <Button Classes="small setupNext" Content="NEXT: FIT &amp; POSITION  ›" Command="{Binding App.ShowSetupSectionCommand}" CommandParameter="fit" />
       </StackPanel>
     </Grid>
   </ScrollViewer>

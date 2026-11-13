@@ -5,7 +5,7 @@
              xmlns:v="using:VrTableManager.Views"
              xmlns:services="using:VrTableManager.Services"
              x:Class="VrTableManager.Views.Setup.LobbySection"
-             x:DataType="vm:MainViewModel">
+             x:DataType="vm:LobbyViewModel">
   <ScrollViewer>
     <Grid>
       <Grid.ColumnDefinitions>
@@ -97,7 +97,7 @@
           </StackPanel>
         </Border>
 
-        <Button Classes="small setupNext" Content="NEXT: DOWNLOADS  ›" Command="{Binding ShowSetupSectionCommand}" CommandParameter="downloads" />
+        <Button Classes="small setupNext" Content="NEXT: DOWNLOADS  ›" Command="{Binding App.ShowSetupSectionCommand}" CommandParameter="downloads" />
       </StackPanel>
     </Grid>
   </ScrollViewer>

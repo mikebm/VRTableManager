@@ -6,7 +6,7 @@ namespace VrTableManager.ViewModels;
 
 // A moving playfield for the VR lobby (My Tables → MORE): the playfield video from the catalog's media pack
 // first; when there's none (or it has no playfield video), VPX's own recording of the table's attract mode.
-public sealed partial class MainViewModel
+public sealed partial class LobbyMediaViewModel
 {
     /// <summary>One VPX recording at a time: each opens a window and runs the table.</summary>
     readonly SemaphoreSlim _recording = new(1, 1);
@@ -16,14 +16,14 @@ public sealed partial class MainViewModel
     /// and how to get them. Only lobby users see it, every launch until they tick it off. Returns false to stop
     /// the launch (they chose to record first, or closed the window).
     /// </summary>
-    async Task<bool> LobbyVideoTipAsync()
+    internal async Task<bool> LobbyVideoTipAsync()
     {
         if (!Settings.ShowLobbyVideoTip || !Settings.LobbyPlayfieldVideos || IsBatchRecording)
         {
             return true;
         }
 
-        var without = _allInstalled.Count(i =>
+        var without = App.Library._allInstalled.Count(i =>
             i.CanHaveLobbyVideo && !i.Table.IsIncomplete && !i.HasLobbyVideo
         );
         if (without == 0)
@@ -37,7 +37,7 @@ public sealed partial class MainViewModel
             "LAUNCH, DON'T SHOW AGAIN",
             "RECORD LOBBY VIDEOS FIRST",
         ];
-        var pick = await _ui.ChoiceAsync(
+        var pick = await Ui.ChoiceAsync(
             "Bring the VR lobby to life",
             $"{without} of your tables {(without == 1 ? "has" : "have")} no lobby video yet. With one, a table's cabinet "
                 + "shows its playfield moving, with ramps and toys standing up, instead of a still picture.\n\n"
@@ -65,7 +65,7 @@ public sealed partial class MainViewModel
     async Task GetLobbyVideo(InstalledItem item)
     {
         var table = item.Table;
-        if (!item.CanHaveLobbyVideo || !TryBeginBusy(table.TablePath))
+        if (!item.CanHaveLobbyVideo || !App.Library.TryBeginBusy(table.TablePath))
         {
             return;
         }
@@ -82,7 +82,7 @@ public sealed partial class MainViewModel
         }
         finally
         {
-            EndBusy(table.TablePath);
+            App.Library.EndBusy(table.TablePath);
         }
 
         if (r is { Left.Video: true })
@@ -117,7 +117,7 @@ public sealed partial class MainViewModel
             return true;
         }
 
-        if (!TryBeginBusy(table.TablePath))
+        if (!App.Library.TryBeginBusy(table.TablePath))
         {
             return true; // something else is running for this table: skip it
         }
@@ -126,7 +126,7 @@ public sealed partial class MainViewModel
         {
             FileNames = [table.Manifest.MatchName],
         };
-        Jobs.Insert(0, job);
+        App.Downloads.Jobs.Insert(0, job);
         started?.Invoke(job);
         try
         {
@@ -192,7 +192,7 @@ public sealed partial class MainViewModel
         }
         finally
         {
-            EndBusy(table.TablePath);
+            App.Library.EndBusy(table.TablePath);
         }
         return true;
     }
@@ -209,7 +209,7 @@ public sealed partial class MainViewModel
     bool _batchStop;
 
     /// <summary>The running batch records tables in VPX: the VR lobby can't start until it's done.</summary>
-    bool _batchUsesVpx;
+    internal bool _batchUsesVpx;
 
     /// <summary>
     /// Records a lobby video in VPX for every VPX table that has none, one after another, so their cabinets get
@@ -225,11 +225,11 @@ public sealed partial class MainViewModel
             return;
         }
 
-        if (CantRecordNow())
+        if (App.Lobby.CantRecordNow())
         {
             return;
         }
-        var without = _allInstalled
+        var without = App.Library._allInstalled
             .Where(i =>
                 i.CanHaveLobbyVideo
                 && !i.Table.IsIncomplete
@@ -245,7 +245,7 @@ public sealed partial class MainViewModel
                 : "";
         if (todo.Count == 0)
         {
-            PlayStatus =
+            App.Library.PlayStatus =
                 without.Count == 0
                     ? "Every table already has a lobby video."
                     : "No table can be recorded yet:" + noRomNote;
@@ -253,7 +253,7 @@ public sealed partial class MainViewModel
         }
         var minutes = Math.Max(1, (int)Math.Ceiling(todo.Count * 40 / 60.0));
         if (
-            await _ui.ChoiceAsync(
+            await Ui.ChoiceAsync(
                 $"Record lobby videos for {todo.Count} table{(todo.Count == 1 ? "" : "s")}?",
                 $"VPX opens each table in a small window, records its attract mode for about half a minute (sound off) and closes it, "
                     + $"one after another: about {minutes} minute{(minutes == 1 ? "" : "s")} in all. Leave the PC alone meanwhile.{noRomNote}\n\n"
@@ -312,7 +312,7 @@ public sealed partial class MainViewModel
             _batchUsesVpx = false;
             _batchJob = null;
         }
-        PlayStatus =
+        App.Library.PlayStatus =
             $"Recorded lobby videos for {recorded} table{(recorded == 1 ? "" : "s")}."
             + (failed > 0 ? $" {failed} didn't record (the Downloads list says why)." : "")
             + (stopped ? $" Stopped; {todo.Count - recorded - failed} not done." : "");
@@ -343,17 +343,17 @@ public sealed partial class MainViewModel
         }
         catch (Exception e)
         {
-            PlayStatus = "Couldn't remove the lobby video: " + e.Message;
+            App.Library.PlayStatus = "Couldn't remove the lobby video: " + e.Message;
             return;
         }
         SetHasLobbyVideo(item.Table.TablePath, false);
-        PlayStatus = $"Removed {item.Title}'s lobby video.";
+        App.Library.PlayStatus = $"Removed {item.Title}'s lobby video.";
     }
 
     void SetHasLobbyVideo(string tablePath, bool on)
     {
         foreach (
-            var i in _allInstalled.Where(i =>
+            var i in App.Library._allInstalled.Where(i =>
                 string.Equals(i.Table.TablePath, tablePath, StringComparison.OrdinalIgnoreCase)
             )
         )

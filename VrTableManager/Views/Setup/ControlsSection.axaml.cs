@@ -19,7 +19,7 @@ public partial class ControlsSection : UserControl
     /// </summary>
     PhysicalKey _pendingModifier = PhysicalKey.None;
 
-    MainViewModel? Vm => DataContext as MainViewModel;
+    ControlsViewModel? Vm => DataContext as ControlsViewModel;
 
     public ControlsSection()
     {

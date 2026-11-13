@@ -5,7 +5,7 @@
              xmlns:v="using:VrTableManager.Views"
              xmlns:services="using:VrTableManager.Services"
              x:Class="VrTableManager.Views.Setup.OtherGamesSection"
-             x:DataType="vm:MainViewModel">
+             x:DataType="vm:OtherGamesViewModel">
   <ScrollViewer>
     <Grid>
       <Grid.ColumnDefinitions>
@@ -33,8 +33,8 @@
             </Grid>
             <CheckBox Content="Run FPLoader as administrator (BAM recommends this)" IsChecked="{Binding FpRunAsAdmin}" />
             <WrapPanel>
-              <Button Classes="small" Content="BAM DOWNLOAD PAGE" Margin="0,0,8,8" Command="{Binding OpenPageCommand}" CommandParameter="https://www.ravarcade.pl/" />
-              <Button Classes="small" Content="BAM OPENVR GUIDE" Margin="0,0,8,8" Command="{Binding OpenPageCommand}" CommandParameter="https://pinballnirvana.com/forums/threads/bam-openvr-guide-by-terryred.19916/" />
+              <Button Classes="small" Content="BAM DOWNLOAD PAGE" Margin="0,0,8,8" Command="{Binding App.OpenPageCommand}" CommandParameter="https://www.ravarcade.pl/" />
+              <Button Classes="small" Content="BAM OPENVR GUIDE" Margin="0,0,8,8" Command="{Binding App.OpenPageCommand}" CommandParameter="https://pinballnirvana.com/forums/threads/bam-openvr-guide-by-terryred.19916/" />
             </WrapPanel>
           </StackPanel>
         </Border>
@@ -90,13 +90,13 @@
             </WrapPanel>
 
             <WrapPanel>
-              <Button Classes="small" Content="UEVR DOWNLOAD PAGE" Margin="0,0,8,8" Command="{Binding OpenPageCommand}" CommandParameter="https://github.com/praydog/UEVR/releases" />
-              <Button Classes="small" Content="RECHECK" Margin="0,0,8,8" Command="{Binding RecheckSetupCommand}" />
+              <Button Classes="small" Content="UEVR DOWNLOAD PAGE" Margin="0,0,8,8" Command="{Binding App.OpenPageCommand}" CommandParameter="https://github.com/praydog/UEVR/releases" />
+              <Button Classes="small" Content="RECHECK" Margin="0,0,8,8" Command="{Binding App.RecheckSetupCommand}" />
             </WrapPanel>
           </StackPanel>
         </Border>
 
-        <Button Classes="small setupNext" Content="NEXT: UPDATES  ›" Command="{Binding ShowSetupSectionCommand}" CommandParameter="updates" />
+        <Button Classes="small setupNext" Content="NEXT: UPDATES  ›" Command="{Binding App.ShowSetupSectionCommand}" CommandParameter="updates" />
       </StackPanel>
     </Grid>
   </ScrollViewer>

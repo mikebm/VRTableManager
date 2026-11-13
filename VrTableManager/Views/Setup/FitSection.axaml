@@ -5,7 +5,7 @@
              xmlns:v="using:VrTableManager.Views"
              xmlns:services="using:VrTableManager.Services"
              x:Class="VrTableManager.Views.Setup.FitSection"
-             x:DataType="vm:MainViewModel">
+             x:DataType="vm:FitViewModel">
   <ScrollViewer>
     <Grid>
       <Grid.ColumnDefinitions>
@@ -98,7 +98,7 @@
           </StackPanel>
         </Border>
 
-        <Button Classes="small setupNext" Content="NEXT: VR GRAPHICS  ›" Command="{Binding ShowSetupSectionCommand}" CommandParameter="graphics" />
+        <Button Classes="small setupNext" Content="NEXT: VR GRAPHICS  ›" Command="{Binding App.ShowSetupSectionCommand}" CommandParameter="graphics" />
       </StackPanel>
     </Grid>
   </ScrollViewer>

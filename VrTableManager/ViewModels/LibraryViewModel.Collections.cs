@@ -46,7 +46,7 @@ public sealed record CollectionOption(CollectionKind Kind, string Name, string? 
 /// The Collection filter lists yours, then the smart ones in a section of their own: ready-made ones (Never played,
 /// New this month …) and ones you saved from the search and filters with SAVE AS SMART.
 /// </summary>
-public sealed partial class MainViewModel
+public sealed partial class LibraryViewModel
 {
     const string AnyCollection = "Any collection";
 
@@ -417,7 +417,7 @@ public sealed partial class MainViewModel
             }
         }
 
-        if (!await _ui.ConfirmAsync("Delete", message))
+        if (!await Ui.ConfirmAsync("Delete", message))
         {
             return;
         }
@@ -439,7 +439,7 @@ public sealed partial class MainViewModel
         var prompt = message;
         while (true)
         {
-            var typed = await _ui.AskTextAsync(
+            var typed = await Ui.AskTextAsync(
                 title,
                 prompt,
                 initial,

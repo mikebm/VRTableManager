@@ -5,7 +5,7 @@
              xmlns:v="using:VrTableManager.Views"
              xmlns:services="using:VrTableManager.Services"
              x:Class="VrTableManager.Views.Setup.UpdatesSection"
-             x:DataType="vm:MainViewModel">
+             x:DataType="vm:UpdatesViewModel">
   <ScrollViewer>
     <Grid>
       <Grid.ColumnDefinitions>
@@ -74,20 +74,20 @@
               </StackPanel>
 
               <TextBlock Grid.Row="1" Classes="k" Text="YOUR TABLES" />
-              <TextBlock Grid.Row="1" Grid.Column="1" Classes="v" Text="{Binding TableUpdateText}"
-                         Classes.new="{Binding TableUpdateCount, Converter={x:Static v:Converters.NonZero}}" />
-              <Button Grid.Row="1" Grid.Column="2" Classes="small" Content="UPDATE TABLES" Command="{Binding UpdateAllTablesCommand}"
-                      IsVisible="{Binding TableUpdateCount, Converter={x:Static v:Converters.NonZero}}" />
+              <TextBlock Grid.Row="1" Grid.Column="1" Classes="v" Text="{Binding App.Library.TableUpdateText}"
+                         Classes.new="{Binding App.Library.TableUpdateCount, Converter={x:Static v:Converters.NonZero}}" />
+              <Button Grid.Row="1" Grid.Column="2" Classes="small" Content="UPDATE TABLES" Command="{Binding App.Library.UpdateAllTablesCommand}"
+                      IsVisible="{Binding App.Library.TableUpdateCount, Converter={x:Static v:Converters.NonZero}}" />
 
               <TextBlock Grid.Row="2" Classes="k" Text="ADD-ONS" />
-              <TextBlock Grid.Row="2" Grid.Column="1" Classes="v" Text="{Binding AddonUpdateText}"
-                         Classes.new="{Binding AddonUpdateCount, Converter={x:Static v:Converters.NonZero}}" />
-              <Button Grid.Row="2" Grid.Column="2" Classes="small" Content="UPDATE ADD-ONS" Command="{Binding UpdateAllAddonsCommand}"
-                      IsVisible="{Binding AddonUpdateCount, Converter={x:Static v:Converters.NonZero}}" />
+              <TextBlock Grid.Row="2" Grid.Column="1" Classes="v" Text="{Binding App.Addons.AddonUpdateText}"
+                         Classes.new="{Binding App.Addons.AddonUpdateCount, Converter={x:Static v:Converters.NonZero}}" />
+              <Button Grid.Row="2" Grid.Column="2" Classes="small" Content="UPDATE ADD-ONS" Command="{Binding App.Addons.UpdateAllAddonsCommand}"
+                      IsVisible="{Binding App.Addons.AddonUpdateCount, Converter={x:Static v:Converters.NonZero}}" />
 
               <TextBlock Grid.Row="3" Classes="k" Text="VISUAL PINBALL X" />
               <TextBlock Grid.Row="3" Grid.Column="1" Classes="v" Inlines="{Binding VpxUpdateText, Converter={x:Static v:Converters.VersionChange}}" />
-              <Button Grid.Row="3" Grid.Column="2" Classes="small" Content="UPDATE VPX" Command="{Binding InstallVpxCommand}"
+              <Button Grid.Row="3" Grid.Column="2" Classes="small" Content="UPDATE VPX" Command="{Binding App.Vpx.InstallVpxCommand}"
                       IsVisible="{Binding HasVpxUpdate}" />
 
               <TextBlock Grid.Row="4" Classes="k" Text="UEVR" />
@@ -96,7 +96,7 @@
 
               <TextBlock Grid.Row="5" Classes="k" Text="BAM" />
               <TextBlock Grid.Row="5" Grid.Column="1" Classes="v" Text="{Binding BamUpdateText}" />
-              <Button Grid.Row="5" Grid.Column="2" Classes="small" Content="BAM PAGE" Command="{Binding OpenPageCommand}"
+              <Button Grid.Row="5" Grid.Column="2" Classes="small" Content="BAM PAGE" Command="{Binding App.OpenPageCommand}"
                       CommandParameter="https://www.ravarcade.pl/" />
 
               <TextBlock Grid.Row="6" Classes="k" Text="FUTURE PINBALL" />
@@ -106,7 +106,7 @@
           </StackPanel>
         </Border>
 
-        <Button Classes="small setupNext" Content="NEXT: MAINTENANCE  ›" Command="{Binding ShowSetupSectionCommand}" CommandParameter="maintenance" />
+        <Button Classes="small setupNext" Content="NEXT: MAINTENANCE  ›" Command="{Binding App.ShowSetupSectionCommand}" CommandParameter="maintenance" />
       </StackPanel>
     </Grid>
   </ScrollViewer>

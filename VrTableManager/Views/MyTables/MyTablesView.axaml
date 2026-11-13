@@ -7,7 +7,7 @@
              xmlns:mt="using:VrTableManager.Views.MyTables"
              xmlns:sh="using:VrTableManager.Views.Shared"
              x:Class="VrTableManager.Views.MyTables.MyTablesView"
-             x:DataType="vm:MainViewModel">
+             x:DataType="vm:LibraryViewModel">
   <!-- Everything above the cards stays put; only the cards scroll. -->
   <DockPanel>
     <StackPanel DockPanel.Dock="Top" Margin="28,14,28,6" Spacing="10">
@@ -22,12 +22,12 @@
           <Button Content="＋  ADD A TABLE FILE…" Command="{Binding AddTableFileCommand}"
                   ToolTip.Tip="Install a table zip (or .vpx / .fpt) you already downloaded yourself" />
           <Button Content="⟳  RESCAN" Command="{Binding RefreshInstalledCommand}" />
-          <Button Content="◆  GET LOBBY MEDIA" Command="{Binding GetAllLobbyMediaCommand}" IsVisible="{Binding !IsBatchRecording}"
+          <Button Content="◆  GET LOBBY MEDIA" Command="{Binding App.Media.GetAllLobbyMediaCommand}" IsVisible="{Binding !App.Media.IsBatchRecording}"
                   ToolTip.Tip="For every table shown: fills in what's missing of its playfield video, loading video, attract audio and wheel art from the catalog's media packs, then can record playfield videos in VPX for the rest. Search or filter first to do only some tables." />
-          <Button Content="{Binding BatchRecordingText}" Command="{Binding StopBatchRecordingCommand}" IsVisible="{Binding IsBatchRecording}"
+          <Button Content="{Binding App.Media.BatchRecordingText}" Command="{Binding App.Media.StopBatchRecordingCommand}" IsVisible="{Binding App.Media.IsBatchRecording}"
                   ToolTip.Tip="Stops the table that's being done (its download or VPX recording) and skips the rest" />
-          <Button Classes="primary" Content="◉  LAUNCH VR LOBBY" Command="{Binding LaunchLobbyCommand}"
-                  IsEnabled="{Binding !IsLobbyRunning}"
+          <Button Classes="primary" Content="◉  LAUNCH VR LOBBY" Command="{Binding App.Lobby.LaunchLobbyCommand}"
+                  IsEnabled="{Binding !App.Lobby.IsLobbyRunning}"
                   ToolTip.Tip="Pick and play tables inside the headset. First time: downloads Godot (117 MB) and builds the lobby." />
         </StackPanel>
       </Grid>
@@ -59,8 +59,8 @@
         <ListBox Classes="segmented" ItemsSource="{Binding InstalledFilters}" SelectedItem="{Binding InstalledFilter}" Margin="0,0,12,8" />
         <ComboBox ItemsSource="{Binding InstalledEngines}" SelectedItem="{Binding InstalledEngine}" MinWidth="150" Margin="0,0,12,8" VerticalAlignment="Center" />
         <ComboBox ItemsSource="{Binding InstalledMakers}" SelectedItem="{Binding InstalledMakerFilter}" MinWidth="150" MaxDropDownHeight="420" Margin="0,0,12,8" VerticalAlignment="Center" ToolTip.Tip="Manufacturer" />
-        <ComboBox ItemsSource="{Binding Eras}" SelectedItem="{Binding InstalledEraFilter}" MinWidth="130" Margin="0,0,12,8" VerticalAlignment="Center" ToolTip.Tip="When the real machine came out" />
-        <ComboBox ItemsSource="{Binding MachineTypes}" SelectedItem="{Binding InstalledTypeFilter}" MinWidth="150" Margin="0,0,12,8" VerticalAlignment="Center" ToolTip.Tip="Solid state (1977 on), electro-mechanical, or original designs. From the catalog, so tables not linked to it only show under Any type" />
+        <ComboBox ItemsSource="{Binding App.Catalog.Eras}" SelectedItem="{Binding InstalledEraFilter}" MinWidth="130" Margin="0,0,12,8" VerticalAlignment="Center" ToolTip.Tip="When the real machine came out" />
+        <ComboBox ItemsSource="{Binding App.Catalog.MachineTypes}" SelectedItem="{Binding InstalledTypeFilter}" MinWidth="150" Margin="0,0,12,8" VerticalAlignment="Center" ToolTip.Tip="Solid state (1977 on), electro-mechanical, or original designs. From the catalog, so tables not linked to it only show under Any type" />
         <ComboBox ItemsSource="{Binding InstalledThemes}" SelectedItem="{Binding InstalledThemeFilter}" MinWidth="150" MaxDropDownHeight="420" Margin="0,0,12,8" VerticalAlignment="Center" ToolTip.Tip="What the machine is about, from the catalog" />
         <ComboBox ItemsSource="{Binding InstalledCollections}" SelectedItem="{Binding InstalledCollectionChoice}" MinWidth="190" MaxDropDownHeight="520" Margin="0,0,8,8" VerticalAlignment="Center"
                   ToolTip.Tip="Your own collections, then smart ones that fill themselves (Never played, New this month … and ones you save). All are filters in the VR lobby too (B / Tab)">

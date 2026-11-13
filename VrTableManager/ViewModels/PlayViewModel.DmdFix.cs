@@ -5,7 +5,7 @@ namespace VrTableManager.ViewModels;
 
 // VR tables whose cabinet DMD showed the PuP pack's FullDMD under VPX 10.8.0 and stays dark under 10.8.1
 // (vpinball/vpinball#4226): asked about before a VR launch, fixed in the table file with a backup kept.
-public sealed partial class MainViewModel
+public sealed partial class PlayViewModel
 {
     /// <summary>
     /// Before a VR launch: offer to fix the table's PuP DMD when it needs it. Returns false if the user cancels
@@ -43,7 +43,7 @@ public sealed partial class MainViewModel
 
         // Short labels: four buttons fit on one row.
         List<string> buttons = ["FIX AND PLAY", "PLAY AS IS", "DON'T ASK AGAIN", "CANCEL"];
-        var pick = await _ui.ChoiceAsync(
+        var pick = await Ui.ChoiceAsync(
             "This table's PuP DMD won't show in VR",
             $"{item.Title}'s VR cabinet shows its PuP pack's DMD the way VPX 10.8.0 did it, which VPX 10.8.1 no longer "
                 + "supports, so the DMD stays dark.\n\n"
@@ -57,14 +57,14 @@ public sealed partial class MainViewModel
         switch (pick < 0 ? "CANCEL" : buttons[pick])
         {
             case "FIX AND PLAY":
-                PlayStatus = $"Fixing {item.Title}'s DMD…";
+                App.Library.PlayStatus = $"Fixing {item.Title}'s DMD…";
                 try
                 {
                     await Task.Run(() => VrDmdFix.Apply(path));
                 }
                 catch (Exception e)
                 {
-                    var go = await _ui.ChoiceAsync(
+                    var go = await Ui.ChoiceAsync(
                         "The fix didn't work",
                         $"The table wasn't changed: {e.Message}",
                         ["PLAY ANYWAY", "CANCEL"]
@@ -95,7 +95,7 @@ public sealed partial class MainViewModel
             if (await Task.Run(() => VrDmdFix.Find(path)).ConfigureAwait(true) is { Count: > 0 })
             {
                 File.Delete(VrDmdFix.BackupPath(path));
-                PlayStatus =
+                App.Library.PlayStatus =
                     $"{item.Title} has been updated since the DMD fix; removed the old backup.";
             }
             else
@@ -106,13 +106,13 @@ public sealed partial class MainViewModel
                     Settings.DmdFixDeclined.Add(path);
                     Settings.Save();
                 }
-                PlayStatus =
+                App.Library.PlayStatus =
                     $"Put {item.Title}'s original table file back. MORE → \"Fix the PuP DMD for VR\" applies the fix again.";
             }
         }
         catch (Exception e)
         {
-            PlayStatus = "Couldn't undo the DMD fix: " + e.Message;
+            App.Library.PlayStatus = "Couldn't undo the DMD fix: " + e.Message;
             return;
         }
         item.HasDmdFix = false;
@@ -137,17 +137,17 @@ public sealed partial class MainViewModel
             var fixedOnes = await Task.Run(() => VrDmdFix.Apply(path));
             if (fixedOnes.Count == 0)
             {
-                PlayStatus =
+                App.Library.PlayStatus =
                     $"{item.Title} doesn't need the PuP DMD fix (no PuP display set up the VPX 10.8.0 way).";
                 return;
             }
             item.HasDmdFix = true;
-            PlayStatus =
+            App.Library.PlayStatus =
                 $"Fixed {item.Title}'s PuP DMD for VR; the original is kept and MORE can put it back.";
         }
         catch (Exception e)
         {
-            PlayStatus = "The DMD fix didn't work; the table wasn't changed: " + e.Message;
+            App.Library.PlayStatus = "The DMD fix didn't work; the table wasn't changed: " + e.Message;
         }
     }
 }

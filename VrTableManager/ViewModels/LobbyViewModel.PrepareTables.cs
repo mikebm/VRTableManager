@@ -6,7 +6,7 @@ namespace VrTableManager.ViewModels;
 
 // Setup → VR lobby → PREPARE TABLES: the lobby, run without a window, reads every table's file once now (its
 // cabinet, playfield picture and depth map) instead of the first time the table comes round the ring.
-public sealed partial class MainViewModel
+public sealed partial class LobbyViewModel
 {
     /// <summary>The lobby is reading every table in the background (PREPARE TABLES).</summary>
     [ObservableProperty]
@@ -22,14 +22,14 @@ public sealed partial class MainViewModel
 
         if (IsLobbyRunning)
         {
-            PlayStatus = "Close the VR lobby first, then prepare its tables.";
+            App.Library.PlayStatus = "Close the VR lobby first, then prepare its tables.";
             return;
         }
 
-        if (IsBatchRecording && _batchUsesVpx)
+        if (App.Media.IsBatchRecording && App.Media._batchUsesVpx)
         {
             // VPX has each table open in turn, and a cabinet read that fails then is kept as "no cabinet".
-            PlayStatus =
+            App.Library.PlayStatus =
                 "Tables are being recorded in VPX: wait for them, or press STOP, then prepare the tables.";
             return;
         }
@@ -37,7 +37,7 @@ public sealed partial class MainViewModel
         var lobbyDir = LobbyRunner.FindLobbyDir();
         if (lobbyDir == null)
         {
-            PlayStatus = "Couldn't find the VrLobby project next to this app.";
+            App.Library.PlayStatus = "Couldn't find the VrLobby project next to this app.";
             return;
         }
         // As for LAUNCH VR LOBBY: on this app's own .NET, else the installed one (off the UI thread: mklink, copies).
@@ -52,7 +52,7 @@ public sealed partial class MainViewModel
 
         IsPreparingLobbyTables = true;
         var job = new JobItem("Preparing tables for the VR lobby");
-        Jobs.Insert(0, job);
+        App.Downloads.Jobs.Insert(0, job);
         var progress = job.ProgressReporter;
         var started = DateTime.UtcNow;
         int total = 0,
@@ -169,7 +169,7 @@ public sealed partial class MainViewModel
             return (false, true);
         }
 
-        var tables = _allInstalled.Select(i => i.Table).ToList();
+        var tables = App.Library._allInstalled.Select(i => i.Table).ToList();
         var unprepared = await Task.Run(() => Lobby.CabinetFiles.Unprepared(tables));
         if (unprepared < AskToPrepareFrom)
         {
@@ -177,7 +177,7 @@ public sealed partial class MainViewModel
         }
 
         string[] buttons = ["PREPARE TABLES FIRST", "LAUNCH VR LOBBY", "LAUNCH, DON'T ASK AGAIN"];
-        var pick = await _ui.ChoiceAsync(
+        var pick = await Ui.ChoiceAsync(
             "Prepare your tables for the VR lobby?",
             $"{unprepared} of your tables haven't been prepared for the VR lobby yet. The first time each one comes "
                 + "round the ring, the lobby reads its table file for its cabinet and playfield: a few seconds a table, "
@@ -203,9 +203,9 @@ public sealed partial class MainViewModel
     }
 
     /// <summary>After GET LOBBY MEDIA: " …PREPARE TABLES…" while many tables haven't been prepared, else "".</summary>
-    async Task<string> PrepareHintAsync()
+    internal async Task<string> PrepareHintAsync()
     {
-        var tables = _allInstalled.Select(i => i.Table).ToList();
+        var tables = App.Library._allInstalled.Select(i => i.Table).ToList();
         var unprepared = await Task.Run(() => Lobby.CabinetFiles.Unprepared(tables));
         return unprepared < AskToPrepareFrom
             ? ""
@@ -216,17 +216,17 @@ public sealed partial class MainViewModel
     /// Recording runs the tables in VPX: not while the VR lobby runs, nor while PREPARE TABLES is reading them (a
     /// table it can't read while VPX has it is kept as having no cabinet). Says why; true when it can't.
     /// </summary>
-    bool CantRecordNow()
+    internal bool CantRecordNow()
     {
         if (IsLobbyRunning)
         {
-            PlayStatus = "Close the VR lobby first: recording runs the tables in VPX.";
+            App.Library.PlayStatus = "Close the VR lobby first: recording runs the tables in VPX.";
             return true;
         }
 
         if (IsPreparingLobbyTables)
         {
-            PlayStatus =
+            App.Library.PlayStatus =
                 "Tables are being prepared for the VR lobby: wait for it, or cancel it under Downloads, then record.";
             return true;
         }

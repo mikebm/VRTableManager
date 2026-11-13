@@ -5,7 +5,7 @@
              xmlns:v="using:VrTableManager.Views"
              xmlns:services="using:VrTableManager.Services"
              x:Class="VrTableManager.Views.Setup.PlaySection"
-             x:DataType="vm:MainViewModel">
+             x:DataType="vm:PlayViewModel">
   <ScrollViewer>
     <Grid>
       <Grid.ColumnDefinitions>
@@ -49,7 +49,7 @@
           </StackPanel>
         </Border>
 
-        <Button Classes="small setupNext" Content="NEXT: CONTROLS  ›" Command="{Binding ShowSetupSectionCommand}" CommandParameter="controls" />
+        <Button Classes="small setupNext" Content="NEXT: CONTROLS  ›" Command="{Binding App.ShowSetupSectionCommand}" CommandParameter="controls" />
       </StackPanel>
     </Grid>
   </ScrollViewer>

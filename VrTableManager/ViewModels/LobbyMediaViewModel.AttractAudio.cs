@@ -6,12 +6,12 @@ namespace VrTableManager.ViewModels;
 // Attract audio for the VR lobby from the catalog's sound files and media packs (My Tables → MORE).
 // Only on request: packs are mostly videos and can be hundreds of MB, of which one .mp3 is kept
 // (a pack's own audio file, or else a minute of a video's sound track converted to MP3).
-public sealed partial class MainViewModel
+public sealed partial class LobbyMediaViewModel
 {
-    IReadOnlyList<MediaPackAudio.Source> AttractAudioSourcesFor(InstalledTable t) =>
+    internal IReadOnlyList<MediaPackAudio.Source> AttractAudioSourcesFor(InstalledTable t) =>
         t.IsVpx
         && t.Manifest.GameId != ""
-        && CatalogGame(t.Manifest.GameId) is { } game
+        && App.Catalog.CatalogGame(t.Manifest.GameId) is { } game
             ? MediaPackAudio.SourcesFor(game)
             : [];
 
@@ -20,7 +20,7 @@ public sealed partial class MainViewModel
     async Task GetAttractAudio(InstalledItem item)
     {
         var table = item.Table;
-        if (!item.CanGetAttractAudio || !TryBeginBusy(table.TablePath))
+        if (!item.CanGetAttractAudio || !App.Library.TryBeginBusy(table.TablePath))
         {
             return;
         }
@@ -36,27 +36,27 @@ public sealed partial class MainViewModel
         }
         finally
         {
-            EndBusy(table.TablePath);
+            App.Library.EndBusy(table.TablePath);
         }
     }
 
     /// <summary>Downloads a sound file or media pack into the job's folder and returns the file.</summary>
     async Task<string> DownloadAttractSourceAsync(JobItem job, MediaPackAudio.Source src)
     {
-        var downloads = JobDownloadDir(job);
+        var downloads = DownloadsViewModel.JobDownloadDir(job);
         // In your browser: no download slot (see FetchAsync).
         if (!src.IsDirect && !SitePolicy.AllowsAutomation(src.Url))
         {
-            return await _assisted.DownloadAsync(src.Url, downloads, job);
+            return await App.Downloads.Assisted.DownloadAsync(src.Url, downloads, job);
         }
 
-        return await WithDownloadSlotAsync(
+        return await App.Downloads.WithDownloadSlotAsync(
             job,
             async () =>
             {
                 if (!src.IsDirect)
                 {
-                    return await _browser.DownloadAsync(
+                    return await App.Downloads.Browser.DownloadAsync(
                         src.Url,
                         downloads,
                         [],
@@ -86,17 +86,17 @@ public sealed partial class MainViewModel
         }
         catch (Exception e)
         {
-            PlayStatus = "Couldn't remove the attract audio: " + e.Message;
+            App.Library.PlayStatus = "Couldn't remove the attract audio: " + e.Message;
             return;
         }
         SetHasAttractAudio(item.Table.TablePath, false);
-        PlayStatus = $"Removed {item.Title}'s attract audio.";
+        App.Library.PlayStatus = $"Removed {item.Title}'s attract audio.";
     }
 
     void SetHasAttractAudio(string tablePath, bool on)
     {
         foreach (
-            var i in _allInstalled.Where(i =>
+            var i in App.Library._allInstalled.Where(i =>
                 string.Equals(i.Table.TablePath, tablePath, StringComparison.OrdinalIgnoreCase)
             )
         )

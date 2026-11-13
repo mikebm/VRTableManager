@@ -6,7 +6,7 @@ using VrTableManager.Services;
 namespace VrTableManager.ViewModels;
 
 // Setup → Updates: VR Table Manager's own updates from its GitHub releases.
-public sealed partial class MainViewModel
+public sealed partial class UpdatesViewModel
 {
     AppRelease? _appLatest;
 
@@ -28,12 +28,12 @@ public sealed partial class MainViewModel
     public bool ClosingForUpdate { get; private set; }
 
     /// <summary>At startup: say how the last update went, then offer a new release unless it was skipped.</summary>
-    async Task StartupAppUpdateAsync()
+    internal async Task StartupAppUpdateAsync()
     {
         var args = Environment.GetCommandLineArgs();
         if (args.Contains("--updated"))
         {
-            await _ui.ChoiceAsync(
+            await Ui.ChoiceAsync(
                 "Updated",
                 $"VR Table Manager is now version {AppUpdater.CurrentVersion}.",
                 ["OK"]
@@ -41,7 +41,7 @@ public sealed partial class MainViewModel
         }
         else if (args.Contains("--update-failed"))
         {
-            await _ui.ChoiceAsync(
+            await Ui.ChoiceAsync(
                 "Update didn't finish",
                 "The new files couldn't be copied into the app's folder (a file may have been in use). You're still on "
                     + AppUpdater.CurrentVersion
@@ -62,7 +62,7 @@ public sealed partial class MainViewModel
             notes = notes[..600].TrimEnd() + "…";
         }
 
-        var pick = await _ui.ChoiceAsync(
+        var pick = await Ui.ChoiceAsync(
             $"VR Table Manager {rel.Version} is out",
             $"You have {AppUpdater.CurrentVersion}. Update now? The app closes, updates and opens again; your tables and settings stay as they are.",
             ["UPDATE NOW", "SKIP THIS VERSION", "LATER"],
@@ -117,7 +117,7 @@ public sealed partial class MainViewModel
             return;
         }
 
-        if (IsLobbyRunning)
+        if (App.Lobby.IsLobbyRunning)
         {
             AppUpdateText = "Quit the VR lobby first, then update.";
             return;
@@ -127,13 +127,13 @@ public sealed partial class MainViewModel
             // Under Program Files or another protected folder: let the user replace it themselves.
             AppUpdateText =
                 "This app's folder can't be written to, so it can't update itself. Download the new release and unzip it over this one.";
-            _ui.OpenExternal(rel.PageUrl);
+            Ui.OpenExternal(rel.PageUrl);
             return;
         }
-        var running = Jobs.Count(j => !j.IsDone && !j.IsError);
+        var running = App.Downloads.Jobs.Count(j => !j.IsDone && !j.IsError);
         if (
             running > 0
-            && !await _ui.ConfirmAsync(
+            && !await Ui.ConfirmAsync(
                 "Update now?",
                 $"{running} job{(running == 1 ? " is" : "s are")} still running. Unfinished downloads are offered again after the update.",
                 "Update now"
@@ -168,5 +168,5 @@ public sealed partial class MainViewModel
     }
 
     [RelayCommand]
-    void OpenAppReleases() => _ui.OpenExternal(_appLatest?.PageUrl ?? AppUpdater.ReleasesPage);
+    void OpenAppReleases() => Ui.OpenExternal(_appLatest?.PageUrl ?? AppUpdater.ReleasesPage);
 }

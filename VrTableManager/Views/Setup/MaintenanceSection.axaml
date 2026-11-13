@@ -5,7 +5,7 @@
              xmlns:v="using:VrTableManager.Views"
              xmlns:services="using:VrTableManager.Services"
              x:Class="VrTableManager.Views.Setup.MaintenanceSection"
-             x:DataType="vm:MainViewModel">
+             x:DataType="vm:MaintenanceViewModel">
   <ScrollViewer>
     <Grid>
       <Grid.ColumnDefinitions>
@@ -25,7 +25,7 @@
             <CheckBox Content="When a VPX table crashes or closes within seconds, show what its log says" IsChecked="{Binding ExplainFailedLaunches}" />
             <WrapPanel>
               <Button Classes="small primary" Content="VIEW LAST VPX RUN" Margin="0,0,8,8" Command="{Binding ViewLastVpxLogCommand}" />
-              <Button Classes="small" Content="OPEN VR SETTINGS FILE" Margin="0,0,8,8" Command="{Binding OpenVrIniCommand}" />
+              <Button Classes="small" Content="OPEN VR SETTINGS FILE" Margin="0,0,8,8" Command="{Binding App.Vpx.OpenVrIniCommand}" />
               <Button Classes="small" Content="OPEN LOBBY PLAY LOG" Margin="0,0,8,8" Command="{Binding OpenPlayLogCommand}"
                       ToolTip.Tip="What happened when tables were launched from the VR lobby" />
             </WrapPanel>
@@ -72,10 +72,10 @@
                         <TextBlock Classes="muted" FontSize="12" TextWrapping="Wrap" Text="{Binding Description}" />
                       </StackPanel>
                       <Button Grid.Column="2" Classes="small" Content="OPEN" Margin="8,0,0,0" VerticalAlignment="Center"
-                              Command="{ReflectionBinding $parent[Window].DataContext.OpenStorageCommand}" CommandParameter="{Binding}" />
+                              Command="{Binding $parent[UserControl].((vm:MaintenanceViewModel)DataContext).OpenStorageCommand}" CommandParameter="{Binding}" />
                       <Button Grid.Column="3" Classes="small danger" Content="CLEAR" Margin="8,0,0,0" VerticalAlignment="Center"
                               IsVisible="{Binding CanClear}"
-                              Command="{ReflectionBinding $parent[Window].DataContext.ClearStorageCommand}" CommandParameter="{Binding}" />
+                              Command="{Binding $parent[UserControl].((vm:MaintenanceViewModel)DataContext).ClearStorageCommand}" CommandParameter="{Binding}" />
                     </Grid>
                   </Border>
                 </DataTemplate>

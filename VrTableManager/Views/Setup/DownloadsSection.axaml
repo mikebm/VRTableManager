@@ -5,7 +5,7 @@
              xmlns:v="using:VrTableManager.Views"
              xmlns:services="using:VrTableManager.Services"
              x:Class="VrTableManager.Views.Setup.DownloadsSection"
-             x:DataType="vm:MainViewModel">
+             x:DataType="vm:DownloadsViewModel">
   <ScrollViewer>
     <Grid>
       <Grid.ColumnDefinitions>
@@ -42,11 +42,11 @@
             </StackPanel>
             <CheckBox Content="Delete downloaded files after installing (tables, ROMs, add-ons, media). Files from a failed install are kept."
                       IsChecked="{Binding DeleteDownloadsAfterInstall}" />
-            <CheckBox Content="Hide adult-themed tables" IsChecked="{Binding HideAdult}" />
+            <CheckBox Content="Hide adult-themed tables" IsChecked="{Binding App.Catalog.HideAdult}" />
           </StackPanel>
         </Border>
 
-        <Button Classes="small setupNext" Content="NEXT: OTHER GAMES  ›" Command="{Binding ShowSetupSectionCommand}" CommandParameter="games" />
+        <Button Classes="small setupNext" Content="NEXT: OTHER GAMES  ›" Command="{Binding App.ShowSetupSectionCommand}" CommandParameter="games" />
       </StackPanel>
     </Grid>
   </ScrollViewer>
