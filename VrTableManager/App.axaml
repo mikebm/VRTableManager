@@ -320,6 +320,32 @@
       <Setter Property="BorderBrush" Value="{StaticResource Line}" />
       <Setter Property="CornerRadius" Value="6" />
     </Style>
+    <!-- A filter that narrows the list (a dropdown off its "Any …" line, a search with text) is lit like a
+         selected segment, so you can see at a glance what's hiding tables. -->
+    <Style Selector="ComboBox.active">
+      <Setter Property="Background" Value="{StaticResource LampSoft}" />
+      <Setter Property="BorderBrush" Value="{StaticResource Lamp}" />
+      <Setter Property="Foreground" Value="{StaticResource Lamp}" />
+    </Style>
+    <Style Selector="ComboBox.active:pointerover /template/ Border#Background">
+      <Setter Property="Background" Value="#33FFB23E" />
+      <Setter Property="BorderBrush" Value="{StaticResource Lamp}" />
+    </Style>
+    <Style Selector="ComboBox.active /template/ PathIcon#DropDownGlyph">
+      <Setter Property="Foreground" Value="{StaticResource Lamp}" />
+    </Style>
+    <Style Selector="TextBox.active /template/ Border#PART_BorderElement">
+      <Setter Property="Background" Value="{StaticResource LampSoft}" />
+      <Setter Property="BorderBrush" Value="{StaticResource Lamp}" />
+    </Style>
+    <Style Selector="TextBox.active:pointerover /template/ Border#PART_BorderElement">
+      <Setter Property="Background" Value="#33FFB23E" />
+      <Setter Property="BorderBrush" Value="{StaticResource Lamp}" />
+    </Style>
+    <!-- "48 of 312 tables": lit while something narrows the list. -->
+    <Style Selector="TextBlock.shownCount.narrowed">
+      <Setter Property="Foreground" Value="{StaticResource Lamp}" />
+    </Style>
 
     <!-- Segmented control: a row of lamp switches. -->
     <Style Selector="ListBox.segmented">

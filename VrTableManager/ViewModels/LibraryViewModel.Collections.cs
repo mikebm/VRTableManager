@@ -3,6 +3,7 @@ using Avalonia.Controls;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using VrTableManager.Lobby;
+using VrTableManager.Models;
 using VrTableManager.Services;
 
 namespace VrTableManager.ViewModels;
@@ -33,8 +34,16 @@ public enum CollectionKind
 }
 
 /// <summary>A line of the Collection filter. Headers ("YOUR COLLECTIONS", "SMART") can't be picked.</summary>
-public sealed record CollectionOption(CollectionKind Kind, string Name, string? Tip = null)
+public sealed record CollectionOption(
+    CollectionKind Kind,
+    string Name,
+    string? Tip = null,
+    int? Count = null
+)
 {
+    /// <summary>How many of your tables are in it, from the whole library (not narrowed by the other filters).</summary>
+    public string CountText => Count?.ToString() ?? "";
+
     public bool IsHeader => Kind == CollectionKind.Header;
     public bool IsSelectable => !IsHeader;
     public bool IsSmart => Kind is CollectionKind.Ready or CollectionKind.Saved;
@@ -134,31 +143,7 @@ public sealed partial class LibraryViewModel
     /// <summary>Fills the Collection filter and every card's submenu from <see cref="_collections"/>.</summary>
     void ShowCollections()
     {
-        var options = new List<CollectionOption> { AnyOption };
-        var mine = _collections
-            .Names.Where(n => !ReservedNames.Contains(n, StringComparer.OrdinalIgnoreCase))
-            .ToList();
-        if (mine.Count > 0)
-        {
-            options.Add(new(CollectionKind.Header, "YOUR COLLECTIONS"));
-            options.AddRange(mine.Select(n => new CollectionOption(CollectionKind.Mine, n)));
-        }
-        options.Add(new(CollectionKind.Header, "SMART"));
-        options.AddRange(
-            SmartCollections.BuiltIn.Select(b => new CollectionOption(
-                CollectionKind.Ready,
-                b.Name,
-                b.Description
-            ))
-        );
-        options.AddRange(
-            _collections.Smart.Select(r => new CollectionOption(
-                CollectionKind.Saved,
-                r.Name,
-                "Saved: " + r.Describe()
-            ))
-        );
-        RefillCollectionOptions(options);
+        CountCollections();
 
         foreach (var item in _allInstalled)
         {
@@ -172,6 +157,80 @@ public sealed partial class LibraryViewModel
                 new CollectionChoice(item, null, false),
             ];
         }
+    }
+
+    /// <summary>What the collection counts were worked out from; they're redone only when one of these changes.</summary>
+    (List<InstalledItem>, PlayStats, TableCollections, List<VpsGame>, DateTime, int)? _countedFor;
+
+    /// <summary>
+    /// Fills the Collection filter's lines, each with how many of your tables are in it. Runs with every refilter
+    /// (so on every search keystroke), but only counts again when the tables, plays and favourites, collections,
+    /// catalog or day changed: the stats and collections are replaced, not edited, whenever they change. The counts
+    /// are of the whole library, so the search and other filters don't change them.
+    /// </summary>
+    void CountCollections()
+    {
+        var details = new HashCode();
+        foreach (var i in _allInstalled)
+        {
+            details.Add(i.Title);
+            details.Add(i.Table.Manifest.GameId);
+            details.Add(i.Table.Manifest.Manufacturer);
+            details.Add(i.Table.MissingRoms.Count);
+        }
+        var key = (
+            _allInstalled,
+            _stats,
+            _collections,
+            App.Catalog._allGames,
+            DateTime.Today,
+            details.ToHashCode()
+        );
+        if (_countedFor == key)
+        {
+            return;
+        }
+        _countedFor = key;
+
+        var now = DateTime.Now;
+        var tables = _allInstalled.Select(SmartTableOf).ToList();
+        int CountWhere(Func<SmartTable, bool> test) => tables.Count(test);
+
+        var options = new List<CollectionOption> { AnyOption };
+        var mine = _collections
+            .Collections.Where(c =>
+                !ReservedNames.Contains(c.Name, StringComparer.OrdinalIgnoreCase)
+            )
+            .ToList();
+        if (mine.Count > 0)
+        {
+            options.Add(new(CollectionKind.Header, "YOUR COLLECTIONS"));
+            options.AddRange(
+                mine.Select(c => new CollectionOption(
+                    CollectionKind.Mine,
+                    c.Name,
+                    Count: CountWhere(t => c.Contains(t.Path))
+                ))
+            );
+        }
+        options.Add(new(CollectionKind.Header, "SMART"));
+        options.AddRange(
+            SmartCollections.BuiltIn.Select(b => new CollectionOption(
+                CollectionKind.Ready,
+                b.Name,
+                b.Description,
+                CountWhere(t => b.Test(t, now))
+            ))
+        );
+        options.AddRange(
+            _collections.Smart.Select(r => new CollectionOption(
+                CollectionKind.Saved,
+                r.Name,
+                "Saved: " + r.Describe(),
+                CountWhere(t => SmartCollections.Matches(r, t, _collections))
+            ))
+        );
+        RefillCollectionOptions(options);
     }
 
     /// <summary>Replaces the Collection filter's lines, keeping the choice when it's still there (else "Any").</summary>

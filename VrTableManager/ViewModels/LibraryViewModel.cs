@@ -99,6 +99,13 @@ public sealed partial class LibraryViewModel(MainViewModel app) : ChildViewModel
     [ObservableProperty]
     public partial int InstalledTotal { get; set; }
 
+    /// <summary>"48 of 312 tables" while the search or a filter hides some, else "312 tables".</summary>
+    [ObservableProperty]
+    public partial string InstalledShownText { get; set; } = "";
+
+    [ObservableProperty]
+    public partial bool IsInstalledNarrowed { get; set; }
+
     partial void OnInstalledFilterChanged(string value) => InstalledFilterChanged(value);
 
     internal List<InstalledItem> _allInstalled = [];
@@ -289,6 +296,7 @@ public sealed partial class LibraryViewModel(MainViewModel app) : ChildViewModel
     void FilterInstalled()
     {
         UpdateInstalledChoices();
+        CountCollections();
         HasInstalledFilters =
             InstalledMakerFilter != TableFilters.AnyMaker
             || InstalledEraFilter != TableFilters.AnyEra
@@ -342,6 +350,11 @@ public sealed partial class LibraryViewModel(MainViewModel app) : ChildViewModel
         );
 
         InstalledTotal = _allInstalled.Count;
+        IsInstalledNarrowed = shown.Count != _allInstalled.Count;
+        InstalledShownText =
+            IsInstalledNarrowed ? $"{shown.Count} of {_allInstalled.Count} tables"
+            : _allInstalled.Count == 1 ? "1 table"
+            : $"{_allInstalled.Count} tables";
         InstalledEmptyText =
             Installed.Count > 0 || _allInstalled.Count == 0 ? ""
             : !_allInstalled.Any(MatchesInstalledCollection)
@@ -383,6 +396,7 @@ public sealed partial class LibraryViewModel(MainViewModel app) : ChildViewModel
             return;
         }
         item.ApplyStats(_stats);
+        CountCollections(); // Forgotten favourites, and saved ones that keep to favourites
         if (InstalledFilter != "Most played" && InstalledFilter != "Recently played")
         {
             FilterInstalled();

@@ -41,7 +41,7 @@
               <Setter Property="VerticalAlignment" Value="Center" />
             </Style>
           </WrapPanel.Styles>
-          <TextBox Text="{Binding SearchText}" PlaceholderText="Search name, maker, author, theme, year" Width="300" ToolTip.Tip="Typos are fine, words can be in any order, and initials work: afm, tz, mm" Margin="0,0,12,8">
+          <TextBox Text="{Binding SearchText}" Classes.active="{Binding $self.Text, Converter={x:Static StringConverters.IsNotNullOrEmpty}}" PlaceholderText="Search name, maker, author, theme, year" Width="300" ToolTip.Tip="Typos are fine, words can be in any order, and initials work: afm, tz, mm" Margin="0,0,12,8">
             <TextBox.InnerLeftContent>
               <PathIcon Classes="search" Margin="12,0,0,0" />
             </TextBox.InnerLeftContent>
@@ -53,10 +53,10 @@
           <ToggleSwitch Margin="0,0,14,8" IsChecked="{Binding HideInstalled}" OnContent="Hide installed" OffContent="Hide installed"
                         FontWeight="SemiBold" VerticalAlignment="Center"
                         ToolTip.Tip="Leave out tables you already have in My Tables" />
-          <ComboBox ItemsSource="{Binding Manufacturers}" SelectedItem="{Binding ManufacturerFilter}" MaxDropDownHeight="420" ToolTip.Tip="Manufacturer" />
-          <ComboBox ItemsSource="{Binding Eras}" SelectedItem="{Binding EraFilter}" ToolTip.Tip="When the real machine came out" />
-          <ComboBox ItemsSource="{Binding MachineTypes}" SelectedItem="{Binding TypeFilter}" ToolTip.Tip="Solid state (1977 on), electro-mechanical, or original designs" />
-          <ComboBox ItemsSource="{Binding Themes}" SelectedItem="{Binding ThemeFilter}" MaxDropDownHeight="420" ToolTip.Tip="What the machine is about (Movie, Sci-Fi, Horror …)" />
+          <ComboBox Classes.active="{Binding $self.SelectedIndex, Converter={x:Static v:Converters.NonZero}}" ItemsSource="{Binding Manufacturers}" SelectedItem="{Binding ManufacturerFilter}" MaxDropDownHeight="420" ToolTip.Tip="Manufacturer" />
+          <ComboBox Classes.active="{Binding $self.SelectedIndex, Converter={x:Static v:Converters.NonZero}}" ItemsSource="{Binding Eras}" SelectedItem="{Binding EraFilter}" ToolTip.Tip="When the real machine came out" />
+          <ComboBox Classes.active="{Binding $self.SelectedIndex, Converter={x:Static v:Converters.NonZero}}" ItemsSource="{Binding MachineTypes}" SelectedItem="{Binding TypeFilter}" ToolTip.Tip="Solid state (1977 on), electro-mechanical, or original designs" />
+          <ComboBox Classes.active="{Binding $self.SelectedIndex, Converter={x:Static v:Converters.NonZero}}" ItemsSource="{Binding Themes}" SelectedItem="{Binding ThemeFilter}" MaxDropDownHeight="420" ToolTip.Tip="What the machine is about (Movie, Sci-Fi, Horror …)" />
           <StackPanel Orientation="Horizontal" Spacing="8" Margin="4,0,10,8" VerticalAlignment="Center">
             <TextBlock Classes="eyebrow" Foreground="{StaticResource Muted}" Text="SORT" VerticalAlignment="Center" />
             <ComboBox ItemsSource="{Binding CatalogSorts}" SelectedItem="{Binding CatalogSort}" Margin="0" />
