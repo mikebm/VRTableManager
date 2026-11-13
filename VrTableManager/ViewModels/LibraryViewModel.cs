@@ -323,9 +323,10 @@ public sealed partial class LibraryViewModel(MainViewModel app) : ChildViewModel
                 // Searching: best matches first.
                 _ when search != null => pool.OrderByDescending(i => scores[i])
                     .ThenBy(i => i.Title, StringComparer.OrdinalIgnoreCase),
-                // Favourites first, then A–Z.
-                _ => pool.OrderByDescending(i => i.IsFavourite)
-                    .ThenBy(i => LetterRails.SortKey(i.Title), StringComparer.OrdinalIgnoreCase),
+                _ => pool.OrderBy(
+                    i => LetterRails.SortKey(i.Title),
+                    StringComparer.OrdinalIgnoreCase
+                ),
             },
         };
         var shown = q.ToList();
@@ -634,5 +635,4 @@ public sealed partial class LibraryViewModel(MainViewModel app) : ChildViewModel
             await RefreshSizesAsync();
         }
     }
-
 }

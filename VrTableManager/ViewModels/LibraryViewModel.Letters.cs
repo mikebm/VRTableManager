@@ -23,10 +23,8 @@ public sealed partial class LibraryViewModel
         LetterRails.SetActive(InstalledLetters, letters);
 
     /// <summary>
-    /// The card a letter jumps to. Favourites come first, so it's the letter's first table after them; a letter only
-    /// favourites have jumps to the first of those.
+    /// The card a letter jumps to: the letter's first table.
     /// </summary>
     public InstalledItem? FirstInstalledAt(string letter) =>
-        Installed.FirstOrDefault(i => !i.IsFavourite && LobbyNav.LetterOf(i.Title) == letter)
-        ?? Installed.FirstOrDefault(i => LobbyNav.LetterOf(i.Title) == letter);
+        Installed.FirstOrDefault(i => LobbyNav.LetterOf(i.Title) == letter);
 }
