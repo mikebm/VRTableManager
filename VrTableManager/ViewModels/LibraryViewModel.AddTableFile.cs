@@ -125,11 +125,14 @@ public sealed partial class LibraryViewModel
                 job.Cts.Token,
                 replacing
             );
-            var getRom = installed.MissingRoms.Count > 0 && App.Roms.FindRomSource(installed) != null;
+            var getRom =
+                installed.MissingRoms.Count > 0 && App.Roms.FindRomSource(installed) != null;
             job.Finish(
-                installed.MissingRoms.Count == 0 ? "✓ Installed. Ready to play."
-                : getRom ? "✓ Installed. Getting its ROM next (see below)."
-                : "✓ Installed. Its ROM isn't in the catalog; use Add ROM in My Tables."
+                (
+                    installed.MissingRoms.Count == 0 ? "✓ Installed. Ready to play."
+                    : getRom ? "✓ Installed. Getting its ROM next (see below)."
+                    : "✓ Installed. Its ROM isn't in the catalog; use Add ROM in My Tables."
+                ) + installed.InstallNote
             );
             RefreshInstalled();
             App.Catalog.ApplyFilter();

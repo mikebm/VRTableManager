@@ -1905,6 +1905,15 @@ Check(
     Directory.CreateDirectory(Path.GetDirectoryName(nvram)!);
     File.WriteAllText(nvram, "high scores");
 
+    // A backglass installed from the catalog, under the old file name.
+    var updB2sSrc = Path.Combine(root, "upd-b2s", "mine.directb2s");
+    Directory.CreateDirectory(Path.GetDirectoryName(updB2sSrc)!);
+    File.WriteAllText(updB2sSrc, "mine");
+    old.Manifest.Backglass = Backglasses
+        .Install(updB2sSrc, old, new VpsFile { Id = "b2s1", Version = "2.0" })
+        .Record;
+    TableInstaller.SaveManifest(old);
+
     ug.TableFiles =
     [
         new VpsTableFile
@@ -2003,6 +2012,43 @@ Check(
         us.DmdFixDeclined.SequenceEqual([upd.TablePath])
             && AppSettings.LoadFrom(us.SourcePath!).DmdFixDeclined.SequenceEqual([upd.TablePath]),
         "update keeps \"don't ask again\" for the PuP DMD fix, and saves it"
+    );
+    var updB2s = Backglasses.PathFor(upd);
+    Check(
+        File.Exists(updB2s)
+            && File.ReadAllText(updB2s) == "mine"
+            && !File.Exists(Backglasses.PathFor(old))
+            && upd.InstallNote == null
+            && Backglasses.StateOf(upd).Tracked
+                is { FileId: "b2s1", Folder: "Upd Table v1.1.directb2s" }
+            && TableInstaller
+                .Scan(us)
+                .FirstOrDefault(t => t.TablePath == upd.TablePath)
+                ?.Manifest.Backglass?.Folder == "Upd Table v1.1.directb2s",
+        "update renames your backglass to the new file name and keeps tracking it"
+    );
+
+    // Reinstalling the same file, whose download brings a backglass of its own: the one you chose stays.
+    var p11b = Path.Combine(root, "upd11b.zip");
+    using (var z = ZipFile.Open(p11b, ZipArchiveMode.Create))
+    {
+        z.CreateEntry("Upd Table v1.1.vpx");
+        using var w = new StreamWriter(z.CreateEntry("Upd Table v1.1.directb2s").Open());
+        w.Write("pack");
+    }
+    var reinst = await TableInstaller.InstallAsync(
+        p11b,
+        ug,
+        v11,
+        us,
+        _ => { },
+        CancellationToken.None,
+        upd
+    );
+    Check(
+        File.ReadAllText(Backglasses.PathFor(reinst)) == "mine"
+            && Backglasses.StateOf(reinst).Tracked is { FileId: "b2s1" },
+        "reinstall keeps the backglass you chose over the one the download brings"
     );
 
     // The new download brought an .ini of its own: the author's settings stay, except your render scale and where

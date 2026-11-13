@@ -228,7 +228,7 @@ public static class TableInstaller
                 PupPack = replacing?.Manifest.PupPack,
                 AltColor = replacing?.Manifest.AltColor,
                 AltSound = replacing?.Manifest.AltSound,
-                Backglass = isFp ? null : KeepBackglass(replacing, installed.tablePath),
+                Backglass = isFp ? null : KeptBackglass(replacing, installed.tablePath),
             };
 
             var table = new InstalledTable(manifest, installed.tablePath, installed.folder);
@@ -277,6 +277,7 @@ public static class TableInstaller
                 if (!isFp)
                 {
                     KeepTableSettings(replacing.TablePath, installed.tablePath, settings);
+                    table.InstallNote = MoveBackglass(replacing, table);
                 }
             }
             return table;
@@ -292,44 +293,74 @@ public static class TableInstaller
     }
 
     /// <summary>
-    /// The backglass is named like the table, and an update usually brings a new file name: the one you had is
-    /// renamed to match, unless the update brought its own. Returns the record to keep. Never fails the install.
+    /// The backglass record an update keeps: the one this app installed, if it's still there. Under the new table
+    /// name when the update brings one; <see cref="MoveBackglass"/> renames the file once the update is in place.
+    /// (A reinstall under the same name doesn't overwrite it: see <see cref="InstallVpx"/>.)
     /// </summary>
-    static InstalledAddon? KeepBackglass(InstalledTable? replacing, string newPath)
+    static InstalledAddon? KeptBackglass(InstalledTable? replacing, string newPath)
     {
-        if (replacing == null)
+        if (replacing == null || Backglasses.StateOf(replacing).Tracked is not { } rec)
         {
             return null;
         }
 
-        var rec = replacing.Manifest.Backglass;
-        if (SamePath(replacing.TablePath, newPath))
+        return SamePath(replacing.TablePath, newPath)
+            ? rec
+            : new InstalledAddon
+            {
+                FileId = rec.FileId,
+                Version = rec.Version,
+                Authors = rec.Authors,
+                Location = rec.Location,
+                Folder = Path.GetFileName(Path.ChangeExtension(newPath, Backglasses.Ext)),
+                SourceUrl = rec.SourceUrl,
+                InstalledAt = rec.InstalledAt,
+                SourceUpdatedAt = rec.SourceUpdatedAt,
+            };
+    }
+
+    /// <summary>
+    /// After an update to a new table file name (the old one is gone by now): the backglass is named like the table,
+    /// so the one you had is renamed to match. One you installed here replaces any the update brought; one that
+    /// came with the old table gives way to the update's own and is deleted with the old table. Never fails the
+    /// install: returns what to tell you when the backglass couldn't follow.
+    /// </summary>
+    static string? MoveBackglass(InstalledTable replacing, InstalledTable table)
+    {
+        var oldB2s = Backglasses.PathFor(replacing);
+        var newB2s = Backglasses.PathFor(table);
+        if (!File.Exists(oldB2s) || SamePath(oldB2s, newB2s))
         {
-            return rec;
+            return null;
         }
 
-        var oldB2s = Backglasses.PathFor(replacing);
-        var newB2s = Path.ChangeExtension(newPath, Backglasses.Ext);
-        if (!File.Exists(oldB2s) || File.Exists(newB2s))
+        var yours = table.Manifest.Backglass != null;
+        if (!yours && File.Exists(newB2s))
         {
+            Addons.TryDeleteFile(oldB2s);
             return null;
         }
 
         try
         {
-            File.Move(oldB2s, newB2s);
+            Addons.MoveFileOver(oldB2s, newB2s);
+            return null;
         }
         catch (Exception e) when (e is IOException or UnauthorizedAccessException)
         {
-            return null;
-        }
+            if (yours)
+            {
+                table.Manifest.Backglass = null;
+                try
+                {
+                    SaveManifest(table);
+                }
+                catch (Exception e2) when (e2 is IOException or UnauthorizedAccessException) { }
+            }
 
-        if (rec != null)
-        {
-            rec.Folder = Path.GetFileName(newB2s);
+            return $" Its backglass couldn't be renamed to {Path.GetFileName(newB2s)} (it may be open in VPX), so VPX "
+                + $"won't find it: rename {Path.GetFileName(oldB2s)} yourself, or add it again from BACKGLASS on its card.";
         }
-
-        return rec;
     }
 
     /// <summary>
@@ -481,6 +512,16 @@ public static class TableInstaller
                 .Select(Path.GetFullPath)
                 .ToHashSet(StringComparer.OrdinalIgnoreCase)
             : null;
+        // A backglass you installed here stays over the one a reinstall under the same name brings.
+        if (
+            replacing != null
+            && Backglasses.StateOf(replacing).Tracked != null
+            && SamePath(replacing.TablePath, Path.Combine(folder, Path.GetFileName(main)))
+        )
+        {
+            keep ??= new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+            keep.Add(Path.GetFullPath(Backglasses.PathFor(replacing)));
+        }
         var tableIni = VpxGraphics.TableIniPath(Path.Combine(folder, Path.GetFileName(main)));
         string? yourIni = null;
         if (File.Exists(tableIni))
@@ -648,7 +689,7 @@ public static class TableInstaller
             }
             else if (file.EndsWith(".directb2s", StringComparison.OrdinalIgnoreCase))
             {
-                CopyFile(file, Path.Combine(folder, Path.GetFileName(file)));
+                CopyFile(file, Path.Combine(folder, Path.GetFileName(file)), keep);
             }
         }
 

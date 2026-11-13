@@ -534,7 +534,9 @@ public sealed partial class CatalogViewModel(MainViewModel app) : ChildViewModel
                     installed.MissingRoms.Count == 0 ? $"✓ {done}. Ready to play."
                     : getRom ? $"✓ {done}. Getting its ROM next (see below)."
                     : $"✓ {done}. The catalog has no ROM download for it; use Add ROM in My Tables."
-                ) + pupNote
+                )
+                    + pupNote
+                    + installed.InstallNote
             );
             App.Library.RefreshInstalled();
             ApplyFilter();
