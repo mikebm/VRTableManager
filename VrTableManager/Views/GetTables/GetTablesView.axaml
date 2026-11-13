@@ -50,6 +50,9 @@
                    ItemsSource="{Binding EngineFilters}" SelectedItem="{Binding EngineFilter}" />
           <ToggleSwitch Margin="0,0,14,8" IsChecked="{Binding VrOnly}" OnContent="VR-ready only" OffContent="VR-ready only"
                         FontWeight="SemiBold" VerticalAlignment="Center" />
+          <ToggleSwitch Margin="0,0,14,8" IsChecked="{Binding HideInstalled}" OnContent="Hide installed" OffContent="Hide installed"
+                        FontWeight="SemiBold" VerticalAlignment="Center"
+                        ToolTip.Tip="Leave out tables you already have in My Tables" />
           <ComboBox ItemsSource="{Binding Manufacturers}" SelectedItem="{Binding ManufacturerFilter}" MaxDropDownHeight="420" ToolTip.Tip="Manufacturer" />
           <ComboBox ItemsSource="{Binding Eras}" SelectedItem="{Binding EraFilter}" ToolTip.Tip="When the real machine came out" />
           <ComboBox ItemsSource="{Binding MachineTypes}" SelectedItem="{Binding TypeFilter}" ToolTip.Tip="Solid state (1977 on), electro-mechanical, or original designs" />

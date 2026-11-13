@@ -106,6 +106,10 @@ public sealed partial class CatalogViewModel(MainViewModel app) : ChildViewModel
     [ObservableProperty]
     public partial bool VrOnly { get; set; } = true;
 
+    /// <summary>Leaves out machines that already have a table installed (in My Tables).</summary>
+    [ObservableProperty]
+    public partial bool HideInstalled { get; set; }
+
     [ObservableProperty]
     public partial string EngineFilter { get; set; } = "VPX";
 
@@ -121,6 +125,8 @@ public sealed partial class CatalogViewModel(MainViewModel app) : ChildViewModel
     partial void OnSearchTextChanged(string value) => ApplyFilter();
 
     partial void OnVrOnlyChanged(bool value) => ApplyFilter();
+
+    partial void OnHideInstalledChanged(bool value) => ApplyFilter();
 
     partial void OnEngineFilterChanged(string value) => ApplyFilter();
 
@@ -250,6 +256,7 @@ public sealed partial class CatalogViewModel(MainViewModel app) : ChildViewModel
         var search = TableSearch.Parse(SearchText);
         var scored = _allGames
             .Where(g => g.TableFiles!.Any(IsVisible))
+            .Where(g => !HideInstalled || !_installedIds.Contains(g.Id))
             .Where(MatchesCatalogFilters)
             .Select(g => (Game: g, Score: search?.Score(_gameIndex.GetValue(g, IndexGame)) ?? 1))
             .Where(x => x.Score > 0)
@@ -271,7 +278,10 @@ public sealed partial class CatalogViewModel(MainViewModel app) : ChildViewModel
                 "Oldest machines" => matches
                     .OrderBy(g => g.Year is > 0 ? g.Year : int.MaxValue)
                     .ThenBy(g => g.Name),
-                _ => matches.OrderBy(g => LetterRails.SortKey(g.Name), StringComparer.OrdinalIgnoreCase),
+                _ => matches.OrderBy(
+                    g => LetterRails.SortKey(g.Name),
+                    StringComparer.OrdinalIgnoreCase
+                ),
             }
         ).ToList();
         UpdateManufacturers();
@@ -510,7 +520,8 @@ public sealed partial class CatalogViewModel(MainViewModel app) : ChildViewModel
                 replacing
             );
             var done = replacing == null ? "Installed" : $"Updated to v{tf.Version}";
-            var getRom = installed.MissingRoms.Count > 0 && App.Roms.FindRomSource(installed) != null;
+            var getRom =
+                installed.MissingRoms.Count > 0 && App.Roms.FindRomSource(installed) != null;
             // "incl. PuP" tables mostly offer the pack as a second file on their page, which the table download doesn't bring.
             var pupNote =
                 VpsCatalog.HasFeature(tf, PupPacks.BundledFeature)
@@ -558,7 +569,11 @@ public sealed partial class CatalogViewModel(MainViewModel app) : ChildViewModel
     }
 
     /// <param name="replacing">The installed table this replaces (updates), so its old file is removed.</param>
-    internal async Task<bool> InstallAsync(VpsGame game, VpsTableFile tf, InstalledTable? replacing = null)
+    internal async Task<bool> InstallAsync(
+        VpsGame game,
+        VpsTableFile tf,
+        InstalledTable? replacing = null
+    )
     {
         if (replacing == null)
         {
