@@ -76,6 +76,9 @@ public sealed class TableManifest
 
     /// <summary>The AltSound pack this app installed (altsound\); null when none was.</summary>
     public InstalledAddon? AltSound { get; set; }
+
+    /// <summary>The .directb2s backglass this app installed beside the table (Folder = its file name); null when none was.</summary>
+    public InstalledAddon? Backglass { get; set; }
 }
 
 /// <summary>

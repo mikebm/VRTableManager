@@ -6,7 +6,8 @@ using VrTableManager.Services;
 namespace VrTableManager.ViewModels;
 
 // Add-ons from the catalog, each into the table's own folder where VPX 10.8.1's plugins look (My Tables → PUP,
-// COLOUR DMD, ALTSOUND): PuP packs (pupvideos\), DMD colorizations (serum\ or vni\) and AltSound (altsound\).
+// COLOUR DMD, ALTSOUND, BACKGLASS): PuP packs (pupvideos\), DMD colorizations (serum\ or vni\), AltSound (altsound\)
+// and the .directb2s backglass (beside the .vpx, named like it).
 // Tracked in the table's vrtm.json so a new catalog version shows as an update.
 public sealed partial class AddonsViewModel(MainViewModel app) : ChildViewModel(app)
 {
@@ -28,15 +29,21 @@ public sealed partial class AddonsViewModel(MainViewModel app) : ChildViewModel(
             return [];
         }
 
-        return slot.Kind == AddonKind.Pup
-            ? PupPacks
+        return slot.Kind switch
+        {
+            AddonKind.Pup => PupPacks
                 .SourcesFor(game, t)
                 .Select(f => new AddonChoice(slot, game, f, PupPacks.Describe(f)))
-                .ToList()
-            : AltPacks
+                .ToList(),
+            AddonKind.Backglass => Backglasses
+                .SourcesFor(game)
+                .Select(f => new AddonChoice(slot, game, f, Backglasses.Describe(f)))
+                .ToList(),
+            _ => AltPacks
                 .SourcesFor(game, t, slot.Kind)
                 .Select(f => new AddonChoice(slot, game, f, AltPacks.Describe(f, t)))
-                .ToList();
+                .ToList(),
+        };
     }
 
     internal void RefreshAddonState(InstalledItem item)
@@ -44,14 +51,17 @@ public sealed partial class AddonsViewModel(MainViewModel app) : ChildViewModel(
         foreach (var slot in item.Addons)
         {
             slot.State = Addons.StateOf(item.Table, slot.Kind);
-            // Colours and sounds are the ROM's: only a table that runs one can take them.
+            // Colours and sounds are the ROM's: only a table that runs one can take them. Any table can have a
+            // backglass, and the script doesn't say whether it wants one, so it's always offered.
             var hasRom = item.Table.Manifest.RomNames.Count > 0;
-            slot.CanAddFile =
-                Addons.CanHold(item.Table, Settings) && (slot.Kind == AddonKind.Pup || hasRom);
-            slot.ScriptWantsIt =
-                slot.Kind == AddonKind.Pup
-                    ? !string.IsNullOrEmpty(item.Table.Manifest.PupName)
-                    : hasRom;
+            var romFree = slot.Kind is AddonKind.Pup or AddonKind.Backglass;
+            slot.CanAddFile = Addons.CanHold(item.Table, Settings) && (romFree || hasRom);
+            slot.ScriptWantsIt = slot.Kind switch
+            {
+                AddonKind.Pup => !string.IsNullOrEmpty(item.Table.Manifest.PupName),
+                AddonKind.Backglass => true,
+                _ => hasRom,
+            };
         }
     }
 
@@ -90,7 +100,7 @@ public sealed partial class AddonsViewModel(MainViewModel app) : ChildViewModel(
         AddonUpdateText = updates.Count switch
         {
             0 when tracked == 0 =>
-                "No PuP packs, DMD colours or AltSound installed from the catalog yet.",
+                "No PuP packs, DMD colours, AltSound or backglasses installed from the catalog yet.",
             0 => tracked == 1
                 ? "Your add-on is up to date."
                 : $"All {tracked} add-ons are up to date.",
@@ -152,6 +162,7 @@ public sealed partial class AddonsViewModel(MainViewModel app) : ChildViewModel(
         {
             AddonKind.Pup => ["pup"],
             AddonKind.AltColor => [(file as VpsAltColorFile)?.Folder ?? "serum"],
+            AddonKind.Backglass => ["directb2s", "b2s"],
             _ => ["altsound"],
         };
         // On a page you download from yourself, say which file: a table's page also lists its .vpx.
@@ -161,6 +172,7 @@ public sealed partial class AddonsViewModel(MainViewModel app) : ChildViewModel(
                 "the PuP pack (the .zip with \"PuP\" in its name, newest version, not the .vpx)",
             AddonKind.Pup => "the PuP pack",
             AddonKind.AltColor => "the colorization",
+            AddonKind.Backglass => "the backglass (.directb2s)",
             _ => "the AltSound pack",
         };
         return App.Downloads.FetchAsync(url, job, hint, what);
@@ -180,12 +192,16 @@ public sealed partial class AddonsViewModel(MainViewModel app) : ChildViewModel(
         );
         // Packs people already have are often unpacked folders (an altsound\<rom> or pupvideos\<pack> from another
         // setup), so a folder will do as well as the archive. Either way it's copied; the original stays.
-        var form = await Ui.ChoiceAsync(
-            $"Add a {KindName(slot.Kind)} you already have",
-            $"Pick the archive you downloaded, or a folder that already holds the {KindName(slot.Kind)}. "
-                + "It's copied into the table's folder; your file or folder stays where it is.",
-            ["ARCHIVE OR FILE", "FOLDER", "CANCEL"]
-        );
+        // A backglass is one file, so it goes straight to picking it (or the archive it came in).
+        var form =
+            slot.Kind == AddonKind.Backglass
+                ? 0
+                : await Ui.ChoiceAsync(
+                    $"Add a {KindName(slot.Kind)} you already have",
+                    $"Pick the archive you downloaded, or a folder that already holds the {KindName(slot.Kind)}. "
+                        + "It's copied into the table's folder; your file or folder stays where it is.",
+                    ["ARCHIVE OR FILE", "FOLDER", "CANCEL"]
+                );
         if (form is < 0 or 2)
         {
             return;
@@ -198,9 +214,12 @@ public sealed partial class AddonsViewModel(MainViewModel app) : ChildViewModel(
                 )
                 : await Ui.PickFileAsync(
                     $"Choose the {KindName(slot.Kind)} for {slot.Item.Title}",
-                    slot.Kind == AddonKind.AltColor
-                        ? "*.zip;*.7z;*.rar;*.crz;*.crom;*.vni;*.pal;*.pac"
-                        : "*.zip;*.7z;*.rar",
+                    slot.Kind switch
+                    {
+                        AddonKind.AltColor => "*.zip;*.7z;*.rar;*.crz;*.crom;*.vni;*.pal;*.pac",
+                        AddonKind.Backglass => "*.directb2s;*.zip;*.7z;*.rar",
+                        _ => "*.zip;*.7z;*.rar",
+                    },
                     startFolder: downloads
                 );
         if (path == null)
@@ -252,6 +271,7 @@ public sealed partial class AddonsViewModel(MainViewModel app) : ChildViewModel(
         {
             AddonKind.Pup => "PuP pack",
             AddonKind.AltColor => "DMD colours",
+            AddonKind.Backglass => "backglass",
             _ => "AltSound",
         };
 
@@ -281,13 +301,25 @@ public sealed partial class AddonsViewModel(MainViewModel app) : ChildViewModel(
                 {
                     AddonKind.Pup => "pup",
                     AddonKind.AltColor => "serum",
+                    AddonKind.Backglass => "directb2s",
                     _ => "altsound",
                 },
             ],
-            FileTypes =
-                kind == AddonKind.AltColor
-                    ? [.. archives, ".crz", ".crom", ".cromc", ".vni", ".pal", ".pac"]
-                    : archives,
+            FileTypes = kind switch
+            {
+                AddonKind.AltColor =>
+                [
+                    .. archives,
+                    ".crz",
+                    ".crom",
+                    ".cromc",
+                    ".vni",
+                    ".pal",
+                    ".pac",
+                ],
+                AddonKind.Backglass => [Backglasses.Ext, .. archives],
+                _ => archives,
+            },
         };
         App.Downloads.Jobs.Insert(0, job);
         // Only a download can be resumed after a restart.
@@ -329,6 +361,24 @@ public sealed partial class AddonsViewModel(MainViewModel app) : ChildViewModel(
                         : " Turn on the PinUP Player plugin in Setup to see it in VR."
                     ) + pup.Layout.Note($"{PupPacks.FolderName}\\{record.Folder}");
             }
+            else if (kind == AddonKind.Backglass)
+            {
+                var b2s = await Task.Run(() =>
+                    Backglasses.Install(downloaded, table, file, job.Report)
+                );
+                record = b2s.Record;
+                note =
+                    (
+                        b2s.Count > 1
+                            ? $" The download had {b2s.Count} backglasses: this is {b2s.From}."
+                            : ""
+                    )
+                    + (
+                        Settings.UseDisplayPlugins
+                            ? " VPX's B2S plugin should show it on the backglass display."
+                            : " Turn on VPX's FlexDMD and backglass (B2S) plugins in Setup to see it."
+                    );
+            }
             else
             {
                 record = await Task.Run(() =>
@@ -344,7 +394,12 @@ public sealed partial class AddonsViewModel(MainViewModel app) : ChildViewModel(
             Addons.SetRecord(table, kind, record);
             TableInstaller.SaveManifest(table);
             job.Finish(
-                $"✓ {(updating ? "Updated" : "Installed")} {KindName(kind)}{(record.Version is { } v ? " v" + v : "")} in {record.Location}\\{record.Folder}.{note}"
+                $"✓ {(updating ? "Updated" : "Installed")} {KindName(kind)}{(record.Version is { } v ? " v" + v : "")} "
+                    + (
+                        kind == AddonKind.Backglass
+                            ? $"as {record.Folder}.{note}"
+                            : $"in {record.Location}\\{record.Folder}.{note}"
+                    )
             );
             App.Library.RefreshInstalled();
         }
@@ -422,6 +477,10 @@ public sealed partial class AddonsViewModel(MainViewModel app) : ChildViewModel(
             {
                 PupPacks.Remove(table, folder);
             }
+            else if (slot.Kind == AddonKind.Backglass)
+            {
+                Backglasses.Remove(table);
+            }
             else
             {
                 AltPacks.Remove(table, slot.Kind, folder);
@@ -449,6 +508,7 @@ public sealed partial class AddonsViewModel(MainViewModel app) : ChildViewModel(
         {
             AddonKind.Pup => Path.Combine(t.Folder, PupPacks.FolderName),
             AddonKind.AltSound => Path.Combine(t.Folder, AltPacks.SoundFolder),
+            AddonKind.Backglass => t.Folder,
             _ => slot.State.Folders.FirstOrDefault() is { } f
                 ? Path.Combine(t.Folder, f)
                 : t.Folder,
@@ -459,7 +519,11 @@ public sealed partial class AddonsViewModel(MainViewModel app) : ChildViewModel(
         }
     }
 
-    internal void ResumeAddon(PendingDownload d, Func<string?, InstalledTable?> find, List<string> skipped)
+    internal void ResumeAddon(
+        PendingDownload d,
+        Func<string?, InstalledTable?> find,
+        List<string> skipped
+    )
     {
         var kind = PendingDownload.AddonKindOf(d.Kind);
         var game = App.Catalog._allGames.FirstOrDefault(g => g.Id == d.GameId);

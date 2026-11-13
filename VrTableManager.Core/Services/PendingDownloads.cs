@@ -8,7 +8,7 @@ public sealed class PendingDownload
     public const string TableKind = "Table";
     public const string RomKind = "Rom";
 
-    /// <summary>The Kind of an add-on download: "Pup", "AltColor" or "AltSound".</summary>
+    /// <summary>The Kind of an add-on download: "Pup", "AltColor", "AltSound" or "Backglass".</summary>
     public static string KindFor(AddonKind kind) => kind.ToString();
 
     /// <summary>The add-on a Kind stands for, or null for a table or ROM download.</summary>

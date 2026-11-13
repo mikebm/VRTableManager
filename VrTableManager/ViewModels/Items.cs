@@ -155,6 +155,7 @@ public sealed partial class InstalledItem : ObservableObject
         Pup = new AddonSlot(this, AddonKind.Pup);
         Colour = new AddonSlot(this, AddonKind.AltColor);
         Sound = new AddonSlot(this, AddonKind.AltSound);
+        Backglass = new AddonSlot(this, AddonKind.Backglass);
     }
 
     public InstalledTable Table { get; private set; }
@@ -496,9 +497,10 @@ public sealed partial class InstalledItem : ObservableObject
     public AddonSlot Pup { get; }
     public AddonSlot Colour { get; }
     public AddonSlot Sound { get; }
+    public AddonSlot Backglass { get; }
 
     // Made once: a new list on every read would rebuild each card's add-on buttons whenever a rescan refreshes it.
-    public IReadOnlyList<AddonSlot> Addons => field ??= [Pup, Colour, Sound];
+    public IReadOnlyList<AddonSlot> Addons => field ??= [Pup, Colour, Sound, Backglass];
 
     /// <summary>Where to read the rules (set by the view model): The Pinball Primer, then instruction cards.</summary>
     [ObservableProperty, NotifyPropertyChangedFor(nameof(HasRules))]
@@ -821,6 +823,7 @@ public sealed partial class AddonSlot : ObservableObject
         {
             AddonKind.Pup => "PuP pack",
             AddonKind.AltColor => "DMD colours",
+            AddonKind.Backglass => "Backglass",
             _ => "AltSound",
         };
     public string ButtonText =>
@@ -828,6 +831,7 @@ public sealed partial class AddonSlot : ObservableObject
         {
             AddonKind.Pup => "PUP ▾",
             AddonKind.AltColor => "COLOUR DMD ▾",
+            AddonKind.Backglass => "BACKGLASS ▾",
             _ => "ALTSOUND ▾",
         };
     public string Tip =>
@@ -837,6 +841,8 @@ public sealed partial class AddonSlot : ObservableObject
                 "PinUP Player pack: videos for the cabinet's backglass and DMD, from the catalog",
             AddonKind.AltColor =>
                 "Colour for the DMD (Serum or Pin2DMD colorization), from the catalog",
+            AddonKind.Backglass =>
+                "The table's .directb2s backglass, from the catalog or a file you have; put beside the table and named like it",
             _ => "Replacement sounds and music for the ROM (AltSound / G-Sound), from the catalog",
         };
 

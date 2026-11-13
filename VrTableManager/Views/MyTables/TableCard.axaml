@@ -7,7 +7,7 @@
              x:Class="VrTableManager.Views.MyTables.TableCard"
              x:DataType="vm:InstalledItem">
   <UserControl.Resources>
-    <!-- A table card's add-on menu (PUP / COLOUR DMD / ALTSOUND): the catalog's files, open folder, remove. -->
+    <!-- A table card's add-on menu (PUP / COLOUR DMD / ALTSOUND / BACKGLASS): the catalog's files, open folder, remove. -->
     <DataTemplate x:Key="AddonButton" x:DataType="vm:AddonSlot">
       <Button Classes="small" Content="{Binding ButtonText}" Margin="0,0,6,6" IsEnabled="{Binding !Item.IsBusy}" ToolTip.Tip="{Binding Tip}">
         <Button.Flyout>
@@ -56,6 +56,7 @@
           <Border Classes="chip" IsVisible="{Binding Pup.IsInstalled}" ToolTip.Tip="{Binding Pup.Status}"><TextBlock Text="PUP" /></Border>
           <Border Classes="chip" IsVisible="{Binding Colour.IsInstalled}" ToolTip.Tip="{Binding Colour.Status}"><TextBlock Text="COLOUR" /></Border>
           <Border Classes="chip" IsVisible="{Binding Sound.IsInstalled}" ToolTip.Tip="{Binding Sound.Status}"><TextBlock Text="ALTSOUND" /></Border>
+          <Border Classes="chip" IsVisible="{Binding Backglass.IsInstalled}" ToolTip.Tip="{Binding Backglass.Status}"><TextBlock Text="B2S" /></Border>
         </StackPanel>
       </Grid>
       </Border>
@@ -98,6 +99,9 @@
             </Panel>
             <Panel IsVisible="{Binding !Compact}">
               <ContentControl Content="{Binding Sound}" ContentTemplate="{StaticResource AddonButton}" IsVisible="{Binding Sound.ShowButton}" />
+            </Panel>
+            <Panel IsVisible="{Binding !Compact}">
+              <ContentControl Content="{Binding Backglass}" ContentTemplate="{StaticResource AddonButton}" IsVisible="{Binding Backglass.ShowButton}" />
             </Panel>
             <Panel IsVisible="{Binding !Compact}">
               <Button Classes="small" Content="RULES ▾" Margin="0,0,6,6" IsVisible="{Binding HasRules}"
@@ -166,6 +170,7 @@
                     <Binding Path="Pup.ShowButton" />
                     <Binding Path="Colour.ShowButton" />
                     <Binding Path="Sound.ShowButton" />
+                    <Binding Path="Backglass.ShowButton" />
                     <Binding Path="CanApplyDmdFix" />
                     <Binding Path="HasDmdFix" />
                   </MultiBinding>
@@ -217,6 +222,22 @@
                     <MenuItem Header="{Binding Sound.FileMenuHeader}" IsVisible="{Binding Sound.CanAddFile}" Command="{Binding Owner.Addons.InstallAddonFileCommand}" CommandParameter="{Binding Sound}" />
                     <MenuItem Header="Open folder" IsVisible="{Binding Sound.IsInstalled}" Command="{Binding Owner.Addons.OpenAddonFolderCommand}" CommandParameter="{Binding Sound}" />
                     <MenuItem Header="Remove" IsVisible="{Binding Sound.IsInstalled}" Command="{Binding Owner.Addons.RemoveAddonCommand}" CommandParameter="{Binding Sound}" />
+                  </MenuItem>
+                  <MenuItem Header="{Binding Backglass.Name}" IsEnabled="{Binding !IsBusy}" IsVisible="{Binding Backglass.ShowButton}">
+                    <MenuItem Header="{Binding Backglass.MenuHeader}" IsVisible="{Binding Backglass.HasChoices}" ItemsSource="{Binding Backglass.Choices}">
+                      <MenuItem.ItemTemplate>
+                        <DataTemplate x:DataType="vm:AddonChoice"><TextBlock Text="{Binding Label}" /></DataTemplate>
+                      </MenuItem.ItemTemplate>
+                      <MenuItem.Styles>
+                        <Style Selector="MenuItem > MenuItem" x:DataType="vm:AddonChoice">
+                          <Setter Property="Command" Value="{Binding Slot.Item.Owner.Addons.GetAddonCommand}" />
+                          <Setter Property="CommandParameter" Value="{Binding}" />
+                        </Style>
+                      </MenuItem.Styles>
+                    </MenuItem>
+                    <MenuItem Header="{Binding Backglass.FileMenuHeader}" IsVisible="{Binding Backglass.CanAddFile}" Command="{Binding Owner.Addons.InstallAddonFileCommand}" CommandParameter="{Binding Backglass}" />
+                    <MenuItem Header="Open folder" IsVisible="{Binding Backglass.IsInstalled}" Command="{Binding Owner.Addons.OpenAddonFolderCommand}" CommandParameter="{Binding Backglass}" />
+                    <MenuItem Header="Remove" IsVisible="{Binding Backglass.IsInstalled}" Command="{Binding Owner.Addons.RemoveAddonCommand}" CommandParameter="{Binding Backglass}" />
                   </MenuItem>
                   <MenuItem Header="Fix the PuP DMD for VR" IsVisible="{Binding CanApplyDmdFix}"
                             ToolTip.Tip="Shows the PuP pack's DMD on the VR cabinet in VPX 10.8.1 (switches the table's PuP display to VPX's Score View; the original file is kept)"
@@ -399,6 +420,7 @@
             <Border Classes="chip" Margin="0,0,5,4" IsVisible="{Binding Pup.IsInstalled}" ToolTip.Tip="{Binding Pup.Status}"><TextBlock Text="PUP" /></Border>
             <Border Classes="chip" Margin="0,0,5,4" IsVisible="{Binding Colour.IsInstalled}" ToolTip.Tip="{Binding Colour.Status}"><TextBlock Text="COLOUR" /></Border>
             <Border Classes="chip" Margin="0,0,5,4" IsVisible="{Binding Sound.IsInstalled}" ToolTip.Tip="{Binding Sound.Status}"><TextBlock Text="ALTSOUND" /></Border>
+            <Border Classes="chip" Margin="0,0,5,4" IsVisible="{Binding Backglass.IsInstalled}" ToolTip.Tip="{Binding Backglass.Status}"><TextBlock Text="B2S" /></Border>
           </WrapPanel>
           <TextBlock Classes="mono" Text="{Binding Subtitle}" TextTrimming="CharacterEllipsis" ToolTip.Tip="{Binding TablePathTip}" />
           <!-- Which ROM it loads: tells apart copies of one game installed in different folders. -->

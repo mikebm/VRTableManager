@@ -8,6 +8,9 @@ public enum AddonKind
     Pup,
     AltColor,
     AltSound,
+
+    /// <summary>The table's .directb2s, beside the .vpx and named like it (not a folder: see <see cref="Backglasses"/>).</summary>
+    Backglass,
 }
 
 /// <summary>A catalog add-on that's newer than the one installed for a table.</summary>
@@ -102,6 +105,7 @@ public static class Addons
         {
             AddonKind.Pup => t.Manifest.PupPack,
             AddonKind.AltColor => t.Manifest.AltColor,
+            AddonKind.Backglass => t.Manifest.Backglass,
             _ => t.Manifest.AltSound,
         };
 
@@ -114,6 +118,9 @@ public static class Addons
                 break;
             case AddonKind.AltColor:
                 t.Manifest.AltColor = value;
+                break;
+            case AddonKind.Backglass:
+                t.Manifest.Backglass = value;
                 break;
             default:
                 t.Manifest.AltSound = value;
@@ -131,11 +138,17 @@ public static class Addons
                 )
             ),
             AddonKind.AltColor => game.AltColorFiles ?? [],
+            AddonKind.Backglass => game.B2sFiles ?? [],
             _ => game.AltSoundFiles ?? [],
         };
 
     public static AddonState StateOf(InstalledTable t, AddonKind kind) =>
-        kind == AddonKind.Pup ? PupPacks.StateOf(t) : AltPacks.StateOf(t, kind);
+        kind switch
+        {
+            AddonKind.Pup => PupPacks.StateOf(t),
+            AddonKind.Backglass => Backglasses.StateOf(t),
+            _ => AltPacks.StateOf(t, kind),
+        };
 
     /// <summary>
     /// Installed add-ons whose catalog entry now has another version (same id). VPS edits an entry in place for a
@@ -381,6 +394,36 @@ public static class Addons
         }
 
         TryDeleteFolder(old);
+    }
+
+    /// <summary>
+    /// <see cref="SwapIn"/> for a single file: moves <paramref name="src"/> over <paramref name="dest"/>, tried again
+    /// for a moment while something (VPX) has either open. Throws the last error when it still can't.
+    /// </summary>
+    public static void MoveFileOver(string src, string dest)
+    {
+        for (var i = 0; ; i++)
+        {
+            try
+            {
+                File.Move(src, dest, overwrite: true);
+                return;
+            }
+            catch (Exception e) when ((e is IOException or UnauthorizedAccessException) && i < 5)
+            {
+                Thread.Sleep(200);
+            }
+        }
+    }
+
+    /// <summary>Deletes a file if it's there, for cleaning up after a failure: never throws.</summary>
+    public static void TryDeleteFile(string path)
+    {
+        try
+        {
+            File.Delete(path);
+        }
+        catch (Exception e) when (e is IOException or UnauthorizedAccessException) { }
     }
 
     /// <summary><see cref="DeleteFolder"/>, for cleaning up after a failure: never throws.</summary>

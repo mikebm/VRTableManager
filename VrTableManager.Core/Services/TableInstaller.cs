@@ -15,6 +15,9 @@ public sealed record InstalledTable(TableManifest Manifest, string TablePath, st
     /// </summary>
     public bool SharedFolder { get; init; }
 
+    /// <summary>Something an install couldn't do that the finished job should say (set by <see cref="TableInstaller.InstallAsync"/>).</summary>
+    public string? InstallNote { get; set; }
+
     /// <summary>
     /// A VPX table in a folder of its own: media kept per table folder (lobby video, loading video, wheel art) can be
     /// its own.
@@ -225,6 +228,7 @@ public static class TableInstaller
                 PupPack = replacing?.Manifest.PupPack,
                 AltColor = replacing?.Manifest.AltColor,
                 AltSound = replacing?.Manifest.AltSound,
+                Backglass = isFp ? null : KeepBackglass(replacing, installed.tablePath),
             };
 
             var table = new InstalledTable(manifest, installed.tablePath, installed.folder);
@@ -285,6 +289,47 @@ public static class TableInstaller
             }
             catch { }
         }
+    }
+
+    /// <summary>
+    /// The backglass is named like the table, and an update usually brings a new file name: the one you had is
+    /// renamed to match, unless the update brought its own. Returns the record to keep. Never fails the install.
+    /// </summary>
+    static InstalledAddon? KeepBackglass(InstalledTable? replacing, string newPath)
+    {
+        if (replacing == null)
+        {
+            return null;
+        }
+
+        var rec = replacing.Manifest.Backglass;
+        if (SamePath(replacing.TablePath, newPath))
+        {
+            return rec;
+        }
+
+        var oldB2s = Backglasses.PathFor(replacing);
+        var newB2s = Path.ChangeExtension(newPath, Backglasses.Ext);
+        if (!File.Exists(oldB2s) || File.Exists(newB2s))
+        {
+            return null;
+        }
+
+        try
+        {
+            File.Move(oldB2s, newB2s);
+        }
+        catch (Exception e) when (e is IOException or UnauthorizedAccessException)
+        {
+            return null;
+        }
+
+        if (rec != null)
+        {
+            rec.Folder = Path.GetFileName(newB2s);
+        }
+
+        return rec;
     }
 
     /// <summary>

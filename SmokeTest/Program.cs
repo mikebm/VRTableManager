@@ -2814,6 +2814,11 @@ foreach (var (ok, name) in AltPackChecks.Run(root))
     Check(ok, name);
 }
 
+foreach (var (ok, name) in BackglassChecks.Run(root))
+{
+    Check(ok, name);
+}
+
 foreach (var (ok, name) in VpxInputChecks.Run(root))
 {
     Check(ok, name);
