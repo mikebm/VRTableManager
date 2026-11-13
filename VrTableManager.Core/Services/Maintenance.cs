@@ -50,7 +50,7 @@ public static class DiskUsage
 
     /// <summary>A table's disk use: its whole folder when it has its own, otherwise just the table file.</summary>
     public static long SizeOf(InstalledTable t, AppSettings s) =>
-        t.IsVpx && !SamePath(t.Folder, s.TablesDir) ? SizeOf(t.Folder)
+        t.IsVpx && !s.IsTablesRoot(t.Folder) ? SizeOf(t.Folder)
         : File.Exists(t.TablePath) ? SizeOf(t.TablePath)
         : 0;
 
@@ -111,11 +111,11 @@ public static class AppFolders
                 );
             }
 
-            if (Directory.Exists(s.TablesDir))
+            foreach (var tablesDir in s.AllTablesDirs.Where(Directory.Exists))
             {
                 dirs.AddRange(
                     Directory
-                        .EnumerateDirectories(s.TablesDir)
+                        .EnumerateDirectories(tablesDir)
                         .Select(d => Path.Combine(d, "cache"))
                         .Where(Directory.Exists)
                 );
@@ -134,7 +134,12 @@ public static class AppFolders
         var caches = VpxTextureCaches(s);
         return
         [
-            E("Tables", "Your VPX tables, with their ROMs and settings.", false, s.TablesDir),
+            E(
+                "Tables",
+                "Your VPX tables, with their ROMs and settings.",
+                false,
+                [.. s.AllTablesDirs]
+            ),
             new(
                 "VPX texture caches",
                 "VPX saves processed textures so tables start faster. Safe to clear; the next start of each table is slower.",
@@ -528,9 +533,10 @@ public static class Backup
             }
         }
 
-        if (Directory.Exists(s.TablesDir))
+        // Known by folder name alone, whichever table folder it's in, so a backup still restores after a move.
+        foreach (var tablesDir in s.AllTablesDirs.Where(Directory.Exists))
         {
-            foreach (var folder in Directory.EnumerateDirectories(s.TablesDir))
+            foreach (var folder in Directory.EnumerateDirectories(tablesDir))
             {
                 var name = Path.GetFileName(folder);
                 foreach (var f in Directory.EnumerateFiles(folder))
@@ -630,12 +636,15 @@ public static class Backup
         string? TableDest(string rel)
         {
             var folder = rel.Split('/')[0];
-            if (!Directory.Exists(Path.Combine(s.TablesDir, folder)))
+            var root = s.AllTablesDirs.FirstOrDefault(d =>
+                Directory.Exists(Path.Combine(d, folder))
+            );
+            if (root == null)
             {
                 skipped.Add(folder);
                 return null;
             }
-            return Under(s.TablesDir, rel);
+            return Under(root, rel);
         }
     }
 

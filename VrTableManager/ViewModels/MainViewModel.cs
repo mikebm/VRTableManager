@@ -168,6 +168,8 @@ public sealed partial class MainViewModel : ObservableObject, IAsyncDisposable
         Settings.Unreadable = s.Unreadable; // a restored file that reads fine can be saved again
         // Set first: each setting below saves Settings, and would otherwise write the old choice over the restored one.
         Settings.ControlsTarget = s.ControlsTarget;
+        Settings.TablesDir = s.TablesDir; // Setup's table folder list only shows these, it doesn't copy them back
+        Settings.OtherTablesDirs = s.OtherTablesDirs;
         foreach (var c in _children)
         {
             c.LoadSettings(s);

@@ -48,6 +48,10 @@ public static class TableImport
                 .Any(d => Directory.EnumerateFiles(d, "*.vpx").Any());
     }
 
+    /// <summary>A table folder of that name is already in one of the table folders (it was imported before).</summary>
+    static bool InAnyTablesDir(AppSettings settings, string name) =>
+        settings.AllTablesDirs.Any(d => Directory.Exists(Path.Combine(d, name)));
+
     public static ImportResult Import(
         string picked,
         AppSettings settings,
@@ -60,9 +64,11 @@ public static class TableImport
             ?? throw new InvalidOperationException(
                 "No .vpx tables in that folder or its Tables folder."
             );
-        if (SamePath(tablesDir, settings.TablesDir))
+        if (settings.IsTablesRoot(tablesDir))
         {
-            throw new InvalidOperationException("That's this app's own tables folder.");
+            throw new InvalidOperationException(
+                "That's one of this app's own table folders: its tables are already in My Tables."
+            );
         }
 
         Directory.CreateDirectory(settings.TablesDir);
@@ -103,7 +109,7 @@ public static class TableImport
             var name = Path.GetFileName(src);
             status($"Copying {name} ({++done} of {total})…");
             var dest = Path.Combine(settings.TablesDir, name);
-            if (Directory.Exists(dest))
+            if (InAnyTablesDir(settings, name))
             {
                 result.Skipped.Add(name);
                 continue;
@@ -128,7 +134,7 @@ public static class TableImport
             var name = Path.GetFileNameWithoutExtension(vpxSrc);
             status($"Copying {name} ({++done} of {total})…");
             var dest = Path.Combine(settings.TablesDir, TableInstaller.SafeName(name));
-            if (Directory.Exists(dest))
+            if (InAnyTablesDir(settings, TableInstaller.SafeName(name)))
             {
                 result.Skipped.Add(name);
                 continue;

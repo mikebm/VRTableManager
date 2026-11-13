@@ -35,7 +35,9 @@ public sealed partial class RomsViewModel(MainViewModel app) : ChildViewModel(ap
             }
 
             if (
-                App.Catalog._allGames.SelectMany(g => g.RomFiles ?? []).FirstOrDefault(r => Matches(r, name)) is
+                App
+                    .Catalog._allGames.SelectMany(g => g.RomFiles ?? [])
+                    .FirstOrDefault(r => Matches(r, name)) is
                 { } other
             )
             {
@@ -105,8 +107,8 @@ public sealed partial class RomsViewModel(MainViewModel app) : ChildViewModel(ap
             && t.Manifest.RomNames.Count > 0
             && !RomRequirements.TaggedNoRom(t.Manifest)
             && t.Manifest.TableFileId != ""
-            && App.Catalog._allGames
-                .FirstOrDefault(g => g.Id == t.Manifest.GameId)
+            && App
+                .Catalog._allGames.FirstOrDefault(g => g.Id == t.Manifest.GameId)
                 ?.TableFiles?.FirstOrDefault(f => f.Id == t.Manifest.TableFileId)
                 is { } vpsFile
             && VpsCatalog.HasFeature(vpsFile, RomRequirements.NoRomFeature)
@@ -155,14 +157,8 @@ public sealed partial class RomsViewModel(MainViewModel app) : ChildViewModel(ap
         {
             return;
         }
-        // A loose .vpx straight in the tables folder has no folder (or manifest) of its own to update.
-        if (
-            string.Equals(
-                Path.GetFullPath(t.Folder).TrimEnd('\\', '/'),
-                Path.GetFullPath(Settings.TablesDir).TrimEnd('\\', '/'),
-                StringComparison.OrdinalIgnoreCase
-            )
-        )
+        // A loose .vpx straight in a table folder has no folder (or manifest) of its own to update.
+        if (Settings.IsTablesRoot(t.Folder))
         {
             return;
         }
@@ -260,7 +256,8 @@ public sealed partial class RomsViewModel(MainViewModel app) : ChildViewModel(ap
         catch (Exception e)
         {
             // The table file is open elsewhere (the VPX editor) or gone.
-            App.Library.PlayStatus = $"Couldn't read {table.Manifest.GameName}'s ROM needs: {e.Message}";
+            App.Library.PlayStatus =
+                $"Couldn't read {table.Manifest.GameName}'s ROM needs: {e.Message}";
             return;
         }
         var job = new JobItem($"ROM for {table.Manifest.GameName}")
@@ -632,5 +629,4 @@ public sealed partial class RomsViewModel(MainViewModel app) : ChildViewModel(ap
         }
         App.Library.RefreshInstalled();
     }
-
 }

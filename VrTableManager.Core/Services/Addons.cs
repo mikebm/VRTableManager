@@ -51,13 +51,7 @@ public static class Addons
 
     /// <summary>A table VPX can give add-ons: a VPX table in its own folder (loose .vpx files share one).</summary>
     public static bool CanHold(InstalledTable t, AppSettings s) =>
-        t.IsVpx
-        && !t.IsIncomplete
-        && !string.Equals(
-            Path.GetFullPath(t.Folder).TrimEnd('\\', '/'),
-            Path.GetFullPath(s.TablesDir).TrimEnd('\\', '/'),
-            StringComparison.OrdinalIgnoreCase
-        );
+        t.IsVpx && !t.IsIncomplete && !s.IsTablesRoot(t.Folder);
 
     /// <summary>
     /// The file's first link that goes to a download page: not a site's front page or a category listing

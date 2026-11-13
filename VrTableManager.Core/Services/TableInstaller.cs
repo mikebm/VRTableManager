@@ -724,16 +724,26 @@ public static class TableInstaller
         if (
             replacing is { IsVpx: true, SharedFolder: false }
             && Directory.Exists(replacing.Folder)
-            && !SamePath(replacing.Folder, settings.TablesDir)
+            && !settings.IsTablesRoot(replacing.Folder)
         )
         {
-            return replacing.Folder;
+            return replacing.Folder; // stays in whichever table folder it's in
         }
 
         var baseName = SafeName(game.DisplayTitle);
         for (var n = 1; ; n++)
         {
-            var folder = Path.Combine(settings.TablesDir, n == 1 ? baseName : $"{baseName} ({n})");
+            var name = n == 1 ? baseName : $"{baseName} ({n})";
+            var folder = Path.Combine(settings.TablesDir, name);
+            // A name another table folder already has is passed over too: backups know tables by folder name.
+            if (
+                settings
+                    .AllTablesDirs.Where(d => d != settings.TablesDir)
+                    .Any(d => Directory.Exists(Path.Combine(d, name)))
+            )
+            {
+                continue;
+            }
             if (!Directory.Exists(folder))
             {
                 return folder;
@@ -874,9 +884,10 @@ public static class TableInstaller
     {
         var result = new List<InstalledTable>();
 
-        if (Directory.Exists(settings.TablesDir))
+        // Every table folder; one on a drive that isn't plugged in is passed over.
+        foreach (var tablesDir in settings.AllTablesDirs.Where(Directory.Exists))
         {
-            foreach (var folder in Directory.EnumerateDirectories(settings.TablesDir))
+            foreach (var folder in Directory.EnumerateDirectories(tablesDir))
             {
                 var m = ReadManifest(Path.Combine(folder, ManifestName));
                 var vpx =
@@ -913,7 +924,7 @@ public static class TableInstaller
                 result.Add(new InstalledTable(m, vpx, folder));
             }
             // Loose .vpx files from a manual install (not in their own folder).
-            foreach (var vpx in Directory.EnumerateFiles(settings.TablesDir, "*.vpx"))
+            foreach (var vpx in Directory.EnumerateFiles(tablesDir, "*.vpx"))
             {
                 result.Add(
                     new InstalledTable(
@@ -923,7 +934,7 @@ public static class TableInstaller
                             VpxFile = Path.GetFileName(vpx),
                         },
                         vpx,
-                        settings.TablesDir
+                        tablesDir
                     )
                     {
                         SharedFolder = true,

@@ -14,8 +14,8 @@ public sealed partial class VpxViewModel(MainViewModel app) : ChildViewModel(app
     [ObservableProperty]
     public partial string VpxDir { get; set; } = "";
 
-    [ObservableProperty]
-    public partial string TablesDir { get; set; } = "";
+    /// <summary>Every table folder, the install one first (<see cref="AppSettings.AllTablesDirs"/>).</summary>
+    public ObservableCollection<TableFolderRow> TableFolders { get; } = [];
 
     [ObservableProperty]
     public partial bool VpxUseDoNotUseBuilds { get; set; }
@@ -34,11 +34,33 @@ public sealed partial class VpxViewModel(MainViewModel app) : ChildViewModel(app
         App.Library.RefreshInstalled();
     }
 
-    partial void OnTablesDirChanged(string value)
+    /// <summary>Saves the table folders (<paramref name="install"/> first, the one new tables go into) and lists them again.</summary>
+    void SaveTableFolders(string install, IEnumerable<string> others)
     {
-        SaveSetting(s => s.TablesDir = value);
+        SaveSetting(s =>
+        {
+            s.TablesDir = install;
+            s.OtherTablesDirs = [.. others];
+        });
+        ShowTableFolders(Settings);
         App.RefreshSetupStatus();
         App.Library.RefreshInstalled();
+    }
+
+    void ShowTableFolders(AppSettings s)
+    {
+        TableFolders.Clear();
+        foreach (var d in s.AllTablesDirs)
+        {
+            TableFolders.Add(
+                new TableFolderRow(
+                    d,
+                    IsInstallFolder: TableFolders.Count == 0,
+                    Missing: !Directory.Exists(d),
+                    CanRemove: s.AllTablesDirs.Count > 1
+                )
+            );
+        }
     }
 
     partial void OnVpxUseDoNotUseBuildsChanged(bool value) =>
@@ -50,7 +72,7 @@ public sealed partial class VpxViewModel(MainViewModel app) : ChildViewModel(app
     internal override void LoadSettings(AppSettings s)
     {
         VpxDir = s.VpxDir;
-        TablesDir = s.TablesDir;
+        ShowTableFolders(s);
         VpxUseDoNotUseBuilds = s.VpxUseDoNotUseBuilds;
         VpxUseNightlyBuilds = s.VpxUseNightlyBuilds;
     }
@@ -315,14 +337,90 @@ public sealed partial class VpxViewModel(MainViewModel app) : ChildViewModel(app
         }
     }
 
+    [ObservableProperty]
+    public partial string TableFoldersStatus { get; set; } = "";
+
+    /// <summary>Adds a table folder. Its tables show up in My Tables and the VR lobby; new installs still go where they did.</summary>
     [RelayCommand]
-    async Task BrowseTablesDirAsync()
+    async Task AddTableFolderAsync()
     {
-        if (await Ui.PickFolderAsync("Tables folder") is { } d)
+        if (await Ui.PickFolderAsync("Another folder for VPX tables") is not { } d)
         {
-            TablesDir = d;
+            return;
         }
+
+        var s = Settings;
+        if (s.IsTablesRoot(d))
+        {
+            TableFoldersStatus = "That folder is already in the list.";
+            return;
+        }
+        // A folder inside another (or around one) would list its tables twice, or a table folder as a table.
+        if (s.AllTablesDirs.FirstOrDefault(t => Inside(d, t) || Inside(t, d)) is { } clash)
+        {
+            TableFoldersStatus =
+                $"That folder is inside {clash}, or holds it. Pick a folder of its own, beside the others.";
+            return;
+        }
+        TableFoldersStatus = "";
+        SaveTableFolders(s.TablesDir, [.. s.OtherTablesDirs, d]);
+
+        static bool Inside(string folder, string root) =>
+            Path.GetFullPath(folder)
+                .TrimEnd('\\', '/')
+                .StartsWith(
+                    Path.GetFullPath(root).TrimEnd('\\', '/') + Path.DirectorySeparatorChar,
+                    StringComparison.OrdinalIgnoreCase
+                );
     }
+
+    /// <summary>New tables (downloads and copies from another install) go into this folder from now on.</summary>
+    [RelayCommand]
+    void MakeInstallFolder(TableFolderRow row)
+    {
+        var s = Settings;
+        TableFoldersStatus = "";
+        SaveTableFolders(
+            row.Path,
+            s.AllTablesDirs.Where(d =>
+                !string.Equals(d, row.Path, StringComparison.OrdinalIgnoreCase)
+            )
+        );
+    }
+
+    /// <summary>Takes a folder off the list. Nothing is deleted: its tables just stop showing until it's added again.</summary>
+    [RelayCommand]
+    void RemoveTableFolder(TableFolderRow row)
+    {
+        var rest = Settings
+            .AllTablesDirs.Where(d =>
+                !string.Equals(d, row.Path, StringComparison.OrdinalIgnoreCase)
+            )
+            .ToList();
+        if (rest.Count == 0)
+        {
+            return; // there's always one to install into
+        }
+        // Taking the install folder off: new tables go into the first other folder that's there right now.
+        var install = row.IsInstallFolder
+            ? rest.FirstOrDefault(Directory.Exists)
+            : Settings.TablesDir;
+        if (install == null)
+        {
+            TableFoldersStatus =
+                "None of the other folders are there right now (a drive that isn't plugged in?), so new tables would have nowhere to go. Plug it in or add another folder first.";
+            return;
+        }
+        TableFoldersStatus =
+            $"Took {row.Path} off the list. Its tables are still on disk; ADD TABLE FOLDER brings them back.";
+        SaveTableFolders(
+            install,
+            rest.Where(d => !string.Equals(d, install, StringComparison.OrdinalIgnoreCase))
+        );
+    }
+
+    [RelayCommand]
+    void OpenTableFolder(TableFolderRow row) => App.OpenFolder(row.Path);
 
     [ObservableProperty]
     public partial string ImportStatus { get; set; } = "";
@@ -377,9 +475,6 @@ public sealed partial class VpxViewModel(MainViewModel app) : ChildViewModel(app
     [RelayCommand]
     void OpenVpxFolder() => App.OpenFolder(Settings.VpxDir);
 
-    [RelayCommand]
-    void OpenTablesFolder() => App.OpenFolder(Settings.TablesDir);
-
     /// <summary>What happened when opening a settings file (shown under the buttons).</summary>
     [ObservableProperty]
     public partial string SettingsFilesStatus { get; set; } = "";
@@ -423,4 +518,16 @@ public sealed partial class VpxViewModel(MainViewModel app) : ChildViewModel(app
 
         Ui.OpenExternal(ini);
     }
+}
+
+/// <summary>
+/// A row in Setup's table folder list: where it is, whether new tables install into it, whether it's there right now
+/// (a drive that isn't plugged in), and whether it can be taken off the list (not the only one).
+/// </summary>
+public sealed record TableFolderRow(string Path, bool IsInstallFolder, bool Missing, bool CanRemove)
+{
+    public bool CanMakeInstallFolder => !IsInstallFolder && !Missing;
+
+    /// <summary>The install folder is made on the first install, so only another missing folder says NOT FOUND.</summary>
+    public bool ShowNotFound => !IsInstallFolder && Missing;
 }

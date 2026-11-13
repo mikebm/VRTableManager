@@ -8,7 +8,59 @@ public sealed class AppSettings
     static readonly string Home = Environment.GetFolderPath(Environment.SpecialFolder.UserProfile);
 
     public string VpxDir { get; set; } = Path.Combine(Home, "VPinball", "VPinballX");
+
+    /// <summary>
+    /// The table folder new tables install (and import) into: Setup's "install here" one. My Tables and the VR lobby
+    /// list the tables in it and in <see cref="OtherTablesDirs"/> alike.
+    /// </summary>
     public string TablesDir { get; set; } = Path.Combine(Home, "VPinball", "Tables");
+
+    /// <summary>
+    /// More folders holding tables (another drive, say, when the first fills up), besides <see cref="TablesDir"/>.
+    /// Their tables are listed, played, updated and given add-ons where they are; only new installs go elsewhere.
+    /// </summary>
+    public List<string> OtherTablesDirs { get; set; } = [];
+
+    /// <summary>Every table folder, the install one first, each once.</summary>
+    [JsonIgnore]
+    public List<string> AllTablesDirs
+    {
+        get
+        {
+            var all = new List<string>();
+            foreach (var d in OtherTablesDirs.Prepend(TablesDir))
+            {
+                if (!string.IsNullOrWhiteSpace(d) && !all.Any(a => SamePath(a, d)))
+                {
+                    all.Add(d);
+                }
+            }
+            return all;
+        }
+    }
+
+    /// <summary>
+    /// <paramref name="folder"/> is one of the table folders themselves (where loose .vpx files share a folder), not
+    /// a table's own folder inside one.
+    /// </summary>
+    public bool IsTablesRoot(string folder) => AllTablesDirs.Any(d => SamePath(d, folder));
+
+    static bool SamePath(string a, string b)
+    {
+        try
+        {
+            return string.Equals(
+                Path.GetFullPath(a).TrimEnd('\\', '/'),
+                Path.GetFullPath(b).TrimEnd('\\', '/'),
+                StringComparison.OrdinalIgnoreCase
+            );
+        }
+        catch (Exception e)
+            when (e is ArgumentException or NotSupportedException or PathTooLongException)
+        {
+            return false;
+        }
+    }
 
     /// <summary>Future Pinball install folder (contains BAM\FPLoader.exe). Empty until found.</summary>
     public string FpDir { get; set; } = "";

@@ -61,12 +61,39 @@
               <Button Grid.Column="1" Content="BROWSE" Margin="8,0,0,0" Command="{Binding BrowseVpxDirCommand}" />
               <Button Grid.Column="2" Content="OPEN" Margin="8,0,0,0" Command="{Binding OpenVpxFolderCommand}" />
             </Grid>
-            <TextBlock Classes="eyebrow" Foreground="{StaticResource Muted}" Text="VPX TABLES FOLDER · ONE SUB-FOLDER PER TABLE" Margin="0,6,0,0" />
-            <Grid ColumnDefinitions="*,Auto,Auto">
-              <TextBox Text="{Binding TablesDir}" />
-              <Button Grid.Column="1" Content="BROWSE" Margin="8,0,0,0" Command="{Binding BrowseTablesDirCommand}" />
-              <Button Grid.Column="2" Content="OPEN" Margin="8,0,0,0" Command="{Binding OpenTablesFolderCommand}" />
-            </Grid>
+            <TextBlock Classes="eyebrow" Foreground="{StaticResource Muted}" Text="VPX TABLE FOLDERS · ONE SUB-FOLDER PER TABLE" Margin="0,6,0,0" />
+            <TextBlock Classes="muted" TextWrapping="Wrap"
+                       Text="My Tables and the VR lobby show the tables in all of these. New tables install into the one marked INSTALLS HERE; tables already in another folder stay there, through updates and add-ons too. Add a folder on another drive when this one fills up." />
+            <ItemsControl ItemsSource="{Binding TableFolders}">
+              <ItemsControl.ItemTemplate>
+                <DataTemplate x:DataType="vm:TableFolderRow">
+                  <Grid ColumnDefinitions="Auto,*,Auto,Auto" Margin="0,0,0,6">
+                    <TextBlock Classes="eyebrow" Foreground="{StaticResource Lamp}" Text="INSTALLS HERE" Width="130"
+                               VerticalAlignment="Center" IsVisible="{Binding IsInstallFolder}"
+                               ToolTip.Tip="New tables go into this folder. It's made on the first install if it isn't there yet." />
+                    <Button Classes="small" Content="INSTALL HERE" Width="130" VerticalAlignment="Center"
+                            IsVisible="{Binding CanMakeInstallFolder}"
+                            ToolTip.Tip="New tables (downloads and copies from another VPX install) go into this folder from now on. Tables already installed stay where they are."
+                            Command="{Binding $parent[ItemsControl].((vm:VpxViewModel)DataContext).MakeInstallFolderCommand}" CommandParameter="{Binding}" />
+                    <TextBlock Classes="muted" Text="NOT FOUND" Width="130" VerticalAlignment="Center"
+                               IsVisible="{Binding ShowNotFound}"
+                               ToolTip.Tip="This folder isn't there right now (a drive that isn't plugged in?). Its tables show again once it is." />
+                    <TextBlock Grid.Column="1" Classes="mono" Text="{Binding Path}" VerticalAlignment="Center"
+                               TextTrimming="CharacterEllipsis" ToolTip.Tip="{Binding Path}" Margin="8,0,0,0" />
+                    <Button Grid.Column="2" Classes="small" Content="OPEN" Margin="8,0,0,0"
+                            Command="{Binding $parent[ItemsControl].((vm:VpxViewModel)DataContext).OpenTableFolderCommand}" CommandParameter="{Binding}" />
+                    <Button Grid.Column="3" Classes="small" Content="REMOVE" Margin="8,0,0,0" IsVisible="{Binding CanRemove}"
+                            ToolTip.Tip="Takes this folder off the list. Nothing is deleted: its tables stop showing in My Tables and the VR lobby until you add it again."
+                            Command="{Binding $parent[ItemsControl].((vm:VpxViewModel)DataContext).RemoveTableFolderCommand}" CommandParameter="{Binding}" />
+                  </Grid>
+                </DataTemplate>
+              </ItemsControl.ItemTemplate>
+            </ItemsControl>
+            <StackPanel Orientation="Horizontal" Spacing="10">
+              <Button Classes="small" Content="ADD TABLE FOLDER…" Command="{Binding AddTableFolderCommand}"
+                      ToolTip.Tip="Pick another folder that holds (or will hold) VPX tables, one sub-folder each, on any drive. Its tables show up in My Tables and the VR lobby." />
+              <TextBlock Classes="muted" VerticalAlignment="Center" TextWrapping="Wrap" Text="{Binding TableFoldersStatus}" />
+            </StackPanel>
             <StackPanel Orientation="Horizontal" Spacing="10">
               <Button Classes="small" Content="COPY TABLES FROM ANOTHER VPX INSTALL…" Command="{Binding ImportTablesCommand}"
                       ToolTip.Tip="Pick another VPX folder (or its Tables folder). Its tables are copied here, one folder each, with their ROMs, NVRAM, AltSound, AltColor and PuP packs from that install's VPinMAME and PinUPSystem folders. Tables already here are skipped; the other install isn't changed." />
