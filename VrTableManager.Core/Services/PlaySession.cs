@@ -167,8 +167,12 @@ public static class PlaySession
                 {
                     psi.ArgumentList.Add(a);
                 }
-                // The lobby runs on this app's own .NET when it can (cleared from this process for the table).
-                if (LobbyDotnet.Prepare() is { } dotnetRoot)
+                // The lobby runs on this app's own .NET when it can (cleared from this process for the table),
+                // unless it's exported, which brings its own.
+                if (
+                    !LobbyDotnet.IsExported(req.ReturnExe)
+                    && LobbyDotnet.Prepare() is { } dotnetRoot
+                )
                 {
                     LobbyDotnet.Apply(psi, dotnetRoot);
                 }

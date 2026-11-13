@@ -34,21 +34,24 @@ public sealed partial class LobbyViewModel
             return;
         }
 
-        var lobbyDir = LobbyRunner.FindLobbyDir();
-        if (lobbyDir == null)
+        if (!LobbyRunner.Available)
         {
-            App.Library.PlayStatus = "Couldn't find the VrLobby project next to this app.";
+            App.Library.PlayStatus = "Couldn't find the VrLobby folder next to this app.";
             return;
         }
-        // As for LAUNCH VR LOBBY: on this app's own .NET, else the installed one (off the UI thread: mklink, copies).
-        var dotnetRoot = await Task.Run(() =>
-            LobbyDotnet.Prepare(
-                AppContext.BaseDirectory,
-                LobbyDotnet.DefaultRoot,
-                Environment.Version.ToString(),
-                out _
-            )
-        );
+        // As for LAUNCH VR LOBBY: an exported lobby brings its own .NET; a project runs on this app's own, else the
+        // installed one (off the UI thread: mklink, copies).
+        var dotnetRoot =
+            LobbyRunner.FindExported() != null
+                ? null
+                : await Task.Run(() =>
+                    LobbyDotnet.Prepare(
+                        AppContext.BaseDirectory,
+                        LobbyDotnet.DefaultRoot,
+                        Environment.Version.ToString(),
+                        out _
+                    )
+                );
 
         IsPreparingLobbyTables = true;
         var job = new JobItem("Preparing tables for the VR lobby");
@@ -63,27 +66,15 @@ public sealed partial class LobbyViewModel
         string? firstProblem = null;
         try
         {
-            var godot = await LobbyRunner.EnsureGodotAsync(
-                job.ProgressReporter,
-                job.Report,
-                job.Cts.Token
-            );
-            if (LobbyRunner.NeedsBuild(lobbyDir))
-            {
-                await LobbyRunner.BuildAsync(lobbyDir, job.Report, job.Cts.Token);
-            }
-
-            await LobbyRunner.ImportIfNeededAsync(
-                godot,
-                lobbyDir,
+            var program = await LobbyRunner.PrepareAsync(
                 dotnetRoot,
+                job.ProgressReporter,
                 job.Report,
                 job.Cts.Token
             );
             job.Report("Looking for tables the lobby hasn't read yet…");
             var code = await LobbyRunner.PrepareTablesAsync(
-                godot,
-                lobbyDir,
+                program,
                 dotnetRoot,
                 line =>
                 {

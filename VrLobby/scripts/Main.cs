@@ -200,9 +200,7 @@ public partial class Main : Node3D
             return;
         }
         // The default cabinet before any table shows, so nothing ever appears in the drawn one first.
-        _template = RealCabinetLoader.LoadDefault(
-            ProjectSettings.GlobalizePath(DefaultCabinetFile)
-        );
+        _template = RealCabinetLoader.LoadDefault(DefaultCabinetFile);
         if (_template == null)
         {
             GD.PushWarning(
@@ -375,6 +373,13 @@ public partial class Main : Node3D
     {
         try
         {
+            // As an imported resource: all an exported lobby has, since the export packs fonts that way and leaves
+            // out the .ttf itself. The raw file is for a project that hasn't been imported yet.
+            if (ResourceLoader.Exists(path) && ResourceLoader.Load<Font>(path) is { } imported)
+            {
+                return imported;
+            }
+
             var bytes = Godot.FileAccess.GetFileAsBytes(path);
             return bytes.Length == 0 ? null : new FontFile { Data = bytes };
         }

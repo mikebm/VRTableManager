@@ -4,13 +4,70 @@ using System.Text;
 namespace VrTableManager.Services;
 
 /// <summary>
+/// The lobby to run: an exported <c>VrLobby.exe</c> (<paramref name="ProjectDir"/> null), or the Godot editor
+/// running the VrLobby project in <paramref name="ProjectDir"/>.
+/// </summary>
+public sealed record LobbyProgram(string Exe, string? ProjectDir)
+{
+    public bool Exported => ProjectDir == null;
+
+    /// <summary>The lobby's process name (it restarts itself under the same exe).</summary>
+    public string ProcessName => Path.GetFileNameWithoutExtension(Exe);
+}
+
+/// <summary>
 /// One-click start for the VR lobby (VrLobby, a Godot 4.7 .NET project in this repo).
-/// First time: downloads the official Godot .NET runtime from GitHub into the app's data folder.
-/// Every time: rebuilds the lobby's C# if its code changed, makes sure Godot has imported the
-/// project's assets, then runs it. The lobby launches tables back through this app (--play).
+/// A release ships it exported (<c>VrLobby\VrLobby.exe</c> next to this app), which runs as it is.
+/// Running from source: the first time, downloads the official Godot .NET editor from GitHub into the app's data
+/// folder; every time, rebuilds the lobby's C# if its code changed, makes sure Godot has imported the project's
+/// assets, then runs the project in it. The lobby launches tables back through this app (--play).
 /// </summary>
 public static class LobbyRunner
 {
+    public const string ExportedExe = "VrLobby.exe";
+
+    /// <summary>The exported lobby a release ships in VrLobby next to this app, if there is one.</summary>
+    public static string? FindExported(string? appDir = null)
+    {
+        var dir = Path.Combine(appDir ?? AppContext.BaseDirectory, "VrLobby");
+        var exe = Path.Combine(dir, ExportedExe);
+        return File.Exists(exe) && File.Exists(Path.Combine(dir, "VrLobby.pck")) ? exe : null;
+    }
+
+    /// <summary>True when there is a lobby to run, exported or as a project.</summary>
+    public static bool Available => FindExported() != null || FindLobbyDir() != null;
+
+    /// <summary>
+    /// The lobby, ready to start: the exported one as it is, else the project, after downloading Godot, rebuilding
+    /// its code and importing its assets as needed.
+    /// </summary>
+    public static async Task<LobbyProgram> PrepareAsync(
+        string? dotnetRoot,
+        IProgress<double> progress,
+        Action<string> status,
+        CancellationToken ct
+    )
+    {
+        if (FindExported() is { } exe)
+        {
+            return new LobbyProgram(exe, null);
+        }
+
+        var lobbyDir =
+            FindLobbyDir()
+            ?? throw new DirectoryNotFoundException(
+                "Couldn't find the VR lobby next to this app. Unzip the release again, keeping VrLobby next to VrTableManager.exe."
+            );
+        var godot = await EnsureGodotAsync(progress, status, ct);
+        if (NeedsBuild(lobbyDir))
+        {
+            await BuildAsync(lobbyDir, status, ct);
+        }
+
+        await ImportIfNeededAsync(godot, lobbyDir, dotnetRoot, status, ct);
+        return new LobbyProgram(godot, lobbyDir);
+    }
+
     public const string GodotVersion = "4.7.2-stable";
     const string GodotZip = $"Godot_v{GodotVersion}_mono_win64.zip";
     const string GodotUrl =
@@ -229,15 +286,14 @@ public static class LobbyRunner
     }
 
     /// <summary>Starts the lobby, on the app's bundled .NET when <paramref name="dotnetRoot"/> is set (<see cref="LobbyDotnet"/>).</summary>
-    public static Process Start(string godot, string lobbyDir, string? dotnetRoot)
+    public static Process Start(LobbyProgram lobby, string? dotnetRoot)
     {
-        var psi = new ProcessStartInfo(godot)
+        var psi = new ProcessStartInfo(lobby.Exe)
         {
-            WorkingDirectory = lobbyDir,
+            WorkingDirectory = WorkingDir(lobby),
             UseShellExecute = false,
         };
-        psi.ArgumentList.Add("--path");
-        psi.ArgumentList.Add(lobbyDir);
+        AddPath(psi, lobby);
         if (dotnetRoot != null)
         {
             LobbyDotnet.Apply(psi, dotnetRoot);
@@ -251,26 +307,25 @@ public static class LobbyRunner
     /// meanwhile. Cancelling stops it; what it finished is kept. Returns its exit code.
     /// </summary>
     public static async Task<int> PrepareTablesAsync(
-        string godot,
-        string lobbyDir,
+        LobbyProgram lobby,
         string? dotnetRoot,
         Action<string> line,
         CancellationToken ct
     )
     {
-        var psi = new ProcessStartInfo(ConsoleExe(godot))
+        var psi = new ProcessStartInfo(ConsoleExe(lobby.Exe))
         {
-            WorkingDirectory = lobbyDir,
+            WorkingDirectory = WorkingDir(lobby),
             UseShellExecute = false,
             RedirectStandardOutput = true,
             RedirectStandardError = true,
             StandardOutputEncoding = Encoding.UTF8, // how PrepareTables writes its lines
             CreateNoWindow = true,
         };
-        foreach (var a in new[] { "--headless", "--path", lobbyDir, "--", "--prepare-tables" })
-        {
-            psi.ArgumentList.Add(a);
-        }
+        psi.ArgumentList.Add("--headless");
+        AddPath(psi, lobby);
+        psi.ArgumentList.Add("--");
+        psi.ArgumentList.Add("--prepare-tables");
         if (dotnetRoot != null)
         {
             LobbyDotnet.Apply(psi, dotnetRoot);
@@ -314,13 +369,37 @@ public static class LobbyRunner
         return p.ExitCode;
     }
 
-    static string ConsoleExe(string godot)
+    /// <summary>
+    /// The console wrapper beside a Godot exe, which passes the lobby's output on to a pipe: the editor's
+    /// <c>…_console.exe</c>, or an export's <c>VrLobby.console.exe</c>. The exe itself when there's none.
+    /// </summary>
+    static string ConsoleExe(string exe)
     {
-        var console = Path.Combine(
-            Path.GetDirectoryName(godot)!,
-            Path.GetFileNameWithoutExtension(godot) + "_console.exe"
-        );
-        return File.Exists(console) ? console : godot;
+        var dir = Path.GetDirectoryName(exe)!;
+        var name = Path.GetFileNameWithoutExtension(exe);
+        foreach (var console in new[] { name + "_console.exe", name + ".console.exe" })
+        {
+            var path = Path.Combine(dir, console);
+            if (File.Exists(path))
+            {
+                return path;
+            }
+        }
+        return exe;
+    }
+
+    /// <summary>Where the lobby runs from: its project folder, or the exported exe's folder.</summary>
+    static string WorkingDir(LobbyProgram lobby) =>
+        lobby.ProjectDir ?? Path.GetDirectoryName(lobby.Exe)!;
+
+    /// <summary>The editor needs the project to run; an exported lobby carries it in its .pck.</summary>
+    static void AddPath(ProcessStartInfo psi, LobbyProgram lobby)
+    {
+        if (lobby.ProjectDir != null)
+        {
+            psi.ArgumentList.Add("--path");
+            psi.ArgumentList.Add(lobby.ProjectDir);
+        }
     }
 
     static string DotnetExe()

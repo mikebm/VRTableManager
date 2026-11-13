@@ -35,20 +35,21 @@ Tables for every engine the manager supports (VPX, Future Pinball, Pinball FX / 
 
 The lobby can't launch a table itself from the command line. Its `--select=<table>` option only highlights that table in the ring. To start straight into a table and land in the lobby when you leave it, have the manager play the table and start the lobby afterwards with `--return`. This is what the lobby does when you pick a table.
 
-The lobby runs on the Godot copy the manager downloads, in `%LOCALAPPDATA%\VrTableManager\godot\`, using the `VrLobby` folder next to `VrTableManager.exe`. Godot passes anything after a lone `--` to the lobby:
+In a release, the lobby is `VrLobby\VrLobby.exe` next to `VrTableManager.exe`. It passes anything after a lone `--` to the lobby itself:
 
 ```powershell
 VrTableManager.exe --play "C:\Tables\Medieval Madness.vpx" --vr `
-  --return "$env:LOCALAPPDATA\VrTableManager\godot\<folder>\Godot_v<version>_mono_win64.exe" `
-  --return-arg --path --return-arg "<VR Table Manager folder>\VrLobby" `
+  --return "<VR Table Manager folder>\VrLobby\VrLobby.exe" `
   --return-arg -- --return-arg "--select=C:\Tables\Medieval Madness.vpx"
 ```
 
-Replace the Godot path (use the `Godot_v…_mono_win64.exe`, not the `_console` one) and the `VrLobby` folder with the ones on your PC. The `--select` at the end should bring the lobby back on the table you just played.
+Replace the folder with the one on your PC (use `VrLobby.exe`, not `VrLobby.console.exe`). The `--select` at the end should bring the lobby back on the table you just played.
+
+Running from source, the lobby runs in the Godot editor the manager downloads to `%LOCALAPPDATA%\VrTableManager\godot\` instead: `--return` that `Godot_v…_mono_win64.exe` and add `--return-arg --path --return-arg "<repo>\VrLobby"` before the `--`.
 
 ## VR lobby options
 
-These go after `--` on the Godot command line, for example `godot --path VrLobby -- --select=<table>`. Most are for development and testing.
+These go after `--` on the lobby's command line, for example `VrLobby.exe -- --select=<table>` (from source: `godot --path VrLobby -- --select=<table>`). Most are for development and testing. For one that prints (`--selftest`, `--prepare-tables`), use `VrLobby.console.exe`, so its output shows in the terminal.
 
 | Option | What it does |
 |---|---|

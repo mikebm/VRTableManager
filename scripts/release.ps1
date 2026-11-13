@@ -6,8 +6,9 @@
   1. Checks the working tree is clean, HEAD is pushed and the tag is new.
   2. Runs the smoke test (skip with -SkipTests).
   3. Publishes the manager self-contained for win-x64 (no .NET install needed to run it).
-  4. Builds the VR lobby and bundles it next to the app (VrTableManager\VrLobby), with its compiled
-     C# so the app doesn't need the .NET SDK to start it. The app downloads Godot itself on first use.
+  4. Exports the VR lobby with Godot next to the app (VrTableManager\VrLobby\VrLobby.exe), so players need
+     neither the Godot editor nor the .NET SDK, and runs its self-test from the export. Needs the Godot .NET
+     editor (-Godot, else the one the app downloads) and its export templates installed.
   5. Zips it (plus a .sha256), tags v<Version>, pushes the tag and creates the GitHub release with
      the zip attached.
 
@@ -32,6 +33,8 @@ param(
     [switch] $Prerelease,
     [switch] $SkipTests,
     [switch] $NoPublish,
+    # Godot .NET editor (the _console.exe) that exports the lobby; defaults to the one the app downloads.
+    [string] $Godot,
     # owner/name; defaults to the "origin" remote.
     [string] $Repo
 )
@@ -46,6 +49,9 @@ $zip = Join-Path $out "VrTableManager-$Version-win-x64.zip"
 
 function Step($text) { Write-Host "`n==> $text" -ForegroundColor Cyan }
 function Run($exe, [string[]] $arguments) {
+    # Judged by the exit code alone: Windows PowerShell turns a tool's stderr (Godot's "OpenXR … failed to start"
+    # with no headset) into errors when output is redirected, which 'Stop' would end the script on.
+    $ErrorActionPreference = 'Continue'
     & $exe @arguments
     if ($LASTEXITCODE -ne 0) { throw "$exe $($arguments -join ' ') failed (exit $LASTEXITCODE)" }
 }
@@ -90,33 +96,33 @@ if (Test-Path $out) { Remove-Item $out -Recurse -Force }
 Run dotnet @('publish', (Join-Path $root 'VrTableManager\VrTableManager.csproj'), '-c', 'Release', '-r', 'win-x64',
     '--self-contained', 'true', "-p:Version=$Version", "-p:SourceRevisionId=$commit", '-o', $stage, '-nologo')
 
-Step "Adding the framework deps file (the lobby runs on the app's own .NET)"
-# A self-contained publish leaves out Microsoft.NETCore.App.deps.json, which .NET needs to accept the app's
-# folder as a shared framework (LobbyDotnet). Taken from the runtime pack this publish used, so it always matches.
-$appDeps = [IO.File]::ReadAllText((Join-Path $stage 'VrTableManager.deps.json')) | ConvertFrom-Json
-$packKey = $appDeps.libraries.PSObject.Properties.Name | Where-Object { $_ -like 'runtimepack.Microsoft.NETCore.App.Runtime.win-x64/*' } | Select-Object -First 1
-if (-not $packKey) { throw "No .NET runtime pack in the published VrTableManager.deps.json" }
-$packVersion = $packKey.Split('/')[1]
-$nugetRoot = (& dotnet nuget locals global-packages --list) -replace '^global-packages:\s*', ''
-$frameworkDeps = Join-Path $nugetRoot.Trim() "microsoft.netcore.app.runtime.win-x64\$packVersion\runtimes\win-x64\lib\net10.0\Microsoft.NETCore.App.deps.json"
-if (-not (Test-Path $frameworkDeps)) { throw "Not found: $frameworkDeps" }
-Copy-Item $frameworkDeps $stage
-
-Step "Building the VR lobby"
+Step "Exporting the VR lobby"
 $lobbySrc = Join-Path $root 'VrLobby'
-# Debug is where Godot looks for a project's assemblies when it runs the project (LobbyRunner does the same).
-Run dotnet @('build', (Join-Path $lobbySrc 'VrLobby.csproj'), '-c', 'Debug', '-nologo', '-v', 'q')
+# The Godot version the lobby is built for, from the project's SDK (Godot.NET.Sdk/<version>).
+if ((Get-Content (Join-Path $lobbySrc 'VrLobby.csproj') -Raw) -notmatch 'Godot\.NET\.Sdk/(?<v>\d+\.\d+(\.\d+)?)') { throw "No Godot.NET.Sdk version in VrLobby.csproj" }
+$godotVersion = $Matches.v
+if (-not $Godot) {
+    # The editor VR Table Manager downloads to run the lobby from source.
+    $Godot = Get-ChildItem (Join-Path $env:LOCALAPPDATA 'VrTableManager\godot') -Recurse -Filter "Godot_v$godotVersion-stable_mono_win64_console.exe" -ErrorAction SilentlyContinue |
+        Select-Object -First 1 -ExpandProperty FullName
+}
+if (-not $Godot -or -not (Test-Path $Godot)) { throw "No Godot $godotVersion .NET editor found. Pass -Godot <path to Godot_v$godotVersion-stable_mono_win64_console.exe>, or launch the VR lobby from a source build of the app once (it downloads it)." }
+$templates = Join-Path $env:APPDATA "Godot\export_templates\$godotVersion.stable.mono"
+if (-not (Test-Path (Join-Path $templates 'windows_release_x86_64.exe'))) {
+    throw "Godot $godotVersion .NET export templates aren't installed ($templates). Install them from the editor (Editor > Manage Export Templates) or unzip Godot_v$godotVersion-stable_mono_export_templates.tpz's 'templates' folder there."
+}
 $lobbyOut = Join-Path $stage 'VrLobby'
 New-Item -ItemType Directory -Force $lobbyOut | Out-Null
-# The project and its assets; not editor state, build intermediates or the README's screenshots.
-Get-ChildItem $lobbySrc -Force | Where-Object { $_.Name -notin @('.godot', 'bin', 'obj', '.vs') -and $_.Name -notlike 'screenshot*' } |
-    ForEach-Object { Copy-Item $_.FullName (Join-Path $lobbyOut $_.Name) -Recurse -Force }
-$binSrc = Join-Path $lobbySrc '.godot\mono\temp\bin\Debug'
-$binOut = Join-Path $lobbyOut '.godot\mono\temp\bin\Debug'
-New-Item -ItemType Directory -Force $binOut | Out-Null
-Copy-Item (Join-Path $binSrc '*') $binOut -Recurse -Force
-# Newer than every shipped source file, so the app sees the lobby as built and doesn't need the SDK.
-Get-ChildItem $binOut -File | ForEach-Object { $_.LastWriteTimeUtc = [DateTime]::UtcNow.AddMinutes(1) }
+# Builds the lobby's C# in Release (with the .NET SDK) and packs it with its assets: VrLobby.exe, VrLobby.pck, its
+# console wrapper (PREPARE TABLES reads its output) and data_VrLobby_windows_x86_64 (its code and its own .NET).
+Run $Godot @('--headless', '--path', $lobbySrc, '--export-release', 'Windows', (Join-Path $lobbyOut 'VrLobby.exe'))
+# Godot can report success after an export that wrote nothing, so check.
+foreach ($f in @('VrLobby.exe', 'VrLobby.pck', 'VrLobby.console.exe', 'data_VrLobby_windows_x86_64\coreclr.dll', 'data_VrLobby_windows_x86_64\VrLobby.dll')) {
+    if (-not (Test-Path (Join-Path $lobbyOut $f))) { throw "The lobby export didn't write $f" }
+}
+Step "Checking the exported lobby"
+# Its in-engine self-test, run from the export itself: the default cabinet, fonts and code all come from the .pck.
+Run (Join-Path $lobbyOut 'VrLobby.console.exe') @('--headless', '--', '--selftest')
 
 Copy-Item (Join-Path $root 'README.md') $stage
 # The MIT license and the third-party notices (MPL-2.0 OpenMcdf, ODbL maps, OFL fonts) go with every copy.

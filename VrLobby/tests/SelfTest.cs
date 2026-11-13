@@ -296,6 +296,7 @@ public static class SelfTest
             tall.GetWidth() == 512 && tall.GetHeight() == 1024,
             "art is capped at 1024 px on the longest side"
         );
+        DxtEncoderChecks();
 
         // ---- The tables' own VR cabinets -----------------------------------------------
         // The bundled default cabinet (Medieval Madness's) is there from the start, table installed or not.
@@ -866,6 +867,80 @@ public static class SelfTest
         {
             return false;
         }
+    }
+
+    /// <summary>
+    /// The lobby's own DXT encoder (what an exported lobby compresses cabinet art with): the right format, every
+    /// mipmap level, and a picture that decodes back close to the original, colour and alpha.
+    /// </summary>
+    static void DxtEncoderChecks()
+    {
+        // 70×45: not a multiple of 4, so the edge blocks are padded. Smooth gradients, a hard edge, soft alpha.
+        const int w = 70,
+            h = 45;
+        var src = Image.CreateEmpty(w, h, false, Image.Format.Rgba8);
+        for (var y = 0; y < h; y++)
+        {
+            for (var x = 0; x < w; x++)
+            {
+                src.SetPixel(
+                    x,
+                    y,
+                    new Color(
+                        x / (float)w,
+                        y / (float)h,
+                        x < w / 2 ? 0.1f : 0.9f,
+                        0.25f + 0.75f * x / w
+                    )
+                );
+            }
+        }
+        src.GenerateMipmaps();
+
+        static (double colour, double alpha) MeanError(Image a, Image b)
+        {
+            double c = 0,
+                al = 0;
+            for (var y = 0; y < a.GetHeight(); y++)
+            {
+                for (var x = 0; x < a.GetWidth(); x++)
+                {
+                    Color p = a.GetPixel(x, y),
+                        q = b.GetPixel(x, y);
+                    c +=
+                        (Math.Abs(p.R - q.R) + Math.Abs(p.G - q.G) + Math.Abs(p.B - q.B)) / 3 * 255;
+                    al += Math.Abs(p.A - q.A) * 255;
+                }
+            }
+            var n = a.GetWidth() * a.GetHeight();
+            return (c / n, al / n);
+        }
+
+        var dxt5 = DxtEncoder.Compress(src, alpha: true);
+        var back5 = (Image)dxt5.Duplicate();
+        back5.Decompress();
+        back5.Convert(Image.Format.Rgba8);
+        var (c5, a5) = MeanError(src, back5);
+        Check(
+            dxt5.GetFormat() == Image.Format.Dxt5 && dxt5.HasMipmaps() && back5.GetWidth() == w,
+            "own DXT encoder: a picture with alpha becomes DXT5, mipmaps kept"
+        );
+        Check(
+            c5 < 4 && a5 < 2,
+            $"own DXT encoder: DXT5 decodes close to the original (colour {c5:0.0}, alpha {a5:0.0} of 255)"
+        );
+
+        var opaque = (Image)src.Duplicate();
+        opaque.Convert(Image.Format.Rgb8);
+        var dxt1 = DxtEncoder.Compress(opaque, alpha: false);
+        var back1 = (Image)dxt1.Duplicate();
+        back1.Decompress();
+        back1.Convert(Image.Format.Rgba8);
+        var (c1, _) = MeanError(src, back1);
+        Check(
+            dxt1.GetFormat() == Image.Format.Dxt1 && dxt1.HasMipmaps() && c1 < 4,
+            $"own DXT encoder: an opaque picture becomes DXT1, close to the original (colour {c1:0.0} of 255)"
+        );
     }
 
     /// <summary>medias/lobby-video with three solid-colour frames at 15 fps.</summary>

@@ -608,6 +608,20 @@ await Live(
     File.WriteAllText(Path.Combine(relLobby, "Main.cs.uid"), "uid://x"); // written by Godot's first-run import, after the build
     File.SetLastWriteTimeUtc(dll, DateTime.UtcNow.AddHours(-1));
     Check(!LobbyRunner.NeedsBuild(relLobby), "release lobby: prebuilt code is used, not rebuilt");
+
+    // An exported lobby (VrLobby.exe with its .pck) next to the app is run as it is.
+    var app = Path.Combine(root, "exported-app");
+    var exe = Path.Combine(app, "VrLobby", LobbyRunner.ExportedExe);
+    Directory.CreateDirectory(Path.GetDirectoryName(exe)!);
+    File.WriteAllText(exe, "");
+    Check(LobbyRunner.FindExported(app) == null, "exported lobby: not without its .pck");
+    File.WriteAllText(Path.Combine(app, "VrLobby", "VrLobby.pck"), "");
+    Check(LobbyRunner.FindExported(app) == exe, "exported lobby: found next to the app");
+    Check(
+        LobbyDotnet.IsExported(exe)
+            && !LobbyDotnet.IsExported(Path.Combine(app, "Godot_v4_mono_win64.exe")),
+        "exported lobby: returned to without the app's .NET; the editor still gets it"
+    );
 }
 Console.WriteLine(VpxSetup.DescribeOpenXrRuntime());
 

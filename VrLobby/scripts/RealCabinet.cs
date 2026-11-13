@@ -228,11 +228,22 @@ public partial class RealCabinetLoader : Node
     /// <summary>
     /// The lobby's default cabinet, worn by every table without its own: a cabinet dumped once from a
     /// table (<see cref="DumpDefault"/>) and shipped with the lobby, so it's there at once, table installed or not.
+    /// Read through Godot (<paramref name="resPath"/> is a res:// path): in an exported lobby the file is inside
+    /// the .pck, where plain .NET file access can't reach it.
     /// </summary>
-    public static RealCabinet? LoadDefault(string file) =>
-        CabinetCache.TryLoadDump(file, out var parsed) && parsed != null
+    public static RealCabinet? LoadDefault(string resPath)
+    {
+        var bytes = Godot.FileAccess.GetFileAsBytes(resPath);
+        if (bytes == null || bytes.Length == 0)
+        {
+            return null;
+        }
+
+        using var stream = new MemoryStream(bytes, writable: false);
+        return CabinetCache.TryLoadDump(stream, out var parsed) && parsed != null
             ? Build(parsed, GlassZOf(parsed))
             : null;
+    }
 
     static float? GlassZOf(Parsed? p) =>
         p?.Backbox is { } box
@@ -342,10 +353,17 @@ public partial class RealCabinetLoader : Node
 
             ArtLoader.Shrink(img, TextureMaxSide);
             img.GenerateMipmaps();
-            // GPU block compression (DXT): ~4-8x less video memory for a ring of cabinets. Uncompressed if
-            // this Godot build can't compress at runtime. DetectAlpha first, as compression hides it.
+            // GPU block compression (DXT): ~4-8x less video memory for a ring of cabinets. Godot's own encoder
+            // where it has one (the editor), else ours (an exported lobby). DetectAlpha first, as compression hides it.
             var alpha = AlphaOf(img);
-            _ = img.Compress(Image.CompressMode.S3Tc, Image.CompressSource.Generic);
+            if (DxtEncoder.GodotCan)
+            {
+                _ = img.Compress(Image.CompressMode.S3Tc, Image.CompressSource.Generic);
+            }
+            else
+            {
+                img = DxtEncoder.Compress(img, alpha != Image.AlphaMode.None);
+            }
             images[name] = img;
             alphaModes[name] = alpha;
         }

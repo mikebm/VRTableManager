@@ -67,7 +67,7 @@ Add-ons are matched to the table's ROM, installed where VPX's plugins look, and 
 3. On **Get Tables**, pick a VR-ready table and click **Install**. Its page opens in your browser: sign in if asked, accept the site's terms and click Download. The app takes it from there.
 4. Put your headset on and hit **Play in VR**, or **Launch VR Lobby** to browse your collection in the headset.
 
-You'll need Windows 10/11 (64-bit) and a web browser. Nothing else to install: the VR lobby runs on the .NET that comes with the app, and downloads the Godot engine it runs on by itself the first time you start it.
+You'll need Windows 10/11 (64-bit) and a web browser. Nothing else to install: the VR lobby comes ready to run in the zip (`VrLobby\VrLobby.exe`), with its own .NET.
 
 ## Build from source
 

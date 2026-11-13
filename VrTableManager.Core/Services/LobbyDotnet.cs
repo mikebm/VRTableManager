@@ -3,7 +3,9 @@ using System.Diagnostics;
 namespace VrTableManager.Services;
 
 /// <summary>
-/// The .NET the VR lobby runs on. The lobby is a Godot .NET project, and Godot starts .NET from a .NET install
+/// The .NET the VR lobby runs on when it runs as a project in the Godot editor. A release's exported lobby brings
+/// its own .NET, and releases no longer ship <see cref="DepsFile"/>, so <see cref="Prepare()"/> returns null there.
+/// The lobby is a Godot .NET project, and Godot starts .NET from a .NET install
 /// folder (DOTNET_ROOT, or the one Windows has). The manager is self-contained, so a player who never installed
 /// .NET has one only inside the manager's own folder, which is flat, not laid out like an install.
 /// <para>
@@ -151,6 +153,12 @@ public static class LobbyDotnet
             return null;
         }
     }
+
+    /// <summary>
+    /// True for an exported lobby (its .pck beside it, as Godot exports it), which brings its own .NET and needs no
+    /// root. An install updated from an older release still has <see cref="DepsFile"/>, so this is checked first.
+    /// </summary>
+    public static bool IsExported(string exe) => File.Exists(Path.ChangeExtension(exe, ".pck"));
 
     /// <summary>Points a process's .NET at <paramref name="root"/> (Godot reads DOTNET_ROOT_X64 first, then DOTNET_ROOT).</summary>
     public static void Apply(ProcessStartInfo psi, string root)

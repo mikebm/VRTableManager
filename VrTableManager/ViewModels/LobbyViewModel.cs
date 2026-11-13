@@ -93,25 +93,31 @@ public sealed partial class LobbyViewModel(MainViewModel app) : ChildViewModel(a
             return;
         }
 
-        var lobbyDir = LobbyRunner.FindLobbyDir();
-        if (lobbyDir == null)
+        if (!LobbyRunner.Available)
         {
-            App.Library.PlayStatus = "Couldn't find the VrLobby project next to this app.";
+            App.Library.PlayStatus = "Couldn't find the VrLobby folder next to this app.";
             return;
         }
-        // The lobby runs on this app's own .NET; from source (or where that can't be set up), on the installed one.
-        // Off the UI thread: it runs mklink and copies hostfxr.dll.
-        var (dotnetRoot, noBundled) = await Task.Run(() =>
-        {
-            var r = LobbyDotnet.Prepare(
-                AppContext.BaseDirectory,
-                LobbyDotnet.DefaultRoot,
-                Environment.Version.ToString(),
-                out var why
-            );
-            return (r, why);
-        });
-        if (dotnetRoot == null && !LobbyDotnet.HasLobbyRuntime(LobbyDotnet.DotnetRoots()))
+        // An exported lobby (a release) brings its own .NET. Run as a project, the lobby uses this app's own .NET
+        // when it can, else the installed one. Off the UI thread: it runs mklink and copies hostfxr.dll.
+        var exported = LobbyRunner.FindExported() != null;
+        var (dotnetRoot, noBundled) = exported
+            ? (null, "")
+            : await Task.Run(() =>
+            {
+                var r = LobbyDotnet.Prepare(
+                    AppContext.BaseDirectory,
+                    LobbyDotnet.DefaultRoot,
+                    Environment.Version.ToString(),
+                    out var why
+                );
+                return (r, why);
+            });
+        if (
+            !exported
+            && dotnetRoot == null
+            && !LobbyDotnet.HasLobbyRuntime(LobbyDotnet.DotnetRoots())
+        )
         {
             // Without one Godot opens a black, empty lobby with no error to go on.
             var missing = new JobItem("VR lobby");
@@ -139,31 +145,19 @@ public sealed partial class LobbyViewModel(MainViewModel app) : ChildViewModel(a
         var hidden = false;
         try
         {
-            var godot = await LobbyRunner.EnsureGodotAsync(
+            var program = await LobbyRunner.PrepareAsync(
+                dotnetRoot,
                 job.ProgressReporter,
                 job.Report,
                 job.Cts.Token
             );
-            if (LobbyRunner.NeedsBuild(lobbyDir))
-            {
-                await LobbyRunner.BuildAsync(lobbyDir, job.Report, job.Cts.Token);
-            }
-
-            await LobbyRunner.ImportIfNeededAsync(
-                godot,
-                lobbyDir,
-                dotnetRoot,
-                job.Report,
-                job.Cts.Token
-            );
-
-            using var lobby = LobbyRunner.Start(godot, lobbyDir, dotnetRoot);
+            using var lobby = LobbyRunner.Start(program, dotnetRoot);
             App.Downloads.Jobs.Remove(job);
             App.Library.PlayStatus =
                 "VR lobby running. Put your headset on; this window comes back when you quit the lobby.";
             Ui.HideForPlay();
             hidden = true;
-            await WaitForLobbySessionAsync(lobby, Path.GetFileNameWithoutExtension(godot));
+            await WaitForLobbySessionAsync(lobby, program.ProcessName);
             App.Library.PlayStatus = "Back from the VR lobby.";
         }
         catch (OperationCanceledException)

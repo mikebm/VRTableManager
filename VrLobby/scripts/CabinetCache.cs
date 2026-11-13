@@ -135,12 +135,12 @@ static class CabinetCache
     }
 
     /// <summary>A cabinet on its own, not tied to a table file: the lobby's default cabinet (see RealCabinetLoader.LoadDefault).</summary>
-    public static bool TryLoadDump(string file, out Parsed? parsed)
+    public static bool TryLoadDump(Stream stream, out Parsed? parsed)
     {
         parsed = null;
         try
         {
-            using var r = new BinaryReader(new BufferedStream(File.OpenRead(file), 1 << 16));
+            using var r = new BinaryReader(stream, System.Text.Encoding.UTF8, leaveOpen: true);
             if (
                 !r.ReadBytes(DumpMagic.Length).AsSpan().SequenceEqual(DumpMagic)
                 || r.ReadInt32() != DumpVersion

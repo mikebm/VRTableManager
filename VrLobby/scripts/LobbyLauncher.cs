@@ -20,10 +20,10 @@ public static class LobbyLauncher
         {
             candidates.Add(s.ManagerExe);
         }
-        // Exported lobby shipped next to the manager.
-        candidates.Add(
-            Path.Combine(Path.GetDirectoryName(OS.GetExecutablePath()) ?? "", "VrTableManager.exe")
-        );
+        // Exported lobby: a release ships it in VrLobby next to the manager.
+        var exeDir = Path.GetDirectoryName(OS.GetExecutablePath()) ?? "";
+        candidates.Add(Path.Combine(exeDir, "..", "VrTableManager.exe"));
+        candidates.Add(Path.Combine(exeDir, "VrTableManager.exe"));
         // Running from source: the manager's build output next to this project.
         var repo = Path.GetFullPath(Path.Combine(ProjectSettings.GlobalizePath("res://"), ".."));
         foreach (var config in new[] { "Release", "Debug" })
