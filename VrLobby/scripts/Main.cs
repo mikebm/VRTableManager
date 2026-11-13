@@ -344,7 +344,7 @@ public partial class Main : Node3D
                 Leave("screenshot saved to " + shot);
             };
         }
-        Rebuild(args.GetValueOrDefault("select", ""));
+        Rebuild(args.GetValueOrDefault("select", ""), orLastPlayed: true);
         LoadBackglassIndex();
         if (!_noDepth && Settings.LobbyPlayfieldVideos)
         {
@@ -859,16 +859,25 @@ public partial class Main : Node3D
 
     // ---- Library / ring ------------------------------------------------------------
 
-    public void Rebuild(string selectId = "")
+    /// <param name="selectId">The table to stand in front of.</param>
+    /// <param name="orLastPlayed">
+    /// When that table isn't in the list (or none was given), the most recently played one that is, rather than
+    /// the first: how the lobby opens, so you're back in front of the table you last played.
+    /// </param>
+    public void Rebuild(string selectId = "", bool orLastPlayed = false)
     {
         var view = LobbyNav.Apply(Library, State.Filter, State);
         Shown = view.List;
         Groups = view.Groups;
         selectId = LobbyLibrary.NormalizeId(selectId);
-        Selected = Math.Max(
-            0,
-            Shown.FindIndex(t => string.Equals(t.Id, selectId, StringComparison.OrdinalIgnoreCase))
+        var at = Shown.FindIndex(t =>
+            string.Equals(t.Id, selectId, StringComparison.OrdinalIgnoreCase)
         );
+        if (at == -1 && orLastPlayed)
+        {
+            at = LobbyNav.LastPlayedIndex(Shown, State);
+        }
+        Selected = Math.Max(0, at);
         _lap = 0;
         _scroll = Target;
         foreach (var cab in _pool)

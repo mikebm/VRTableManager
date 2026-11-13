@@ -1470,6 +1470,13 @@ Check(
         .SequenceEqual([all.List[3].Id, all.List[9].Id]),
     "recently played: newest first, no duplicates"
 );
+Check(
+    LobbyNav.LastPlayedIndex(all.List, lobbyState) == 3
+        && LobbyNav.LastPlayedIndex(all.List.Where((_, i) => i != 3).ToList(), lobbyState) == 8
+        && LobbyNav.LastPlayedIndex(LobbyNav.Apply(lib, "Favourites", lobbyState).List, lobbyState)
+            == -1,
+    "lobby opens on the last table played; the one before if this filter hasn't it; none → -1"
+);
 lobbyState.Filter = "Decade";
 lobbyState.View = "wall";
 lobbyState.Save();

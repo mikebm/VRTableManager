@@ -133,6 +133,25 @@ public static class LobbyNav
         );
     }
 
+    /// <summary>
+    /// Where the lobby opens when it isn't told which table to show: the most recently played table in
+    /// <paramref name="shown"/> (the newest one this filter still holds), or -1 when none of them is in it.
+    /// </summary>
+    public static int LastPlayedIndex(IReadOnlyList<LobbyTable> shown, LobbyState state)
+    {
+        foreach (var id in state.Recent)
+        {
+            for (var i = 0; i < shown.Count; i++)
+            {
+                if (string.Equals(shown[i].Id, id, StringComparison.OrdinalIgnoreCase))
+                {
+                    return i;
+                }
+            }
+        }
+        return -1;
+    }
+
     static List<LobbyGroup> GroupsBy(List<LobbyTable> list, Func<LobbyTable, string> key)
     {
         var groups = new List<LobbyGroup>();

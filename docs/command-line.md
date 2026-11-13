@@ -52,7 +52,7 @@ These go after `--` on the Godot command line, for example `godot --path VrLobby
 
 | Option | What it does |
 |---|---|
-| `--select=<table>` | Start with this table selected (its full path, as the manager lists it). |
+| `--select=<table>` | Start with this table selected (its full path, as the manager lists it). Without it, the lobby opens on the table you played last. |
 | `--settings=<file>` | Use a different manager `settings.json`. Also `VRLOBBY_SETTINGS`. |
 | `--state=<file>` | Use a different lobby state file. Also `VRLOBBY_STATE`. |
 | `--selftest` | Run the in-engine self-test and quit. |
