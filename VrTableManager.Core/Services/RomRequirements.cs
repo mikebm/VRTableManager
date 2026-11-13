@@ -16,7 +16,7 @@ namespace VrTableManager.Services;
 public static class RomRequirements
 {
     /// <summary>Bump when the check learns something new, so installed tables are checked again.</summary>
-    public const int Version = 5;
+    public const int Version = 6;
 
     /// <summary>The Virtual Pinball Spreadsheet's tag for a table file that runs without PinMAME.</summary>
     public const string NoRomFeature = "no ROM";
@@ -45,6 +45,7 @@ public static class RomRequirements
 
         var before = (string.Join(",", m.RomNames), string.Join(",", m.RomParents), m.RomAlias);
         AltPacks.FixLayout(t.Folder);
+        MoveBundledRoms(t.Folder);
 
         var info = RomDetector.Inspect(t.TablePath);
         if (info.NoRomNeeded || TaggedNoRom(m))
@@ -144,6 +145,50 @@ public static class RomRequirements
         return family.Count > 0 && !family[0].Found
             ? family.Skip(1).Select(g => g.Name).ToList()
             : [];
+    }
+
+    /// <summary>
+    /// ROM zips a table download ships in a ROM\ or roms\ folder beside the .vpx (Fallout Vault Edition's
+    /// ROM\swrds_l2.zip) go where PinMAME looks, pinmame\roms. A zip already there is kept.
+    /// </summary>
+    public static void MoveBundledRoms(string folder)
+    {
+        var dest = Path.Combine(folder, "pinmame", "roms");
+        foreach (var name in (string[])["ROM", "roms"])
+        {
+            var dir = Path.Combine(folder, name);
+            if (!Directory.Exists(dir))
+            {
+                continue;
+            }
+
+            foreach (var zip in Directory.EnumerateFiles(dir, "*.zip").ToList())
+            {
+                var target = Path.Combine(dest, Path.GetFileName(zip));
+                if (File.Exists(target))
+                {
+                    continue;
+                }
+
+                try
+                {
+                    Directory.CreateDirectory(dest);
+                    File.Move(zip, target);
+                }
+                catch (IOException) { }
+                catch (UnauthorizedAccessException) { }
+            }
+
+            try
+            {
+                if (!Directory.EnumerateFileSystemEntries(dir).Any())
+                {
+                    Directory.Delete(dir);
+                }
+            }
+            catch (IOException) { }
+            catch (UnauthorizedAccessException) { }
+        }
     }
 
     static bool RomZip(string pinmameDir, string rom) =>

@@ -42,6 +42,7 @@ public static partial class RomDetector
         bool ownDmd = false,
             ownDmdOff = false;
         var aliasTargets = new List<string>();
+        var notedAliases = new List<(string alias, string rom)>();
         using var fs = File.OpenRead(vpxPath);
         int read,
             chunksAfter = 0;
@@ -73,10 +74,22 @@ public static partial class RomDetector
                     aliasTargets.Add(a);
                 }
             }
+            notedAliases.AddRange(NotedAliasesIn(text));
             // Keep the tail so a match split across chunks is still found.
             var keep = Math.Min(Overlap, total);
             Buffer.BlockCopy(buffer, total - keep, buffer, 0, keep);
             carry = keep;
+        }
+        // Install notes in the script's comments ("add VPMalias : fallout,swrds_l2") for this table's own name.
+        foreach (var (alias, rom) in notedAliases)
+        {
+            if (
+                alias.Equals(gameName, StringComparison.OrdinalIgnoreCase)
+                && !aliasTargets.Contains(rom, StringComparer.OrdinalIgnoreCase)
+            )
+            {
+                aliasTargets.Add(rom);
+            }
         }
         return new(gameName, PinMame())
         {
@@ -269,6 +282,30 @@ public static partial class RomDetector
             .Any(l => PinMameRegex().IsMatch(l.code) && !InLoaderRoutine(script, l.index));
 
     /// <summary>
+    /// "alias,rom" pairs written on any line that mentions an alias, comments included: authors leave the
+    /// VPMAlias.txt line to add as an install note (Fallout: <c>' -- add VPMalias :  fallout,swrds_l2</c>).
+    /// Only a pair for the script's own cGameName is used, and only once PinMAME confirms the ROM is real.
+    /// </summary>
+    public static IEnumerable<(string alias, string rom)> NotedAliasesIn(string text)
+    {
+        const string Word = "alias";
+        for (
+            var i = text.IndexOf(Word, StringComparison.OrdinalIgnoreCase);
+            i >= 0;
+            i = text.IndexOf(Word, i + Word.Length, StringComparison.OrdinalIgnoreCase)
+        )
+        {
+            var start = Math.Max(text.LastIndexOfAny(['\r', '\n'], i) + 1, i - 300);
+            var end = text.IndexOfAny(['\r', '\n'], i);
+            end = Math.Min(end < 0 ? text.Length : end, i + 300);
+            foreach (Match m in NotedAliasRegex().Matches(text[start..end]))
+            {
+                yield return (m.Groups[1].Value, m.Groups[2].Value);
+            }
+        }
+    }
+
+    /// <summary>
     /// The script gives the controller a game (<c>.GameName = …</c>) or runs it (<c>Controller.Run</c>). Creating
     /// VPinMAME.Controller alone loads no ROM: Get Smart creates one only as a stand-in for B2S when the backglass is off.
     /// </summary>
@@ -391,12 +428,21 @@ public static partial class RomDetector
     [GeneratedRegex("alias[^\"]*\"([a-z0-9_]{2,32})\"", RegexOptions.IgnoreCase)]
     private static partial Regex AliasRegex();
 
+    /// <summary><c>fallout,swrds_l2</c>: a VPMAlias.txt line (alias, then ROM).</summary>
+    [GeneratedRegex(
+        "(?<![A-Za-z0-9_])([A-Za-z0-9_]{2,32})[ \\t]*,[ \\t]*([A-Za-z0-9_]{2,32})(?![A-Za-z0-9_])"
+    )]
+    private static partial Regex NotedAliasRegex();
+
     /// <summary><c>.Games("hs_l4")</c>: the PinMAME game whose settings the script changes.</summary>
     [GeneratedRegex("\\.Games[ \\t]*\\([ \\t]*\"([a-z0-9_]{2,32})\"", RegexOptions.IgnoreCase)]
     private static partial Regex GamesRegex();
 
-    /// <summary><c>Controller.Run</c>, or <c>.Run GetPlayerHWnd</c> inside <c>With Controller</c>.</summary>
-    [GeneratedRegex("(?:\\bController|^[ \\t]*)\\.Run\\b", RegexOptions.IgnoreCase)]
+    /// <summary>
+    /// <c>Controller.Run</c>, or <c>.Run GetPlayerHWnd</c> inside <c>With Controller</c>: at the start of the line or
+    /// after a <c>:</c> statement separator (<c>On Error Resume Next : .Run GetPlayerHWnd</c>).
+    /// </summary>
+    [GeneratedRegex("(?:\\bController|(?:^|:)[ \\t]*)\\.Run\\b", RegexOptions.IgnoreCase)]
     private static partial Regex ControllerRunRegex();
 
     [GeneratedRegex("LoadVPM|VPinMAME\\.Controller", RegexOptions.IgnoreCase)]
@@ -415,13 +461,13 @@ public static partial class RomDetector
 
     /// <summary>A line starting <c>Sub name</c> / <c>Function name</c>; searched backwards for the last one.</summary>
     [GeneratedRegex(
-        "(?<=[\\r\\n])[ \\t]*(?:(?:Private|Public)[ \\t]+)?(?:Sub|Function)[ \\t]+(?<name>[A-Za-z_][A-Za-z0-9_]*)",
+        "(?<=^|[\\r\\n])[ \\t]*(?:(?:Private|Public)[ \\t]+)?(?:Sub|Function)[ \\t]+(?<name>[A-Za-z_][A-Za-z0-9_]*)",
         RegexOptions.IgnoreCase | RegexOptions.RightToLeft
     )]
     private static partial Regex RoutineStartRegex();
 
     [GeneratedRegex(
-        "(?<=[\\r\\n])[ \\t]*End[ \\t]+(?:Sub|Function)\\b",
+        "(?<=^|[\\r\\n])[ \\t]*End[ \\t]+(?:Sub|Function)\\b",
         RegexOptions.IgnoreCase | RegexOptions.RightToLeft
     )]
     private static partial Regex RoutineEndRegex();

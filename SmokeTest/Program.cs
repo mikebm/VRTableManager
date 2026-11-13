@@ -2626,6 +2626,28 @@ Console.WriteLine($"   gamepad connected: {Gamepad.IsConnected()?.ToString() ?? 
             ),
         "a VPinMAME.Controller that's never given a game doesn't need a ROM"
     );
+    const string createsVpm = "Set Controller = CreateObject(\"VPinMAME.Controller\")\r\n";
+    Check(
+        // Started without setting .GameName: Controller.Run, a line-leading .Run, or one after a ":" separator.
+        RomDetector.UsesPinMame(createsVpm + "Controller.Run GetPlayerHWnd\r\n")
+            && RomDetector.UsesPinMame(
+                createsVpm + "With Controller\r\n\t.Run GetPlayerHWnd\r\nEnd With\r\n"
+            )
+            && RomDetector.UsesPinMame(
+                createsVpm
+                    + "With Controller\r\n\tOn Error Resume Next : .Run GetPlayerHWnd\r\nEnd With\r\n"
+            )
+            // A commented-out start, or a .Run on some other object, doesn't start it.
+            && !RomDetector.UsesPinMame(createsVpm + "' Controller.Run GetPlayerHWnd\r\n")
+            && !RomDetector.UsesPinMame(createsVpm + "Sounds.Run\r\n")
+            // controller.vbs's loaders create the controller only when called: a table-level .GameName
+            // (for B2S or high scores) with no loader call still needs no ROM.
+            && !RomDetector.UsesPinMame(
+                controllerVbs
+                    + "Sub Table1_Init\r\n\tController.GameName = cGameName\r\nEnd Sub\r\n"
+            ),
+        "a created controller counts once the script runs it, however .Run is written"
+    );
     // Dukes of Hazzard runs High Speed's ROM under its own name.
     Check(
         RomDetector
@@ -2636,6 +2658,27 @@ Console.WriteLine($"   gamepad connected: {Gamepad.IsConnected()?.ToString() ?? 
             )
             .SequenceEqual(["hs_l4"]),
         "a .Games(\"rom\") line names the ROM a made-up cGameName stands for"
+    );
+    // Fallout Vault Edition only says which ROM "fallout" is in its install notes.
+    var notedVpx = Path.Combine(odir, "noted.vpx");
+    File.WriteAllText(
+        notedVpx,
+        "' -- add VPMalias :  fallout,swrds_l2\r\n' see Aliases, other,thing\r\n"
+            + "const cGameName = \"fallout\" \t' add to VPMAlias.txt... fallout,swrds_l2\r\n"
+            + "LoadVPM\"00990300\",\"S11.VBS\",3.10\r\n"
+    );
+    Check(
+        RomDetector.Inspect(notedVpx).AliasTargets.SequenceEqual(["swrds_l2"]),
+        "an alias written in the script's install notes for its own cGameName is a ROM to try"
+    );
+    var bundled = Path.Combine(root, "bundled-rom");
+    Directory.CreateDirectory(Path.Combine(bundled, "ROM"));
+    File.WriteAllText(Path.Combine(bundled, "ROM", "swrds_l2.zip"), "rom");
+    RomRequirements.MoveBundledRoms(bundled);
+    Check(
+        File.Exists(Path.Combine(bundled, "pinmame", "roms", "swrds_l2.zip"))
+            && !Directory.Exists(Path.Combine(bundled, "ROM")),
+        "a ROM\\ folder that came with the table is moved into pinmame\\roms"
     );
     Check(
         RomDetector.ControllerRomFromScript(
