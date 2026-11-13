@@ -326,6 +326,33 @@ public sealed partial class InstalledItem : ObservableObject
         }
     }
 
+    /// <summary>Hover on the subtitle: the full path of the table file, to tell copies in different folders apart.</summary>
+    public string TablePathTip => Table.TablePath;
+
+    /// <summary>
+    /// "ROM mm_109c": the ROM this table loads (the one in its pinmame\roms when VPS listed several), so versions
+    /// of one game in different folders can be told apart. "" for tables without a ROM.
+    /// </summary>
+    public string RomInfo
+    {
+        get
+        {
+            var names = Table.Manifest.RomNames;
+            if (!Table.IsVpx || names.Count == 0)
+            {
+                return "";
+            }
+
+            var rom =
+                names.FirstOrDefault(r =>
+                    File.Exists(Path.Combine(Table.Folder, "pinmame", "roms", r + ".zip"))
+                ) ?? string.Join(" / ", names);
+            var alias = Table.Manifest.RomAlias is { Length: > 0 } a ? $" (as {a})" : "";
+            return $"ROM {rom}{alias}";
+        }
+    }
+    public bool HasRomInfo => RomInfo != "";
+
     public string RomStatus =>
         Table.MissingRoms.Count switch
         {

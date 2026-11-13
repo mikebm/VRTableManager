@@ -382,7 +382,8 @@
         </StackPanel>
         <StackPanel Spacing="4" VerticalAlignment="Top" Margin="0,0,0,4">
           <Grid ColumnDefinitions="*,Auto">
-            <TextBlock Classes="title" Text="{Binding Title}" TextTrimming="CharacterEllipsis" VerticalAlignment="Center" />
+            <TextBlock Classes="title" Text="{Binding Title}" TextTrimming="CharacterEllipsis" VerticalAlignment="Center"
+                       ToolTip.Tip="{Binding Title}" />
             <Button Grid.Column="1" Classes="icon" Padding="6,2" BorderThickness="0" FontSize="20"
                     Content="{Binding IsFavourite, Converter={x:Static v:Converters.Star}}"
                     Foreground="{Binding IsFavourite, Converter={x:Static v:Converters.StarBrush}}"
@@ -399,7 +400,10 @@
             <Border Classes="chip" Margin="0,0,5,4" IsVisible="{Binding Colour.IsInstalled}" ToolTip.Tip="{Binding Colour.Status}"><TextBlock Text="COLOUR" /></Border>
             <Border Classes="chip" Margin="0,0,5,4" IsVisible="{Binding Sound.IsInstalled}" ToolTip.Tip="{Binding Sound.Status}"><TextBlock Text="ALTSOUND" /></Border>
           </WrapPanel>
-          <TextBlock Classes="mono" Text="{Binding Subtitle}" TextTrimming="CharacterEllipsis" />
+          <TextBlock Classes="mono" Text="{Binding Subtitle}" TextTrimming="CharacterEllipsis" ToolTip.Tip="{Binding TablePathTip}" />
+          <!-- Which ROM it loads: tells apart copies of one game installed in different folders. -->
+          <TextBlock Classes="mono" Text="{Binding RomInfo}" TextTrimming="CharacterEllipsis" ToolTip.Tip="{Binding RomInfo}"
+                     IsVisible="{Binding HasRomInfo}" />
           <TextBlock Classes="mono" Foreground="{StaticResource Lamp}" Text="{Binding PlayInfo}" TextTrimming="CharacterEllipsis" />
           <Border Classes="dmd" Padding="8,4" Margin="0,2,0,2" HorizontalAlignment="Left" IsVisible="{Binding HasHighScore}"
                   ToolTip.Tip="{Binding MoreScores}">
