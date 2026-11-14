@@ -123,9 +123,9 @@ public sealed class TableVersionItem
             var host = Uri.TryCreate(Url, UriKind.Absolute, out var u)
                 ? u.Host.Replace("www.", "")
                 : "no link";
-            var updated = File.UpdatedAt is > 0
+            var updated = File.ReleasedAt is > 0
                 ? DateTimeOffset
-                    .FromUnixTimeMilliseconds(File.UpdatedAt.Value)
+                    .FromUnixTimeMilliseconds(File.ReleasedAt.Value)
                     .ToString("yyyy-MM-dd")
                 : "";
             return $"{Engine} · v{File.Version ?? "?"} · {host}{(updated == "" ? "" : " · " + updated)}";

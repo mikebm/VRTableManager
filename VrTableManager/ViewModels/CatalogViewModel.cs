@@ -270,7 +270,7 @@ public sealed partial class CatalogViewModel(MainViewModel app) : ChildViewModel
                     .OrderByDescending(x => x.Score)
                     .Select(x => x.Game),
                 "Recently updated" => matches.OrderByDescending(g =>
-                    g.TableFiles!.Where(IsVisible).Max(t => t.UpdatedAt ?? 0)
+                    g.TableFiles!.Where(IsVisible).Max(t => t.ReleasedAt ?? 0)
                 ),
                 "Newest machines" => matches
                     .OrderByDescending(g => g.Year ?? 0)
@@ -451,7 +451,7 @@ public sealed partial class CatalogViewModel(MainViewModel app) : ChildViewModel
             return;
         }
 
-        var files = item.Game.TableFiles!.Where(IsVisible).OrderByDescending(t => t.UpdatedAt ?? 0);
+        var files = item.Game.TableFiles!.Where(IsVisible).OrderByDescending(t => t.ReleasedAt ?? 0);
         foreach (var f in files)
         {
             var file = f;

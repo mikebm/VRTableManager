@@ -57,7 +57,19 @@ public class VpsFile
     public List<string>? Features { get; set; }
     public string? Comment { get; set; }
     public string? ImgUrl { get; set; }
+
+    /// <summary>
+    /// When the entry was last edited on VPS (epoch ms). Any edit bumps it, even a new tag or link, so it isn't the
+    /// release date; it is what update checks compare.
+    /// </summary>
     public long? UpdatedAt { get; set; }
+
+    /// <summary>The release date the uploader gave (epoch ms): what the spreadsheet shows as "Updated at".</summary>
+    public long? CreatedAt { get; set; }
+
+    /// <summary>The release date to show and to rank versions by: <see cref="CreatedAt"/>, else <see cref="UpdatedAt"/>.</summary>
+    [JsonIgnore]
+    public long? ReleasedAt => CreatedAt is > 0 ? CreatedAt : UpdatedAt;
 }
 
 public sealed class VpsTableFile : VpsFile

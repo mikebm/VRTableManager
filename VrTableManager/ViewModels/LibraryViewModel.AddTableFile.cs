@@ -410,12 +410,12 @@ public sealed partial class LibraryViewModel
             parts.Add(string.Join(", ", f));
         }
 
-        if (t.UpdatedAt is > 0)
+        if (t.ReleasedAt is > 0)
         {
             parts.Add(
                 "updated "
                     + DateTimeOffset
-                        .FromUnixTimeMilliseconds(t.UpdatedAt.Value)
+                        .FromUnixTimeMilliseconds(t.ReleasedAt.Value)
                         .ToString("yyyy-MM-dd")
             );
         }

@@ -154,7 +154,7 @@ public static partial class TableFileMatch
 
     /// <summary>
     /// Which of the game's table files this is: one whose version number appears in the file name (and then
-    /// whose authors do), else the most recently updated one of its kind.
+    /// whose authors do), else the most recently released one of its kind.
     /// </summary>
     public static VpsTableFile? PickTableFile(VpsGame g, string file) =>
         TableFiles(g, file).FirstOrDefault();
@@ -170,7 +170,7 @@ public static partial class TableFileMatch
             .Where(t => VpsCatalog.IsVpx(t) != fp)
             .OrderByDescending(t => SameVersion(t.Version, versions))
             .ThenByDescending(t => (t.Authors ?? []).Count(a => Words(a).Any(words.Contains)))
-            .ThenByDescending(t => t.UpdatedAt ?? 0)
+            .ThenByDescending(t => t.ReleasedAt ?? 0)
             .ToList();
     }
 
