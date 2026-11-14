@@ -20,11 +20,7 @@ There's nothing to set up. The lobby uses the buttons you set up in VPX, so if a
 
 Favourites still need the Quest's right grip (or a game controller's X / Square).
 
-The buttons come from the settings VR play uses:
-- **VPX 10.8.1:** the control mappings in its in-game input settings. A joystick shows there as **SDLJoy** followed by a long code, its ID in VPX: Pinscape boards, PinOne in joystick mode and other USB game controllers all appear this way. Joystick buttons, and d-pad directions, count; analog axes such as a plunger or nudge don't.
-- **Older VPX:** the keys and joystick buttons in its Keys dialog.
-
-A button you never changed uses VPX's default key from the table above.
+The lobby reads the buttons from the settings VR play uses. In VPX 10.8.1 that's the control mappings in its in-game input settings, where a joystick shows up as **SDLJoy** followed by a long code (Pinscape boards, PinOne in joystick mode and other USB controllers all look like this). In older VPX it's the Keys dialog. Joystick buttons and d-pad directions count; analog axes like a plunger or nudge don't. A button you never changed uses VPX's default key from the table above.
 
 ### Keyboard mode and joystick mode
 
@@ -60,8 +56,8 @@ In a table, the controller does what you set up in VPX.
 3. **What it means:**
    - **No `Joystick` lines when you press buttons:** the lobby isn't getting them. In keyboard mode, see the focus note above. Otherwise check the board works in VPX, and in Windows' **Set up USB game controllers**.
    - **Joystick presses show but nothing happens:** the button isn't mapped to a flipper, Start or similar in VPX, or it's mapped on another board. Compare the board's GUID with the ones after `joysticks:`. Map the button in VPX, then reopen the lobby.
-   - **A button does the wrong thing:** compare the logged button number with the one VPX shows for it, and let us know both numbers and the board's name from the log.
-   - **Your cabinet board shows as a game controller:** it gets the game controller layout above instead of your VPX buttons. Let us know the board's name and GUID from the log.
+   - **A button does the wrong thing:** compare the logged button number with the one VPX shows for it, and [open an issue](https://github.com/mikebm/VRTableManager/issues) with both numbers and the board's name from the log.
+   - **Your cabinet board shows as a game controller:** it gets the game controller layout above instead of your VPX buttons. [Open an issue](https://github.com/mikebm/VRTableManager/issues) with the board's name and GUID from the log.
 
 Joystick buttons only count on the board VPX has them mapped for, so a game pad or a second board left plugged in doesn't move the lobby. If none of the connected joysticks is one VPX names (older VPX doesn't name them), the mapped button numbers work from any joystick that isn't a game controller.
 

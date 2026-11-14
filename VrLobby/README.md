@@ -49,7 +49,7 @@ Each table stands in **its own VR cabinet**, the 3D cabinet its author built int
   - **Apron:** the template's apron (Medieval Madness's instruction cards) is hidden, so the playfield picture shows there.
   - Whatever printed art is left takes that table's side colour (a darkened average of its backglass).
 - **Backglass picture in the lobby:** your picture, then the `.directb2s`, then **the table file's own backglass picture** (named like `BackglassImage`, `backglass`, `…BG` or `translite`, landscape; read once per table version into `vr-lobby\pictures`), then the catalog's. A table file's picture with a see-through or black window in the middle (X-Men's, made for a video behind it) is passed over for the catalog's.
-- **Glass:** every cabinet (a table's own, the default one, the drawn one) has a faint glass sheet over the playfield, about 8 cm above it on VR cabinets. It's drawn after the playfield and barely there, so the 3D playfield under it looks the same.
+- **Glass:** every cabinet (a table's own, the default one, the drawn one) has a faint glass sheet over the playfield, lying along the tops of the side rails on VR cabinets (8 cm longer than the playfield, at the rails' slope). It's drawn after the playfield and barely there, so the 3D playfield under it looks the same.
 
   To make it from another table: `godot --headless --path VrLobby -- "--dump-cabinet=C:\path\to\table.vpx"`. To preview it on every table, start the lobby with `-- --borrow-all`.
 - **`cabinet/default.cab` missing:** a drawn cabinet, as a last resort only. It's read through Godot (`FileAccess`), so it works from inside the export's `.pck`; the export preset includes `cabinet/*.cab` (with the fonts and `icon.png`, also read as raw files) in its non-resource filter.
