@@ -14,6 +14,227 @@ public static class SelfTest
 {
     static int _failures;
 
+    /// <summary>
+    /// The default cabinet's backbox is the generic one (CabinetKit.BuildBackbox), shaped to each table's backglass:
+    /// the template's own backbox is taken out, and a plain box shaped to the picture stands in its place, the picture
+    /// its whole front.
+    /// </summary>
+    static void GenericBackboxChecks(Main lobby, RealCabinet? standard)
+    {
+        if (standard?.Backbox is not { } box)
+        {
+            Check(false, "the default cabinet has a backbox to replace");
+            return;
+        }
+        var bare = standard.WithoutBackbox();
+        var room = box.Grow(0.01f);
+        var leftInBox = 0;
+        for (var s = 0; bare != null && s < bare.Value.Mesh.GetSurfaceCount(); s++)
+        {
+            var arrays = bare.Value.Mesh.SurfaceGetArrays(s);
+            var v = arrays[(int)Mesh.ArrayType.Vertex].AsVector3Array();
+            var idx = arrays[(int)Mesh.ArrayType.Index].AsInt32Array();
+            for (var i = 0; i + 2 < idx.Length; i += 3)
+            {
+                if (
+                    room.HasPoint(v[idx[i]])
+                    && room.HasPoint(v[idx[i + 1]])
+                    && room.HasPoint(v[idx[i + 2]])
+                )
+                {
+                    leftInBox++;
+                }
+            }
+        }
+        Check(
+            bare != null
+                && leftInBox == 0
+                && bare.Value.Mesh.GetSurfaceCount() < standard.Surfaces
+                && bare.Value.Kinds.Count == bare.Value.Mesh.GetSurfaceCount(),
+            $"a borrowed cabinet loses its own backbox ({standard.Surfaces} → {bare?.Mesh.GetSurfaceCount()} surfaces, {leftInBox} triangles left in it)"
+        );
+
+        var cab = lobby
+            .Cabinets.Where(c => c.Visible && c.Borrowed && c.Table?.Title != "Medieval Madness")
+            .Skip(1)
+            .FirstOrDefault();
+        if (cab == null)
+        {
+            Check(false, "a borrowed cabinet to try the generic backbox on");
+            return;
+        }
+        Texture2D Picture(int w, int h)
+        {
+            var img = Image.CreateEmpty(w, h, false, Image.Format.Rgb8);
+            img.Fill(new Color(0.2f, 0.5f, 0.3f));
+            return ImageTexture.CreateFromImage(img);
+        }
+        // A table whose own VR cabinet is built from the same kit: the default cabinet wears its art sheets, keeps its
+        // own backbox for them, and the backglass goes in that backbox's glass.
+        Check(
+            standard.KitCabinetSurface >= 0 && standard.KitBackboxSurface >= 0,
+            "the default cabinet's cabinet and backbox art parts are found (PinCab_Cabinet, PinCab_Backbox)"
+        );
+        Texture2D Sheet(int w, int h, Color c)
+        {
+            var img = Image.CreateEmpty(w, h, false, Image.Format.Rgb8);
+            img.Fill(c);
+            return ImageTexture.CreateFromImage(img);
+        }
+        var kitTable = new RealCabinet
+        {
+            Mesh = standard.Mesh, // the kit's own layout: its sheets fit
+            KitCabinetSurface = standard.KitCabinetSurface,
+            KitBackboxSurface = standard.KitBackboxSurface,
+            PlayfieldCentre = Vector3.Zero,
+            PlayfieldSize = Vector2.One,
+            Bounds = new Aabb(),
+            KitCabinetArt = Sheet(64, 64, Colors.Red),
+            KitBackboxArt = Sheet(32, 64, Colors.Blue),
+        };
+        cab.ShowReal(standard, borrowed: true, artFrom: kitTable);
+        Check(
+            cab.WearsCabinetArt && cab.WearsBackboxArt && !cab.ShowsGenericBackbox,
+            "a table with kit art: the default cabinet wears its cabinet and backbox art, in its own backbox"
+        );
+        var cabinetArtOnly = new RealCabinet
+        {
+            Mesh = standard.Mesh,
+            KitCabinetSurface = standard.KitCabinetSurface,
+            PlayfieldCentre = Vector3.Zero,
+            PlayfieldSize = Vector2.One,
+            Bounds = new Aabb(),
+            KitCabinetArt = kitTable.KitCabinetArt,
+        };
+        cab.ShowReal(standard, borrowed: true, artFrom: cabinetArtOnly);
+        Check(
+            cab.WearsCabinetArt && !cab.WearsBackboxArt && !cab.ShowsGenericBackbox,
+            "cabinet art but no backbox art: the cabinet's art, still in the default cabinet's own backbox"
+        );
+        // A sheet named like the kit's but laid out differently (the template's cabinet sheet's layout used as if it were
+        // its backbox's) isn't borrowed: the wrong art would land on the wrong faces.
+        var misfit = new RealCabinet
+        {
+            Mesh = standard.Mesh,
+            PlayfieldCentre = Vector3.Zero,
+            PlayfieldSize = Vector2.One,
+            Bounds = new Aabb(),
+            KitCabinetSurface = standard.KitBackboxSurface,
+            KitCabinetArt = kitTable.KitCabinetArt,
+        };
+        cab.ShowReal(standard, borrowed: true, artFrom: misfit);
+        Check(
+            !cab.WearsCabinetArt,
+            "a cabinet sheet laid out differently from the default cabinet's isn't put on it"
+        );
+        cab.ShowReal(standard, borrowed: true);
+
+        // A table's own inner walls, read from its VR cabinet by place and fitted to the default cabinet's playfield
+        // (here the default cabinet's own, standing in for a table's): they replace the default cabinet's walls.
+        cab.ShowReal(standard, borrowed: true, artFrom: standard);
+        Check(
+            standard.OwnWallsOn(standard).Sides != null && cab.ShowsOwnWalls,
+            "a table's own inner walls (found by place, whatever they're called) go on the default cabinet"
+        );
+        cab.ShowReal(standard, borrowed: true);
+
+        // The table's own inner side wall pictures go on the default cabinet's walls, one per side.
+        cab.SetBlade(true, Sheet(300, 60, Colors.Red));
+        cab.SetBlade(false, Sheet(300, 60, Colors.Blue));
+        Check(
+            standard.ArtFaces() is var (_, l, r, b)
+                && l >= 0
+                && r >= 0
+                && b >= 0
+                && cab.WearsBladeArt,
+            "the table's own inner side wall pictures go on the default cabinet's walls"
+        );
+
+        // The template's apron (its own instruction cards) is hidden; its back panel takes the table's picture.
+        Check(
+            standard.ApronSurface >= 0 && cab.HidesApron,
+            "the default cabinet hides its template's apron (the instruction cards of another table)"
+        );
+        cab.SetBackPanel(Sheet(300, 100, Colors.Green));
+        Check(
+            standard.BackPanelSurface >= 0 && cab.WearsBackPanelArt,
+            "the default cabinet's back panel wears the table's own back panel picture"
+        );
+        // Glass over the playfield, on the default cabinet and on the drawn one.
+        var (glassAt, glassSize, glassShown) = cab.Glass;
+        Check(
+            glassShown
+                && glassSize.X == standard.PlayfieldSize.X
+                && glassAt.Y - cab.PlayfieldPosition.Y is > 0.05f and < 0.2f,
+            $"glass over the playfield on the default cabinet ({glassAt.Y - cab.PlayfieldPosition.Y:0.000} m above it)"
+        );
+        cab.ShowReal(null);
+        (glassAt, glassSize, glassShown) = cab.Glass;
+        Check(
+            glassShown && glassAt.Y - cab.PlayfieldPosition.Y is > 0.03f and < 0.1f,
+            "and on the drawn cabinet"
+        );
+        cab.ShowReal(standard, borrowed: true);
+
+        // A picture nearly as tall as wide is a whole backbox front (or an old machine's tall glass): the default
+        // cabinet's backbox is emptied (no speakers) and the picture covers its front opening, from the top.
+        cab.SetBackglass(Picture(300, 400), new Color(0.2f, 0.5f, 0.3f));
+        var (frontAt, frontSize) = cab.BackglassRect;
+        Check(
+            cab.ShowsWholeFrontPicture
+                && !cab.ShowsGenericBackbox
+                && standard.FrontOpening is { } opening
+                && (frontSize - opening.Size).Length() < 0.002f
+                && Mathf.Abs(frontAt.Y - opening.GetCenter().Y) < 0.002f,
+            $"a whole-front picture is stretched to fill the default cabinet's emptied backbox front ({frontSize} at {frontAt})"
+        );
+
+        // A wide whole-front picture brings the backbox down (to 75% at most) rather than being squashed as much.
+        cab.SetBackglass(Picture(1600, 900), new Color(0.2f, 0.5f, 0.3f));
+        if (cab.ShowsWholeFrontPicture && standard.FrontOpening is { } wideOpening)
+        {
+            var (_, wideSize) = cab.BackglassRect;
+            Check(
+                cab.BackboxHeightShare is >= 0.749f and < 0.99f
+                    && Mathf.Abs(wideSize.Y - wideOpening.Size.Y * cab.BackboxHeightShare) < 0.002f,
+                $"a wide whole-front picture makes the default cabinet's backbox shorter ({cab.BackboxHeightShare:P0} of its height)"
+            );
+        }
+
+        // The plain box is the drawn cabinet's (no template): the picture is its whole front, its height following it.
+        cab.ShowReal(null);
+        box = CabinetKit.DrawnBackbox;
+        // The picture is the box's whole front, whatever its shape: the box's height follows it.
+        bool Covers(int w, int h)
+        {
+            cab.SetBackglass(Picture(w, h), new Color(0.2f, 0.5f, 0.3f));
+            var (centre, size) = cab.BackglassRect;
+            return cab.ShowsGenericBackbox
+                && cab.BackboxBounds is { } b
+                && cab.BackglassCrop == 0
+                && Mathf.Abs(size.X / size.Y - (float)w / h) < 0.02f
+                && Mathf.Abs(size.X - b.Size.X) < 0.001f
+                && Mathf.Abs(size.Y - b.Size.Y) < 0.001f
+                && Mathf.Abs(centre.Y - b.GetCenter().Y) < 0.001f
+                && centre.Z > b.End.Z
+                && Mathf.Abs(b.Size.X - box.Size.X) < 0.001f
+                && Mathf.Abs(b.Position.Y - box.Position.Y) < 0.001f;
+        }
+        Check(
+            Covers(400, 300) && Covers(300, 400) && Covers(5, 4),
+            "the drawn cabinet's backbox is a plain box whose whole front is the backglass picture (4:3, 3:4 and 5:4 pictures)"
+        );
+        cab.SetBackglass(Picture(200, 600), new Color(0.2f, 0.5f, 0.3f));
+        Check(
+            cab.BackboxBounds is { } tall
+                && tall.Size.Y < box.Size.Y * 1.4f
+                && cab.BackglassRect.Size.Y > tall.Size.Y - 0.001f
+                && cab.BackglassRect.Size.X < tall.Size.X,
+            $"a picture far taller than a backbox is fitted inside the front of a box that stays within reason ({cab.BackboxBounds?.Size})"
+        );
+        cab.ShowReal(standard, borrowed: true);
+    }
+
     static void Check(bool ok, string what)
     {
         GD.Print((ok ? "PASS  " : "FAIL  ") + what);
@@ -320,6 +541,7 @@ public static class SelfTest
                 .All(c => c.ShowsRealCabinet && c.Borrowed && c.Real == standard),
             "tables without a VR cabinet in their .vpx wear the default cabinet, never the drawn one"
         );
+        GenericBackboxChecks(lobby, standard);
         var realVpx = Directory.Exists(@"C:\Users\mikem\VPinball\Tables")
             ? Directory
                 .GetFiles(@"C:\Users\mikem\VPinball\Tables", "*.vpx", SearchOption.AllDirectories)
@@ -506,6 +728,47 @@ public static class SelfTest
                 && lobby.SelectedCabinet?.ShowsPlayfieldVideo == true,
             $"coming back to a frozen table plays its video again (playing: {lobby.VideoPlaying ?? "nothing"})"
         );
+        // Moving on and back: its video carries on as a side video beside the new selection and is picked up again,
+        // so its playfield never drops back to the still picture (the pop).
+        var mmPlaying = lobby.SelectedCabinet!;
+        var neverStill = true;
+        lobby.Select(mmIndex + 1);
+        for (var i = 0; i < 40; i++)
+        {
+            neverStill &= mmPlaying.ShowsPlayfieldVideo;
+            await Seconds(lobby, 0.025);
+        }
+        var asSide = lobby.SideVideosPlaying;
+        lobby.Select(mmIndex);
+        for (var i = 0; i < 60; i++)
+        {
+            neverStill &= mmPlaying.ShowsPlayfieldVideo;
+            await Seconds(lobby, 0.025);
+        }
+        Check(
+            neverStill && asSide >= 1 && lobby.VideoPlaying?.EndsWith("lobby-video") == true,
+            $"a lobby video keeps playing beside the selected table and is picked up again, never dropping to the still picture ({asSide} side video(s))"
+        );
+        // Videos play on the cabinets in view: turn the camera (your head) away and they stop; turn back and they play.
+        if (lobby.GetViewport().GetCamera3D() is { } cam)
+        {
+            lobby.Select(mmIndex + 1);
+            await Seconds(lobby, 1.0);
+            var beside = lobby.SideVideosPlaying;
+            var camWas = cam.Rotation;
+            cam.RotateY(Mathf.Pi);
+            await Seconds(lobby, 0.3);
+            var awayCount = lobby.SideVideosPlaying;
+            var awayShows = mmPlaying.ShowsPlayfieldVideo;
+            cam.Rotation = camWas;
+            await Seconds(lobby, 0.5);
+            Check(
+                beside >= 1 && awayCount == 0 && !awayShows && lobby.SideVideosPlaying >= 1,
+                $"lobby videos play on the cabinets in view and stop out of it ({beside} in view, {awayCount} looking away, {lobby.SideVideosPlaying} looking back)"
+            );
+            lobby.Select(mmIndex);
+            await Seconds(lobby, 1.0);
+        }
         lobby.Select(mmIndex + 1);
         await Seconds(lobby, 0.5);
         Check(lobby.ScoresText == "", "no high scores shown for a table without an .nv file");

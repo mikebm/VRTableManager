@@ -278,6 +278,277 @@ public static class VpxImages
         }
     }
 
+    // ---- Backglass ------------------------------------------------------------------
+
+    /// <summary>
+    /// The table's own backglass picture, by name: what a VR table shows in its backbox ("BackglassImage",
+    /// "BackGlassImage", "backglass_50th", X-Men's "x-menBG") or a translite ("backboxtranslite"). Only the glass,
+    /// made for this table, so it beats the catalog's picture, which is often a photo of the whole backbox front.
+    /// Landscape-ish (0.9–1.9 wide per tall) and at least 600 px across; the biggest wins. Null when there's none.
+    /// </summary>
+    public static VpxImageInfo? PickBackglass(IEnumerable<VpxImageInfo> images) =>
+        images
+            .Where(i =>
+                i.Width >= 600
+                && i.Height > 0
+                && (double)i.Width / i.Height is >= 0.9 and <= 1.9
+                && LooksLikeBackglassName(i.Name)
+            )
+            .OrderByDescending(i => (long)i.Width * i.Height)
+            .FirstOrDefault();
+
+    static bool LooksLikeBackglassName(string name)
+    {
+        var n = name.ToLowerInvariant();
+        if (
+            n.Contains("scratch")
+            || n.Contains("backdrop")
+            || n.Contains("dmd")
+            || n.Contains("grill")
+            || n.Contains("lamp")
+            || n.Contains("bulb")
+            || n.Contains("light")
+        )
+        {
+            return false;
+        }
+
+        return n.Contains("backglass")
+            || n.Contains("back glass")
+            || n.Contains("back_glass")
+            || n.Contains("translite")
+            || System.Text.RegularExpressions.Regex.IsMatch(n, @"(^|[^a-z])bg($|[^a-z])|[a-z]bg$");
+    }
+
+    /// <summary>
+    /// What the cache knows about the table's own backglass picture, without reading the table: true (extracted, see
+    /// <see cref="CachedBackglass"/>), false (it has none), null (not looked yet). Never throws.
+    /// </summary>
+    public static bool? KnownBackglass(string vpxPath, string cacheDir) =>
+        Known(vpxPath, cacheDir, "bg");
+
+    /// <summary>Like <see cref="KnownBackglass"/>, for the back panel picture (<see cref="CachedBackPanel"/>).</summary>
+    public static bool? KnownBackPanel(string vpxPath, string cacheDir) =>
+        Known(vpxPath, cacheDir, "bp");
+
+    /// <summary>
+    /// Raised when <see cref="PickBackglass"/>, <see cref="PickBackPanel"/> or <see cref="PickBlade"/> change, so their
+    /// cached picks and "none" markers are made again without re-extracting every playfield (whose key carries
+    /// <see cref="PickVersion"/>). Version 1 leaves the prefix as it was.
+    /// </summary>
+    const int ArtPickVersion = 1;
+
+    static string Versioned(string prefix) =>
+        ArtPickVersion > 1 ? $"{prefix}v{ArtPickVersion}-" : prefix;
+
+    static bool? Known(string vpxPath, string cacheDir, string prefix)
+    {
+        try
+        {
+            if (PlayfieldCacheFiles(vpxPath, cacheDir) is not var (pf, pfNone))
+            {
+                return false;
+            }
+
+            prefix = Versioned(prefix);
+            return File.Exists(Path.Combine(cacheDir, prefix + Path.GetFileName(pf))) ? true
+                : File.Exists(Path.Combine(cacheDir, prefix + Path.GetFileName(pfNone))) ? false
+                : null;
+        }
+        catch
+        {
+            return false;
+        }
+    }
+
+    /// <summary>
+    /// The table's own backglass picture (<see cref="PickBackglass"/>) as a file in <paramref name="cacheDir"/>,
+    /// extracted the first time; null when it has none (remembered too). Keyed like <see cref="CachedPlayfield"/>.
+    /// Never throws.
+    /// </summary>
+    public static string? CachedBackglass(string vpxPath, string cacheDir) =>
+        CachedPick(vpxPath, cacheDir, "bg", PickBackglass);
+
+    /// <summary>
+    /// The table's own back panel picture: the board behind the playfield, under the backbox ("backpanel", "backwall",
+    /// "back_wall", "backboard"; X-Men's "backpanel", JAWS's "backwallamity"). A wide strip (1.8–4.5 wide per tall),
+    /// at least 400 px across; the biggest wins. Not a VR room's walls ("VRBackWall", "VR_Wall_…"), nor a lighting pass.
+    /// </summary>
+    public static VpxImageInfo? PickBackPanel(IEnumerable<VpxImageInfo> images) =>
+        images
+            .Where(i =>
+            {
+                var n = i.Name.ToLowerInvariant();
+                return i.Width >= 400
+                    && i.Height > 0
+                    && (double)i.Width / i.Height is >= 1.8 and <= 4.5
+                    && (
+                        n.Contains("backpanel")
+                        || n.Contains("back panel")
+                        || n.Contains("back_panel")
+                        || n.Contains("backwall")
+                        || n.Contains("back_wall")
+                        || n.Contains("backboard")
+                    )
+                    && !n.StartsWith("vr")
+                    && !n.Contains("room")
+                    && !n.Contains("filament")
+                    && !n.Contains("steel")
+                    && !n.Contains("glass");
+            })
+            .OrderByDescending(i => (long)i.Width * i.Height)
+            .FirstOrDefault();
+
+    /// <summary>
+    /// The table's own art for the inner side wall above the playfield (a "blade") on one side: a strip named for it
+    /// ("bladel" / "blader", "sideleft" / "sideright", "LeftBlade…", "bladeLEFT…", "sidearts", "sidebladejaws",
+    /// "SIDEWALL_…"), long and narrow (2.5 to 1 or more, either way round) unless it names its side. One for this side
+    /// first, else one for both, else the other side's. Lit versions before unlit, flasher versions only when there's
+    /// nothing else. Not the community kit's sheet (PinCab_Blades: mapped for its own parts), side rails, cabinet sides
+    /// or wood trim. Null when there's none.
+    /// </summary>
+    public static VpxImageInfo? PickBlade(IEnumerable<VpxImageInfo> images, bool left)
+    {
+        var candidates = images
+            .Select(i => (Info: i, Side: BladeSide(i)))
+            .Where(c => c.Side != null)
+            .ToList();
+        int Rank((VpxImageInfo Info, char? Side) c)
+        {
+            var n = c.Info.Name.ToLowerInvariant();
+            var side =
+                c.Side == (left ? 'L' : 'R') ? 0
+                : c.Side == 'B' ? 1
+                : 2;
+            var flash = n.Contains("flash") ? 1 : 0;
+            var unlit = n.Contains("off") ? 1 : 0;
+            return side * 100 + flash * 10 + unlit;
+        }
+        return candidates
+            .OrderBy(Rank)
+            .ThenByDescending(c => (long)c.Info.Width * c.Info.Height)
+            .Select(c => c.Info)
+            .FirstOrDefault();
+    }
+
+    /// <summary>'L' or 'R' for a blade picture named for a side, 'B' for one for both, null for anything else.</summary>
+    static char? BladeSide(VpxImageInfo i)
+    {
+        var n = i.Name.ToLowerInvariant();
+        if (
+            i.Width < 256
+            || i.Height <= 0
+            || n.StartsWith("pincab")
+            || n.StartsWith("vr")
+            || n.Contains("rail")
+            || n.Contains("wood")
+            || n.Contains("sidecab")
+            || n.Contains("pfside")
+            || n.Contains("target")
+            || n.Contains("shadow")
+            || n.Contains("glow")
+            || n.Contains("patch")
+            || n.Contains("decal")
+        )
+        {
+            return null;
+        }
+
+        var blade = n.Contains("blade");
+        var sideArt =
+            n.Contains("sidewall")
+            || n.Contains("side wall")
+            || n.Contains("sideart")
+            || System.Text.RegularExpressions.Regex.IsMatch(n, @"^side(left|right|l|r)\b");
+        if (!blade && !sideArt)
+        {
+            return null;
+        }
+
+        char side =
+            n.Contains("left") ? 'L'
+            : n.Contains("right") ? 'R'
+            : System.Text.RegularExpressions.Regex.IsMatch(
+                n,
+                @"blade_?l(\b|\d|_)|^side_?l\b|bladel"
+            )
+                ? 'L'
+            : System.Text.RegularExpressions.Regex.IsMatch(
+                n,
+                @"blade_?r(\b|\d|_)|^side_?r\b|blader"
+            )
+                ? 'R'
+            : 'B';
+        var ratio = (double)i.Width / i.Height;
+        var strip = ratio >= 2.5 || ratio <= 0.4;
+        // Only a strip: a squarish picture named for a blade is a baked lighting layer for that table's own wall
+        // (The Addams Family's "bladeLEFT_giON": its playfield's reflection, mostly black), not art to lay on one.
+        return strip ? side : null;
+    }
+
+    public static string? CachedBladeLeft(string vpxPath, string cacheDir) =>
+        CachedPick(vpxPath, cacheDir, "bll", i => PickBlade(i, left: true));
+
+    public static string? CachedBladeRight(string vpxPath, string cacheDir) =>
+        CachedPick(vpxPath, cacheDir, "blr", i => PickBlade(i, left: false));
+
+    public static bool? KnownBladeLeft(string vpxPath, string cacheDir) =>
+        Known(vpxPath, cacheDir, "bll");
+
+    public static bool? KnownBladeRight(string vpxPath, string cacheDir) =>
+        Known(vpxPath, cacheDir, "blr");
+
+    /// <summary>The table's own back panel picture (<see cref="PickBackPanel"/>), cached like <see cref="CachedBackglass"/>.</summary>
+    public static string? CachedBackPanel(string vpxPath, string cacheDir) =>
+        CachedPick(vpxPath, cacheDir, "bp", PickBackPanel);
+
+    /// <summary>A picture picked out of the table by <paramref name="pick"/>, cached under <paramref name="prefix"/>; see <see cref="CachedBackglass"/>.</summary>
+    static string? CachedPick(
+        string vpxPath,
+        string cacheDir,
+        string prefix,
+        Func<IEnumerable<VpxImageInfo>, VpxImageInfo?> pick
+    )
+    {
+        try
+        {
+            if (PlayfieldCacheFiles(vpxPath, cacheDir) is not var (pf, pfNone))
+            {
+                return null;
+            }
+
+            prefix = Versioned(prefix);
+            string file = Path.Combine(cacheDir, prefix + Path.GetFileName(pf)),
+                none = Path.Combine(cacheDir, prefix + Path.GetFileName(pfNone));
+            Directory.CreateDirectory(cacheDir);
+            if (File.Exists(file))
+            {
+                return file;
+            }
+
+            if (File.Exists(none))
+            {
+                return null;
+            }
+
+            var picked = pick(ListImages(vpxPath));
+            var bytes = picked == null ? null : ExtractImage(vpxPath, picked.Index);
+            if (bytes == null || bytes.Length < 16)
+            {
+                File.WriteAllText(none, "");
+                return null;
+            }
+            var tmp = file + "." + Guid.NewGuid().ToString("N") + ".tmp";
+            File.WriteAllBytes(tmp, bytes);
+            File.Move(tmp, file, overwrite: true);
+            return file;
+        }
+        catch
+        {
+            return null; // locked, corrupt or not a compound file: the lobby does without
+        }
+    }
+
     // ---- BIFF ----------------------------------------------------------------------
 
     /// <summary>Walks [int32 length][tag][data] records; stops at the end or at anything that doesn't parse.</summary>

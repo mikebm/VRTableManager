@@ -47,6 +47,12 @@ public partial class ArtLoader : Node
     /// </summary>
     readonly Dictionary<string, (int Misses, DateTime Retry)> _failed = [];
 
+    /// <summary>The fallback each request last went out with (see Request).</summary>
+    readonly System.Collections.Concurrent.ConcurrentDictionary<string, string?> _triedFallback = new();
+
+    /// <summary>The fallback each request's work actually used ("" for none).</summary>
+    readonly System.Collections.Concurrent.ConcurrentDictionary<string, string> _usedFallback = new();
+
     /// <summary>How long a download may take before it counts as failed (and is tried again later).</summary>
     static readonly TimeSpan FetchTimeout = TimeSpan.FromSeconds(30);
 
@@ -54,6 +60,13 @@ public partial class ArtLoader : Node
 
     public static string CacheDir =>
         Directory.CreateDirectory(Path.Combine(AppSettings.DataDir, "img-cache")).FullName;
+
+    /// <summary>
+    /// Where pictures read out of table files and .directb2s files go (the playfield, the table's own backglass and
+    /// back panel, the .directb2s's backglass): the lobby's own folder (VrTableManager.Lobby.LobbyFiles), not the
+    /// img-cache it shares with the manager for pictures from the web.
+    /// </summary>
+    public static string ExtractDir => Directory.CreateDirectory(VrTableManager.Lobby.LobbyFiles.Pictures).FullName;
 
     /// <summary>Same key as the manager's ImageLoader: Convert.ToHexString(SHA1(url)).</summary>
     public static string CachePath(string url) =>
@@ -78,6 +91,15 @@ public partial class ArtLoader : Node
             return;
         }
 
+        // A fallback it didn't have before (the catalog's picture, once the catalog has loaded): kept for a request
+        // still on its way, and a reason to try again one that missed (a table file's backglass turned down).
+        var newFallback =
+            !string.IsNullOrEmpty(fallback) && _triedFallback.GetValueOrDefault(url) != fallback;
+        if (newFallback)
+        {
+            _triedFallback[url] = fallback;
+        }
+
         Touch(url);
         if (_textures.TryGetValue(url, out var known))
         {
@@ -89,9 +111,15 @@ public partial class ArtLoader : Node
             return; // loaded, or still on its way
         }
 
-        if (_failed.TryGetValue(url, out var miss) && DateTime.UtcNow < miss.Retry)
+        // Missed a moment ago: not again yet, unless it now brings a fallback it didn't have (the catalog's picture,
+        // once the catalog has loaded: a table file whose backglass was turned down has nothing else to show).
+        if (
+            _failed.TryGetValue(url, out var miss)
+            && DateTime.UtcNow < miss.Retry
+            && !newFallback
+        )
         {
-            return; // missed a moment ago: not again yet
+            return;
         }
 
         _textures[url] = (null, default);
@@ -106,19 +134,47 @@ public partial class ArtLoader : Node
                 {
                     DropIfCorrupt(url, bytes);
                 }
+                else if (
+                    url.StartsWith(VpxBackglassScheme, StringComparison.Ordinal)
+                    && (ClearShare(img) > 0.05f || HoleInMiddle(img))
+                )
+                {
+                    // A table file's backglass with a see-through window (X-Men's, for a video behind it): only part
+                    // of a picture, so the catalog's instead.
+                    img = null;
+                }
                 else
                 {
                     img = TrimGrille(url, img);
+                    // A blade drawn standing up (Attack from Mars', The Lord of the Rings'): turned to lie along the wall.
+                    if (
+                        (
+                            url.StartsWith(VpxBladeLeftScheme, StringComparison.Ordinal)
+                            || url.StartsWith(VpxBladeRightScheme, StringComparison.Ordinal)
+                        )
+                        && img.GetHeight() > img.GetWidth() * 2
+                    )
+                    {
+                        if (img.IsCompressed())
+                        {
+                            img.Decompress();
+                        }
+                        img.Rotate90(ClockDirection.Counterclockwise);
+                    }
                 }
 
-                if (img == null && !string.IsNullOrEmpty(fallback))
+                // The latest fallback asked for: one that arrived while this was on its way (the catalog loaded) counts.
+                var fb = string.IsNullOrEmpty(fallback) ? _triedFallback.GetValueOrDefault(url) : fallback;
+                _usedFallback[url] = fb ?? "";
+                if (img == null && !string.IsNullOrEmpty(fb))
                 {
-                    bytes = await FetchAsync(fallback);
+                    FellBack[url] = true; // what arrives under url is the fallback's picture
+                    bytes = await FetchAsync(fb);
                     LobbyWork.Closing.ThrowIfCancellationRequested();
                     img = Decode(bytes ?? []);
                     if (img == null)
                     {
-                        DropIfCorrupt(fallback, bytes);
+                        DropIfCorrupt(fb, bytes);
                     }
                 }
 
@@ -152,7 +208,9 @@ public partial class ArtLoader : Node
 
     /// <summary>
     /// A .directb2s backglass whose picture runs on into the speaker grille below the glass (its GrillHeight): the
-    /// grille is cut off, so only the glass goes in the backbox's glass opening.
+    /// picture is kept whole, and the grille's share of its height is noted (<see cref="GrilleShare"/>). The generic
+    /// backbox shows all of it (speakers included: it has none of its own); a table's own backbox, which has its own
+    /// speaker panel, shows only the glass above it (Cabinet.FitBackglass crops it with the material's UVs).
     /// </summary>
     static Image TrimGrille(string url, Image img)
     {
@@ -160,7 +218,7 @@ public partial class ArtLoader : Node
             !url.StartsWith(VrTableManager.Lobby.LobbyArt.B2sScheme, StringComparison.Ordinal)
             || DirectB2s.CachedBackglass(
                 url[VrTableManager.Lobby.LobbyArt.B2sScheme.Length..],
-                CacheDir
+                ExtractDir
             )
                 is not { } b2s
         )
@@ -170,18 +228,109 @@ public partial class ArtLoader : Node
 
         var h = img.GetHeight();
         var trim = DirectB2s.TrimFor(h, b2s.GrillHeight);
-        if (trim == 0)
+        if (trim > 0)
         {
-            return img;
+            GrilleShares[url] = (float)trim / h;
         }
 
+        return img;
+    }
+
+    /// <summary>Share of a picture (sampled on a 64 × 64 grid) that is more than half see-through.</summary>
+    internal static float ClearShare(Image img)
+    {
         if (img.IsCompressed())
         {
             img.Decompress();
         }
 
-        return img.GetRegion(new Rect2I(0, 0, img.GetWidth(), h - trim));
+        if (img.DetectAlpha() == Image.AlphaMode.None)
+        {
+            return 0;
+        }
+
+        int w = img.GetWidth(),
+            h = img.GetHeight(),
+            clear = 0;
+        for (var y = 0; y < 64; y++)
+        {
+            for (var x = 0; x < 64; x++)
+            {
+                if (img.GetPixel(Math.Min(w - 1, x * w / 64), Math.Min(h - 1, y * h / 64)).A < 0.5f)
+                {
+                    clear++;
+                }
+            }
+        }
+
+        return clear / 4096f;
     }
+
+    /// <summary>
+    /// A picture whose middle (a quarter of its width, half its height) is one block of black: a backglass frame left
+    /// open for a video or display behind it (X-Men's), not a whole picture.
+    /// </summary>
+    internal static bool HoleInMiddle(Image img)
+    {
+        int w = img.GetWidth(),
+            h = img.GetHeight(),
+            black = 0;
+        for (var y = 0; y < 16; y++)
+        {
+            for (var x = 0; x < 16; x++)
+            {
+                var c = img.GetPixel(
+                    Math.Min(w - 1, w * 38 / 100 + x * w * 24 / 1600),
+                    Math.Min(h - 1, h / 4 + y * h / 32)
+                );
+                if (c.A < 0.5f || c.R + c.G + c.B < 0.06f)
+                {
+                    black++;
+                }
+            }
+        }
+
+        return black > 256 * 0.9f;
+    }
+
+    /// <summary>Art key for the table's own backglass picture inside its .vpx (VpxImages.PickBackglass).</summary>
+    public const string VpxBackglassScheme = "vpxbg:";
+
+    /// <summary>Art key for the table's own back panel picture inside its .vpx (VpxImages.PickBackPanel).</summary>
+    public const string VpxBackPanelScheme = "vpxbp:";
+
+    /// <summary>Art keys for the table's own inner side wall pictures, left and right (VpxImages.PickBlade).</summary>
+    public const string VpxBladeLeftScheme = "vpxbl:",
+        VpxBladeRightScheme = "vpxbr:";
+
+    /// <summary>Requests whose picture came from their fallback (the catalog's) instead.</summary>
+    static readonly System.Collections.Concurrent.ConcurrentDictionary<string, bool> FellBack = new(
+        StringComparer.Ordinal
+    );
+
+    /// <summary>
+    /// Whether a loaded backglass picture is just the glass (a .directb2s's, the table file's own, or one you chose)
+    /// rather than the catalog's, which is often a photo of the whole backbox front with its speakers and display.
+    /// A backbox with a speaker panel of its own only takes glass (Cabinet.ShowReal).
+    /// </summary>
+    public static bool IsGlassOnly(string? url) =>
+        url != null
+        && !FellBack.ContainsKey(url)
+        && (
+            url.StartsWith(VrTableManager.Lobby.LobbyArt.B2sScheme, StringComparison.Ordinal)
+            || url.StartsWith(VpxBackglassScheme, StringComparison.Ordinal)
+            || UserArtwork.PathOf(url) != null
+        );
+
+    static readonly System.Collections.Concurrent.ConcurrentDictionary<string, float> GrilleShares =
+        new(StringComparer.Ordinal);
+
+    /// <summary>
+    /// Share (0–1) of a loaded backglass picture's height, at the bottom, that is its speaker grille rather than glass
+    /// (a .directb2s's GrillHeight); 0 for anything else.
+    /// </summary>
+    public static float GrilleShare(string? url) =>
+        url != null && GrilleShares.TryGetValue(url, out var s) ? s : 0f;
 
     /// <summary>Encoded picture bytes: from the table file, the backglass file, or the web picture via the manager's cache.</summary>
     async Task<byte[]?> FetchAsync(string url)
@@ -196,12 +345,40 @@ public partial class ArtLoader : Node
 
             if (url.StartsWith(VrTableManager.Lobby.LobbyArt.VpxScheme, StringComparison.Ordinal))
             {
-                // Extracted once per table version into the same cache folder, then read from there.
+                // Extracted once per table version into the lobby's pictures folder, then read from there.
                 var extracted = VpxImages.CachedPlayfield(
                     url[VrTableManager.Lobby.LobbyArt.VpxScheme.Length..],
-                    CacheDir
+                    ExtractDir
                 );
                 return extracted == null ? null : await File.ReadAllBytesAsync(extracted);
+            }
+
+            if (
+                url.StartsWith(VpxBladeLeftScheme, StringComparison.Ordinal)
+                || url.StartsWith(VpxBladeRightScheme, StringComparison.Ordinal)
+            )
+            {
+                // The table's own inner side wall art (VpxImages.PickBlade), extracted once per table version.
+                var left = url.StartsWith(VpxBladeLeftScheme, StringComparison.Ordinal);
+                var vpx = url[(left ? VpxBladeLeftScheme : VpxBladeRightScheme).Length..];
+                var blade = left
+                    ? VpxImages.CachedBladeLeft(vpx, ExtractDir)
+                    : VpxImages.CachedBladeRight(vpx, ExtractDir);
+                return blade == null ? null : await File.ReadAllBytesAsync(blade);
+            }
+
+            if (url.StartsWith(VpxBackPanelScheme, StringComparison.Ordinal))
+            {
+                // The table's own back panel picture (VpxImages.PickBackPanel), extracted once per table version.
+                var panel = VpxImages.CachedBackPanel(url[VpxBackPanelScheme.Length..], ExtractDir);
+                return panel == null ? null : await File.ReadAllBytesAsync(panel);
+            }
+
+            if (url.StartsWith(VpxBackglassScheme, StringComparison.Ordinal))
+            {
+                // The table's own backglass picture (VpxImages.PickBackglass), extracted once per table version.
+                var own = VpxImages.CachedBackglass(url[VpxBackglassScheme.Length..], ExtractDir);
+                return own == null ? null : await File.ReadAllBytesAsync(own);
             }
 
             if (url.StartsWith(VrTableManager.Lobby.LobbyArt.B2sScheme, StringComparison.Ordinal))
@@ -209,7 +386,7 @@ public partial class ArtLoader : Node
                 // The backglass inside the table's .directb2s, extracted once per version of that file.
                 var b2s = DirectB2s.CachedBackglass(
                     url[VrTableManager.Lobby.LobbyArt.B2sScheme.Length..],
-                    CacheDir
+                    ExtractDir
                 );
                 return b2s == null ? null : await File.ReadAllBytesAsync(b2s.Value.File);
             }
@@ -272,6 +449,10 @@ public partial class ArtLoader : Node
             || UserArtwork.PathOf(url) != null
             || url.StartsWith(VrTableManager.Lobby.LobbyArt.VpxScheme, StringComparison.Ordinal)
             || url.StartsWith(VrTableManager.Lobby.LobbyArt.B2sScheme, StringComparison.Ordinal)
+            || url.StartsWith(VpxBackglassScheme, StringComparison.Ordinal)
+            || url.StartsWith(VpxBackPanelScheme, StringComparison.Ordinal)
+            || url.StartsWith(VpxBladeLeftScheme, StringComparison.Ordinal)
+            || url.StartsWith(VpxBladeRightScheme, StringComparison.Ordinal)
         )
         {
             return;
@@ -334,6 +515,17 @@ public partial class ArtLoader : Node
         if (_textures.TryGetValue(url, out var e) && e.Tex == null)
         {
             _textures.Remove(url);
+        }
+
+        // A fallback came in while it was on its way, too late for it: not a miss, it goes again with that one
+        // (backglasses are the pictures that get a fallback; they take the usual size).
+        if (
+            _triedFallback.GetValueOrDefault(url) is { Length: > 0 } latest
+            && _usedFallback.GetValueOrDefault(url) != latest
+        )
+        {
+            Request(url, latest);
+            return;
         }
 
         var misses = _failed.TryGetValue(url, out var f) ? f.Misses + 1 : 1;

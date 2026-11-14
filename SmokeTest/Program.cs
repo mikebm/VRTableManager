@@ -1269,11 +1269,19 @@ foreach (
 }
 WithTable(
     "Elvira and the Party Monsters",
-    "Elvira: both back panels stay (\"background\" rises above \"Pincab_Backwall\", as in VPX)",
+    "Elvira: its art board and what hangs on it, not the VR kit's dark board over it; the printed inner walls the script shows",
     vpx =>
         PartsOf(vpx) is { } named
         && named.ContainsKey("background")
-        && named.ContainsKey("Pincab_Backwall")
+        && !named.ContainsKey("Pincab_Backwall")
+        && named.ContainsKey("MSWall")
+        && named.ContainsKey("deadheadsframe")
+        && named.ContainsKey("Cab_Black")
+);
+WithTable(
+    "Dungeons and Dragons (Bally 1987)",
+    "Dungeons & Dragons: its back picture standing 9% in from the back edge (\"Backdrop\")",
+    vpx => PartsOf(vpx) is { } named && named.ContainsKey("Backdrop")
 );
 
 // Each part built from a VPX wall, on its own: nearly every triangle's front faces where its normals point (Godot's
@@ -2895,6 +2903,67 @@ Console.WriteLine($"   gamepad connected: {Gamepad.IsConnected()?.ToString() ?? 
 foreach (var (ok, name) in LobbyBackglassChecks.Run(root))
 {
     Check(ok, name);
+}
+
+// The VR lobby's caches move under vr-lobby: cabinets, attract sound, and only the lobby's own files from img-cache
+// (pictures from the web, which the manager shares, stay). In a data folder of its own.
+{
+    var data = Path.Combine(root, "lobby-files-data");
+    var was = Environment.GetEnvironmentVariable("VRTM_DATA_DIR");
+    Environment.SetEnvironmentVariable("VRTM_DATA_DIR", data);
+    try
+    {
+        Directory.CreateDirectory(Path.Combine(data, "cabinet-cache"));
+        Directory.CreateDirectory(Path.Combine(data, "attract-audio"));
+        Directory.CreateDirectory(Path.Combine(data, "img-cache"));
+        File.WriteAllText(Path.Combine(data, "cabinet-cache", "ABC.cab"), "cab");
+        File.WriteAllText(Path.Combine(data, "attract-audio", "afm_113.wav"), "wav");
+        foreach (
+            var n in new[]
+            {
+                "vpx-1.img",
+                "bgvpx-2.img",
+                "bpvpx-3.none",
+                "b2s-4.img",
+                "b2s-4.grill",
+            }
+        )
+        {
+            File.WriteAllText(Path.Combine(data, "img-cache", n), n);
+        }
+        File.WriteAllText(Path.Combine(data, "img-cache", "0123ABCD.img"), "web"); // a web picture: the manager's too
+        var cabinets = VrTableManager.Lobby.LobbyFiles.Cabinets; // asking for a folder moves the old caches first
+        var pictures = VrTableManager.Lobby.LobbyFiles.Pictures;
+        var audio = VrTableManager.Lobby.LobbyFiles.AttractAudio;
+        Check(
+            File.ReadAllText(Path.Combine(cabinets, "ABC.cab")) == "cab"
+                && File.Exists(Path.Combine(audio, "afm_113.wav"))
+                && new[]
+                {
+                    "vpx-1.img",
+                    "bgvpx-2.img",
+                    "bpvpx-3.none",
+                    "b2s-4.img",
+                    "b2s-4.grill",
+                }.All(n =>
+                    File.Exists(Path.Combine(pictures, n))
+                    && !File.Exists(Path.Combine(data, "img-cache", n))
+                )
+                && File.Exists(Path.Combine(data, "img-cache", "0123ABCD.img"))
+                && !File.Exists(Path.Combine(pictures, "0123ABCD.img"))
+                && !Directory.Exists(Path.Combine(data, "cabinet-cache"))
+                && cabinets.StartsWith(
+                    Path.Combine(data, "vr-lobby"),
+                    StringComparison.OrdinalIgnoreCase
+                )
+                && VrTableManager.Lobby.CabinetFiles.DefaultDir == cabinets,
+            "VR lobby caches: moved under vr-lobby once (cabinets, attract sound, the lobby's own pictures), web pictures left in img-cache"
+        );
+    }
+    finally
+    {
+        Environment.SetEnvironmentVariable("VRTM_DATA_DIR", was);
+    }
 }
 
 foreach (var (ok, name) in HighScoreChecks.Run())

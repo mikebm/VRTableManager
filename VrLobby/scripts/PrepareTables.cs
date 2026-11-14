@@ -12,8 +12,11 @@ namespace VrLobby;
 /// <item>its playfield picture (<see cref="VpxImages.CachedPlayfield"/>);</item>
 /// <item>its playfield's height map, for a table with a lobby video (<see cref="PlayfieldDepth"/>), unless lobby
 /// videos are turned off.</item>
+/// <item>its own backglass, back panel and inner side wall pictures (<see cref="VpxImages.CachedBackglass"/>,
+/// <see cref="VpxImages.CachedBackPanel"/>), and its .directb2s's backglass (<see cref="DirectB2s"/>): the
+/// default cabinet wears them.</item>
 /// </list>
-/// All three are read one table after another, while its file is still in Windows' cache. Tables already done are
+/// They are read one table after another, while its file is still in Windows' cache. Tables already done are
 /// skipped, so running it again only does new and updated ones. Progress goes to standard output, one line each,
 /// for the manager to show: <c>PREPARE-TOTAL todo all</c>, <c>PREPARE i todo title</c>,
 /// <c>PREPARE-ERROR title: message</c>, <c>PREPARE-DONE prepared failed</c>.
@@ -22,7 +25,7 @@ static class PrepareTables
 {
     public static int Run(IEnumerable<LobbyTable> library, AppSettings settings, string? cabinetDir)
     {
-        var artDir = ArtLoader.CacheDir;
+        var artDir = ArtLoader.ExtractDir;
         var tables = library
             .Select(t => (Table: t, Vpx: Main.VpxFile(t)))
             .Where(x => x.Vpx != null && File.Exists(x.Vpx))
@@ -51,6 +54,29 @@ static class PrepareTables
                     VpxImages.CachedPlayfield(vpx, artDir);
                 }
 
+                // The pictures the lobby otherwise reads out of the table file (or its .directb2s) the first time it
+                // shows the table: its own backglass and back panel, and the .directb2s's backglass.
+                if (needs.OwnBackglass)
+                {
+                    VpxImages.CachedBackglass(vpx, artDir);
+                }
+
+                if (needs.BackPanel)
+                {
+                    VpxImages.CachedBackPanel(vpx, artDir);
+                }
+
+                if (needs.Blades)
+                {
+                    VpxImages.CachedBladeLeft(vpx, artDir);
+                    VpxImages.CachedBladeRight(vpx, artDir);
+                }
+
+                if (needs.B2s is { } b2s)
+                {
+                    DirectB2s.CachedBackglass(b2s, artDir);
+                }
+
                 if (needs.Cabinet && cabinetDir != null)
                 {
                     CabinetCache.Save(vpx, cabinetDir, RealCabinetLoader.Parse(vpx));
@@ -72,9 +98,18 @@ static class PrepareTables
         return 0;
     }
 
-    readonly record struct Work(bool Cabinet, bool Playfield, string? Depth)
+    readonly record struct Work(
+        bool Cabinet,
+        bool Playfield,
+        string? Depth,
+        bool OwnBackglass = false,
+        bool BackPanel = false,
+        bool Blades = false,
+        string? B2s = null
+    )
     {
-        public bool Any => Cabinet || Playfield || Depth != null;
+        public bool Any =>
+            Cabinet || Playfield || Depth != null || OwnBackglass || BackPanel || Blades || B2s != null;
     }
 
     static Work Needs(
@@ -97,7 +132,16 @@ static class PrepareTables
             && !PlayfieldDepth.IsKnown(folder, vpx)
                 ? folder
                 : null;
-        return new Work(cabinet, playfield, depth);
+        var b2s = Backglasses.PathFor(t.Source);
+        return new Work(
+            cabinet,
+            playfield,
+            depth,
+            OwnBackglass: VpxImages.KnownBackglass(vpx, artDir) == null,
+            BackPanel: VpxImages.KnownBackPanel(vpx, artDir) == null,
+            Blades: VpxImages.KnownBladeLeft(vpx, artDir) == null || VpxImages.KnownBladeRight(vpx, artDir) == null,
+            B2s: File.Exists(b2s) && !DirectB2s.IsCached(b2s, artDir) ? b2s : null
+        );
     }
 
     /// <summary>A line for the manager, written straight away (Godot's own printing may hold it back).</summary>

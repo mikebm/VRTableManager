@@ -11,7 +11,7 @@ namespace VrTableManager.Lobby;
 /// </summary>
 public static class CabinetFiles
 {
-    public static string DefaultDir => Path.Combine(AppSettings.DataDir, "cabinet-cache");
+    public static string DefaultDir => LobbyFiles.Cabinets;
 
     public static string FileFor(string vpx, string dir) =>
         Path.Combine(

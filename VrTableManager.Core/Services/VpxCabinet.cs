@@ -69,8 +69,21 @@ public sealed class VpxCabinetModel
 
     /// <summary>Height of the playfield surface at its front edge (for the lockbar-height sanity check).</summary>
     public float PlayfieldFrontHeight => PlayfieldCorners.Length == 4 ? PlayfieldCorners[3].Y : 0;
+
+    /// <summary>
+    /// The table's own parts standing along its playfield's sides and back (visible, textured, not cabinet parts): the
+    /// inner walls and back board a desktop table draws there (Elvira's "left_rail", "Right_rail", "background"). Same
+    /// space as <see cref="Parts"/>; not part of the cabinet (its bounds and levelling ignore them). The lobby looks
+    /// at them for a table's wall art (RealCabinet.OwnWallsOn).
+    /// </summary>
+    public List<VpxCabinetPart> EdgeParts { get; init; } = [];
+
     public IEnumerable<string> ImageNames =>
-        Parts.Select(p => p.Image).OfType<string>().Distinct(StringComparer.OrdinalIgnoreCase);
+        Parts
+            .Concat(EdgeParts)
+            .Select(p => p.Image)
+            .OfType<string>()
+            .Distinct(StringComparer.OrdinalIgnoreCase);
 }
 
 /// <summary>
@@ -577,6 +590,7 @@ public static class VpxCabinet
         try
         {
             var t = Read(vpxPath, meshes: true);
+            ShowScriptShown(t, vpxPath);
             var picked = Pick(t);
             if (picked.Count == 0)
             {
@@ -599,11 +613,15 @@ public static class VpxCabinet
                     }
                 }
             }
+            // Edge parts leave out the dropped boards too: they'd come back as edges otherwise.
+            var considered = picked;
             picked = DropHiddenBackBoards(picked, t);
+            var edges = EdgePrims(t, considered);
 
             // Build every part in VPX space first (in metres, axes swapped), then anchor the whole cabinet.
             var parts = new List<(Prim P, float[] Pos, float[] Nrm, float[] Uv, int[] Idx)>();
-            foreach (var p in picked)
+            var edgeSet = edges.ToHashSet();
+            foreach (var p in picked.Concat(edges))
             {
                 var m = FullMatrix(p, t);
                 var normalMatrix = Matrix4x4.Invert(m, out var inv) ? Matrix4x4.Transpose(inv) : m;
@@ -656,7 +674,7 @@ public static class VpxCabinet
             // VR cabinets are built in VPX's playfield space, where the playfield is level, so the cabinet as
             // read leans back by the playfield's slope: its back legs reach the floor and its front legs stop
             // 14-21 cm above it. Tip it forward until both pairs stand on the same floor.
-            var tilt = LevelingTilt(parts.Select(x => x.Pos));
+            var tilt = LevelingTilt(parts.Where(x => !edgeSet.Contains(x.P)).Select(x => x.Pos));
             var (sin, cos) = MathF.SinCos(tilt);
             Vector3 Level(Vector3 v) => new(v.X, v.Y * cos - v.Z * sin, v.Y * sin + v.Z * cos);
             if (tilt != 0)
@@ -679,8 +697,13 @@ public static class VpxCabinet
 
             var min = new Vector3(float.MaxValue);
             var max = new Vector3(float.MinValue);
-            foreach (var (_, pos, _, _, _) in parts)
+            foreach (var (p0, pos, _, _, _) in parts)
             {
+                if (edgeSet.Contains(p0))
+                {
+                    continue; // not the cabinet: its size and place are the cabinet's alone
+                }
+
                 for (var i = 0; i < pos.Length; i += 3)
                 {
                     var v = new Vector3(pos[i], pos[i + 1], pos[i + 2]);
@@ -716,6 +739,8 @@ public static class VpxCabinet
                     };
                 })
                 .ToList();
+            var edgeParts = outParts.Where((_, i) => edgeSet.Contains(parts[i].P)).ToList();
+            outParts = outParts.Where((_, i) => !edgeSet.Contains(parts[i].P)).ToList();
 
             // Playfield rectangle at playfield height (z = 0 in playfield space), same mapping, except for its slope.
             // VPX shows a VR table inclined by the table's own playfield slope (its SLOP..SLPX range, which the
@@ -742,6 +767,7 @@ public static class VpxCabinet
             return new VpxCabinetModel
             {
                 Parts = outParts,
+                EdgeParts = edgeParts,
                 PlayfieldCorners =
                 [
                     Pf(t.Left, t.Top),
@@ -806,6 +832,64 @@ public static class VpxCabinet
 
         var tilt = MathF.Atan2(front.Y - back.Y, front.Z - back.Z);
         return tilt is > 0.5f * MathF.PI / 180 and < 12f * MathF.PI / 180 ? tilt : 0;
+    }
+
+    /// <summary>
+    /// The table's own parts along its playfield's sides and back (VpxCabinetModel.EdgeParts): visible, textured
+    /// primitives and walls that weren't considered as cabinet parts, standing at least 2 cm up, either beside the
+    /// playfield (within its outer eighth either side) along at least 40% of its length, or across its back (within
+    /// its back eighth) over at least half its width. Not lightmaps, nor meshes over 30,000 vertices. Only roughly: the
+    /// lobby keeps just their faces that stand up facing inwards.
+    /// </summary>
+    static List<Prim> EdgePrims(TableData t, List<Prim> picked)
+    {
+        var taken = picked.ToHashSet();
+        float w = t.Right - t.Left,
+            h = t.Bottom - t.Top;
+        if (w <= 0 || h <= 0)
+        {
+            return [];
+        }
+
+        return t
+            .Prims.Concat(t.Walls)
+            .Where(p =>
+                !taken.Contains(p)
+                && p.Visible
+                && (p.IsWall || p.Use3DMesh)
+                && p.Verts != null
+                && p.Indices != null
+                && p.NumVerts is > 0 and <= 30_000 // a guard against huge merged meshes; real wall art stays well under
+                && !string.IsNullOrWhiteSpace(p.Image)
+                // VLM lightmaps ("LM_…") are light layers over the baked meshes, mostly black: drawn opaque on the
+                // transplanted walls they blackened them.
+                && !NotGeometry.IsMatch(p.Name)
+            )
+            .Where(p =>
+            {
+                var (a, b) = Bounds(p, t);
+                const float cm = 1f / 100f / VpuToMetres;
+                // On the playfield: from its surface up to 40 cm, within its outline (a little beyond, behind most).
+                // Not the VR room round the table (KISS's "VR_Wall_Left", Big Trouble's "VR_Room"): those stand far off.
+                if (
+                    b.Z - Math.Max(a.Z, 0) < 2 * cm
+                    || a.Z < -3 * cm
+                    || b.Z > 40 * cm
+                    || a.X < t.Left - w * 0.08f
+                    || b.X > t.Right + w * 0.08f
+                    || a.Y < t.Top - h * 0.15f
+                    || b.Y > t.Bottom + h * 0.05f
+                )
+                {
+                    return false;
+                }
+
+                var side =
+                    (a.X <= t.Left + w / 8 || b.X >= t.Right - w / 8) && b.Y - a.Y >= h * 0.4f;
+                var back = a.Y <= t.Top + h / 8 && b.X - a.X >= w * 0.5f;
+                return side || back;
+            })
+            .ToList();
     }
 
     /// <summary>
@@ -905,7 +989,61 @@ public static class VpxCabinet
         {
             picked.Add(baked);
         }
+        var mounts = BackBoardMounts(t, picked, have);
+        picked.AddRange(mounts);
         return DropNearCopies(DropUnlitCopies(picked), t);
+    }
+
+    /// <summary>
+    /// Flat parts mounted on the face of a picked back board: textured, shown, within its width and height, and no
+    /// more than about 2 cm deep, from its front face to 2 cm in front of it. A board's art often leaves holes where
+    /// they hang (Elvira's "_cab_back" has black windows behind its "MSWall", "deadheadsframe" and dead-head targets),
+    /// which showed as black squares without them. Toys standing further forward on the playfield aren't mounts. No
+    /// name check against room parts: a mount is often called a wall ("MSWall"), and its place already rules the room out.
+    /// </summary>
+    static List<Prim> BackBoardMounts(TableData t, List<Prim> picked, HashSet<Prim> have)
+    {
+        const float cm = 1f / 100f / VpuToMetres;
+        var boards = picked.Where(p => IsBackBoard(p, t)).Select(p => Bounds(p, t)).ToList();
+        if (boards.Count == 0)
+        {
+            return [];
+        }
+        var found = new List<Prim>();
+        foreach (var p in t.Prims)
+        {
+            if (
+                have.Contains(p)
+                || !p.Visible
+                || !p.Use3DMesh
+                || p.Verts == null
+                || p.Indices == null
+                || p.NumVerts is 0 or > 10_000
+                || string.IsNullOrWhiteSpace(p.Image)
+                || NotGeometry.IsMatch(p.Name)
+                || NotCabinetByPlace.IsMatch(p.Name)
+            )
+            {
+                continue;
+            }
+            var (a, b) = Bounds(p, t);
+            if (
+                b.Y - a.Y <= 2 * cm
+                && b.Z - a.Z >= 2 * cm
+                && boards.Any(o =>
+                    a.Y >= o.Max.Y - 0.5f * cm
+                    && b.Y <= o.Max.Y + 2 * cm
+                    && a.X >= o.Min.X - 5
+                    && b.X <= o.Max.X + 5
+                    && a.Z >= Math.Max(o.Min.Z, 0) - 5
+                    && b.Z <= o.Max.Z + 5
+                )
+            )
+            {
+                found.Add(p);
+            }
+        }
+        return found;
     }
 
     /// <summary>
@@ -948,8 +1086,7 @@ public static class VpxCabinet
     ///   (one that reaches past the art, like JAWS's black "Wall007" below "Wall15", fills a gap and stays);
     /// - a board shut wholly inside another one (inside its depth, and no wider or taller), which VPX hides and the
     ///   lobby would show flickering through it.
-    /// A board that reaches out of the other one stays: Elvira's "background" stands just behind "Pincab_Backwall"
-    /// but rises above it, and that top part shows in VPX too, so both are drawn.
+    /// - a VR cabinet's board over the table's own art board in the same place (see below).
     /// </summary>
     /// <summary>
     /// A textured back board whose art starts a little above the playfield (up to about 3 cm: JAWS's "Wall15" at
@@ -975,8 +1112,48 @@ public static class VpxCabinet
             return picked;
         }
         var drop = new HashSet<Prim>();
+        // A VR cabinet's own board over the table's art board, their faces in the same place (within 1 cm): VPX shows
+        // the art on desktop and the kit board in VR, and the lobby drew both, flickering through each other. The art
+        // stays (Elvira's dark "Pincab_Backwall", 0.2 mm in front of its "background" bats and windows).
+        var vrCab = t
+            .Collections.Where(c => VrCabinetCollection.IsMatch(c.Key))
+            .SelectMany(c => c.Value)
+            .ToHashSet(StringComparer.OrdinalIgnoreCase);
+        const float cm = 1f / 100f / VpuToMetres;
+        foreach (
+            var p in boards.Where(p =>
+                vrCab.Contains(p.Name) && !string.IsNullOrWhiteSpace(p.Image)
+            )
+        )
+        {
+            var (a, b) = Bounds(p, t);
+            if (
+                boards.Any(o =>
+                {
+                    if (o == p || vrCab.Contains(o.Name) || string.IsNullOrWhiteSpace(o.Image))
+                    {
+                        return false;
+                    }
+                    var (oa, ob) = Bounds(o, t);
+                    // Covered by the art: as near, and no wider, lower or taller (a kit board that reaches past
+                    // the art still shows there in VPX, and stays).
+                    return MathF.Abs(ob.Y - b.Y) < cm
+                        && oa.X <= a.X + 5
+                        && ob.X >= b.X - 5
+                        && oa.Z <= a.Z + 5
+                        && ob.Z >= b.Z - 5;
+                })
+            )
+            {
+                drop.Add(p);
+            }
+        }
         foreach (var p in boards)
         {
+            if (drop.Contains(p))
+            {
+                continue;
+            }
             var (a, b) = Bounds(p, t);
             if (
                 string.IsNullOrWhiteSpace(p.Image)
@@ -1150,13 +1327,19 @@ public static class VpxCabinet
         return found;
     }
 
+    /// <summary>
+    /// How far in from the playfield's back edge a back board may stand, as a share of its length: Dungeons &amp;
+    /// Dragons's "Backdrop" stands 9% in, the playfield picture running on behind it.
+    /// </summary>
+    const float BackZone = 0.10f;
+
     /// <summary>A board across the back of the playfield: reaching both sides, standing at its back edge, about rail height.</summary>
     static bool IsBackBoard(Prim p, TableData t)
     {
         var (a, b) = Bounds(p, t);
         return a.X <= t.Left + 40
             && b.X >= t.Right - 40
-            && b.Y <= t.Top + (t.Bottom - t.Top) * 0.05f
+            && b.Y <= t.Top + (t.Bottom - t.Top) * BackZone
             && a.Y >= t.Top - 150
             && a.Z <= 100 // standing on the playfield, not up in the backbox (a backglass)
             && b.Z >= 120;
@@ -1350,7 +1533,7 @@ public static class VpxCabinet
             var railHigh = a.Z >= -100 && b.Z is >= 120 and <= 500;
             // The board across the back of the playfield (AC/DC's "BackboardWallOff", a VPX wall): it doesn't run
             // along, it stands at the back edge.
-            var atBack = b.Y <= t.Top + (t.Bottom - t.Top) * 0.05f && a.Y >= t.Top - 150;
+            var atBack = b.Y <= t.Top + (t.Bottom - t.Top) * BackZone && a.Y >= t.Top - 150;
             // The low wooden boards on the playfield's edges, about an inch tall (JAWS's "Wall98", Medieval Madness's
             // "Wall271"/"Wall272", AC/DC's "sidewood", AFM's "WOODRAILS"), often one per side: they cover the dark
             // edge of the playfield picture, which otherwise showed as an inch-wide gap round the playfield.
@@ -1426,7 +1609,9 @@ public static class VpxCabinet
                 }
             }
 
-            if (covered == 0 || middle > covered / 10)
+            // A board across the back can't run through the middle, and a flat picture standing upright (Dungeons &
+            // Dragons's "Backdrop", a single quad) covers nothing seen from above.
+            if (!(atBack && !along) && (covered == 0 || middle > covered / 10))
             {
                 continue;
             }
@@ -1508,6 +1693,67 @@ public static class VpxCabinet
     static readonly Regex ScriptImage = new(
         @"\b([A-Za-z_]\w*)\.image\s*=\s*""([^""\r\n]+)""[ \t]*(?=:|\r?$)",
         RegexOptions.IgnoreCase | RegexOptions.Multiline
+    );
+
+    /// <summary>
+    /// Parts hidden in the file that the script shows (".visible = 1") and never hides anywhere: shown in every mode,
+    /// desktop and VR alike, so they count as visible. Elvira's "Cab_Black", the printed inner walls round its
+    /// playfield, is hidden in the file and outside its "VRCabinet" collection, and was left out. A part the script
+    /// also hides somewhere is shown only in some mode or by an option (The Addams Family's desktop "Grill"), and
+    /// stays as the file has it. Only parts round the playfield count (see below).
+    /// </summary>
+    static void ShowScriptShown(TableData t, string vpxPath)
+    {
+        if (t.Prims.Concat(t.Walls).All(p => p.Visible))
+        {
+            return;
+        }
+        try
+        {
+            var script = WithoutComments(RomAudio.Script(vpxPath));
+            var hides = ScriptHides
+                .Matches(script)
+                .Select(m => m.Groups[1].Value)
+                .ToHashSet(StringComparer.OrdinalIgnoreCase);
+            var shows = ScriptShows
+                .Matches(script)
+                .Select(m => m.Groups[1].Value)
+                .Where(n => !hides.Contains(n))
+                .ToHashSet(StringComparer.OrdinalIgnoreCase);
+            float w = t.Right - t.Left,
+                h = t.Bottom - t.Top;
+            const float cm = 1f / 100f / VpuToMetres;
+            foreach (var p in t.Prims.Concat(t.Walls))
+            {
+                if (p.Visible || !shows.Contains(p.Name))
+                {
+                    continue;
+                }
+                // Only round the playfield, up to 40 cm above it: elsewhere a part the script shows may be one VR
+                // option's (Total Nuclear Annihilation's "PinCab_Backglass", shown alone in its backglass-only room).
+                var (a, b) = Bounds(p, t);
+                if (
+                    a.Z >= -3 * cm
+                    && b.Z <= 40 * cm
+                    && a.X >= t.Left - w * 0.08f
+                    && b.X <= t.Right + w * 0.08f
+                    && a.Y >= t.Top - h * 0.15f
+                    && b.Y <= t.Bottom + h * 0.05f
+                )
+                {
+                    p.Visible = true;
+                }
+            }
+        }
+        catch
+        {
+            // no script to read: the parts stay as the file has them
+        }
+    }
+
+    static readonly Regex ScriptShows = new(
+        @"\b([A-Za-z_]\w*)\.visible\s*=\s*(1|true)\b",
+        RegexOptions.IgnoreCase
     );
 
     static readonly Regex ScriptHides = new(

@@ -75,7 +75,7 @@ public static class AppFolders
 {
     public static string Downloads => Path.Combine(AppSettings.DataDir, "downloads");
     public static string ArtworkCache => Path.Combine(AppSettings.DataDir, "img-cache");
-    public static string CabinetCache => Path.Combine(AppSettings.DataDir, "cabinet-cache");
+    public static string CabinetCache => Lobby.LobbyFiles.Cabinets;
     public static string BrowserProfile => Path.Combine(AppSettings.DataDir, "browser-profile");
     public static string Godot =>
         Path.Combine(
@@ -161,9 +161,16 @@ public static class AppFolders
             ),
             E(
                 "Lobby cabinet cache",
-                "Playfield images the VR lobby made from your tables. Rebuilt when needed.",
+                "Cabinets and pictures the VR lobby read from your tables. Rebuilt when needed, or by PREPARE TABLES.",
                 true,
-                CabinetCache
+                CabinetCache,
+                Lobby.LobbyFiles.Pictures
+            ),
+            E(
+                "Lobby attract sound",
+                "Each table's attract-mode sound, recorded from its ROM for the VR lobby. Recording it again takes about 40 seconds a table.",
+                true,
+                Lobby.LobbyFiles.AttractAudio
             ),
             E(
                 "Sign-in browser",

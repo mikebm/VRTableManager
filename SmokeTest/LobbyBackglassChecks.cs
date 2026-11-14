@@ -141,6 +141,44 @@ static class LobbyBackglassChecks
             )
         );
 
+        // The table file's own backglass and back panel pictures, by name and shape (names from real tables).
+        static VpxImageInfo Img(string name, int w, int h) => new(0, name, w, h);
+        var bg = VpxImages.PickBackglass([
+            Img("FS Backdrop", 1920, 1080),
+            Img("Pincab_Glass_Scratches", 2160, 3840),
+            Img("Pincab_DMD_Grill_Stern", 1024, 1024),
+            Img("x-menBG", 1920, 1370),
+            Img("backglass", 1524, 938),
+        ]);
+        var bg2 = VpxImages.PickBackglass([
+            Img("BackGlassImage", 2307, 2235),
+            Img("backboxtranslite", 2048, 2048),
+        ]);
+        var noBg = VpxImages.PickBackglass([
+            Img("FS_backdrop-5", 3840, 976),
+            Img("Pincab_Backbox", 2048, 4096),
+        ]);
+        var bp = VpxImages.PickBackPanel([
+            Img("VRBackWall", 2000, 3900),
+            Img("VR_Wall_Left", 2000, 2000),
+            Img("backpanel", 2048, 792),
+            Img("BackpanelFilamentGIOn", 1024, 300),
+        ]);
+        var noBp = VpxImages.PickBackPanel([
+            Img("BackpanelGIOff", 4096, 4096),
+            Img("backwall", 100, 40),
+        ]);
+        results.Add(
+            (
+                bg?.Name == "x-menBG"
+                    && bg2?.Name == "BackGlassImage"
+                    && noBg == null
+                    && bp?.Name == "backpanel"
+                    && noBp == null,
+                "lobby art: the table file's own backglass and back panel pictures are found by name and shape"
+            )
+        );
+
         return results;
     }
 

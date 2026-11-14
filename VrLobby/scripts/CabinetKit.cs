@@ -29,21 +29,12 @@ public static class CabinetKit
     /// <summary>The playfield fills the well from side board to side board and front wall to backbox.</summary>
     public static Vector2 PlayfieldSize => new(Width - 2 * WallThick + 0.004f, WellLength);
     public static readonly Vector2 BackglassSize = new(0.68f, 0.51f); // 4:3, like VPS backglass images
-    const float GlassTopMargin = 0.045f;
-    public static float BackglassCentreY =>
-        BoxBottom + BoxHeight - GlassTopMargin - BackglassSize.Y / 2;
-
-    // Speaker panel under the backglass: two grilles with the dot-matrix display between them.
-    // The panel starts above the trim strip in front of the backbox's base, so the speakers clear it.
-    const float PanelBottomMargin = 0.10f,
-        PanelGap = 0.02f;
-    static float PanelTop => BackglassCentreY - BackglassSize.Y / 2 - PanelGap;
-    static float PanelHeight => PanelTop - (BoxBottom + PanelBottomMargin);
-    public static float PanelCentreY => BoxBottom + PanelBottomMargin + PanelHeight / 2;
-    public const float SpeakerX = 0.235f,
-        SpeakerRadius = 0.085f;
-    public static readonly Vector2 DmdSize = new(0.30f, 0.085f);
+    public static float BackglassCentreY => BoxBottom + BoxHeight - 0.045f - BackglassSize.Y / 2;
     public static float Height => BoxBottom + BoxHeight;
+
+    /// <summary>The drawn cabinet's backbox: where <see cref="BuildBackbox"/> puts the generic one on it.</summary>
+    public static Aabb DrawnBackbox =>
+        new(new Vector3(-Width / 2, BoxBottom, Back), new Vector3(Width, BoxHeight, BoxDepth));
 
     // The playfield sits recessed inside the cabinet: walls rise above it on both sides and at the
     // front, capped by the side rails and the lockdown bar; the glass lies just under the rail tops.
@@ -85,7 +76,6 @@ public static class CabinetKit
     static ArrayMesh? _body,
         _metal,
         _chrome,
-        _grille,
         _glow,
         _shadow;
     static StandardMaterial3D? _metalMat,
@@ -94,19 +84,16 @@ public static class CabinetKit
         _shadowMat,
         _glassMat;
 
-    /// <summary>Cabinet sides, backbox shell and the frame round the backglass: tinted per cabinet.</summary>
+    /// <summary>Cabinet body and the walls round the playfield: tinted per cabinet. (The backbox is BuildBackbox.)</summary>
     public static ArrayMesh Body => _body ??= BuildBody();
 
-    /// <summary>Legs, coin door, speaker panel and display bezel: dark metal.</summary>
+    /// <summary>Legs, coin door and the trim strip under the backbox: dark metal.</summary>
     public static ArrayMesh Metal => _metal ??= BuildMetal();
 
-    /// <summary>Lockdown bar, side rails and speaker rings: polished chrome.</summary>
+    /// <summary>Lockdown bar, side rails and leg hardware: polished chrome.</summary>
     public static ArrayMesh Chrome => _chrome ??= BuildChrome();
 
-    /// <summary>The two speaker grilles.</summary>
-    public static ArrayMesh Grille => _grille ??= BuildGrille();
-
-    /// <summary>Coin-slot lights, flipper buttons and the neon strip on the backbox: emissive, per cabinet.</summary>
+    /// <summary>Coin-slot lights and flipper buttons: emissive, per cabinet.</summary>
     public static ArrayMesh Glow => _glow ??= BuildGlow();
 
     /// <summary>Soft blob shadow on the floor.</summary>
@@ -194,29 +181,7 @@ public static class CabinetKit
             new Vector3(0, TopFront + WallRise / 2, Front - FrontWall / 2),
             new Vector3(Width, WallRise, FrontWall)
         );
-        // Backbox shell, with its front face left open for the backglass and speaker panel.
-        m.AddBox(
-            new Vector3(0, BoxBottom + BoxHeight / 2, Back + BoxDepth / 2),
-            new Vector3(Width, BoxHeight, BoxDepth),
-            skipFront: true
-        );
-        // Frame strips on the backbox front: either side (full height), above the glass,
-        // between the glass and the speaker panel, and under the panel.
-        var gw = BackglassSize.X;
-        var side = (Width - gw) / 2;
-        var z = BoxFront - 0.005f;
-        var yMid = BoxBottom + BoxHeight / 2;
-        m.AddBox(new Vector3(-(gw / 2 + side / 2), yMid, z), new Vector3(side, BoxHeight, 0.01f));
-        m.AddBox(new Vector3(gw / 2 + side / 2, yMid, z), new Vector3(side, BoxHeight, 0.01f));
-        m.AddBox(
-            new Vector3(0, BoxBottom + BoxHeight - GlassTopMargin / 2, z),
-            new Vector3(gw, GlassTopMargin, 0.01f)
-        );
-        m.AddBox(new Vector3(0, PanelTop + PanelGap / 2, z), new Vector3(gw, PanelGap, 0.01f));
-        m.AddBox(
-            new Vector3(0, BoxBottom + PanelBottomMargin / 2, z),
-            new Vector3(gw, PanelBottomMargin, 0.01f)
-        );
+        // The backbox on top is the generic one (BuildBackbox), shaped per table to its backglass.
         return m.Commit();
     }
 
@@ -250,15 +215,6 @@ public static class CabinetKit
         );
         // Coin door.
         m.AddBox(new Vector3(0, LegTop + 0.14f, Front + 0.006f), new Vector3(0.30f, 0.22f, 0.012f));
-        // Speaker panel (black), and the display bezel standing slightly proud of it.
-        m.AddBox(
-            new Vector3(0, PanelCentreY, BoxFront - 0.005f),
-            new Vector3(BackglassSize.X, PanelHeight, 0.01f)
-        );
-        m.AddBox(
-            new Vector3(0, PanelCentreY, BoxFront + 0.003f),
-            new Vector3(DmdSize.X + 0.02f, DmdSize.Y + 0.02f, 0.006f)
-        );
         return m.Commit();
     }
 
@@ -328,34 +284,57 @@ public static class CabinetKit
                 );
             }
         }
-        // Chrome rings round the speakers.
-        foreach (var sx in new[] { -1f, 1f })
-        {
-            m.AddRing(
-                new Vector3(sx * SpeakerX, PanelCentreY, BoxFront + 0.006f),
-                SpeakerRadius + 0.006f,
-                0.006f,
-                24
-            );
-        }
-
         return m.Commit();
     }
 
-    static ArrayMesh BuildGrille()
+    // ---- The generic backbox ---------------------------------------------------------
+
+    /// <summary>Tallest and shortest the generic backbox goes, as a share of the backbox it stands in for.</summary>
+    const float BoxTallest = 1.35f,
+        BoxShortest = 0.6f;
+
+    /// <summary>
+    /// A plain box whose whole front is the backglass picture. Backglass pictures (a .directb2s's, or the catalog's
+    /// photo of a machine) usually show the whole backbox front, speakers and display included, so the box adds
+    /// nothing of its own there: no frame, no speaker panel. It keeps the width and depth of the backbox it stands in
+    /// for (<paramref name="box"/>) and its height follows the picture's shape (<paramref name="aspect"/>,
+    /// width/height; null: the box's own), within reason. A picture past those limits is fitted inside the front and the
+    /// rest of the front is the shell's colour. <see cref="Backbox.Body"/> (sides, top, back, and the front round the
+    /// picture) takes the cabinet's side colour.
+    /// </summary>
+    public static Backbox BuildBackbox(Aabb box, float? aspect)
     {
-        var m = new MeshKit();
-        foreach (var sx in new[] { -1f, 1f })
+        var a =
+            aspect is > 0.2f and < 5f
+                ? Mathf.Snapped(aspect.Value, 0.01f)
+                : Mathf.Snapped(box.Size.X / box.Size.Y, 0.01f);
+        var key = (box, a);
+        if (BackboxCache.TryGetValue(key, out var made))
         {
-            m.AddDisc(
-                new Vector3(sx * SpeakerX, PanelCentreY, BoxFront + 0.002f),
-                SpeakerRadius,
-                32
-            );
+            return made;
         }
 
-        return m.Commit();
+        float w = box.Size.X,
+            cx = box.GetCenter().X,
+            y0 = box.Position.Y,
+            zb = box.Position.Z,
+            zf = box.End.Z;
+        var h = Mathf.Clamp(w / a, box.Size.Y * BoxShortest, box.Size.Y * BoxTallest);
+        var glass = a >= w / h ? new Vector2(w, w / a) : new Vector2(h * a, h);
+
+        var body = new MeshKit();
+        body.AddBox(new Vector3(cx, y0 + h / 2, (zb + zf) / 2), new Vector3(w, h, zf - zb));
+        made = new Backbox(
+            body.Commit(),
+            new Vector3(cx, y0 + h / 2, zf + 0.002f),
+            glass,
+            new Aabb(new Vector3(box.Position.X, y0, zb), new Vector3(w, h, zf - zb))
+        );
+        BackboxCache[key] = made;
+        return made;
     }
+
+    static readonly Dictionary<(Aabb, float), Backbox> BackboxCache = [];
 
     static ArrayMesh BuildGlow()
     {
@@ -377,11 +356,6 @@ public static class CabinetKit
         m.AddBox(
             new Vector3(Width / 2 + 0.008f, TopFront - 0.05f, Front - 0.12f),
             new Vector3(0.016f, 0.035f, 0.035f)
-        );
-        // Neon strip along the top front edge of the backbox.
-        m.AddBox(
-            new Vector3(0, BoxBottom + BoxHeight + 0.01f, BoxFront - 0.01f),
-            new Vector3(Width, 0.02f, 0.02f)
         );
         return m.Commit();
     }
@@ -447,6 +421,12 @@ public static class CabinetKit
         return ImageTexture.CreateFromImage(img);
     }
 }
+
+/// <summary>
+/// A generic backbox made for one backglass shape (<see cref="CabinetKit.BuildBackbox"/>): its shell, where the picture
+/// goes on its front and how big, and the box it makes (it grows or shrinks with the picture).
+/// </summary>
+public sealed record Backbox(ArrayMesh Body, Vector3 GlassCentre, Vector2 GlassSize, Aabb Bounds);
 
 /// <summary>Tiny mesh builder: flat boxes, quads and hex solids, plus smooth bars, rings and discs.</summary>
 public sealed class MeshKit

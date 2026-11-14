@@ -9,13 +9,13 @@ namespace VrTableManager.Services;
 /// A table's own sound for the VR lobby, recorded from its ROM: ROM tables have no music files, their
 /// sound comes from the emulated machine. This runs the ROM in PinMAME (VPX's own pinmame64.dll),
 /// drops coins, presses Start and keeps the game-start music as a WAV in
-/// %APPDATA%\VrTableManager\attract-audio. It runs in real time (about 40 s) and works on a scratch
+/// %APPDATA%\VrTableManager\vr-lobby\attract-audio. It runs in real time (about 40 s) and works on a scratch
 /// copy of the ROM with empty nvram, so the table's own scores, credits and settings are never touched.
 /// Coin and Start go in as the keys VPinMAME uses ("5" and "1"), so it works for any machine type.
 /// </summary>
 public static partial class RomAudio
 {
-    public static string CacheDir => Path.Combine(AppSettings.DataDir, "attract-audio");
+    public static string CacheDir => Lobby.LobbyFiles.AttractAudio;
 
     /// <summary>The recording for this ROM, and the marker left when a ROM gave nothing worth keeping.</summary>
     public static string FileFor(string rom) =>

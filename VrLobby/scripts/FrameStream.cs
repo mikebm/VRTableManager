@@ -31,12 +31,16 @@ public sealed class FrameStream
     /// Run once on the first frame read: the share of its height to cut off the top of every frame (a recorded
     /// video's band of back-board art above the playfield, <see cref="VrTableManager.Lobby.PlayfieldMatch"/>).
     /// </param>
+    /// <param name="startAt">The frame to start from: a video handed over from another stream carries on where it was.</param>
+    /// <param name="halfSize">Half the width and height: a cabinet beside the selected one, seen from further off.</param>
     public void Start(
         string folder,
         int frames,
         bool mipmaps,
         Action<CancellationToken>? before = null,
-        Func<Image, double>? topTrim = null
+        Func<Image, double>? topTrim = null,
+        int startAt = 0,
+        bool halfSize = false
     )
     {
         Stop();
@@ -56,7 +60,7 @@ public sealed class FrameStream
 
                 before?.Invoke(ct);
                 if (
-                    !Decode(run, folder, frames, mipmaps, topTrim, ct)
+                    !Decode(run, folder, frames, mipmaps, topTrim, startAt, halfSize, ct)
                     && !ct.IsCancellationRequested
                 )
                 {
@@ -73,12 +77,14 @@ public sealed class FrameStream
         int frames,
         bool mipmaps,
         Func<Image, double>? topTrim,
+        int startAt,
+        bool halfSize,
         CancellationToken ct
     )
     {
         var misses = 0;
         double? trim = null; // worked out on the first frame read
-        for (var i = 0; !ct.IsCancellationRequested; i = (i + 1) % frames)
+        for (var i = Math.Clamp(startAt, 0, frames - 1); !ct.IsCancellationRequested; i = (i + 1) % frames)
         {
             while (_ready.Count >= Ahead && !ct.IsCancellationRequested)
             {
@@ -103,6 +109,11 @@ public sealed class FrameStream
             {
                 var cut = (int)(img.GetHeight() * trim.Value);
                 img = img.GetRegion(new Rect2I(0, cut, img.GetWidth(), img.GetHeight() - cut));
+            }
+
+            if (halfSize && img.GetWidth() >= 64)
+            {
+                img.Resize(img.GetWidth() / 2, img.GetHeight() / 2, Image.Interpolation.Bilinear);
             }
 
             if (mipmaps)

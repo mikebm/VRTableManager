@@ -1,6 +1,6 @@
 using Godot;
-using VrTableManager.Services;
 using VrTableManager.Lobby;
+using VrTableManager.Services;
 
 namespace VrLobby;
 
@@ -25,14 +25,41 @@ public partial class PlayfieldVideo : Node
     public int FramesShown { get; private set; }
     public event Action? FirstFrameShown;
 
-    public void Play(Cabinet cab, string folder, LobbyVideo.Info info, string? vpxPath = null)
+    /// <summary>The cabinet it plays on, and its table's video (for a handover, <see cref="Release"/>).</summary>
+    public Cabinet? Cabinet => _cab;
+    public LobbyVideo.Info? Info { get; private set; }
+
+    /// <summary>The frame on show now.</summary>
+    public int Frame { get; private set; }
+
+    /// <summary>
+    /// Plays on <paramref name="cab"/>. Handed over from another player (<see cref="Release"/>), it carries on from
+    /// <paramref name="startAt"/> on the picture already showing (<paramref name="showing"/>), so nothing restarts or
+    /// flashes back to the still picture as a cabinet becomes, or stops being, the selected one.
+    /// <paramref name="halfSize"/>: a cabinet beside the selected one (decoded and uploaded at a quarter of the pixels).
+    /// <paramref name="depth"/>: give the playfield the table's height map (<see cref="PlayfieldDepth"/>); <paramref name="vpxPath"/>
+    /// is still used without it, to cut a recorded video's back-board band off.
+    /// </summary>
+    public void Play(
+        Cabinet cab,
+        string folder,
+        LobbyVideo.Info info,
+        string? vpxPath = null,
+        int startAt = 0,
+        ImageTexture? showing = null,
+        bool halfSize = false,
+        bool depth = true
+    )
     {
         Stop();
         _cab = cab;
+        _tex = showing;
+        Info = info;
         Playing = folder;
         _frameTime = 1.0 / info.Fps;
         _untilNext = 0;
         FramesShown = 0;
+        Frame = startAt;
         _frames.Start(
             folder,
             info.Frames,
@@ -40,7 +67,8 @@ public partial class PlayfieldVideo : Node
             before: ct =>
             {
                 if (
-                    vpxPath != null
+                    depth
+                    && vpxPath != null
                     && PlayfieldDepth.Load(folder, vpxPath, LobbyWork.Closing) is { } h
                     && !ct.IsCancellationRequested
                 )
@@ -51,20 +79,32 @@ public partial class PlayfieldVideo : Node
             // A recording made with VPX shows the back board's art above the playfield at the top of each frame:
             // cut off here, while playing, so recordings made before this need nothing redone.
             topTrim: info.Source == "recorded" && vpxPath != null
-                ? img => TopTrim(img, vpxPath)
-                : null
+                ? img => TopTrim(folder, img, vpxPath)
+                : null,
+            startAt: startAt,
+            halfSize: halfSize
         );
     }
 
     /// <summary>The share of a recorded frame's height above the playfield (<see cref="PlayfieldMatch"/>), or 0.</summary>
+    static double TopTrim(string folder, Image frame, string vpxPath) =>
+        // Worked out once per video: several play at once now, and each start would read the table's playfield again.
+        TopTrims.GetOrAdd(folder, _ => TopTrim(frame, vpxPath));
+
+    static readonly System.Collections.Concurrent.ConcurrentDictionary<string, double> TopTrims =
+        new(StringComparer.OrdinalIgnoreCase);
+
+    /// <summary>The table's playfield picture: from the cache Prepare (or an earlier lobby run) filled, else the table file.</summary>
+    static byte[]? PlayfieldBytes(string vpxPath) =>
+        VpxImages.CachedPlayfield(vpxPath, ArtLoader.ExtractDir) is { } cached
+            ? File.ReadAllBytes(cached)
+            : VpxImages.ExtractPlayfield(vpxPath);
+
     static double TopTrim(Image frame, string vpxPath)
     {
         try
         {
-            if (
-                VpxImages.ExtractPlayfield(vpxPath) is not { } bytes
-                || ArtLoader.Decode(bytes) is not { } pf
-            )
+            if (PlayfieldBytes(vpxPath) is not { } bytes || ArtLoader.Decode(bytes) is not { } pf)
             {
                 return 0;
             }
@@ -131,6 +171,33 @@ public partial class PlayfieldVideo : Node
         Playing = null; // _Process does nothing more; _cab stays so Stop can put the flat playfield back
     }
 
+    /// <summary>
+    /// Stops decoding but leaves the cabinet showing the picture it has (and its depth), and says where the video was,
+    /// for another player to carry on from (<see cref="Play"/>'s startAt and showing). Null when nothing was playing.
+    /// </summary>
+    public (
+        Cabinet Cab,
+        string Folder,
+        LobbyVideo.Info Info,
+        int NextFrame,
+        ImageTexture? Showing
+    )? Release()
+    {
+        if (Playing is not { } folder || _cab is not { } cab || Info is not { } info)
+        {
+            return null;
+        }
+
+        var handover = (cab, folder, info, (Frame + 1) % Math.Max(1, info.Frames), _tex);
+        _frames.Stop();
+        _heights = null;
+        _cab = null;
+        _tex = null;
+        Info = null;
+        Playing = null;
+        return handover;
+    }
+
     public void Stop()
     {
         _frames.Stop();
@@ -139,6 +206,7 @@ public partial class PlayfieldVideo : Node
         _cab?.SetPlayfieldDepth(null);
         _cab = null;
         _tex = null;
+        Info = null;
         Playing = null;
     }
 
@@ -159,7 +227,7 @@ public partial class PlayfieldVideo : Node
         }
 
         _untilNext -= delta;
-        if (_untilNext > 0 || !_frames.TryNext(out _, out var img))
+        if (_untilNext > 0 || !_frames.TryNext(out var index, out var img))
         {
             return;
         }
@@ -181,6 +249,7 @@ public partial class PlayfieldVideo : Node
         }
 
         FramesShown++;
+        Frame = index;
         if (Interlocked.Exchange(ref _heights, null) is { } ready) // usually here: built before the frames
         {
             _cab.SetPlayfieldDepth(

@@ -254,6 +254,12 @@ public partial class Main : Node3D
         AddChild(_rail);
         AddChild(_attract);
         AddChild(_video);
+        for (var i = 0; i < PoolSize; i++) // one per cabinet: any of them may be in view, if you turn round
+        {
+            var side = new PlayfieldVideo();
+            _sideVideos.Add(side);
+            AddChild(side);
+        }
         AddChild(_loadingVideo);
         _video.FirstFrameShown += () => Trace("video first frame");
         AddChild(_recorder);
@@ -905,16 +911,75 @@ public partial class Main : Node3D
     public Cabinet? SelectedCabinet =>
         _pool.FirstOrDefault(c => c.Index == Selected && c.Table != null);
 
+    /// <summary>
+    /// The backbox picture for a table in the lobby: <see cref="LobbyArt.BackglassFor"/>'s, except that a VPX table's own
+    /// backglass picture (VpxImages.PickBackglass) comes before the catalog's. It's just the glass, made for the table,
+    /// where the catalog's is often a photo of the whole backbox front (two sets of speakers in a backbox that has its
+    /// own; Cabinet.ShowReal). Your picture and a .directb2s still come first. Whether the file has one is found out in
+    /// the background, the first time, and the table's cabinets are dressed again when it's known.
+    /// </summary>
+    string? BackglassFor(LobbyTable t)
+    {
+        var url = LobbyArt.BackglassFor(t, _backglass);
+        if (
+            url != null
+                && (
+                    UserArtwork.PathOf(url) != null
+                    || url.StartsWith(LobbyArt.B2sScheme, StringComparison.Ordinal)
+                )
+            || VpxFile(t) is not { } vpx
+        )
+        {
+            return url;
+        }
+
+        switch (VpxImages.KnownBackglass(vpx, ArtLoader.ExtractDir))
+        {
+            case true:
+                return ArtLoader.VpxBackglassScheme + vpx;
+            case null when _ownBackglassLooks.Add(vpx):
+                _ = LobbyWork.Run(() =>
+                {
+                    var found = VpxImages.CachedBackglass(vpx, ArtLoader.ExtractDir) != null;
+                    if (found)
+                    {
+                        Callable.From(() => OnOwnBackglassFound(vpx)).CallDeferred();
+                    }
+                });
+                break;
+        }
+        return url;
+    }
+
+    readonly HashSet<string> _ownBackglassLooks = new(StringComparer.OrdinalIgnoreCase);
+
+    void OnOwnBackglassFound(string vpx)
+    {
+        foreach (var cab in _pool)
+        {
+            if (
+                cab.Table != null
+                && cab.Index >= 0
+                && cab.Index < Shown.Count
+                && Shown[cab.Index] == cab.Table
+                && string.Equals(VpxFile(cab.Table), vpx, StringComparison.OrdinalIgnoreCase)
+            )
+            {
+                AssignCabinet(cab, cab.Index, requestArt: true);
+            }
+        }
+    }
+
     void AssignCabinet(Cabinet cab, int index, bool requestArt)
     {
         var t = Shown[index];
-        cab.Assign(
-            index,
-            t,
-            LobbyArt.PlayfieldSource(t),
-            LobbyArt.BackglassFor(t, _backglass),
-            State.IsFavourite(t.Id)
-        );
+        cab.Assign(index, t, LobbyArt.PlayfieldSource(t), BackglassFor(t), State.IsFavourite(t.Id));
+        // The table's own back panel picture, for the default cabinet's back panel (only asked for when it wears that).
+        cab.BackPanelUrl = VpxFile(t) is { } panelVpx
+            ? ArtLoader.VpxBackPanelScheme + panelVpx
+            : null;
+        cab.BladeLeftUrl = VpxFile(t) is { } bl ? ArtLoader.VpxBladeLeftScheme + bl : null;
+        cab.BladeRightUrl = VpxFile(t) is { } br ? ArtLoader.VpxBladeRightScheme + br : null;
         // Already read this table's own cabinet (or know it has none)? Show it straight away.
         ShowCabinetFor(cab);
         if (requestArt)
@@ -935,19 +1000,40 @@ public partial class Main : Node3D
             );
         }
 
+        if (cab.Borrowed && cab.BackPanelUrl != null && !cab.HasBackPanelArt)
+        {
+            _art.Request(cab.BackPanelUrl);
+        }
+
+        // And its own inner side wall pictures, for the default cabinet's walls (when it brings no kit wall sheet).
+        foreach (var (url, left) in new[] { (cab.BladeLeftUrl, true), (cab.BladeRightUrl, false) })
+        {
+            if (cab.Borrowed && url != null && !cab.HasBladeArt(left))
+            {
+                _art.Request(url);
+            }
+        }
+
         if (cab.BackglassUrl != null && !cab.HasBackglassArt)
         {
-            // A .directb2s without a picture in it falls back to the catalog's.
+            // A .directb2s (or a table file) without a picture in it falls back to the catalog's.
             _art.Request(
                 cab.BackglassUrl,
                 cab.Table != null
-                && cab.BackglassUrl.StartsWith(LobbyArt.B2sScheme, StringComparison.Ordinal)
+                && (
+                    cab.BackglassUrl.StartsWith(LobbyArt.B2sScheme, StringComparison.Ordinal)
+                    || cab.BackglassUrl.StartsWith(
+                        ArtLoader.VpxBackglassScheme,
+                        StringComparison.Ordinal
+                    )
+                )
                     ? LobbyArt.BackglassFallback(cab.Table, _backglass)
                     : null
             );
         }
-        // The table's own VR cabinet, read in the background the first time it's needed.
-        if (cab.Table != null && OwnCabinetFile(cab.Table) is { } vpx)
+        // The table's own VR cabinet, read in the background the first time it's needed: shown, or (generic cabinet)
+        // just for its art, which the default cabinet wears when it comes from the same cabinet kit (Cabinet.ShowReal).
+        if (cab.Table != null && VpxFile(cab.Table) is { } vpx)
         {
             if (_cabs.IsKnown(vpx))
             {
@@ -1023,7 +1109,9 @@ public partial class Main : Node3D
         }
         else if (_template != null)
         {
-            cab.ShowReal(_template, borrowed: true);
+            // A generic cabinet for a table whose file has a VR cabinet: the default one wearing that cabinet's art.
+            var art = VpxFile(cab.Table) is { } file ? _cabs.Get(file) : null;
+            cab.ShowReal(_template, borrowed: true, artFrom: art);
         }
         else
         {
@@ -1303,7 +1391,7 @@ public partial class Main : Node3D
     {
         UpdateRail();
         StopAttract();
-        _video.Stop();
+        HandSelectedVideoToSide(); // keeps playing as a side video: no drop back to the still picture
         _videoCheckedFor = null;
         _settled = 0;
         _wheel.Visible = false;
@@ -1897,9 +1985,181 @@ public partial class Main : Node3D
         _videoCheckedFor = t.Id;
         if (LobbyArt.PlayfieldVideo(t) is var (folder, info))
         {
-            _video.Play(cab, folder, info, _noDepth ? null : t.Source.TablePath);
+            // Already playing beside the last selected one: carried on from the same frame, on the same picture, now
+            // full size and with its depth, rather than started again.
+            var side = _sideVideos.FirstOrDefault(v => v.Cabinet == cab && v.Playing == folder);
+            if (side?.Release() is { } h)
+            {
+                _sideTables.Remove(side);
+                _video.Play(
+                    cab,
+                    folder,
+                    info,
+                    _noDepth ? null : t.Source.TablePath,
+                    startAt: h.NextFrame,
+                    showing: h.Showing
+                );
+            }
+            else
+            {
+                _video.Play(cab, folder, info, _noDepth ? null : t.Source.TablePath);
+            }
             Trace("video start");
         }
+    }
+
+    // ---- Lobby videos on the cabinets beside the selected one ----------------------------
+
+    /// <summary>
+    /// Lobby videos play on every cabinet you can see, not just the selected one, so a cabinet you turn to (or turn
+    /// your head to) is already moving when it comes into view: a still picture swapping to video as it arrived was a
+    /// visible pop. "In view" is measured from where the camera (your head) is looking: a cabinet within
+    /// <see cref="VideoStartAngle"/> of that starts, a little wider than a headset shows so it's playing by the time it
+    /// comes in; it stops past <see cref="VideoStopAngle"/>, so glancing about at the edge doesn't start and stop it.
+    /// They play flat (no depth) and at half size: a quarter of the pixels to decode and upload, at a distance where
+    /// it doesn't show. The selected one plays full size with its depth (<see cref="MaybePlayVideo"/>).
+    /// </summary>
+    public const float VideoStartAngle = 70f,
+        VideoStopAngle = 85f;
+
+    /// <summary>Degrees between where the camera looks and a cabinet's playfield, across the floor (yaw only).</summary>
+    float AngleFromView(Cabinet cab)
+    {
+        if (GetViewport().GetCamera3D() is not { } cam)
+        {
+            return 0; // no camera (a test without one): everything counts as in view
+        }
+
+        var forward = -cam.GlobalBasis.Z;
+        var to = cab.ToGlobal(cab.PlayfieldPosition) - cam.GlobalPosition;
+        var f = new Vector2(forward.X, forward.Z);
+        var t = new Vector2(to.X, to.Z);
+        return f.LengthSquared() < 1e-6f || t.LengthSquared() < 1e-6f
+            ? 0
+            : Mathf.RadToDeg(Mathf.Abs(f.AngleTo(t)));
+    }
+
+    readonly List<PlayfieldVideo> _sideVideos = [];
+    readonly HashSet<string> _noLobbyVideo = [];
+
+    /// <summary>The table each side video plays for: a cabinet handed to another table drops it at once.</summary>
+    readonly Dictionary<PlayfieldVideo, LobbyTable> _sideTables = [];
+
+    /// <summary>Cabinets playing a side video (tests).</summary>
+    public int SideVideosPlaying => _sideVideos.Count(v => v.Playing != null);
+
+    /// <summary>Side videos whose cabinet now shows another table (it scrolled on): stopped, every frame.</summary>
+    void StopStaleSideVideos()
+    {
+        foreach (var v in _sideVideos)
+        {
+            if (
+                v.Playing != null
+                && (
+                    v.Cabinet is not { } cab
+                    || !_sideTables.TryGetValue(v, out var t)
+                    || cab.Table != t
+                    || !cab.Visible
+                    || cab.Loading
+                )
+            )
+            {
+                v.Stop();
+                _sideTables.Remove(v);
+            }
+        }
+    }
+
+    /// <summary>Once the ring has (nearly) stopped: the cabinets in view play, the ones out of view stop.</summary>
+    void UpdateSideVideos()
+    {
+        if (!Settings.LobbyPlayfieldVideos || Shown.Count == 0 || _launching)
+        {
+            StopSideVideos();
+            return;
+        }
+
+        var wanted = new HashSet<Cabinet>();
+        foreach (var cab in _pool)
+        {
+            if (cab == _video.Cabinet || !cab.Visible || cab.Loading || cab.Table == null)
+            {
+                continue;
+            }
+
+            var angle = AngleFromView(cab);
+            var playing = _sideVideos.Any(v => v.Playing != null && v.Cabinet == cab);
+            if (angle < VideoStartAngle || (playing && angle < VideoStopAngle))
+            {
+                wanted.Add(cab);
+            }
+        }
+        foreach (var v in _sideVideos)
+        {
+            if (v.Playing != null && (v.Cabinet is not { } c || !wanted.Remove(c)))
+            {
+                v.Stop();
+                _sideTables.Remove(v);
+            }
+        }
+        foreach (var cab in wanted)
+        {
+            if (cab.Table is not { } t || _noLobbyVideo.Contains(t.Id))
+            {
+                continue;
+            }
+
+            if (LobbyArt.PlayfieldVideo(t) is not var (folder, info))
+            {
+                _noLobbyVideo.Add(t.Id); // looked once; not on every frame (a new video is found on the next lobby run)
+                continue;
+            }
+
+            if (_sideVideos.FirstOrDefault(v => v.Playing == null) is { } free)
+            {
+                free.Play(cab, folder, info, t.Source.TablePath, halfSize: true, depth: false);
+                _sideTables[free] = t;
+            }
+        }
+    }
+
+    void StopSideVideos()
+    {
+        foreach (var v in _sideVideos)
+        {
+            v.Stop();
+        }
+        _sideTables.Clear();
+    }
+
+    /// <summary>
+    /// The selected table's video, as the selection moves on: it keeps playing on its cabinet as a side video, from the
+    /// same frame (with its depth until it's stopped), rather than stopping and dropping back to the still picture.
+    /// </summary>
+    void HandSelectedVideoToSide()
+    {
+        if (
+            _video.Cabinet is { Table: { } t } cab
+            && Settings.LobbyPlayfieldVideos
+            && _sideVideos.FirstOrDefault(v => v.Playing == null) is { } free
+            && _video.Release() is { } h
+        )
+        {
+            free.Play(
+                cab,
+                h.Folder,
+                h.Info,
+                t.Source.TablePath,
+                startAt: h.NextFrame,
+                showing: h.Showing,
+                halfSize: true,
+                depth: false
+            );
+            _sideTables[free] = t;
+            return;
+        }
+
+        _video.Stop();
     }
 
     void StopAttract()
@@ -1955,6 +2215,7 @@ public partial class Main : Node3D
             }
             Layout();
         }
+        StopStaleSideVideos();
         if (Shown.Count > 0 && !_launching)
         {
             var away = Mathf.Abs(_scroll - Target);
@@ -1963,6 +2224,7 @@ public partial class Main : Node3D
             if (away < VideoFrom)
             {
                 MaybePlayVideo();
+                UpdateSideVideos();
                 MaybeRequestWheel();
             }
             // The sound waits until it has (nearly) arrived and you've stayed on it for a moment.
@@ -2541,6 +2803,16 @@ public partial class Main : Node3D
             if (cab.BackglassUrl == url)
             {
                 cab.SetBackglass(tex, average);
+            }
+
+            if (cab.BackPanelUrl == url)
+            {
+                cab.SetBackPanel(tex);
+            }
+
+            if (cab.BladeLeftUrl == url || cab.BladeRightUrl == url)
+            {
+                cab.SetBlade(cab.BladeLeftUrl == url, tex);
             }
         }
     }

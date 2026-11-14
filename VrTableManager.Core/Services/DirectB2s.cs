@@ -63,6 +63,20 @@ public static class DirectB2s
         return null;
     }
 
+    /// <summary>True when <see cref="CachedBackglass"/> would answer from the cache (picture or "none"), without reading the file.</summary>
+    public static bool IsCached(string path, string cacheDir)
+    {
+        try
+        {
+            return CacheFiles(path, cacheDir) is var (file, _, none)
+                && (File.Exists(file) || File.Exists(none));
+        }
+        catch
+        {
+            return false;
+        }
+    }
+
     static (string File, string Meta, string None)? CacheFiles(string path, string cacheDir)
     {
         var fi = new FileInfo(path);
