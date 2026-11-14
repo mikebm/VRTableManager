@@ -45,15 +45,23 @@
             </ItemsControl.ItemsPanel>
             <ItemsControl.ItemTemplate>
               <DataTemplate x:DataType="vm:TableVersionItem">
+                <StackPanel Spacing="12">
+                <StackPanel Spacing="4" Margin="0,10,0,0" IsVisible="{Binding StartsRemixes}">
+                  <TextBlock Classes="eyebrow" Text="VPU REMIXES" />
+                  <TextBlock Classes="muted" TextWrapping="Wrap"
+                             Text="Patches made from another table. INSTALL makes the remix from that table, as a new table or in its place." />
+                </StackPanel>
                 <Border Background="{StaticResource Bg}" BorderBrush="{StaticResource Line}" BorderThickness="1"
                         CornerRadius="10" Padding="16">
                   <StackPanel Spacing="8">
                     <StackPanel Orientation="Horizontal" Spacing="6">
+                      <Border Classes="chip hot" IsVisible="{Binding IsRemix}"><TextBlock Text="VPU REMIX" /></Border>
                       <Border Classes="chip lit" IsVisible="{Binding IsVr}"><TextBlock Text="VR" /></Border>
                       <Border Classes="chip"><TextBlock Text="{Binding Engine}" /></Border>
                     </StackPanel>
                     <TextBlock Classes="title" Text="{Binding Heading}" TextWrapping="Wrap" />
                     <TextBlock Classes="mono" Text="{Binding Details}" TextWrapping="Wrap" />
+                    <TextBlock Text="{Binding RemixBase}" TextWrapping="Wrap" IsVisible="{Binding IsRemix}" />
                     <ItemsControl ItemsSource="{Binding FeatureList}">
                       <ItemsControl.ItemsPanel>
                         <ItemsPanelTemplate><WrapPanel /></ItemsPanelTemplate>
@@ -74,6 +82,7 @@
                     </StackPanel>
                   </StackPanel>
                 </Border>
+                </StackPanel>
               </DataTemplate>
             </ItemsControl.ItemTemplate>
           </ItemsControl>

@@ -246,6 +246,26 @@
                             ToolTip.Tip="Restores the table file saved before its VR DMD was switched to VPX's Score View"
                             Command="{Binding Owner.Play.UndoDmdFixCommand}" CommandParameter="{Binding}" />
                 </MenuItem>
+                <MenuItem Header="VPU Remixes" IsVisible="{Binding IsVpx}" IsEnabled="{Binding !IsBusy}"
+                          ToolTip.Tip="Mods of this table published as a patch (VPURemix): made from this table, as a new table or in its place">
+                  <MenuItem Header="Get from the catalog" IsVisible="{Binding HasRemixChoices}" ItemsSource="{Binding RemixChoices}">
+                    <MenuItem.ItemTemplate>
+                      <DataTemplate x:DataType="vm:RemixChoice"><TextBlock Text="{Binding Label}" /></DataTemplate>
+                    </MenuItem.ItemTemplate>
+                    <MenuItem.Styles>
+                      <Style Selector="MenuItem > MenuItem" x:DataType="vm:RemixChoice">
+                        <Setter Property="Command" Value="{Binding Item.Owner.Library.InstallRemixChoiceCommand}" />
+                        <Setter Property="CommandParameter" Value="{Binding}" />
+                      </Style>
+                    </MenuItem.Styles>
+                  </MenuItem>
+                  <MenuItem Header="Add a remix file you downloaded…"
+                            ToolTip.Tip="A .dif patch (or a zip with one) is applied to this table; a remix already made into a .vpx goes in as it is"
+                            Command="{Binding Owner.Library.AddRemixFileCommand}" CommandParameter="{Binding}" />
+                  <MenuItem Header="{Binding RevertRemixHeader}" IsVisible="{Binding IsRemixInPlace}"
+                            ToolTip.Tip="Puts back the table this remix replaced, kept in its folder; the remix's table file is removed"
+                            Command="{Binding Owner.Library.RevertRemixCommand}" CommandParameter="{Binding}" />
+                </MenuItem>
                 <MenuItem Header="Rules" ItemsSource="{Binding Rules}">
                 <MenuItem.IsVisible>
                   <MultiBinding Converter="{x:Static BoolConverters.And}">

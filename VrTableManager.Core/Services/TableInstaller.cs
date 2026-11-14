@@ -105,13 +105,16 @@ public static class TableInstaller
         AppSettings settings,
         Action<string> status,
         CancellationToken ct,
-        InstalledTable? replacing = null
+        InstalledTable? replacing = null,
+        IReadOnlyList<string>? remixBases = null
     )
     {
         var isFp = !VpsCatalog.IsVpx(tf);
         var tableExt = isFp ? ".fpt" : ".vpx";
         var staging = Path.Combine(Path.GetTempPath(), "vrtm-" + Guid.NewGuid().ToString("N")[..8]);
         Directory.CreateDirectory(staging);
+        string? keptCopy = null; // the original a remix replaces, copied aside until the install is in place
+        var overwriting = false; // the install is writing over the original's own file name
         try
         {
             status("Unpacking…");
@@ -148,6 +151,72 @@ public static class TableInstaller
                 }
                 tables = Find(staging, "*" + tableExt);
             }
+            // A VPU Remix brings a .dif patch instead of a table: the table is made from the original it patches.
+            string? remixNote = null;
+            if (
+                tables.Count == 0
+                && !isFp
+                && Find(staging, "*" + VpuRemix.PatchExt) is { Count: > 0 } difs
+            )
+            {
+                // The likeliest patch first; a pack may bring one per original version (or desktop and VR).
+                var mainDif = PickMainTable(difs, tf);
+                var tryDifs = difs.OrderBy(d => d != mainDif).ToList();
+                var bases = remixBases ?? [];
+                var link = VpuRemix.ReadmeLink(staging) is { } l
+                    ? $" Its ReadMe links the original: {l}"
+                    : "";
+                if (bases.Count == 0)
+                {
+                    throw new InvalidDataException(
+                        "This is a VPU Remix: a patch for another table, not a table. Install the table it patches "
+                            + "first (the exact version it was made from), then install this again."
+                            + link
+                    );
+                }
+
+                status("Applying the VPU Remix patch…");
+                string? used = null,
+                    made = null;
+                foreach (var dif in tryDifs)
+                {
+                    var into = Path.ChangeExtension(dif, ".vpx");
+                    used = await Task.Run(
+                        () => VpuRemix.ApplyToFirstFitting(bases, dif, into, ct),
+                        ct
+                    );
+                    if (used != null)
+                    {
+                        made = into;
+                        break;
+                    }
+                }
+
+                // A VR DMD fix's untouched backup is the source, but it's the table's name that means something.
+                static string Shown(string p) =>
+                    Path.GetFileName(
+                        p.EndsWith(VrDmdFix.BackupSuffix, StringComparison.OrdinalIgnoreCase)
+                            ? p[..^VrDmdFix.BackupSuffix.Length]
+                            : p
+                    );
+                if (used == null || made == null)
+                {
+                    throw new VpuRemix.MismatchException(
+                        $"The VPU Remix patch doesn't fit {string.Join(" or ", bases.Select(Shown))}. "
+                            + "It only works on the exact version of the table it was made from, unchanged; another "
+                            + "version (or one saved in VPX) gives a broken table, so nothing was installed."
+                            + link
+                    );
+                }
+
+                // The table is made: the patches don't go into its folder.
+                foreach (var d in difs)
+                {
+                    File.Delete(d);
+                }
+                remixNote = $" Made from {Shown(used)} with the remix's patch.";
+                tables = [made];
+            }
             if (tables.Count == 0)
             {
                 throw new InvalidDataException(
@@ -167,7 +236,66 @@ public static class TableInstaller
                 : rom.RomName != null ? [rom.RomName]
                 : vpsRoms;
 
+            // A remix put in place of a table keeps that table beside it (Name.vpx.original), so it can go back;
+            // the remix's updates are patched from it too. A remix replacing a remix keeps the original kept before.
+            var remixInstall = !isFp && (remixNote != null || VpuRemix.IsRemix(tf));
+            var carried =
+                remixInstall && replacing != null && VpuRemix.KeptOriginal(replacing) != null
+                    ? replacing.Manifest.RemixOriginal
+                    : null;
+            // Not for an update of a remix installed as a table of its own (it's no original), nor for a table
+            // outside a folder of its own (the remix goes into a new folder; the original can't be kept with it).
+            var keepable =
+                remixInstall
+                && carried == null
+                && replacing != null
+                && !VpuRemix.IsRemix(replacing.Manifest)
+                && !(replacing.Manifest.TableFileId is { Length: > 0 } rid && rid == tf.Id)
+                && File.Exists(replacing.TablePath);
+            if (keepable && !CanKeepOriginal(replacing!, settings))
+            {
+                throw new InvalidOperationException(
+                    $"{replacing!.Manifest.GameName} isn't in a folder of its own, so a remix can't replace it and "
+                        + "keep the original. Install the remix as a new table instead; nothing was changed."
+                );
+            }
+            // A remix over the original's file name overwrites it: put it back if the install fails partway.
+            var overwrites =
+                keepable
+                && SamePath(
+                    Path.Combine(replacing!.Folder, Path.GetFileName(main)),
+                    replacing.TablePath
+                );
+            if (keepable)
+            {
+                status("Keeping the original table…");
+                keptCopy = VpuRemix.KeptPath(replacing.TablePath);
+                var from = replacing!.TablePath;
+                var into = keptCopy;
+                await Task.Run(
+                    () =>
+                    {
+                        File.Copy(from, into, overwrite: true);
+                        if (VrDmdFix.HasBackup(from))
+                        {
+                            File.Copy(
+                                VrDmdFix.BackupPath(from),
+                                VrDmdFix.BackupPath(into),
+                                overwrite: true
+                            );
+                        }
+                    },
+                    ct
+                );
+                carried = new RemixOriginal
+                {
+                    File = Path.GetFileName(keptCopy),
+                    Manifest = ReadManifest(ManifestPathFor(from, false)) ?? replacing.Manifest,
+                };
+            }
+
             status("Installing files…");
+            overwriting = overwrites; // from here a failure must put the original back, not delete its copy
             var installed = await Task.Run(
                 () =>
                     isFp
@@ -204,7 +332,7 @@ public static class TableInstaller
                 TableFileId = tf.Id,
                 Version = tf.Version,
                 Authors = tf.Authors ?? [],
-                Features = tf.Features ?? [],
+                Features = VpuRemix.FeaturesOf(tf),
                 SourceUrl = tf.Urls?.FirstOrDefault()?.Url,
                 ImgUrl =
                     !string.IsNullOrWhiteSpace(tf.ImgUrl) ? tf.ImgUrl
@@ -220,6 +348,7 @@ public static class TableInstaller
                 AltColor = replacing?.Manifest.AltColor,
                 AltSound = replacing?.Manifest.AltSound,
                 Backglass = isFp ? null : KeptBackglass(replacing, installed.tablePath),
+                RemixOriginal = carried,
             };
 
             var table = new InstalledTable(manifest, installed.tablePath, installed.folder);
@@ -242,6 +371,9 @@ public static class TableInstaller
                 JsonSerializer.Serialize(manifest, Json),
                 ct
             );
+            // The kept original is recorded now: whatever happens next, it stays.
+            var keptNow = keptCopy != null;
+            keptCopy = null;
             // Everything's in place: the folder is no longer half-installed.
             if (!isFp)
             {
@@ -279,7 +411,48 @@ public static class TableInstaller
                     table.InstallNote = MoveBackglass(replacing, table);
                 }
             }
+            // A table that isn't a remix replacing a remix in an original's place: the kept original goes.
+            if (
+                !remixInstall
+                && replacing?.Manifest.RemixOriginal is { File.Length: > 0 } gone
+                && Path.Combine(replacing.Folder, gone.File) is var goneFile
+                && !SamePath(goneFile, installed.tablePath)
+            )
+            {
+                DeleteKept(goneFile);
+            }
+            if (keptNow && carried != null)
+            {
+                table.InstallNote +=
+                    $" {carried.Manifest.GameName} is kept beside it: MORE → VPU Remixes puts it back.";
+            }
+            if (remixNote != null)
+            {
+                table.InstallNote += remixNote;
+            }
+            // A remix put over its base under the same file name: the VR DMD fix's backup is the base, not this.
+            if (
+                remixInstall
+                && replacing != null
+                && SamePath(replacing.TablePath, installed.tablePath)
+            )
+            {
+                File.Delete(VrDmdFix.BackupPath(installed.tablePath));
+            }
             return table;
+        }
+        catch when (keptCopy != null)
+        {
+            if (overwriting)
+            {
+                // The remix may already be over the original's file: the kept copy is the original now.
+                RestoreKept(keptCopy, replacing!.TablePath);
+            }
+            else
+            {
+                DeleteKept(keptCopy); // nothing was replaced: the original is still in place
+            }
+            throw;
         }
         finally
         {
@@ -289,6 +462,116 @@ public static class TableInstaller
             }
             catch { }
         }
+    }
+
+    /// <summary>
+    /// Puts back the table a VPU Remix replaced (kept beside it as Name.vpx.original), with its manifest; the
+    /// remix's file goes. Your name for the table, add-ons, ROMs, high scores, stats and settings stay, as for an
+    /// update. Throws when there's nothing kept to put back.
+    /// </summary>
+    public static InstalledTable RevertRemix(InstalledTable remix, AppSettings settings)
+    {
+        if (remix.Manifest.RemixOriginal is not { } kept)
+        {
+            throw new InvalidOperationException(
+                "This table isn't a VPU Remix in another table's place."
+            );
+        }
+
+        var keptPath =
+            VpuRemix.KeptOriginal(remix)
+            ?? throw new FileNotFoundException(
+                "The original table kept beside the remix is gone, so it can't be put back. Install it again "
+                    + "from Get Tables."
+            );
+        var name = !string.IsNullOrEmpty(kept.Manifest.VpxFile)
+            ? kept.Manifest.VpxFile
+            : Path.GetFileName(keptPath)[..^VpuRemix.KeptSuffix.Length];
+        var origPath = Path.Combine(remix.Folder, name);
+
+        var current = ReadManifest(ManifestPathFor(remix.TablePath, false)) ?? remix.Manifest;
+        var m = kept.Manifest;
+        (m.GameName, m.OriginalName) = NameAfterInstall(current, m.OriginalName ?? m.GameName);
+        // What belongs to the folder (add-ons, backglass) is as it is now, not as it was before the remix.
+        m.PupPack = current.PupPack;
+        m.AltColor = current.AltColor;
+        m.AltSound = current.AltSound;
+        m.Backglass = KeptBackglass(remix, origPath);
+        m.VpxFile = name;
+        m.RemixOriginal = null;
+
+        // The remix's file (and a DMD fix's backup of it) goes; the original takes its place.
+        // The original first: if it can't move (the table is open in VPX), nothing has changed.
+        var same = SamePath(origPath, remix.TablePath);
+        File.Move(keptPath, origPath, overwrite: true);
+        if (File.Exists(VrDmdFix.BackupPath(keptPath)))
+        {
+            File.Move(
+                VrDmdFix.BackupPath(keptPath),
+                VrDmdFix.BackupPath(origPath),
+                overwrite: true
+            );
+        }
+        else if (same)
+        {
+            File.Delete(VrDmdFix.BackupPath(origPath)); // the remix's own, not the original's
+        }
+        if (!same)
+        {
+            File.Delete(VrDmdFix.BackupPath(remix.TablePath));
+        }
+        File.WriteAllText(ManifestPathFor(origPath, false), JsonSerializer.Serialize(m, Json));
+
+        var table = new InstalledTable(m, origPath, remix.Folder);
+        if (!same)
+        {
+            File.Delete(remix.TablePath);
+            KeepStatsAndCollections(remix.TablePath, origPath, settings.SourcePath);
+            KeepTableSettings(remix.TablePath, origPath, settings);
+            table.InstallNote = MoveBackglass(remix, table);
+        }
+        return table;
+    }
+
+    /// <summary>
+    /// Whether a remix can replace this table and keep it: only in a table folder of its own, where the remix goes
+    /// too (a loose table in the tables folder gets a new folder for the remix).
+    /// </summary>
+    public static bool CanKeepOriginal(InstalledTable t, AppSettings settings) =>
+        t is { IsVpx: true, SharedFolder: false }
+        && Directory.Exists(t.Folder)
+        && !settings.IsTablesRoot(t.Folder);
+
+    /// <summary>A remix install that failed after it began writing over the original: the original goes back.</summary>
+    static void RestoreKept(string kept, string tablePath)
+    {
+        try
+        {
+            File.Move(kept, tablePath, overwrite: true);
+            if (File.Exists(VrDmdFix.BackupPath(kept)))
+            {
+                File.Move(
+                    VrDmdFix.BackupPath(kept),
+                    VrDmdFix.BackupPath(tablePath),
+                    overwrite: true
+                );
+            }
+            File.Delete(Path.Combine(Path.GetDirectoryName(tablePath)!, InstallingMarker));
+        }
+        catch (Exception e) when (e is IOException or UnauthorizedAccessException)
+        {
+            // The copy stays as Name.vpx.original: the original isn't lost.
+        }
+    }
+
+    static void DeleteKept(string kept)
+    {
+        try
+        {
+            File.Delete(kept);
+            File.Delete(VrDmdFix.BackupPath(kept));
+        }
+        catch (Exception e) when (e is IOException or UnauthorizedAccessException) { }
     }
 
     /// <summary>
@@ -1153,7 +1436,7 @@ public static class TableInstaller
         m.TableFileId = tf.Id;
         m.Version = tf.Version;
         m.Authors = tf.Authors ?? [];
-        m.Features = tf.Features ?? [];
+        m.Features = VpuRemix.FeaturesOf(tf);
         m.SourceUrl = tf.Urls?.FirstOrDefault()?.Url;
         m.ImgUrl =
             !string.IsNullOrWhiteSpace(tf.ImgUrl) ? tf.ImgUrl

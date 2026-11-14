@@ -48,28 +48,124 @@ public sealed partial class LibraryViewModel
 
         var (game, tf) = which;
 
-        // Already installed: this replaces it (ROMs, high scores and settings in its folder stay).
-        var replacing = string.IsNullOrEmpty(game.Id)
-            ? null
-            : _allInstalled
-                .FirstOrDefault(i =>
-                    i.Table.Manifest.GameId == game.Id
-                    && i.Table.Manifest.Engine
-                        == (fp ? TableManifest.FuturePinball : TableManifest.Vpx)
-                )
-                ?.Table;
+        // A VPU Remix (.dif) is made by patching a table you have: it may replace that table or go in beside it.
+        // A remix already made into a .vpx (with the VPURemix tool) installs like any table.
+        var remix =
+            !fp && (await Task.Run(() => VpuRemix.IsPatchOnly(file)) ?? VpuRemix.IsRemix(tf));
+        var bases = fp
+            ? []
+            // The entry the file was matched to comes first: for a .dif named after its original, that's the base.
+            : App
+                .Catalog.RemixBases(game, tf)
+                .OrderByDescending(b => b.Exact)
+                .ThenByDescending(b => b.Table.Manifest.TableFileId == tf.Id)
+                .ToList();
         if (
-            replacing != null
-            && await Ui.ChoiceAsync(
-                $"{game.Name} is already installed",
-                "Replace it with this file? Its ROMs, high scores and settings stay.",
-                ["REPLACE", "CANCEL"]
-            ) != 0
+            remix
+            && await App.Catalog.PickRemixBaseAsync($"{game.Name}: VPU Remix", bases) is { } ordered
         )
         {
-            return;
+            bases = ordered;
+        }
+        else if (remix && bases.Count > 0)
+        {
+            return; // cancelled
+        }
+        InstalledTable? replacing;
+        if (remix)
+        {
+            if (bases.Count == 0)
+            {
+                await Ui.ChoiceAsync(
+                    $"{game.Name}: VPU Remix",
+                    "This remix is a patch for another table, not a table. Install the table it patches first "
+                        + "(the exact version it was made from; the remix's ReadMe links it), then add this file again.",
+                    ["OK"]
+                );
+                return;
+            }
+
+            var pick = await App.Catalog.AskNewOrReplaceAsync(
+                $"{game.Name}: VPU Remix",
+                $"The remix is made by patching your {bases[0].Table.Manifest.GameName} "
+                    + $"({Path.GetFileName(bases[0].Table.TablePath)}).",
+                bases[0].Table,
+                "\n\nIf the patch doesn't fit your copy, nothing is installed."
+            );
+            if (pick < 0)
+            {
+                return;
+            }
+
+            replacing = pick == 1 ? bases[0].Table : null;
+            // Replacing a table puts the remix made from that table in its place, never one made from another.
+            if (replacing != null)
+            {
+                bases = [bases[0]];
+            }
+
+            // A .dif matched to a catalog entry that isn't a remix (likely the base: patches are named after it)
+            // mustn't take that entry's id: it would install into the base's folder and be "updated" back to it.
+            if (!VpuRemix.IsRemix(tf))
+            {
+                tf = new VpsTableFile
+                {
+                    Id = "",
+                    TableFormat = "VPX",
+                    Features = [VpuRemix.Feature],
+                    ImgUrl = tf.ImgUrl,
+                };
+            }
+        }
+        else
+        {
+            // Already installed: this replaces it (ROMs, high scores and settings in its folder stay).
+            replacing = string.IsNullOrEmpty(game.Id)
+                ? null
+                : _allInstalled
+                    .FirstOrDefault(i =>
+                        i.Table.Manifest.GameId == game.Id
+                        && i.Table.Manifest.Engine
+                            == (fp ? TableManifest.FuturePinball : TableManifest.Vpx)
+                    )
+                    ?.Table;
+            if (
+                replacing != null
+                && await Ui.ChoiceAsync(
+                    $"{game.Name} is already installed",
+                    "Replace it with this file? Its ROMs, high scores and settings stay.",
+                    ["REPLACE", "CANCEL"]
+                ) != 0
+            )
+            {
+                return;
+            }
         }
 
+        await InstallFileAsync(
+            file,
+            game,
+            tf,
+            replacing,
+            bases.Select(b => b.SourcePath).ToList(),
+            remix
+        );
+    }
+
+    /// <summary>
+    /// Installs a table file you picked as a Downloads job: a new table, or in place of <paramref name="replacing"/>
+    /// (an update, or a remix put in its place). <paramref name="bases"/>: the files a remix's patch is applied to.
+    /// </summary>
+    async Task InstallFileAsync(
+        string file,
+        VpsGame game,
+        VpsTableFile tf,
+        InstalledTable? replacing,
+        IReadOnlyList<string> bases,
+        bool remix
+    )
+    {
+        var name = Path.GetFileName(file);
         // Replacing: an update, ROM fetch or add-on running for the table would be writing into the same folder.
         if (replacing != null && !TryBeginBusy(replacing.TablePath))
         {
@@ -78,10 +174,11 @@ public sealed partial class LibraryViewModel
             return;
         }
 
-        var job = new JobItem($"{(replacing == null ? "" : "Update: ")}{game.Name} — from {name}")
-        {
-            FileNames = [game.Name],
-        };
+        var verb =
+            replacing == null ? ""
+            : remix ? "Replace with remix: "
+            : "Update: ";
+        var job = new JobItem($"{verb}{game.Name} — from {name}") { FileNames = [game.Name] };
         App.Downloads.Jobs.Insert(0, job);
         try
         {
@@ -93,7 +190,8 @@ public sealed partial class LibraryViewModel
                 Settings,
                 job.Report,
                 job.Cts.Token,
-                replacing
+                replacing,
+                bases
             );
             var getRom =
                 installed.MissingRoms.Count > 0 && App.Roms.FindRomSource(installed) != null;

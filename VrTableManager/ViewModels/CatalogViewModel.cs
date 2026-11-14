@@ -451,33 +451,69 @@ public sealed partial class CatalogViewModel(MainViewModel app) : ChildViewModel
             return;
         }
 
-        var files = item.Game.TableFiles!.Where(IsVisible).OrderByDescending(t => t.ReleasedAt ?? 0);
-        foreach (var f in files)
+        // Tables first, then the VPU Remixes (patches made from one of them), each newest first.
+        var files = item
+            .Game.TableFiles!.Where(IsVisible)
+            .Select(t => (File: t, Remix: VpuRemix.IsRemix(t)))
+            .OrderBy(x => x.Remix)
+            .ThenByDescending(x => x.File.ReleasedAt ?? 0);
+        var firstRemix = true;
+        foreach (var (f, remix) in files)
         {
             var file = f;
+            var baseLine = "";
+            if (remix)
+            {
+                var parent = VpuRemix.BaseOf(file, _allGames, item.Game);
+                baseLine = TableVersionItem.DescribeRemixBase(
+                    parent?.Game,
+                    parent?.File,
+                    RemixBases(item.Game, file).FirstOrDefault(),
+                    item.Game
+                );
+            }
+
             Versions.Add(
                 new TableVersionItem(
                     item.Game,
                     file,
                     new AsyncRelayCommand(() => InstallAsync(item.Game, file))
                 )
+                {
+                    IsRemix = remix,
+                    StartsRemixes = remix && firstRemix,
+                    RemixBase = baseLine,
+                }
             );
+            firstRemix &= !remix;
         }
     }
 
-    async Task<bool> InstallCoreAsync(VpsGame game, VpsTableFile tf, InstalledTable? replacing)
+    async Task<bool> InstallCoreAsync(
+        VpsGame game,
+        VpsTableFile tf,
+        InstalledTable? replacing,
+        IReadOnlyList<string>? only = null
+    )
     {
         var url = tf.Urls?.FirstOrDefault(u => !u.Broken)?.Url;
         if (url == null)
         {
+            CatalogStatus =
+                $"{game.Name}: the catalog has no working download link for this version.";
             return false;
         }
 
-        var verb = replacing == null ? "" : "Update: ";
+        // Replacing a table with another catalog entry (a remix replacing the table it patches), not updating it.
+        var swap = replacing != null && replacing.Manifest.TableFileId != tf.Id;
+        var verb =
+            replacing == null ? ""
+            : swap ? "Replace with remix: "
+            : "Update: ";
         var job = new JobItem($"{verb}{game.Name} — {string.Join(", ", tf.Authors ?? [])}")
         {
             FileNames = [game.Name],
-            FileTypes = [".vpx", ".zip", ".7z", ".rar"],
+            FileTypes = [".vpx", ".zip", ".7z", ".rar", VpuRemix.PatchExt],
         };
         App.Downloads.Jobs.Insert(0, job);
         App.Downloads.Pending.Add(
@@ -506,9 +542,19 @@ public sealed partial class CatalogViewModel(MainViewModel app) : ChildViewModel
                 Settings,
                 job.Report,
                 job.Cts.Token,
-                replacing
+                replacing,
+                // A remix's .dif is applied to one of these (read now: a base installed just before is listed).
+                // Replacing a table with a remix: only that table, so it's never swapped for one made from another.
+                only?.ToList()
+                    ?? RemixBases(game, tf)
+                        .Where(b => !swap || b.Table.TablePath == replacing!.TablePath)
+                        .Select(b => b.SourcePath)
+                        .ToList()
             );
-            var done = replacing == null ? "Installed" : $"Updated to v{tf.Version}";
+            var done =
+                replacing == null ? "Installed"
+                : swap ? "Replaced with the remix"
+                : $"Updated to v{tf.Version}";
             var getRom =
                 installed.MissingRoms.Count > 0 && App.Roms.FindRomSource(installed) != null;
             // "incl. PuP" tables mostly offer the pack as a second file on their page, which the table download doesn't bring.
@@ -559,42 +605,57 @@ public sealed partial class CatalogViewModel(MainViewModel app) : ChildViewModel
         }
     }
 
+    async Task<bool> InstallNewAsync(
+        VpsGame game,
+        VpsTableFile tf,
+        IReadOnlyList<string>? only = null
+    )
+    {
+        // Nothing installed to mark busy yet: the catalog file itself, so a second INSTALL (after picking the game
+        // again, or a resumed download) doesn't install it into the same folder at the same time.
+        var key = $"install:{game.Id}|{tf.Id}";
+        if (!App.Library.TryBeginBusy(key))
+        {
+            CatalogStatus = $"{game.Name} is already being installed (see Downloads).";
+            return false;
+        }
+
+        try
+        {
+            return await InstallCoreAsync(game, tf, null, only);
+        }
+        finally
+        {
+            App.Library.EndBusy(key);
+        }
+    }
+
     /// <param name="replacing">The installed table this replaces (updates), so its old file is removed.</param>
     internal async Task<bool> InstallAsync(
         VpsGame game,
         VpsTableFile tf,
-        InstalledTable? replacing = null
+        InstalledTable? replacing = null,
+        IReadOnlyList<string>? only = null
     )
     {
         if (replacing == null)
         {
-            // Nothing installed to mark busy yet: the catalog file itself, so a second INSTALL (after picking the game
-            // again, or a resumed download) doesn't install it into the same folder at the same time.
-            var key = $"install:{game.Id}|{tf.Id}";
-            if (!App.Library.TryBeginBusy(key))
-            {
-                CatalogStatus = $"{game.Name} is already being installed (see Downloads).";
-                return false;
-            }
-
-            try
-            {
-                return await InstallCoreAsync(game, tf, null);
-            }
-            finally
-            {
-                App.Library.EndBusy(key);
-            }
+            // A remix is made from another table: find it (or install it) and ask whether the remix replaces it.
+            return VpuRemix.IsRemix(tf)
+                ? await InstallRemixAsync(game, tf)
+                : await InstallNewAsync(game, tf);
         }
 
         if (!App.Library.TryBeginBusy(replacing.TablePath))
         {
+            CatalogStatus =
+                $"{replacing.Manifest.GameName} has a job running (see Downloads): wait for it, then try again.";
             return false; // already updating this table
         }
 
         try
         {
-            return await InstallCoreAsync(game, tf, replacing);
+            return await InstallCoreAsync(game, tf, replacing, only);
         }
         finally
         {

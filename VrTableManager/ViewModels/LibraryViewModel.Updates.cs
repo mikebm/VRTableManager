@@ -33,6 +33,7 @@ public sealed partial class LibraryViewModel
             item.HasSternSource = App.Roms.IsSternTable(item.Table);
             item.AttractAudioSources = App.Media.AttractAudioSourcesFor(item.Table);
             item.WheelArtSources = App.Media.WheelArtSourcesFor(item.Table);
+            item.RemixChoices = App.Catalog.RemixChoicesFor(item);
             _ = App.Roms.RecheckRomNeedAsync(item.Table);
         }
         TableUpdateCount = updates.Count;
@@ -111,5 +112,4 @@ public sealed partial class LibraryViewModel
             await App.Catalog.InstallAsync(u.Game, u.File, u.Table);
         }
     }
-
 }

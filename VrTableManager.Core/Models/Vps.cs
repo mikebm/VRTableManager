@@ -76,6 +76,12 @@ public sealed class VpsTableFile : VpsFile
 {
     public string? TableFormat { get; set; }
     public string? Edition { get; set; }
+
+    /// <summary>
+    /// The table file this one is derived from (its id), or "root" / null for none. For a VPU Remix it is the base
+    /// table the .dif patch applies to (see <see cref="VrTableManager.Services.VpuRemix"/>).
+    /// </summary>
+    public string? ParentId { get; set; }
 }
 
 public sealed class VpsAltColorFile : VpsFile

@@ -1139,6 +1139,31 @@ void WithTable(string fragment, string what, Func<string, bool> ok)
     }
 }
 
+// VPU Remix check on real tables: every installed table must read as a VPX, or a remix made from it would be refused
+// as "wrong version" (decal fonts and drag points are written outside the usual records).
+{
+    var tablesRoot = @"C:\Users\mikem\VPinball\Tables";
+    var real = Directory.Exists(tablesRoot)
+        ? Directory
+            .GetFiles(tablesRoot, "*.vpx", SearchOption.AllDirectories)
+            .OrderBy(f => new FileInfo(f).Length)
+            .Take(12)
+            .ToList()
+        : [];
+    if (real.Count == 0)
+    {
+        Console.WriteLine("SKIP  remix: installed tables read as VPX (no tables installed)");
+    }
+    else
+    {
+        var bad = real.Where(f => !VpuRemix.LooksLikeVpx(f)).Select(Path.GetFileName).ToList();
+        Check(
+            bad.Count == 0,
+            $"remix: installed tables read as VPX ({real.Count} checked{(bad.Count > 0 ? "; not: " + string.Join(", ", bad) : "")})"
+        );
+    }
+}
+
 // A recorded lobby video's frame: a band of back-board art on top, then the playfield. PlayfieldMatch finds the band
 // against the playfield picture; a frame that's all playfield, or one the picture doesn't resemble, isn't cut.
 {
@@ -3100,6 +3125,11 @@ foreach (var (ok, name) in FocusRetryChecks.Run())
 }
 
 foreach (var (ok, name) in TableFileMatchChecks.Run())
+{
+    Check(ok, name);
+}
+
+foreach (var (ok, name) in await VpuRemixChecks.RunAsync(root))
 {
     Check(ok, name);
 }

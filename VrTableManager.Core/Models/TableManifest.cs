@@ -79,6 +79,22 @@ public sealed class TableManifest
 
     /// <summary>The .directb2s backglass this app installed beside the table (Folder = its file name); null when none was.</summary>
     public InstalledAddon? Backglass { get; set; }
+
+    /// <summary>
+    /// The table a VPU Remix replaced: its file is kept in this folder, so it can be put back and the remix's updates
+    /// are patched from it. Null when this table isn't a remix put in another's place.
+    /// </summary>
+    public RemixOriginal? RemixOriginal { get; set; }
+}
+
+/// <summary>The table a VPU Remix replaced, kept beside it (see <see cref="TableManifest.RemixOriginal"/>).</summary>
+public sealed class RemixOriginal
+{
+    /// <summary>The kept table file's name in the table folder ("Name.vpx.original").</summary>
+    public string File { get; set; } = "";
+
+    /// <summary>Its manifest as it was, to put back with it.</summary>
+    public TableManifest Manifest { get; set; } = new();
 }
 
 /// <summary>

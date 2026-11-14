@@ -72,6 +72,12 @@ public sealed class GameItem(VpsGame game, bool installed)
                 parts.Add("Future Pinball");
             }
 
+            var remixes = Game.TableFiles?.Count(VpuRemix.IsRemix) ?? 0;
+            if (remixes > 0)
+            {
+                parts.Add(remixes == 1 ? "1 VPU remix" : $"{remixes} VPU remixes");
+            }
+
             if (IsInstalled)
             {
                 parts.Add("✓ installed");
@@ -135,6 +141,48 @@ public sealed class TableVersionItem
     public string Features => File.Features is { Count: > 0 } f ? string.Join("  ·  ", f) : "";
     public IReadOnlyList<string> FeatureList => File.Features ?? [];
     public string? Comment => File.Comment;
+
+    /// <summary>A VPU Remix: a .dif patch made from another table, not a table on its own.</summary>
+    public bool IsRemix { get; init; }
+
+    /// <summary>The first remix in the list: the "VPU REMIXES" heading goes above it.</summary>
+    public bool StartsRemixes { get; init; }
+
+    /// <summary>"Patches JPSalas's table v1.2 — you have it" (remixes only; empty otherwise).</summary>
+    public string RemixBase { get; init; } = "";
+
+    /// <summary>
+    /// What a remix is made from and whether you have it, for the catalog. <paramref name="baseFile"/> is its VPS
+    /// parent (null when VPS doesn't say); <paramref name="installedBase"/> the installed table its patch is tried
+    /// on first, if any.
+    /// </summary>
+    public static string DescribeRemixBase(
+        VpsGame? baseGame,
+        VpsTableFile? baseFile,
+        VpuRemix.BaseCandidate? installedBase,
+        VpsGame game
+    )
+    {
+        var what =
+            baseFile == null
+                ? "Patches a table the catalog doesn't name (see its page)"
+                : "Patches "
+                    + (baseGame != null && baseGame.Id != game.Id ? baseGame.Name + " " : "")
+                    + VpuRemix.Describe(baseFile);
+        var have =
+            installedBase == null ? "not installed: INSTALL gets it first"
+            : installedBase.Exact ? "you have it"
+            : $"not installed; your {installedBase.Table.Manifest.GameName} is tried instead";
+        if (baseFile == null)
+        {
+            have =
+                installedBase == null
+                    ? "install that table first"
+                    : $"your {installedBase.Table.Manifest.GameName} is tried";
+        }
+
+        return $"{what} — {have}";
+    }
 }
 
 public sealed partial class InstalledItem : ObservableObject
@@ -503,6 +551,25 @@ public sealed partial class InstalledItem : ObservableObject
     public partial bool DmdFixDeclined { get; set; }
 
     public bool CanApplyDmdFix => DmdFixDeclined && !HasDmdFix;
+
+    /// <summary>MORE → VPU Remixes: the catalog's remixes of this table (set by the view model once the catalog is in).</summary>
+    [ObservableProperty, NotifyPropertyChangedFor(nameof(HasRemixChoices))]
+    public partial IReadOnlyList<RemixChoice> RemixChoices { get; set; } = [];
+
+    public bool HasRemixChoices => RemixChoices.Count > 0;
+
+    /// <summary>A VPU Remix put in place of this table's original, which is kept beside it.</summary>
+    public bool IsRemixInPlace => Table.Manifest.RemixOriginal != null;
+
+    public string RevertRemixHeader =>
+        Table.Manifest.RemixOriginal?.Manifest is { } o
+            ? $"Put the original back ({o.GameName}"
+                + (
+                    string.IsNullOrWhiteSpace(o.Version)
+                        ? ")"
+                        : $" v{o.Version.Trim().TrimStart('v', 'V')})"
+                )
+            : "";
 
     public string LobbyVideoMenuHeader =>
         (HasLobbyVideo ? "Replace lobby video" : "Get a playfield video for the VR lobby")

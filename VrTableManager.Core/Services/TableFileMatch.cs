@@ -10,7 +10,7 @@ namespace VrTableManager.Services;
 /// </summary>
 public static partial class TableFileMatch
 {
-    public static readonly string[] Extensions = [".zip", ".rar", ".7z", ".vpx", ".fpt"];
+    public static readonly string[] Extensions = [".zip", ".rar", ".7z", ".vpx", ".fpt", VpuRemix.PatchExt];
 
     public static bool IsFuturePinball(string file) =>
         Path.GetExtension(file).Equals(".fpt", StringComparison.OrdinalIgnoreCase);
