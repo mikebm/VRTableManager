@@ -1,5 +1,6 @@
 using VrTableManager.Lobby;
 using VrTableManager.Services;
+using VrTableManager.ViewModels;
 
 /// <summary>
 /// Your collections of tables (TableCollections, collections.json shared with the VR lobby), and moving a table's
@@ -200,6 +201,90 @@ static class CollectionsChecks
                     .Count(f => f.Equals("decade", StringComparison.OrdinalIgnoreCase)) == 1
                 && ls.IsCollection("mine"),
             "lobby: a built-in filter wins over a collection with the same name, whatever the capitals"
+        );
+
+        // My Tables remembers the Collection filter's choice in settings.json and puts it back on the next start.
+        var rememberDir = Path.Combine(root, "collections-remember");
+        Directory.CreateDirectory(rememberDir);
+        var rememberCollections = Path.Combine(rememberDir, "collections.json");
+        TableCollections.Mutate(
+            x =>
+            {
+                x.Create("Party");
+                x.Create("Practice");
+            },
+            rememberCollections
+        );
+        List<CollectionOption> OptionsFrom(TableCollections tc) =>
+            [
+                new(CollectionKind.Any, "Any collection"),
+                new(CollectionKind.Header, "YOUR COLLECTIONS"),
+                .. tc.Collections.Select(x => new CollectionOption(CollectionKind.Mine, x.Name)),
+                new(CollectionKind.Header, "SMART"),
+                .. SmartCollections.BuiltIn.Select(b => new CollectionOption(
+                    CollectionKind.Ready,
+                    b.Name
+                )),
+            ];
+        var settingsPath = Path.Combine(rememberDir, "settings.json");
+        var saved = AppSettings.LoadFrom(settingsPath);
+        Check(
+            saved.LibraryCollectionKind == ""
+                && saved.LibraryCollection == ""
+                && LibraryViewModel
+                    .RememberedOption(
+                        OptionsFrom(TableCollections.Load(rememberCollections)),
+                        saved.LibraryCollectionKind,
+                        saved.LibraryCollection
+                    )
+                    .Kind == CollectionKind.Any,
+            "remembered collection: none saved yet, so Any collection"
+        );
+        saved.LibraryCollectionKind = nameof(CollectionKind.Mine);
+        saved.LibraryCollection = "Practice";
+        saved.Save();
+        var reloaded = AppSettings.LoadFrom(settingsPath);
+        var restored = LibraryViewModel.RememberedOption(
+            OptionsFrom(TableCollections.Load(rememberCollections)),
+            reloaded.LibraryCollectionKind,
+            reloaded.LibraryCollection
+        );
+        Check(
+            restored is { Kind: CollectionKind.Mine, Name: "Practice" },
+            "remembered collection: saved, read back and chosen again"
+        );
+        var builtIn = SmartCollections.BuiltIn[0].Name;
+        Check(
+            LibraryViewModel
+                .RememberedOption(
+                    OptionsFrom(TableCollections.Load(rememberCollections)),
+                    nameof(CollectionKind.Ready),
+                    builtIn.ToUpperInvariant()
+                )
+                .Name == builtIn,
+            "remembered collection: a ready-made smart one comes back too, whatever the capitals"
+        );
+        TableCollections.Mutate(x => x.Delete("Practice"), rememberCollections);
+        Check(
+            LibraryViewModel
+                .RememberedOption(
+                    OptionsFrom(TableCollections.Load(rememberCollections)),
+                    reloaded.LibraryCollectionKind,
+                    reloaded.LibraryCollection
+                )
+                .Kind == CollectionKind.Any,
+            "remembered collection: deleted since, so back to Any collection"
+        );
+        var options = OptionsFrom(TableCollections.Load(rememberCollections));
+        Check(
+            LibraryViewModel.RememberedOption(options, "Saved", "Party").Kind == CollectionKind.Any
+                && LibraryViewModel.RememberedOption(options, "Header", "SMART").Kind
+                    == CollectionKind.Any
+                && LibraryViewModel.RememberedOption(options, "Nonsense", "Party").Kind
+                    == CollectionKind.Any
+                && LibraryViewModel.RememberedOption(options, "99", "Party").Kind
+                    == CollectionKind.Any,
+            "remembered collection: a kind that doesn't match, a header or garbage falls back to Any collection"
         );
         return results;
     }

@@ -37,7 +37,12 @@ public sealed partial class LibraryViewModel
         Settings.Save();
     }
 
-    internal override void LoadSettings(AppSettings s) => CardSize = s.CardSize;
+    internal override void LoadSettings(AppSettings s)
+    {
+        CardSize = s.CardSize;
+        // Put back when the Collection filter's lines are next filled (at startup they aren't yet).
+        _rememberedCollection = (s.LibraryCollectionKind, s.LibraryCollection);
+    }
 
     /// <summary>Below Large, a card's buttons are just Play and MORE; the rest move into MORE's menu (narrow cards got tall otherwise).</summary>
     public bool IsCompactCards => CardSize != "Large";

@@ -100,8 +100,46 @@ public sealed partial class LibraryViewModel
             InstalledCollectionChoice = StepPastHeader(oldValue, newValue);
             return;
         }
+        if (newValue != null)
+        {
+            RememberCollection(newValue);
+        }
         InstalledFilterChanged(newValue?.Name);
     }
+
+    /// <summary>The choice from settings, put back the next time the filter's lines are filled (see LoadSettings).</summary>
+    (string Kind, string Name)? _rememberedCollection;
+
+    /// <summary>Keeps the choice in settings, so My Tables opens on it next time.</summary>
+    void RememberCollection(CollectionOption choice)
+    {
+        var (kind, name) =
+            choice.Kind == CollectionKind.Any ? ("", "") : (choice.Kind.ToString(), choice.Name);
+        if (Settings.LibraryCollectionKind == kind && Settings.LibraryCollection == name)
+        {
+            return;
+        }
+        Settings.LibraryCollectionKind = kind;
+        Settings.LibraryCollection = name;
+        Settings.Save();
+    }
+
+    /// <summary>
+    /// The line for a choice kept in settings (<see cref="AppSettings.LibraryCollectionKind"/>), or "Any collection"
+    /// when it's gone (deleted or renamed since) or the settings hold nothing usable.
+    /// </summary>
+    public static CollectionOption RememberedOption(
+        IEnumerable<CollectionOption> options,
+        string? kind,
+        string? name
+    ) =>
+        Enum.TryParse<CollectionKind>(kind, out var k)
+        && Enum.IsDefined(k)
+        && k is not (CollectionKind.Any or CollectionKind.Header)
+            ? options.FirstOrDefault(o =>
+                o.Kind == k && string.Equals(o.Name, name, StringComparison.OrdinalIgnoreCase)
+            ) ?? AnyOption
+            : AnyOption;
 
     /// <summary>The line to land on instead of <paramref name="header"/>, coming from <paramref name="from"/>.</summary>
     CollectionOption StepPastHeader(CollectionOption? from, CollectionOption header)
@@ -233,11 +271,30 @@ public sealed partial class LibraryViewModel
         RefillCollectionOptions(options);
     }
 
-    /// <summary>Replaces the Collection filter's lines, keeping the choice when it's still there (else "Any").</summary>
+    /// <summary>
+    /// Replaces the Collection filter's lines, keeping the choice when it's still there (else "Any"). Just after the
+    /// settings were loaded, the choice they hold is put back instead (else "Any").
+    /// </summary>
     void RefillCollectionOptions(List<CollectionOption> options)
     {
+        var remembered = _rememberedCollection;
+        _rememberedCollection = null;
         if (InstalledCollections.SequenceEqual(options))
         {
+            if (remembered is { } r)
+            {
+                // Lines unchanged (a backup restored over the same collections): only the choice changes. The caller
+                // refilters afterwards.
+                _refillingChoices = true;
+                try
+                {
+                    InstalledCollectionChoice = RememberedOption(InstalledCollections, r.Kind, r.Name);
+                }
+                finally
+                {
+                    _refillingChoices = false;
+                }
+            }
             return;
         }
 
@@ -252,7 +309,9 @@ public sealed partial class LibraryViewModel
             }
             // Through null, so the box shows the choice again whether or not it cleared itself (see Refill).
             InstalledCollectionChoice = null;
-            InstalledCollectionChoice = Option(selected?.Kind, selected?.Name);
+            InstalledCollectionChoice = remembered is { } kept
+                ? RememberedOption(InstalledCollections, kept.Kind, kept.Name)
+                : Option(selected?.Kind, selected?.Name);
         }
         finally
         {

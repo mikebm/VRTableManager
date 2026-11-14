@@ -292,6 +292,17 @@ public sealed class AppSettings
     /// <summary>How big the cards in My Tables are: "Large", "Medium", "Small" or "Text" (no pictures).</summary>
     public string CardSize { get; set; } = "Large";
 
+    /// <summary>
+    /// The My Tables Collection filter's last choice, so it's still chosen when the app starts again: its kind ("Mine",
+    /// "Ready" or "Saved"; empty for Any collection) and <see cref="LibraryCollection"/>, its name. Collections have no
+    /// ID of their own, only a name; one that's gone by then (deleted, or renamed in another manager window) falls back
+    /// to Any collection.
+    /// </summary>
+    public string LibraryCollectionKind { get; set; } = "";
+
+    /// <summary>The name of the collection in <see cref="LibraryCollectionKind"/>; empty for Any collection.</summary>
+    public string LibraryCollection { get; set; } = "";
+
     /// <summary>The Setup section that was showing last ("vpx", "headset", …), so Setup opens there again.</summary>
     public string SetupSection { get; set; } = "vpx";
 
