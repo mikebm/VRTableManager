@@ -961,6 +961,12 @@ public partial class Cabinet : Node3D
     /// </summary>
     public void SetPlayfieldDepth(Texture2D? heights, float depth = 0)
     {
+        (_heldHeights, _heldDepth) = (heights, depth);
+        if (ShowsToys)
+        {
+            heights = null; // the table's own toys stand there instead (CabinetToys)
+        }
+
         if (heights == null)
         {
             _depthMat = null;

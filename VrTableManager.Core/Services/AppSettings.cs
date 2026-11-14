@@ -223,6 +223,13 @@ public sealed class AppSettings
     /// </summary>
     public bool LobbyPlayfieldVideos { get; set; } = true;
 
+    /// <summary>
+    /// The VR lobby's selected cabinet shows its table's own 3D toys (ramps, plastics, toys) on the playfield, its lobby
+    /// video lying flat under them. Off by default: a table's toys can be a million vertices and more, so tables over the
+    /// lobby's budget are left without, and older tables' toys, lit by VPX at play time, can look flat.
+    /// </summary>
+    public bool LobbyTableToys { get; set; }
+
     /// <summary>On LAUNCH VR LOBBY, offer PREPARE TABLES while many tables haven't been read for the lobby yet.</summary>
     public bool AskToPrepareLobbyTables { get; set; } = true;
 

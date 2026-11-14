@@ -307,6 +307,7 @@ public partial class Main : Node3D
         _recorder.Seconds = Settings.AttractSeconds;
         _borrowAll = args.ContainsKey("borrow-all");
         _noDepth = args.ContainsKey("no-depth"); // flat playfield video, for comparing (PlayfieldDepth)
+        SetupToys(args);
         // --screenshot=<png> [--pitch=<degrees>] (desktop, diagnostic): save one frame once the art is in, then quit.
         if (!_vr && args.GetValueOrDefault("screenshot") is { Length: > 0 } shot)
         {
@@ -2218,6 +2219,7 @@ public partial class Main : Node3D
             }
             Layout();
         }
+        UpdateToys(delta);
         StopStaleSideVideos();
         if (Shown.Count > 0 && !_launching)
         {

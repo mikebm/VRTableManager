@@ -1256,6 +1256,42 @@ foreach (var vpw in new[] { "Fish Tales (Williams 1992) VPW", "Metallica Premium
         vpx => PartsOf(vpx) is { } named && named.ContainsKey("BM_Parts_BackBoard")
     );
 }
+
+// The lobby's optional 3D toys (VpxCabinet.Toys): the baked toys, not the playfield, the lightmaps, the back board the
+// cabinet already has, a flipper's raised pose or a slingshot's other frames; and over the budget, nothing but the count.
+WithTable(
+    "Fish Tales (Williams 1992) VPW",
+    "Fish Tales's toys: the boat, reel and ramps, one pose each, in playfield space",
+    vpx =>
+        VpxCabinet.Toys(vpx, int.MaxValue) is { OverBudget: false } toys
+        && toys.Parts.Select(p => p.Name).ToHashSet() is var names
+        && names.IsSupersetOf([
+            "BM_Parts",
+            "BM_Reel",
+            "BM_MetalRamps",
+            "BM_FlipperLDown",
+            "BM_LeftSling1",
+        ])
+        && !names.Overlaps([
+            "BM_Playfield",
+            "BM_FlipperLUp",
+            "BM_LeftSling2",
+            "BM_RampCoversAlt",
+            "BM_Parts_BackBoard",
+        ])
+        && !names.Any(n => n.StartsWith("LM_", StringComparison.OrdinalIgnoreCase))
+        // Centred on the playfield and standing on it: x within half its width, nothing much below it.
+        && toys.Parts.All(p =>
+            Enumerable
+                .Range(0, p.VertexCount)
+                .All(i =>
+                    Math.Abs(p.Positions[i * 3]) < toys.PlayfieldSize.X * 0.6f
+                    && p.Positions[i * 3 + 1] > -0.16f
+                )
+        )
+        && VpxCabinet.Toys(vpx, 1000) is { OverBudget: true, Parts.Count: 0 } over
+        && over.Vertices == toys.Vertices
+);
 WithTable(
     "JAWS 50Th Anniversary",
     "JAWS: rail screws left out; its back art (Wall15, 2.7 cm up in VPX) stretched down to the playfield, the black board behind it gone",

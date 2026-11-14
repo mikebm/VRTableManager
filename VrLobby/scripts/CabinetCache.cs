@@ -176,7 +176,7 @@ static class CabinetCache
         }
     }
 
-    static Parsed ReadBody(BinaryReader r)
+    internal static Parsed ReadBody(BinaryReader r)
     {
         var centre = ReadVector3(r);
         var size = new Vector2(r.ReadSingle(), r.ReadSingle());
@@ -242,7 +242,7 @@ static class CabinetCache
         };
     }
 
-    static void WriteBody(BinaryWriter w, Parsed parsed)
+    internal static void WriteBody(BinaryWriter w, Parsed parsed)
     {
         WriteVector3(w, parsed.PlayfieldCentre);
         w.Write(parsed.PlayfieldSize.X);

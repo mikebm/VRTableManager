@@ -49,6 +49,12 @@ public sealed partial class LobbyViewModel(MainViewModel app) : ChildViewModel(a
     partial void OnLobbyPlayfieldVideosChanged(bool value) =>
         SaveSetting(s => s.LobbyPlayfieldVideos = value);
 
+    /// <summary>The VR lobby's selected cabinet shows its table's own 3D toys (experimental).</summary>
+    [ObservableProperty]
+    public partial bool LobbyTableToys { get; set; }
+
+    partial void OnLobbyTableToysChanged(bool value) => SaveSetting(s => s.LobbyTableToys = value);
+
     partial void OnLobbyWaitsForTableChanged(bool value) =>
         SaveSetting(s => s.LobbyWaitsForTable = value);
 
@@ -79,6 +85,7 @@ public sealed partial class LobbyViewModel(MainViewModel app) : ChildViewModel(a
         LobbyRecordsRomAudio = s.LobbyRecordsRomAudio;
         AttractMusicSeconds = s.AttractSeconds;
         LobbyPlayfieldVideos = s.LobbyPlayfieldVideos;
+        LobbyTableToys = s.LobbyTableToys;
         LobbyWaitsForTable = s.LobbyWaitsForTable;
         LobbyStaysOpen = s.LobbyStaysOpen;
         LobbyLoadingVideos = s.LobbyLoadingVideos;

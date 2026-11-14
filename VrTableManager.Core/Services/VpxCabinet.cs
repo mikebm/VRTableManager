@@ -123,7 +123,7 @@ public sealed record VpxPrimitiveInfo(
 /// Follows VPX's own formats (src/parts/primitive.cpp, Material.h): BIFF records per primitive, zlib-
 /// compressed vertex/index arrays, and the transform scale → rotate/translate → position.
 /// </summary>
-public static class VpxCabinet
+public static partial class VpxCabinet
 {
     /// <summary>One VPX unit in metres: 50 units are 1 1/16 inch.</summary>
     public const float VpuToMetres = 1.0625f * 0.0254f / 50f;

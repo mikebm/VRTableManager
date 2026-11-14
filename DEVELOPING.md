@@ -60,6 +60,8 @@ These go after `--` on the lobby's command line, for example `godot --path VrLob
 | `--perf-trace[=steps]` | Step through the tables on its own and print every slow frame. |
 | `--borrow-all` | Show every table on the default cabinet. |
 | `--no-depth` | Show the playfield video flat, to compare. |
+| `--toys` | Show the selected table's own 3D toys on its playfield, whatever Setup says (experimental; Setup's "3D toys" option). `--toy-budget=<vertices>` changes the most a table's toys may have (1,000,000); the log says why a table gets none. |
+| `--toy-stats` | Print draw calls, triangles and video memory every 2 seconds, to compare with and without `--toys`. |
 | `--dump-cabinet=<table.vpx>` | Save that table's VR cabinet as the default cabinet, then quit. |
 | `--prepare-tables` | Read every table's cabinet and pictures into the cache, then quit. Setup's PREPARE TABLES runs this. |
 
