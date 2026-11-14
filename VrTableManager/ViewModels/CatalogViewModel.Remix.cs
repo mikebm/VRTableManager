@@ -86,6 +86,22 @@ public sealed partial class CatalogViewModel
                 return false;
             }
 
+            // The catalog's version came out after the remix: installing it first would likely waste a download.
+            if (
+                VpuRemix.Predates(tf, p.File)
+                && !await TooOldAsync(
+                    title,
+                    tf,
+                    $"It patches {p.Game.Name}, but it came out ({VpuRemix.ReleaseDate(tf)}) before the "
+                        + $"catalog's {VpuRemix.Describe(p.File)} ({VpuRemix.ReleaseDate(p.File)}), so it was made "
+                        + "from an earlier version, which the catalog doesn't have.",
+                    tryAnyway: true
+                )
+            )
+            {
+                return false;
+            }
+
             var both = await Ui.ChoiceAsync(
                 title,
                 $"This remix is a patch for {p.Game.Name} {VpuRemix.Describe(p.File)}, not a table. That table "
@@ -105,6 +121,33 @@ public sealed partial class CatalogViewModel
             {
                 CatalogStatus =
                     $"{p.Game.Name} was installed, but isn't listed yet: install the remix again.";
+                return false;
+            }
+        }
+        else if (!bases[0].Exact && parent is { } q && !VpuRemix.Predates(tf, q.File))
+        {
+            // You have the game, but not the table the remix is made from (another author's, a VR room mod…):
+            // the catalog has that one, so offer it rather than trying a patch that almost never fits another.
+            var yours = bases[0].Table;
+            var mine = $"TRY MY {yours.Manifest.GameName.ToUpperInvariant()}";
+            var first = await Ui.ChoiceAsync(
+                title,
+                $"This remix is a patch for {q.Game.Name} {VpuRemix.Describe(q.File)}, which you don't have. Your "
+                    + $"{yours.Manifest.GameName} ({Path.GetFileName(yours.TablePath)}) is another table or "
+                    + "version, so the patch almost certainly won't fit it.\n\n"
+                    + $"Install {q.Game.Name} {VpuRemix.Describe(q.File)} first, then the remix is made from it?",
+                ["INSTALL IT FIRST", mine, CancelButton]
+            );
+            if (first == 0)
+            {
+                if (!await InstallNewAsync(q.Game, q.File))
+                {
+                    return false;
+                }
+                bases = RemixBases(game, tf); // the exact one comes first now
+            }
+            else if (first != 1)
+            {
                 return false;
             }
         }
@@ -145,6 +188,44 @@ public sealed partial class CatalogViewModel
     }
 
     /// <summary>
+    /// The remix was made from an older version than the one there is: says so, with its page (which names the
+    /// version it needs, often with a link to it). True when you chose to try anyway.
+    /// </summary>
+    async Task<bool> TooOldAsync(string title, VpsTableFile tf, string why, bool tryAnyway)
+    {
+        var url = tf.Urls?.FirstOrDefault(u => !u.Broken)?.Url;
+        List<string> buttons = [];
+        if (url != null)
+        {
+            buttons.Add("OPEN ITS PAGE");
+        }
+        if (tryAnyway)
+        {
+            buttons.Add("TRY ANYWAY");
+        }
+        buttons.Add(CancelButton);
+        var pick = await Ui.ChoiceAsync(
+            title,
+            $"This remix needs an older version of its table. {why}\n\n"
+                + "Its page names the version it was made from (\"Original Table Version\"), often with a link to "
+                + "it. Add that version first (My Tables → ADD A TABLE FILE), then install the remix again: it's "
+                + "made from it."
+                + (
+                    tryAnyway
+                        ? " Already have it? TRY ANYWAY: if the patch doesn't fit, nothing is installed."
+                        : ""
+                ),
+            [.. buttons]
+        );
+        var picked = pick >= 0 && pick < buttons.Count ? buttons[pick] : CancelButton;
+        if (picked == "OPEN ITS PAGE")
+        {
+            Ui.OpenExternal(url!);
+        }
+        return picked == "TRY ANYWAY";
+    }
+
+    /// <summary>
     /// The table a remix is patched from, as its manifest was: the kept original, for a remix in its place.
     /// </summary>
     internal static TableManifest BaseManifest(InstalledTable t) =>
@@ -166,6 +247,29 @@ public sealed partial class CatalogViewModel
         var title = $"{game.Name}: VPU Remix";
         var made = BaseManifest(first.Table);
         var baseName = first.Table.Manifest.GameName;
+        // Released after the remix: the patch was made from an earlier version, so say so before downloading it.
+        var baseFile =
+            CatalogGame(made.GameId)?.TableFiles?.FirstOrDefault(f => f.Id == made.TableFileId)
+            ?? (first.Exact ? parent?.File : null);
+        // Dated by the catalog only when it still lists the version you have (an older copy isn't its version).
+        if (VpuRemix.PredatesYours(tf, baseFile, made.Version))
+        {
+            var ver = $" v{made.Version!.Trim().TrimStart('v', 'V')}";
+            if (
+                !await TooOldAsync(
+                    title,
+                    tf,
+                    $"It came out ({VpuRemix.ReleaseDate(tf)}) before your {made.GameName}{ver} "
+                        + $"({VpuRemix.ReleaseDate(baseFile!)}), so it was made from an earlier version and its "
+                        + "patch won't fit yours.",
+                    tryAnyway: true
+                )
+            )
+            {
+                return false;
+            }
+        }
+
         var warn = "";
         if (!first.Exact)
         {
@@ -184,14 +288,25 @@ public sealed partial class CatalogViewModel
                 $"\n\nYou have v{made.Version ?? "?"}; the catalog now lists v{q.File.Version}. "
                 + "The patch fits only the version it was made from; if it doesn't fit, nothing is installed.";
         }
+        else if (!string.IsNullOrWhiteSpace(made.Version))
+        {
+            warn =
+                $"\n\nIts page lists the \"Original Table Version\" the patch was made from: it has to be your "
+                + $"v{made.Version.Trim().TrimStart('v', 'V')}, or nothing is installed.";
+        }
 
         var from =
             VpuRemix.KeptOriginal(first.Table) != null
                 ? $"the original {made.GameName} kept beside your {baseName} remix"
                 : $"your {baseName} ({Path.GetFileName(first.Table.TablePath)})";
+        // A remix's page often offers one .dif per original (AC/DC: Premium, Pro, LE…), each named after that table.
+        var named = Path.GetFileNameWithoutExtension(
+            string.IsNullOrWhiteSpace(made.VpxFile) ? first.Table.TablePath : made.VpxFile
+        );
         var choice = await AskNewOrReplaceAsync(
             title,
-            $"The remix is made by patching {from}.",
+            $"The remix is made by patching {from}. If its page offers several .dif files, download the one "
+                + $"named after that table (\"{named}\"), or the one for its version.",
             first.Table,
             warn
         );
@@ -236,7 +351,8 @@ public sealed partial class CatalogViewModel
             ? $"Your {name} is itself a remix: replacing it removes it (it isn't kept). The table's folder, ROMs, "
                 + "high scores, settings and play stats stay."
             : "Replacing keeps the table's folder, ROMs, high scores, settings and play stats, and keeps the "
-                + "original beside it: MORE → VPU Remixes on its card puts it back.";
+                + "original beside it. To switch back later: My Tables → its card → MORE → VPU Remixes → "
+                + "Put the original back.";
         var pick = await Ui.ChoiceAsync(
             title,
             $"{intro}\n\nInstall it as a new table next to it, or replace it? {replacing}{warn}",
@@ -301,27 +417,48 @@ public sealed partial class CatalogViewModel
         }
         found.Remove(t.Manifest.TableFileId); // the remix this table is now
 
+        // What the catalog can tell before downloading: a remix made from another table (another author's, another
+        // edition) or from an older version than yours won't fit. Those say so, and come after the ones that may.
+        var yourFile = CatalogGame(id.GameId)
+            ?.TableFiles?.FirstOrDefault(f => f.Id == id.TableFileId);
+        var yourVersion = string.IsNullOrWhiteSpace(id.Version)
+            ? ""
+            : " v" + id.Version.Trim().TrimStart('v', 'V');
         return found
-            .Values.OrderByDescending(r => r.Exact)
-            .ThenByDescending(r => r.File.UpdatedAt ?? 0)
-            .Select(r => new RemixChoice(item, r.Game, r.File, Label(r.Game, r.File, r.Exact)))
+            .Values.Select(r =>
+            {
+                var older = r.Exact && VpuRemix.PredatesYours(r.File, yourFile, id.Version);
+                var rank =
+                    !r.Exact ? 2
+                    : older ? 1
+                    : 0;
+                return (r, rank, label: Label(r.Game, r.File, r.Exact, older));
+            })
+            .OrderBy(x => x.rank)
+            .ThenByDescending(x => x.r.File.ReleasedAt ?? 0)
+            .Select(x => new RemixChoice(item, x.r.Game, x.r.File, x.label))
             .ToList();
 
-        string Label(VpsGame g, VpsTableFile f, bool exact)
+        string Label(VpsGame g, VpsTableFile f, bool exact, bool older)
         {
             var title = VpuRemix.Title(f);
+            if (older)
+            {
+                return $"{title} — made before your{yourVersion}: needs an older version";
+            }
+
             if (exact)
             {
                 return title;
             }
 
-            // Made from another version: say which, so it's no surprise when it doesn't fit.
+            // Made from another table: say which, so it's no surprise when it doesn't fit yours.
             var parent = VpuRemix.ParentId(f) is { } p
                 ? g.TableFiles?.FirstOrDefault(x => x.Id == p)
                 : null;
-            return parent?.Version is { Length: > 0 } v
-                ? $"{title} (made from v{v.Trim().TrimStart('v', 'V')})"
-                : $"{title} (made from another version)";
+            return parent != null
+                ? $"{title} — made for {VpuRemix.Describe(parent)}, not your table"
+                : $"{title} — the catalog doesn't say which table it's made for";
         }
 
         static void Add(

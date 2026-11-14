@@ -201,10 +201,29 @@ public static class TableInstaller
                     );
                 if (used == null || made == null)
                 {
+                    // Its size says it all when the original was another table altogether (AC/DC's VR room mod for
+                    // Ninuzzu's Premium 1.5).
+                    var sizes =
+                        VpuRemix.OriginalSize(mainDif, ct) is { } need
+                        && bases
+                            .Where(File.Exists)
+                            .Select(b => (b, len: new FileInfo(b).Length))
+                            .ToList()
+                            is { Count: > 0 } have
+                        && have.All(h => !VpuRemix.SizeFits(h.len, need))
+                            ? $"It was made from a table of about {VpuRemix.SizeText(need)}; "
+                                + string.Join(
+                                    ", ",
+                                    have.Select(h => $"{Shown(h.b)} is {VpuRemix.SizeText(h.len)}")
+                                )
+                                + ", so it's for another table or version. "
+                            : "";
                     throw new VpuRemix.MismatchException(
                         $"The VPU Remix patch doesn't fit {string.Join(" or ", bases.Select(Shown))}. "
+                            + sizes
                             + "It only works on the exact version of the table it was made from, unchanged; another "
-                            + "version (or one saved in VPX) gives a broken table, so nothing was installed."
+                            + "version (or one saved in VPX) gives a broken table, so nothing was installed. The "
+                            + "remix's page names the version it needs (\"Original Table Version\")."
                             + link
                     );
                 }
@@ -424,7 +443,8 @@ public static class TableInstaller
             if (keptNow && carried != null)
             {
                 table.InstallNote +=
-                    $" {carried.Manifest.GameName} is kept beside it: MORE → VPU Remixes puts it back.";
+                    $" The original {carried.Manifest.GameName} is kept beside it: MORE → VPU Remixes → Put the "
+                    + "original back switches back.";
             }
             if (remixNote != null)
             {

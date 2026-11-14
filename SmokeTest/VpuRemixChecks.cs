@@ -447,6 +447,19 @@ static class VpuRemixChecks
                 "remix: the patch is tried on each candidate until one fits"
             )
         );
+        var origLen = new FileInfo(original).Length;
+        r.Add(
+            (
+                VpuRemix.OriginalSize(dif) is { } need
+                    && need <= origLen
+                    && VpuRemix.SizeFits(origLen, need)
+                    && !VpuRemix.SizeFits(new FileInfo(other).Length + 100_000, need)
+                    && !VpuRemix.SizeFits(need - 1, need)
+                    && VpuRemix.OriginalSize(Path.Combine(dir, "gone.dif")) == null
+                    && VpuRemix.SizeText(89_858_048) == "89.9 MB",
+                "remix: a .dif tells the size of the table it was made from (a much bigger or smaller one isn't it)"
+            )
+        );
         r.Add(
             (
                 VpuRemix.ApplyToFirstFitting([Path.Combine(dir, "gone.vpx"), original], dif, made)
@@ -856,6 +869,54 @@ static class VpuRemixChecks
                         }
                     ) == "Cabinet MOD — v1.0.0 by A",
                 "remix: menu titles use the comment's name, not the usual patching-tool notice"
+            )
+        );
+        const long day = 86_400_000;
+        var feb2025 = new DateTimeOffset(
+            2025,
+            2,
+            10,
+            0,
+            0,
+            0,
+            TimeSpan.Zero
+        ).ToUnixTimeMilliseconds();
+        var oldRemix = new VpsTableFile { Id = "r", CreatedAt = feb2025 };
+        r.Add(
+            (
+                VpuRemix.Predates(oldRemix, new VpsTableFile { CreatedAt = feb2025 + 600 * day })
+                    && !VpuRemix.Predates(
+                        oldRemix,
+                        new VpsTableFile { CreatedAt = feb2025 - 30 * day }
+                    )
+                    && !VpuRemix.Predates(
+                        oldRemix,
+                        new VpsTableFile { CreatedAt = feb2025 + day / 2 }
+                    )
+                    && !VpuRemix.Predates(oldRemix, new VpsTableFile())
+                    && !VpuRemix.Predates(
+                        new VpsTableFile(),
+                        new VpsTableFile { CreatedAt = feb2025 }
+                    )
+                    && !VpuRemix.Predates(oldRemix, null)
+                    && VpuRemix.ReleaseDate(oldRemix) == "10 Feb 2025",
+                "remix: one released before its base's version was made from an older one (no dates: not flagged)"
+            )
+        );
+        var edited = new VpsTableFile { Version = "2.4.1", UpdatedAt = feb2025 + 600 * day };
+        var newer = new VpsTableFile { Version = "2.4.1", CreatedAt = feb2025 + 600 * day };
+        r.Add(
+            (
+                !VpuRemix.Predates(oldRemix, edited) // a last-edit date isn't a release date
+                    && !VpuRemix.Predates(oldRemix, new VpsTableFile { CreatedAt = feb2025 + day })
+                    && VpuRemix.Predates(
+                        oldRemix,
+                        new VpsTableFile { CreatedAt = feb2025 + day + 1 }
+                    )
+                    && VpuRemix.PredatesYours(oldRemix, newer, "v2.4.1")
+                    && !VpuRemix.PredatesYours(oldRemix, newer, "2.1") // your older copy: the entry doesn't date it
+                    && !VpuRemix.PredatesYours(oldRemix, newer, null),
+                "remix: only release dates count, and only for the version you have"
             )
         );
 

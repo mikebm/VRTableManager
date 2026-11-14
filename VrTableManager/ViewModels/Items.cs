@@ -160,9 +160,24 @@ public sealed class TableVersionItem
         VpsGame? baseGame,
         VpsTableFile? baseFile,
         VpuRemix.BaseCandidate? installedBase,
-        VpsGame game
+        VpsGame game,
+        VpsTableFile? remix = null
     )
     {
+        // The catalog's version of the base is newer than the remix: the patch can't fit it. Unless the base you
+        // have is an older version from that entry, which may well be the one.
+        var olderYours =
+            installedBase is { Exact: true }
+            && !TableUpdates.SameVersion(
+                CatalogViewModel.BaseManifest(installedBase.Table).Version,
+                baseFile?.Version
+            );
+        if (remix != null && baseFile != null && !olderYours && VpuRemix.Predates(remix, baseFile))
+        {
+            return $"Made from an older version than the catalog's {VpuRemix.Describe(baseFile)} (it came out "
+                + $"{VpuRemix.ReleaseDate(remix)}, before that version) — its page names the one it needs";
+        }
+
         var what =
             baseFile == null
                 ? "Patches a table the catalog doesn't name (see its page)"
@@ -172,7 +187,8 @@ public sealed class TableVersionItem
         var have =
             installedBase == null ? "not installed: INSTALL gets it first"
             : installedBase.Exact ? "you have it"
-            : $"not installed; your {installedBase.Table.Manifest.GameName} is tried instead";
+            : $"you don't have it (your {installedBase.Table.Manifest.GameName} is another table, so the patch "
+                + "almost certainly won't fit it): INSTALL offers it first";
         if (baseFile == null)
         {
             have =

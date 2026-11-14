@@ -77,6 +77,52 @@ public static class AssistedDownloadChecks
             );
         }
 
+        // A VPU Remix page's file is a bare .dif patch: it's picked up like a table zip.
+        var difDir = Path.Combine(root, "assisted", "Downloads-dif");
+        Directory.CreateDirectory(difDir);
+        var difDl = new AssistedDownloader(
+            url =>
+            {
+                Task.Run(async () =>
+                {
+                    await Task.Delay(300);
+                    File.WriteAllText(
+                        Path.Combine(difDir, "AC-DC_Premium-1.5 Lighting Bug Fix.dif"),
+                        "patch"
+                    );
+                });
+            },
+            difDir
+        )
+        {
+            PollInterval = TimeSpan.FromMilliseconds(200),
+        };
+        var difJob = new JobItem("Replace with remix: AC/DC (Premium)")
+        {
+            FileNames = ["AC/DC (Premium)"],
+            FileTypes = [".vpx", ".zip", ".7z", ".rar", ".dif"],
+        };
+        using (var limit = new CancellationTokenSource(TimeSpan.FromSeconds(20)))
+        {
+            limit.Token.Register(difJob.Cts.Cancel);
+            string? gotDif = null;
+            try
+            {
+                gotDif = await difDl.DownloadAsync(
+                    "https://vpuniverse.com/files/file/30957-ac-dc-lighting-bug-fix/",
+                    Path.Combine(root, "assisted", "job-dif"),
+                    difJob
+                );
+            }
+            catch (OperationCanceledException) { }
+            results.Add(
+                (
+                    gotDif != null && Path.GetExtension(gotDif) == ".dif",
+                    "assisted: a VPU Remix's .dif saved to Downloads is picked up"
+                )
+            );
+        }
+
         // Saved elsewhere: you point at the file.
         var elsewhere = Path.Combine(root, "assisted", "Desktop", "afm_113b.zip");
         Directory.CreateDirectory(Path.GetDirectoryName(elsewhere)!);

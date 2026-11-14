@@ -90,6 +90,47 @@ public sealed partial class LibraryViewModel
             return;
         }
 
+        // Say so now when it's plainly for another table: the catalog names another base, or the patch was made from
+        // a table of another size (a .dif's patch reads its whole original).
+        var against = new List<string>();
+        if (
+            !candidate.Exact
+            && VpuRemix.BaseOf(tf, App.Catalog.AllGames, game) is { } parent
+            && parent.File.Id != tf.Id
+        )
+        {
+            against.Add(
+                $"The catalog says it's made from {parent.Game.Name} {VpuRemix.Describe(parent.File)}, which isn't "
+                    + $"your {onto.Manifest.GameName} (Get Tables can install that one)."
+            );
+        }
+        if (
+            file.EndsWith(VpuRemix.PatchExt, StringComparison.OrdinalIgnoreCase)
+            && await Task.Run(() => VpuRemix.OriginalSize(file)) is { } need
+            && File.Exists(candidate.SourcePath)
+            && new FileInfo(candidate.SourcePath).Length is var len
+            && !VpuRemix.SizeFits(len, need)
+        )
+        {
+            against.Add(
+                $"The patch was made from a table of about {VpuRemix.SizeText(need)}; your "
+                    + $"{onto.Manifest.GameName} is {VpuRemix.SizeText(len)}, so it's for another table or version. "
+                    + "If the page offers several .dif files, each is named after the table it fits."
+            );
+        }
+        if (
+            against.Count > 0
+            && await Ui.ChoiceAsync(
+                title,
+                $"{Path.GetFileName(file)} almost certainly won't fit your {onto.Manifest.GameName}.\n\n"
+                    + string.Join("\n\n", against),
+                ["TRY ANYWAY", "CANCEL"]
+            ) != 0
+        )
+        {
+            return;
+        }
+
         var choice = await App.Catalog.AskNewOrReplaceAsync(
             title,
             $"A .dif patch is applied to your {onto.Manifest.GameName}; a remix already made into a .vpx goes in "

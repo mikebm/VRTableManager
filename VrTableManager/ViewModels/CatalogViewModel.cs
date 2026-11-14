@@ -469,7 +469,8 @@ public sealed partial class CatalogViewModel(MainViewModel app) : ChildViewModel
                     parent?.Game,
                     parent?.File,
                     RemixBases(item.Game, file).FirstOrDefault(),
-                    item.Game
+                    item.Game,
+                    file
                 );
             }
 

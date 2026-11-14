@@ -3129,6 +3129,24 @@ foreach (var (ok, name) in TableFileMatchChecks.Run())
     Check(ok, name);
 }
 
+// The real catalog: 24's Side Blade Mod (made from v2.1, Feb 2025) links the 24 entry that's v2.4.1 now (Oct 2026).
+if (
+    VpsCatalog.LoadCached() is { } remixCatalog
+    && remixCatalog.SelectMany(g => g.TableFiles ?? []).FirstOrDefault(f => f.Id == "xRAhLDsJwy")
+        is { } sideBlade
+)
+{
+    var sideBlade24 = VpuRemix.BaseOf(sideBlade, remixCatalog);
+    Check(
+        sideBlade24 is { } b && VpuRemix.Predates(sideBlade, b.File),
+        $"remix: 24's Side Blade Mod is older than the catalog's 24 {(sideBlade24 is { } s ? VpuRemix.Describe(s.File) : "?")}, so it's flagged before downloading"
+    );
+}
+else
+{
+    Console.WriteLine("SKIP  remix: 24's Side Blade Mod (not in the cached catalog)");
+}
+
 foreach (var (ok, name) in await VpuRemixChecks.RunAsync(root))
 {
     Check(ok, name);

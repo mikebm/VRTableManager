@@ -48,6 +48,7 @@ public sealed class AssistedDownloader
         ".gz",
         ".vpx",
         ".fpt",
+        ".dif", // a VPU Remix patch
         ".directb2s",
         ".mp3",
         ".ogg",

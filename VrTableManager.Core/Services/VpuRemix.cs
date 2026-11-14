@@ -162,6 +162,40 @@ public static partial class VpuRemix
             ? p
             : null;
 
+    /// <summary>
+    /// The remix came out before this version of its base did (by the release dates VPS gives), so it was made from
+    /// an earlier version and its patch can't fit this one. VPS keeps one entry per table and moves its version on,
+    /// so a remix's parent often names a newer version than the one the patch needs (its page says which, under
+    /// "Original Table Version"). Only the release dates the uploaders gave count (not the last-edit date, which any
+    /// new tag or link moves on): false when either is missing.
+    /// </summary>
+    public static bool Predates(VpsTableFile remix, VpsTableFile? baseFile) =>
+        baseFile?.CreatedAt is > 0
+        && remix.CreatedAt is > 0
+        && baseFile.CreatedAt - remix.CreatedAt > TimeSpan.FromDays(1).TotalMilliseconds;
+
+    /// <summary>
+    /// <see cref="Predates"/> for the version you have: the catalog entry's date is only that version's when the
+    /// entry still lists it (VPS moves an entry on to newer versions; an older copy you have isn't dated by it).
+    /// </summary>
+    public static bool PredatesYours(
+        VpsTableFile remix,
+        VpsTableFile? baseFile,
+        string? yourVersion
+    ) =>
+        baseFile != null
+        && !string.IsNullOrWhiteSpace(yourVersion)
+        && TableUpdates.SameVersion(baseFile.Version, yourVersion)
+        && Predates(remix, baseFile);
+
+    /// <summary>A VPS release date for messages ("10 Feb 2025"), or null.</summary>
+    public static string? ReleaseDate(VpsFile f) =>
+        f.CreatedAt is > 0 and var ms
+            ? DateTimeOffset
+                .FromUnixTimeMilliseconds(ms)
+                .ToString("d MMM yyyy", System.Globalization.CultureInfo.InvariantCulture)
+            : null;
+
     /// <summary>The parent id when it names a table file other than the remix itself; else null.</summary>
     public static string? ParentId(VpsTableFile tf) =>
         ParentOf(tf) is { } p && p != tf.Id ? p : null;
@@ -328,9 +362,10 @@ public static partial class VpuRemix
     /// <summary>
     /// Applies a JojoDiff patch: <paramref name="source"/> (seekable) + <paramref name="patch"/> → <paramref name="output"/>.
     /// Throws <see cref="MismatchException"/> when the patch reads outside the original, and
-    /// <see cref="InvalidDataException"/> when the patch itself is cut short.
+    /// <see cref="InvalidDataException"/> when the patch itself is cut short. Returns how far into the original it
+    /// read (see <see cref="OriginalSize"/>).
     /// </summary>
-    public static void Patch(
+    public static long Patch(
         Stream source,
         Stream patch,
         Stream output,
@@ -340,7 +375,8 @@ public static partial class VpuRemix
         var pat = patch is BufferedStream ? patch : new BufferedStream(patch, 1 << 16);
         var dst = new BufferedStream(output, 1 << 16);
         var buf = new byte[1 << 16];
-        long posOrg = 0;
+        long posOrg = 0,
+            maxOrg = 0; // how far into the original it reads: at least the original's size
         var op = None;
         while (true)
         {
@@ -397,7 +433,7 @@ public static partial class VpuRemix
                     if (next == None)
                     {
                         dst.Flush();
-                        return;
+                        return Math.Max(maxOrg, posOrg);
                     }
                     op = next;
                     break;
@@ -448,8 +484,80 @@ public static partial class VpuRemix
                     op = None;
                     break;
             }
+            maxOrg = Math.Max(maxOrg, posOrg);
         }
         dst.Flush();
+        return maxOrg;
+    }
+
+    /// <summary>
+    /// About how big the table a patch was made from is: how far into it the patch reads, which is its whole length
+    /// but for any last bytes it leaves alone. The patch can't fit a smaller file, and rarely one of another size.
+    /// Null when the .dif can't be read.
+    /// </summary>
+    public static long? OriginalSize(string difPath, CancellationToken ct = default)
+    {
+        try
+        {
+            using var pat = new FileStream(
+                difPath,
+                FileMode.Open,
+                FileAccess.Read,
+                FileShare.Read,
+                1 << 16
+            );
+            return Patch(new Zeros(), pat, Stream.Null, ct);
+        }
+        catch (Exception e)
+            when (e is IOException or InvalidDataException or UnauthorizedAccessException)
+        {
+            return null;
+        }
+    }
+
+    /// <summary>
+    /// Whether <paramref name="table"/> can be the original a patch made from a table of about
+    /// <paramref name="originalSize"/> bytes: no smaller, and within a small margin (a patch may leave the
+    /// original's last bytes alone).
+    /// </summary>
+    public static bool SizeFits(long table, long originalSize) =>
+        table >= originalSize && table - originalSize <= Math.Max(4096, originalSize / 200);
+
+    /// <summary>"89.9 MB" for messages.</summary>
+    public static string SizeText(long bytes) =>
+        (bytes / 1_000_000.0).ToString("0.0", System.Globalization.CultureInfo.InvariantCulture)
+        + " MB";
+
+    /// <summary>A stand-in original for measuring a patch: endless zeros.</summary>
+    sealed class Zeros : Stream
+    {
+        public override bool CanRead => true;
+        public override bool CanSeek => true;
+        public override bool CanWrite => false;
+        public override long Length => long.MaxValue / 2;
+        public override long Position { get; set; }
+
+        public override int Read(byte[] buffer, int offset, int count)
+        {
+            Array.Clear(buffer, offset, count);
+            Position += count;
+            return count;
+        }
+
+        public override long Seek(long offset, SeekOrigin origin) =>
+            Position = origin switch
+            {
+                SeekOrigin.Begin => offset,
+                SeekOrigin.Current => Position + offset,
+                _ => Length + offset,
+            };
+
+        public override void Flush() { }
+
+        public override void SetLength(long value) => throw new NotSupportedException();
+
+        public override void Write(byte[] buffer, int offset, int count) =>
+            throw new NotSupportedException();
     }
 
     /// <summary>
