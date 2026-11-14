@@ -259,6 +259,31 @@ public static class LobbyRunner
                     + string.Join(" | ", errors.DefaultIfEmpty("dotnet build failed"))
             );
         }
+
+        // The lobby's DOF helper, 64- and 32-bit (DofOutput finds it in DofBridge\bin). The lobby runs without it,
+        // with DOF off, so a failure here doesn't stop it.
+        var bridge = Path.Combine(lobbyDir, "..", "DofBridge", "DofBridge.csproj");
+        if (File.Exists(bridge))
+        {
+            foreach (var platform in new[] { "AnyCPU", "x86" })
+            {
+                await RunAsync(
+                    DotnetExe(),
+                    [
+                        "build",
+                        bridge,
+                        "-c",
+                        "Release",
+                        $"-p:Platform={platform}",
+                        "-nologo",
+                        "-v",
+                        "q",
+                    ],
+                    lobbyDir,
+                    ct
+                );
+            }
+        }
     }
 
     /// <summary>Godot only reads imported assets when running a project; a fresh checkout has none (.godot isn't in git).</summary>

@@ -49,4 +49,5 @@ also under the SIL Open Font License 1.1.
 
 Visual Pinball X (GPL-3.0), PinMAME and its plugins, UEVR (MIT) and the Godot engine (MIT) are downloaded from their
 official releases or found on your PC, and run as separate programs. They aren't included in this repository or the
-release, and their own licenses apply.
+release, and their own licenses apply. DirectOutput (DOF, MIT) is used the same way: when the VR lobby's cabinet
+feedback is on, the lobby's DofBridge helper loads the copy installed on your PC.

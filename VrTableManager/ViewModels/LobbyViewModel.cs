@@ -57,8 +57,25 @@ public sealed partial class LobbyViewModel(MainViewModel app) : ChildViewModel(a
     partial void OnLobbyLoadingVideosChanged(bool value) =>
         SaveSetting(s => s.LobbyLoadingVideos = value);
 
+    /// <summary>The VR lobby drives the cabinet's feedback (solenoids, lights …) through the player's DOF.</summary>
+    [ObservableProperty]
+    public partial bool LobbyDof { get; set; }
+
+    /// <summary>Where the lobby found DOF, or that it didn't: read when Setup loads.</summary>
+    [ObservableProperty]
+    public partial string DofStatusText { get; set; } = "";
+
+    partial void OnLobbyDofChanged(bool value) => SaveSetting(s => s.LobbyDof = value);
+
+    static string DofStatus() =>
+        VrTableManager.Lobby.LobbyDof.Find() is { } dof
+            ? $"DOF found: {dof.Folder} ({(dof.Is64 ? "64" : "32")}-bit)"
+            : "DOF isn't installed on this PC (no DirectOutput.dll registered or in C:\\DirectOutput).";
+
     internal override void LoadSettings(AppSettings s)
     {
+        LobbyDof = s.LobbyDof;
+        DofStatusText = DofStatus();
         LobbyRecordsRomAudio = s.LobbyRecordsRomAudio;
         LobbyPlayfieldVideos = s.LobbyPlayfieldVideos;
         LobbyWaitsForTable = s.LobbyWaitsForTable;

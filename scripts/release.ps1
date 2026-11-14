@@ -120,6 +120,15 @@ Run $Godot @('--headless', '--path', $lobbySrc, '--export-release', 'Windows', (
 foreach ($f in @('VrLobby.exe', 'VrLobby.pck', 'VrLobby.console.exe', 'data_VrLobby_windows_x86_64\coreclr.dll', 'data_VrLobby_windows_x86_64\VrLobby.dll')) {
     if (-not (Test-Path (Join-Path $lobbyOut $f))) { throw "The lobby export didn't write $f" }
 }
+# The lobby's DOF helper (DofBridge), once per DOF bitness: VrLobby\dof\x64 and \x86. It runs the player's own DOF, so
+# nothing of DOF goes in the release.
+foreach ($arch in @(@{ Name = 'x64'; Platform = 'AnyCPU' }, @{ Name = 'x86'; Platform = 'x86' })) {
+    $dofOut = Join-Path $lobbyOut "dof\$($arch.Name)"
+    Run dotnet @('build', (Join-Path $root 'DofBridge\DofBridge.csproj'), '-c', 'Release', "-p:Platform=$($arch.Platform)",
+        "-p:Version=$Version", '-o', $dofOut, '-nologo')
+    Remove-Item (Join-Path $dofOut '*.pdb') -ErrorAction SilentlyContinue
+    if (-not (Test-Path (Join-Path $dofOut 'DofBridge.exe'))) { throw "DofBridge wasn't built to $dofOut" }
+}
 Step "Checking the exported lobby"
 # Its in-engine self-test, run from the export itself: the default cabinet, fonts and code all come from the .pck.
 Run (Join-Path $lobbyOut 'VrLobby.console.exe') @('--headless', '--', '--selftest')

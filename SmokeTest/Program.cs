@@ -3015,6 +3015,11 @@ foreach (var (ok, name) in CabinetButtonsChecks.Run())
     Check(ok, name);
 }
 
+foreach (var (ok, name) in LobbyDofChecks.Run(root))
+{
+    Check(ok, name);
+}
+
 foreach (var (ok, name) in FocusRetryChecks.Run())
 {
     Check(ok, name);

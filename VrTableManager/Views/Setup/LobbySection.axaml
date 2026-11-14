@@ -106,6 +106,18 @@
           </StackPanel>
         </Border>
 
+        <Border Classes="panel">
+          <StackPanel Spacing="10">
+            <TextBlock Classes="h2" Text="Cabinet feedback (DOF)" />
+            <CheckBox IsChecked="{Binding LobbyDof}"
+                      Content="Fire the cabinet's DOF effects in the VR lobby"
+                      ToolTip.Tip="The lobby runs your DirectOutput (DOF) the way PinUP Popper's menu does, with your usual DOF config. It lets go of DOF before a table starts, so the table's own DOF works as normal." />
+            <TextBlock Classes="muted" TextWrapping="Wrap"
+                       Text="The effects are the ones set up for PinUP Popper's menu: the &quot;pinupmenu&quot; table in the DOF Config Tool. Flippers fire GamePrior / GameNext (E800 / E801), magna-saves PagePrior / PageNext (E805 / E804), Start GameStart (E806), Coin ListNext (E802), and favourites FavAdd / FavDel (E816 / E817). After changing them in the Config Tool, download and install your config again." />
+            <TextBlock Classes="mono" TextWrapping="Wrap" Text="{Binding DofStatusText}" />
+          </StackPanel>
+        </Border>
+
         <Button Classes="small setupNext" Content="NEXT: DOWNLOADS  ›" Command="{Binding App.ShowSetupSectionCommand}" CommandParameter="downloads" />
       </StackPanel>
     </Grid>

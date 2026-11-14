@@ -110,6 +110,9 @@ public partial class Main : Node3D
 
     readonly RomRecorder _recorder = new();
     bool _recordRoms;
+
+    // The cabinet's feedback through the player's DOF (Setup: off by default). Stopped while a table runs.
+    readonly DofOutput _dof = new();
     Dictionary<string, string>? _backglass;
     Font? _dmdFont,
         _displayFont,
@@ -297,6 +300,9 @@ public partial class Main : Node3D
             return;
         }
         _recordRoms = !selfTest && Settings.LobbyRecordsRomAudio;
+        // Never in the self-test, which may run on the player's real settings: it would fire their cabinet.
+        _dof.Enabled = !selfTest;
+        _dof.Start(Settings);
         _recorder.SettingsPath = _settingsPath;
         _borrowAll = args.ContainsKey("borrow-all");
         _noDepth = args.ContainsKey("no-depth"); // flat playfield video, for comparing (PlayfieldDepth)
@@ -1189,6 +1195,14 @@ public partial class Main : Node3D
 
     public void JumpToKey(char key) => JumpToGroup(LobbyNav.GroupForKey(Groups, key));
 
+    /// <summary>To the next (1) or previous (-1) letter, or manufacturer / decade, going round past the ends.</summary>
+    void JumpBy(int direction)
+    {
+        Select(LobbyNav.JumpWrap(Groups, Selected, direction));
+        ShowFlash();
+        _dof.Pulse(direction > 0 ? LobbyDof.PageNext : LobbyDof.PagePrior);
+    }
+
     /// <summary>Closes the lobby, saying why in its log (godot*.log), so an unexpected close can be traced.</summary>
     void Leave(string why)
     {
@@ -1548,6 +1562,7 @@ public partial class Main : Node3D
             return;
         }
 
+        _dof.Pulse(steps > 0 ? LobbyDof.GameNext : LobbyDof.GamePrior);
         var to = Target + steps;
         var t = ((to % n) + n) % n;
         if (RingWraps)
@@ -1621,6 +1636,7 @@ public partial class Main : Node3D
         State.Save();
         Rebuild(current);
         ShowFilterFlash();
+        _dof.Pulse(LobbyDof.ListNext);
     }
 
     public string HeaderText => _header.Text;
@@ -1688,6 +1704,7 @@ public partial class Main : Node3D
         var t = Shown[Selected];
         var on = State.ToggleFavourite(t.Id);
         SelectedCabinet?.SetFavourite(on);
+        _dof.Pulse(on ? LobbyDof.FavAdd : LobbyDof.FavDel);
         if (State.Filter == "Favourites" && !on)
         {
             // It leaves the list: the next one takes its place, or the one before when it was the last.
@@ -1763,6 +1780,7 @@ public partial class Main : Node3D
     public override void _ExitTree()
     {
         _closing = true;
+        _dof.Stop(); // DOF lets go of the output boards and its helper exits
         // Every way out, not just Leave: closing the desktop window (X, Alt+F4) quits without it.
         LobbyWork.StopAndWait(1500);
     }
@@ -2171,8 +2189,7 @@ public partial class Main : Node3D
         var j = Stick("jump", y, delta);
         if (j != 0)
         {
-            Select(LobbyNav.JumpWrap(Groups, Selected, -j)); // stick up = earlier letter
-            ShowFlash();
+            JumpBy(-j); // stick up = earlier letter
         }
     }
 
@@ -2210,10 +2227,7 @@ public partial class Main : Node3D
                 PrimeRepeat("x");
                 break;
             case CabinetAction.PrevLetter or CabinetAction.NextLetter:
-                Select(
-                    LobbyNav.JumpWrap(Groups, Selected, action == CabinetAction.NextLetter ? 1 : -1)
-                );
-                ShowFlash();
+                JumpBy(action == CabinetAction.NextLetter ? 1 : -1);
                 PrimeRepeat("jump");
                 break;
             case CabinetAction.Play:
@@ -2418,12 +2432,10 @@ public partial class Main : Node3D
                 Step(-1);
                 break;
             case Key.Down or Key.Pagedown:
-                Select(LobbyNav.JumpWrap(Groups, Selected, 1));
-                ShowFlash();
+                JumpBy(1);
                 break;
             case Key.Up or Key.Pageup:
-                Select(LobbyNav.JumpWrap(Groups, Selected, -1));
-                ShowFlash();
+                JumpBy(-1);
                 break;
             case Key.Enter or Key.KpEnter or Key.Space:
                 _ = LaunchAsync();
@@ -2551,10 +2563,15 @@ public partial class Main : Node3D
         StopAttract();
         _video.Freeze(); // keeps the playfield's depth: dropping to flat as the table starts is a jarring change
         _recorder.StopAll();
+        var dof = _dof.Running;
+        _dof.Pulse(LobbyDof.GameStart);
         var wait = Settings.LobbyWaitsForTable;
         if (wait)
         {
             _statusFile = PlayStatus.PathBeside(_settingsPath);
+            // The last table's news ("exited") must not end this loading screen while DOF is let go below; Launch
+            // clears it too, but that's after the wait.
+            PlayStatus.Clear(_statusFile);
             StartLoading(t);
         }
         else
@@ -2564,10 +2581,25 @@ public partial class Main : Node3D
             _status.Text = "";
             await ToSignal(GetTree().CreateTimer(0.8), SceneTreeTimer.SignalName.Timeout);
         }
+        if (dof)
+        {
+            // GameStart's effect gets a moment, then DOF lets go of the output boards: the table's own DOF needs them.
+            if (wait)
+            {
+                await ToSignal(GetTree().CreateTimer(0.4), SceneTreeTimer.SignalName.Timeout);
+            }
+
+            await _dof.StopAsync();
+        }
+        if (_closing || !_launching || (wait && _loading != t))
+        {
+            return; // left, or the loading screen was closed, while DOF let go: nothing to start
+        }
         if (LobbyLauncher.Launch(t, Settings, _settingsPath, _statePath, _statusFile) is { } error)
         {
             StopLoading();
             _launching = false;
+            _dof.Start(Settings);
             // Without a loading screen StopLoading does nothing: show the table again here ("Starting …" off the
             // title, the frozen video started again), then the error under it.
             UpdateSelection();
@@ -2726,6 +2758,7 @@ public partial class Main : Node3D
         _rail.Visible = _hint.Visible = _scores.Visible = true;
         _chase.Visible = false;
         UpdateSelection();
+        _dof.Start(Settings); // the table closed or never started: the cabinet's feedback is the lobby's again
     }
 
     OpenXRInterface.SessionState? _loggedXrState;
@@ -2960,10 +2993,20 @@ public partial class Main : Node3D
         }
 
         _returning = -1;
-        var id = Shown.Count > 0 ? Shown[Selected].Id : "";
+        _ = RestartLobbyAsync(Shown.Count > 0 ? Shown[Selected].Id : "");
+    }
+
+    /// <summary>
+    /// Starts a fresh lobby on <paramref name="id"/> and quits. DOF is let go first: the new lobby starts its own, and
+    /// two at once would fight over the output boards.
+    /// </summary>
+    async Task RestartLobbyAsync(string id)
+    {
+        await _dof.StopAsync();
         if (LobbyLauncher.Restart(id, _settingsPath, _statePath) is { } error)
         {
             GD.PushWarning("Couldn't restart the lobby: " + error);
+            _dof.Start(Settings); // staying: the cabinet's feedback is ours again
         }
         else
         {

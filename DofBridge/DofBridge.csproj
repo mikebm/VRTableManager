@@ -1,0 +1,21 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <!--
+    The VR lobby's link to DirectOutput (DOF): a small .NET Framework program that loads the player's own
+    DirectOutput.dll (a .NET Framework assembly the .NET 10 lobby can't load itself) and passes the lobby's menu events
+    to it. Nothing of DOF is built in or shipped: it's found on the PC at run time and called by reflection.
+
+    Built twice: AnyCPU (runs 64-bit, for DOF's x64 folder) and with -p:Platform=x86 (for a 32-bit-only DOF install),
+    since DOF's own build, and the native drivers it calls, have the bitness of its folder.
+  -->
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <TargetFramework>net48</TargetFramework>
+    <Platforms>AnyCPU;x86</Platforms>
+    <Prefer32Bit>false</Prefer32Bit>
+    <LangVersion>latest</LangVersion>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>disable</ImplicitUsings>
+    <RootNamespace>DofBridge</RootNamespace>
+    <AssemblyName>DofBridge</AssemblyName>
+  </PropertyGroup>
+</Project>

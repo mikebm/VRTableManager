@@ -227,6 +227,13 @@ public sealed class AppSettings
     public bool LobbyLoadingVideos { get; set; } = true;
 
     /// <summary>
+    /// The VR lobby drives the cabinet's feedback through the player's DirectOutput (DOF) as PinUP Popper's menu does
+    /// (<see cref="Lobby.LobbyDof"/>): flippers, Start and the rest fire the effects set up for "pinupmenu" in the DOF
+    /// Config Tool. Off by default: DOF holds the output boards while the lobby runs (it lets go before a table starts).
+    /// </summary>
+    public bool LobbyDof { get; set; }
+
+    /// <summary>
     /// How big the VR lobby's cabinets are, in percent of a real machine (75–125, see <see cref="Lobby.LobbyLayout"/>).
     /// A bigger cabinet keeps the same gap to its neighbours, so the ring grows with it.
     /// </summary>

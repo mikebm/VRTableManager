@@ -64,3 +64,25 @@ In a table, the controller does what you set up in VPX.
    - **Your cabinet board shows as a game controller:** it gets the game controller layout above instead of your VPX buttons. Let us know the board's name and GUID from the log.
 
 Joystick buttons only count on the board VPX has them mapped for, so a game pad or a second board left plugged in doesn't move the lobby. If none of the connected joysticks is one VPX names (older VPX doesn't name them), the mapped button numbers work from any joystick that isn't a game controller.
+
+## Cabinet feedback (DOF)
+
+With **Setup → VR lobby → Cabinet feedback (DOF)** on, the lobby fires your cabinet's DOF effects as you browse: flipper pulses, lights, shaker and so on. It's off by default.
+
+**What you need:** DirectOutput (DOF) installed and working with your tables. The lobby finds it where its installer put it (usually `C:\DirectOutput`). Setup shows the folder it found, or says it found none.
+
+**Where the effects come from:** the lobby acts like PinUP Popper's menu. It uses your usual DOF config (`GlobalConfig_B2SServer.xml`, the one your tables use) and the **pinupmenu** table in the [DOF Config Tool](https://configtool.vpuniverse.com). If you've set up effects for Popper's menu, they should work in the lobby as they are. To add or change them, edit the pinupmenu table in the Config Tool, then download and install your config again.
+
+| In the lobby | DOF event (Popper's name) |
+|---|---|
+| Left / right flipper (previous / next table) | E800 GamePrior / E801 GameNext |
+| Right / left magna-save (next / previous letter) | E804 PageNext / E805 PagePrior |
+| Start (play) | E806 GameStart |
+| Coin (next filter) | E802 ListNext |
+| Favourite on / off | E816 FavAdd / E817 FavDel |
+
+Each event is pulsed for 150 ms; durations and blinks set in the Config Tool take it from there.
+
+**When a table starts,** the lobby finishes DOF before handing over, so your table's own DOF can open the output boards. That turns every output off, so the Start effect (E806) gets under a second: a longer effect set for it in the Config Tool is cut short. The lobby starts DOF again when you're back in the lobby.
+
+**If nothing fires:** check the lobby's log (see above) for lines starting `DOF:`. `ready DOF …, global config …` means DOF is running with that config. `error …` says why it isn't. `not installed` means the lobby didn't find `DirectOutput.dll`.
