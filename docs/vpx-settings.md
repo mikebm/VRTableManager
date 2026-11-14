@@ -72,6 +72,14 @@ The `.play.ini` files are rebuilt every launch, so editing them does nothing las
 
 You don't have to do anything. Until you set your own values, every VR launch uses a real cabinet's: the lockbar 91 cm (36") off the floor, your eyes 10 cm behind it, and each table at its real size. Change the values in the panel and click **FIT EVERY TABLE TO ME** to use them (until you click it, the panel says "Not saved yet"). It's saved once for every table, including ones you add later. **RESET TO DEFAULTS** goes back to the real-cabinet values and puts the table straight ahead. The values go in the VR file, so desktop play doesn't change.
 
+### Leaving it to VPX
+
+If you'd rather VPX placed and sized tables exactly the way it does without the app, tick **Leave table size and position to VPX** at the top of the panel. VR launches then add nothing for where tables stand or how big they are, so VPX uses your own `VPinballX.ini`, or its own defaults (an 85 cm high, 70 cm wide lockbar, and your eyes 10 cm over the glass). The rest of the panel greys out.
+
+Turning it on clears the values you saved here from the VR settings file. Where VPX saved the table during play stays. A height you set for one table in the headset is then kept the way VPX keeps it, for every table, not just that one. Untick it to go back to fitting tables to you.
+
+### The settings
+
 VPX 10.8.1 places every table in VR using these settings:
 
 | Setting | VPX's default | What it does |

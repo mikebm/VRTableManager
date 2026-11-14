@@ -353,6 +353,33 @@ static class VrFitChecks
                 && Get(extra, "ScreenPlayerY") == "10",
             "fit: reset to defaults clears your values (other settings kept), so tables get a real cabinet's again"
         );
+
+        // Left to VPX: a launch adds and holds back nothing, and the panel shows VPX's own defaults.
+        var byVpx = new AppSettings { VrFitByVpx = true, VrTableSizing = VrFit.SizeReal };
+        (extra, notKept) = VrFit.LaunchSettings(byVpx, none, wpc);
+        Check(
+            extra.Count == 0
+                && notKept.Count == 0
+                && VrFit.LockbarHeight(none, byVpx) == 85
+                && VrFit.EyesBehind(none, byVpx) == -10
+                && VrFit.Describe(none, byVpx).StartsWith("Left to VPX", StringComparison.Ordinal),
+            "fit: left to VPX, a launch adds nothing (no height, eyes, width or height reset) and shows VPX's defaults"
+        );
+        // Turning it on clears a saved fit from the VR file, but not where VPX saved the table or other settings.
+        VrFit.Write(ini, new VrFit.Choice(91, 15, VrFit.SizeSame, 64), false, VrFit.SizeReal);
+        VpxIniLayers.SetOverrides(ini, "PlayerVR", [("TableX", "12")]);
+        VrFit.Clear(ini);
+        v = IniFile.Read(ini);
+        Check(
+            v[("Player", "LockbarHeight")] == ""
+                && v[("Player", "LockbarWidth")] == ""
+                && v[("Player", "ScreenPlayerY")] == ""
+                && v[("PlayerVR", "OverrideLockbarHeight")] == ""
+                && v[("PlayerVR", "OverrideLockbarWidth")] == ""
+                && v[("PlayerVR", "TableX")] == "12"
+                && v[("Player", "AAFactor")] == "1.2",
+            "fit: leaving it to VPX clears the saved fit, keeping the table's position and other settings"
+        );
         return results;
     }
 }

@@ -25,7 +25,9 @@
                        Text="Every VPX table gets its lockbar at the same height and distance from you, sized like a real machine, so you don't line each one up yourself. Tables use a real cabinet's values until you change them. Changes here count once you click FIT EVERY TABLE TO ME, and then for every table." />
             <TextBlock Classes="body" TextWrapping="Wrap" Foreground="{StaticResource Lamp}"
                        Text="Playing at a pinball cabinet or a controller stand? Measure it, put its lockbar height below, and pick &quot;The same width for every table&quot; for Table size with its width, so every table's lockbar lands on your real one. Then, standing where you play, recenter once in the headset (keypad 5, or the cabinet button you set for Align VR view)." />
-            <Grid ColumnDefinitions="Auto,Auto,*" RowDefinitions="Auto,Auto,Auto,Auto,Auto" ColumnSpacing="12" RowSpacing="8">
+            <CheckBox IsChecked="{Binding FitByVpx}" Content="Leave table size and position to VPX"
+                      ToolTip.Tip="VR play adds nothing for where tables stand or how big they are, so VPX places them exactly as it does without this app: from your own VPinballX.ini, or VPX's defaults. Turning it on clears the values saved here." />
+            <Grid ColumnDefinitions="Auto,Auto,*" RowDefinitions="Auto,Auto,Auto,Auto,Auto" ColumnSpacing="12" RowSpacing="8" IsEnabled="{Binding FitIsOn}">
               <TextBlock Text="Your height" VerticalAlignment="Center" FontWeight="SemiBold" />
               <Grid Grid.Column="1" Width="210" ColumnDefinitions="Auto,*,Auto,Auto" ColumnSpacing="4">
                 <Button Classes="small" Content="−" Command="{Binding FitHeightLessCommand}" ToolTip.Tip="Shorter" />
@@ -65,10 +67,10 @@
                          Text="On a cabinet, measure across the playfield between the side rails and add 6 cm (2¼&quot;): a standard (WPC) body comes to 57 cm (22½&quot;), a widebody about 65 cm. On a controller stand, 57 cm is a good start." />
             </Grid>
             <CheckBox IsChecked="{Binding FitUseInches}" Content="Feet and inches" />
-            <CheckBox IsChecked="{Binding FitResetPosition}" Content="Also put the table straight ahead, where the headset centres you"
+            <CheckBox IsChecked="{Binding FitResetPosition}" IsEnabled="{Binding FitIsOn}" Content="Also put the table straight ahead, where the headset centres you"
                       ToolTip.Tip="Forgets the position you set in the headset. The table then starts in front of the headset's centre point (hold the Meta button to move that to where you stand). Off: only the height offset is cleared, so the lockbar height above is what you get." />
             <TextBlock Classes="mono" TextWrapping="Wrap" Text="{Binding FitSummary}" />
-            <WrapPanel>
+            <WrapPanel IsEnabled="{Binding FitIsOn}">
               <Button Classes="small" Content="FIT EVERY TABLE TO ME" Margin="0,0,8,0" Command="{Binding ApplyVrFitCommand}"
                       ToolTip.Tip="Saves these in the VR settings file. Changes here only count once you click this. Desktop play doesn't change." />
               <Button Classes="small" Content="RESET TO DEFAULTS" Margin="0,0,8,0" Command="{Binding ResetVrFitCommand}"

@@ -129,6 +129,13 @@ public sealed class AppSettings
     /// </summary>
     public bool VrFitSaved { get; set; }
 
+    /// <summary>
+    /// Fit VR to me is off: VR launches add nothing for where and how big tables are, and a table's height moved in the
+    /// headset isn't kept for that table alone, so VPX places every table exactly as it does without the app
+    /// (<see cref="VrFit.LaunchSettings"/>). Turning it on clears the fit's values from the VR settings file.
+    /// </summary>
+    public bool VrFitByVpx { get; set; }
+
     /// <summary>The lockbar width every table gets in <see cref="VrFit.SizeSame"/> mode (cm); a WPC table's real one.</summary>
     public double VrSameLockbarWidthCm { get; set; } = 57.1;
 

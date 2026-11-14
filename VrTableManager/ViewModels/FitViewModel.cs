@@ -39,6 +39,71 @@ public sealed partial class FitViewModel(MainViewModel app) : ChildViewModel(app
     [ObservableProperty]
     public partial bool FitUseInches { get; set; }
 
+    /// <summary>Fit VR to me is off: VPX places and sizes every table itself (<see cref="AppSettings.VrFitByVpx"/>).</summary>
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(FitIsOn))]
+    public partial bool FitByVpx { get; set; }
+
+    public bool FitIsOn => !FitByVpx;
+
+    partial void OnFitByVpxChanged(bool value)
+    {
+        if (!_loadingFit)
+        {
+            _ = SetFitByVpxAsync(value);
+        }
+    }
+
+    async Task SetFitByVpxAsync(bool byVpx)
+    {
+        if (byVpx)
+        {
+            var pick = await Ui.ChoiceAsync(
+                "Leave table size and position to VPX?",
+                "VR play stops adding anything for where tables stand and how big they are, so VPX places them exactly as it "
+                    + "does without this app: your own VPinballX.ini, or VPX's defaults (an 85 cm high, 70 cm wide lockbar). "
+                    + "The values saved here are cleared from the VR settings. A height you set for one table in the headset "
+                    + "isn't kept for that table any more; VPX keeps it for every table, as it does on its own.",
+                ["LEAVE IT TO VPX", "CANCEL"]
+            );
+            if (pick != 0)
+            {
+                SetFitByVpxQuietly(false);
+                return;
+            }
+            try
+            {
+                VrFit.Clear(VpxSetup.VrIniPath(Settings));
+            }
+            catch (Exception e)
+            {
+                SetFitByVpxQuietly(false);
+                FitStatus = "Couldn't change the VR settings: " + e.Message;
+                return;
+            }
+            Settings.VrFitSaved = false;
+        }
+        Settings.VrFitByVpx = byVpx;
+        Settings.Save();
+        LoadVrView();
+        FitStatus = byVpx
+            ? "✓ Left to VPX, from the next table you start."
+            : "✓ Fit VR to me is back on: a real cabinet's values until you click FIT EVERY TABLE TO ME.";
+    }
+
+    void SetFitByVpxQuietly(bool value)
+    {
+        _loadingFit = true;
+        try
+        {
+            FitByVpx = value;
+        }
+        finally
+        {
+            _loadingFit = false;
+        }
+    }
+
     /// <summary>Your height; typing it fills in the lockbar height.</summary>
     [ObservableProperty]
     public partial string FitHeightText { get; set; } = "";
@@ -143,6 +208,7 @@ public sealed partial class FitViewModel(MainViewModel app) : ChildViewModel(app
         {
             var inches = Settings.VrUseInches;
             FitUseInches = inches;
+            FitByVpx = Settings.VrFitByVpx;
             _fitExact.Clear();
             // What VR play uses: the VR settings' own values, else the defaults launches get.
             FitHeightText = Settings.VrPlayerHeightCm is { } height

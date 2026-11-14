@@ -19,6 +19,7 @@ namespace VrTableManager.Services;
 /// sense as ScreenPlayerY.</item>
 /// </list>
 /// Until the player picks their own, VR launches get a real cabinet's values (<see cref="LaunchSettings"/>), not VPX's.
+/// With <see cref="AppSettings.VrFitByVpx"/> none of this happens and VPX places tables as it does on its own.
 /// Newer VPX builds only use the lockbar values when <c>[PlayerVR] OverrideLockbarHeight/Width</c> are on, and keep a
 /// table's native size otherwise, so those are written too.
 /// </summary>
@@ -153,6 +154,30 @@ public static class VrFit
     }
 
     /// <summary>
+    /// For leaving VR placement to VPX (<see cref="AppSettings.VrFitByVpx"/>): clears the values a saved fit wrote into
+    /// the VR settings file (lockbar height and width, eye position, and the override switches newer VPX builds read),
+    /// so your own VPinballX.ini's or VPX's defaults apply. Where VPX saved the table during play is left alone.
+    /// </summary>
+    public static void Clear(string vrIni)
+    {
+        VpxIniLayers.SetOverrides(
+            vrIni,
+            "Player",
+            [
+                ("LockbarHeight", ""),
+                ("LockbarWidth", ""),
+                ("ScreenPlayerX", ""),
+                ("ScreenPlayerY", ""),
+            ]
+        );
+        VpxIniLayers.SetOverrides(
+            vrIni,
+            "PlayerVR",
+            [("OverrideLockbarHeight", ""), ("OverrideLockbarWidth", "")]
+        );
+    }
+
+    /// <summary>
     /// Back to the manager's defaults: clears the lockbar and eye values from the VR settings file, so every launch
     /// gets a real cabinet's (<see cref="LaunchSettings"/>, once <see cref="AppSettings.VrFitSaved"/> is off again),
     /// and puts the table straight ahead at the default eye distance. The player's own VPinballX.ini still counts.
@@ -208,6 +233,10 @@ public static class VrFit
     {
         List<(string, string, string)> extra = [];
         List<(string, string)> notKept = [];
+        if (s.VrFitByVpx)
+        {
+            return (extra, notKept); // left to VPX: nothing added, nothing held back
+        }
         // Put back to VPX's default in VR play is set, to the default (VpxIniLayers' DefaultsSection), not unset.
         var atDefault = VpxIniLayers.SetToDefault(VpxIniLayers.OverridePath(s, vr: true));
         bool Unset(string section, string key) =>
@@ -365,7 +394,7 @@ public static class VrFit
         Value(
             vrSettings,
             "LockbarHeight",
-            s.VrFitSaved || AtVpxDefault(s, "LockbarHeight")
+            s.VrFitByVpx || s.VrFitSaved || AtVpxDefault(s, "LockbarHeight")
                 ? VpxLockbarHeight
                 : StandardLockbarHeight
         );
@@ -378,7 +407,9 @@ public static class VrFit
         Value(
             vrSettings,
             "ScreenPlayerY",
-            s.VrFitSaved || AtVpxDefault(s, "ScreenPlayerY") ? VpxEyesBehind : StandardEyesBehind
+            s.VrFitByVpx || s.VrFitSaved || AtVpxDefault(s, "ScreenPlayerY")
+                ? VpxEyesBehind
+                : StandardEyesBehind
         );
 
     /// <summary>A [Player] setting put back to VPX's default in VR play, which launches leave at that default (see <see cref="LaunchSettings"/>).</summary>
@@ -399,6 +430,10 @@ public static class VrFit
                 ? $"your eyes {FormatEyes(eyes, inches)} behind it"
                 : $"your eyes {FormatEyes(-eyes, inches)} over the glass";
         var width = Format(Value(vrSettings, "LockbarWidth", VpxLockbarWidth), inches);
+        if (s.VrFitByVpx)
+        {
+            return $"Left to VPX: lockbar {Format(height, inches)} high, {where}, every table scaled to a {width} lockbar.";
+        }
         var size = s.VrTableSizing switch
         {
             SizeReal => "every table at its real size",

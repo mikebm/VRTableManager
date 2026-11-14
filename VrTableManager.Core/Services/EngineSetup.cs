@@ -796,14 +796,17 @@ public static class Launcher
             // A position the table keeps for itself isn't everyone's, and a height change in the headset is this
             // table's own (VrFit.OwnPositionKeys, KeepTableHeight), as is a graphics setting its .ini sets
             // (VpxGraphics.OwnTableKeys, e.g. its render scale). All read the table's .ini when it closes.
+            // With VR placement left to VPX (VrFitByVpx), positions are saved the way VPX saves them, for every table.
             afterPlay: vr && tablePath.EndsWith(".vpx", StringComparison.OrdinalIgnoreCase)
-                ? new VpxIniLayers.AfterPlay(
-                    NotKept: () =>
-                        VrFit
-                            .OwnPositionKeys(tablePath)
-                            .Concat(VpxGraphics.OwnTableKeys(tablePath)),
-                    After: (before, after) => VrFit.KeepTableHeight(tablePath, before, after)
-                )
+                ? s.VrFitByVpx
+                    ? new VpxIniLayers.AfterPlay(NotKept: () => VpxGraphics.OwnTableKeys(tablePath))
+                    : new VpxIniLayers.AfterPlay(
+                        NotKept: () =>
+                            VrFit
+                                .OwnPositionKeys(tablePath)
+                                .Concat(VpxGraphics.OwnTableKeys(tablePath)),
+                        After: (before, after) => VrFit.KeepTableHeight(tablePath, before, after)
+                    )
                 : null
         );
         if (
