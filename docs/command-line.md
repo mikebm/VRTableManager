@@ -1,6 +1,6 @@
 # Launching a table from the command line
 
-VR Table Manager can play a single table without opening its window. The VR lobby uses this to start every table, and you can run it yourself from a shortcut, a script or another front end.
+VR Table Manager can play a single table without opening its window. The VR lobby starts every table this way, and you can use it too, from a shortcut, a script or another front end.
 
 ## Play one table
 
@@ -8,34 +8,34 @@ VR Table Manager can play a single table without opening its window. The VR lobb
 VrTableManager.exe --play "C:\Tables\Medieval Madness.vpx" --vr
 ```
 
-This launches the table through the same engine as the manager's **Play** button and waits for it to close. Then it exits. The manager window never opens.
+This plays the table the same way the **Play** button does, waits for it to close, then exits. The app's window never opens.
 
-- `--play <table>` must come first, with the table's path straight after it.
-- The table must be one the manager already lists under **My Tables**. It's looked up by its full path, so use the path the manager shows for that table. A table it doesn't know fails with *Table not found in the manager's folders*.
-- `--vr` plays in VR. Leave it out to play on the desktop.
-- It counts as a play, just like the **Play** button: the play and the time played go into your play history.
+- `--play <table>` has to come first, with the table's path right after it.
+- The table has to be one the app already lists in **My Tables**, and you need to use the full path it shows for it. Otherwise you get *Table not found in the manager's folders*.
+- Add `--vr` to play in VR. Leave it out to play on the desktop.
+- It counts as a play, just like the **Play** button, so it shows up in your play history.
 - The exit code is `0` when the table ran and closed, and `1` when it couldn't start.
 
-Tables for every engine the manager supports (VPX, Future Pinball, Pinball FX / M) work this way. Each engine has to be set up in the manager first.
+It works for every kind of table the app supports (VPX, Future Pinball, Pinball FX and M), as long as that game is set up in the app first.
 
 ## Options
 
 | Option | What it does |
 |---|---|
 | `--vr` | Play in VR instead of on the desktop. |
-| `--settings <file>` | Use a different `settings.json`. The default is `%APPDATA%\VrTableManager\settings.json`. Play history is kept next to whichever settings file is used. |
-| `--return <exe>` | Start this program after the table closes. |
+| `--settings <file>` | Use a different `settings.json` instead of `%APPDATA%\VrTableManager\settings.json`. Play history is kept next to whichever one you use. |
+| `--return <exe>` | Start this program when the table closes. |
 | `--return-arg <arg>` | One argument for the `--return` program. Repeat it for each argument, in order. |
-| `--status <file>` | Write the launch's progress (starting, running, exited, failed) to this JSON file. The lobby reads it to drive its loading screen. |
-| `--lobby-pid <pid>` | The process id of a VR lobby that's waiting on this launch. If that lobby is still open when the table closes, `--return` is skipped, so you don't end up with two lobbies. |
+| `--status <file>` | Write the launch's progress (starting, running, exited, failed) to this JSON file. |
+| `--lobby-pid <pid>` | The process id of a VR lobby waiting on this launch. If it's still open when the table closes, `--return` is skipped, so you don't end up with two lobbies. |
 
-`--status` and `--lobby-pid` exist for the lobby. You won't usually need them yourself.
+The lobby uses `--status` and `--lobby-pid`. You won't usually need them.
 
-## Play a table, then go to the VR lobby
+## Play a table, then land in the VR lobby
 
-The lobby can't launch a table itself from the command line. Its `--select=<table>` option only highlights that table in the ring. To start straight into a table and land in the lobby when you leave it, have the manager play the table and start the lobby afterwards with `--return`. This is what the lobby does when you pick a table.
+The lobby can't start a table from its own command line. Its `--select` option just picks that table in the ring. To go straight into a table and land in the lobby when you quit, have VR Table Manager play the table and start the lobby afterwards with `--return`. That's what the lobby itself does when you pick a table.
 
-In a release, the lobby is `VrLobby\VrLobby.exe` next to `VrTableManager.exe`. It passes anything after a lone `--` to the lobby itself:
+The lobby is `VrLobby\VrLobby.exe`, in the folder you unzipped VR Table Manager to. Anything after a lone `--` goes to the lobby itself:
 
 ```powershell
 VrTableManager.exe --play "C:\Tables\Medieval Madness.vpx" --vr `
@@ -43,23 +43,14 @@ VrTableManager.exe --play "C:\Tables\Medieval Madness.vpx" --vr `
   --return-arg -- --return-arg "--select=C:\Tables\Medieval Madness.vpx"
 ```
 
-Replace the folder with the one on your PC (use `VrLobby.exe`, not `VrLobby.console.exe`). The `--select` at the end should bring the lobby back on the table you just played.
-
-Running from source, the lobby runs in the Godot editor the manager downloads to `%LOCALAPPDATA%\VrTableManager\godot\` instead: `--return` that `Godot_v…_mono_win64.exe` and add `--return-arg --path --return-arg "<repo>\VrLobby"` before the `--`.
+Put in your own folder, and use `VrLobby.exe`, not `VrLobby.console.exe`. The `--select` at the end brings the lobby back on the table you just played.
 
 ## VR lobby options
 
-These go after `--` on the lobby's command line, for example `VrLobby.exe -- --select=<table>` (from source: `godot --path VrLobby -- --select=<table>`). Most are for development and testing. For one that prints (`--selftest`, `--prepare-tables`), use `VrLobby.console.exe`, so its output shows in the terminal.
+These go after `--` on the lobby's command line, for example `VrLobby.exe -- --select=<table>`.
 
 | Option | What it does |
 |---|---|
-| `--select=<table>` | Start with this table selected (its full path, as the manager lists it). Without it, the lobby opens on the table you played last. |
-| `--settings=<file>` | Use a different manager `settings.json`. Also `VRLOBBY_SETTINGS`. |
-| `--state=<file>` | Use a different lobby state file. Also `VRLOBBY_STATE`. |
-| `--selftest` | Run the in-engine self-test and quit. |
-| `--screenshot=<png>` | Desktop only (`--xr-mode off`): save one frame and quit. `--pitch`, `--fov` and `--cam-y` move the camera. |
-| `--perf-trace[=steps]` | Step through the tables by itself and print slow frames. |
-| `--borrow-all` | Show every table in the default cabinet. |
-| `--no-depth` | Show a flat playfield video, for comparison. |
-| `--dump-cabinet=<table.vpx>` | Write that table's VR cabinet as the default cabinet, then quit. |
-| `--record-audio=<table>` | Record a ROM table's attract music, then quit. The lobby runs this itself. |
+| `--select=<table>` | Start with this table picked (its full path, as My Tables shows it). Without it, the lobby opens on the table you played last. |
+| `--settings=<file>` | Use a different VR Table Manager `settings.json`. |
+| `--state=<file>` | Use a different file for the lobby's own state (filter, height). |

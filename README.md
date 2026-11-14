@@ -1,50 +1,53 @@
 # VR Table Manager
 
-**Virtual pinball in VR, without the setup headaches.** Pick a table from the 2,000+ in the Virtual Pinball Spreadsheet, click Install, and play it in your headset a few minutes later. VR Table Manager downloads the table, finds its ROM, adds the extras (PuP videos, colour DMD, remastered sound), keeps everything up to date, and launches it in VR. Then you can walk up to your collection in a 3D arcade lobby inside the headset and pick the next one.
+**Virtual pinball in VR, without the setup headaches.** Pick a table from the 2,000+ in the Virtual Pinball Spreadsheet, click Install, and a few minutes later you're playing it in your headset. VR Table Manager downloads the table, finds its ROM, adds the extras (PuP videos, colour DMDs, remastered sound), keeps it all up to date and launches it in VR. When you're done, walk over to the next one in a 3D arcade lobby without taking the headset off.
 
 ![My Tables: your collection, with updates, add-ons and one-click Play in VR](docs/screenshots/my-tables.jpg)
 
 ![The VR lobby: your tables as 3D cabinets, picked from inside the headset](VrLobby/screenshots/screenshot.jpg)
 
-Built for Meta Quest (Link, Air Link or Virtual Desktop) with the official Visual Pinball X 10.8.1 VR build. Future Pinball, Pinball FX and Pinball M are supported too.
+It's built for Meta Quest (Link, Air Link or Virtual Desktop) with the official Visual Pinball X 10.8.1 VR build. Future Pinball, Pinball FX and Pinball M work too.
 
 ## Features
 
-### Get tables in one click
-- **The whole catalog:** every VPX and Future Pinball table in the [Virtual Pinball Spreadsheet](https://virtualpinballspreadsheet.github.io/), filterable by VR-ready, maker, era, type and theme, each with its versions, authors and features.
-- **One-click install:** for VPUniverse, VPForums and other community sites, the table's page opens in your own browser so you see the site and accept its terms yourself; click Download and the app picks the file up from your Downloads folder and does the rest. GitHub and direct links download by themselves. Installs queue up and are offered again if you close the app mid-download.
-- **Already downloaded it?** **ADD A TABLE FILE…** in My Tables installs a table zip (or `.vpx` / `.fpt`) you have. The app guesses which catalog table it is from the file name and you confirm, so it still gets its ROM, add-ons and updates. A table that isn't in the catalog installs under its file name.
-- **Ready to play:** each table gets its own folder in the layout VPX 10.8.1 expects. The app reads the table's script to find the exact ROM it needs, then fetches it, including Stern's free game code. Its parent sets and aliases are handled for you.
-- **Find any table, however you spell it:** search in Get Tables and My Tables matches the name, maker, author, theme, year or ROM, with words in any order. Typos are fine ("adams famly", "twilite zone"), initials work ("afm", "tz", "lotr"), and "90s" or "1992" finds machines from then. Best matches come first. My Tables has the same maker, era, type and theme filters as Get Tables. Type and theme come from the catalog, so a table that isn't linked to it only shows under "Any".
-- **A–Z rail:** beside the cards in both tabs, as in the VR lobby. Click a letter to jump to its first table ("The Addams Family" files under A). It shows while the list is in A–Z order.
+### Getting tables
+- **The whole catalog.** Every VPX and Future Pinball table in the [Virtual Pinball Spreadsheet](https://virtualpinballspreadsheet.github.io/), with its versions, authors and features. Filter by VR-ready, maker, era, type and theme.
+- **One-click install.** For VPUniverse, VPForums and the other community sites, the table's page opens in your own browser, so you see the site and accept its terms yourself. Click Download there and the app picks the file up from your Downloads folder and does the rest. GitHub and direct links just download. Installs queue up, and if you close the app mid-download it offers to finish them next time.
+- **Already have the file?** **ADD A TABLE FILE…** in My Tables installs a zip, `.vpx` or `.fpt` you already downloaded. The app works out which catalog table it is from the file name and you confirm, so it still gets its ROM, add-ons and updates.
+- **Ready to play.** Each table gets its own folder, laid out the way VPX 10.8.1 expects. The app reads the table's script to find the exact ROM it needs and fetches it, Stern's free game code included, along with any parent ROM it depends on.
+- **Search that forgives you.** Search matches the name, maker, author, theme, year or ROM, with words in any order. Typos are fine ("adams famly"), initials work ("afm", "tz", "lotr"), and "90s" or "1992" finds machines from then.
+- **A–Z rail** beside the cards, like the one in the VR lobby. Click a letter to jump there.
 
-### Make every table look and sound its best
-- **PuP packs:** PinUP Player videos on the cabinet's backglass and DMD, shown in VR by VPX's PinUP plugin.
+### Making every table look and sound its best
+- **PuP packs:** PinUP Player videos on the backglass and DMD, shown in VR.
 - **Colour DMDs:** Serum and Pin2DMD colorizations turn the orange dot-matrix display into full colour.
-- **AltSound:** remastered and re-orchestrated soundtracks that replace the ROM's original sounds.
-- **Rules:** The Pinball Primer's rules and strategy guide and the table's instruction cards, one click from each table.
-- **Your own artwork:** replace a table's card picture, its VR lobby playfield and backglass, its lobby video and its attract music with your own. See [Custom artwork, videos and sounds](docs/custom-artwork.md).
+- **AltSound:** remastered soundtracks that replace the ROM's original sound.
+- **Backglasses:** `.directb2s` backglasses from the catalog.
+- **Rules:** The Pinball Primer's rules and strategy guide, and the table's instruction cards.
+- **Your own artwork:** use your own card picture, lobby playfield, backglass, wheel art, videos and music for any table. See [Custom artwork, videos and sounds](docs/custom-artwork.md).
 
-Add-ons are matched to the table's ROM, installed where VPX's plugins look, and tracked, so a new version shows up as an update. Already have a pack? Each add-on menu has **Add a … you already have**: pick its archive or its unpacked folder and it's copied in, with nothing downloaded and your copy left where it is.
+Add-ons are matched to the table's ROM and installed where VPX's plugins look. They're tracked, so a newer version shows up as an update. Already have a pack? Each add-on menu has **Add a … you already have** for its archive or unpacked folder.
 
-### Stay up to date
-- **Updates for everything:** new table versions, new add-on versions, Visual Pinball X itself and UEVR, checked every time the app starts. **SHOW THEM** (or the **Updates** filter) lists the tables with a newer version; update one, or update all with one button.
-- **Nothing lost:** updating a table keeps its ROMs, high scores and settings.
+### Staying up to date
+- Every time the app starts, it checks for new versions of your tables, their add-ons, Visual Pinball X itself and UEVR. **SHOW THEM** (or the **Updates** filter) lists the tables with a newer version. Update one, or all of them with one button.
+- Updating a table keeps its ROMs, high scores, settings, favourite star and play history.
 
-### Play in VR
-- **One button:** **Play in VR** launches the table in your headset. The manager gets out of the way and comes back when you quit, ready for the next game.
-- **The VR lobby:** your tables stand around you as 3D cabinets with real backglass art. Browse with an alphabet wheel, play a table's attract music, and launch it without taking the headset off.
-- **Favourites, play history and high scores:** shared between the manager and the lobby. Grand champion scores are read straight from each table's saved memory. Updating a table keeps its star and plays, even when the new version has a new file name.
-- **Your own collections:** group tables however you like ("Party night", "Learning the rules"). A table's ⋯ menu → Collections puts it in one or starts a new one, and the Collection filter in My Tables shows one, with Rename and Delete beside it. In the VR lobby each collection is another filter (B / Tab).
-- **Smart collections:** lists that fill themselves, in their own section of the Collection filter. Ready-made ones: Never played, New this month, Not played in 3 months, Forgotten favourites (starred, not played in 2 months) and Needs a ROM. Or set the search and filters you want (say 1990s + Movie, or "williams" in your Party collection) and press **SAVE AS SMART**: it stays up to date as you install and play. They're filters in the VR lobby too.
-- **Pinball FX and Pinball M:** launched through UEVR, with pinball-tuned VR settings applied automatically.
+### Playing in VR
+- **Play in VR** launches the table in your headset. The app gets out of the way and comes back when you quit.
+- **The VR lobby.** Your tables stand around you as 3D pinball cabinets in an arcade. Each one stands in its own VR cabinet when the table has one, or on a generic cabinet dressed in the table's art. Playfields move with their lobby videos, and the selected one plays a bit of its music. Pull the trigger and you're playing; quit the table and you're back in the lobby on the same table. It works with your cabinet's buttons and DOF effects, or a game controller. See [The VR lobby](docs/vr-lobby.md).
+- **Lobby media in one go.** **GET LOBBY MEDIA** fetches playfield videos, loading videos, music and wheel art for every table shown, from the community media packs and the catalog.
+- **Favourites, play history and high scores**, shared between the app and the lobby. Grand champion scores are read straight from each table's saved memory.
+- **Collections.** Group tables however you like ("Party night", "Learning the rules"), or save a search as a smart collection that keeps itself up to date. Ready-made ones include Never played, New this month and Forgotten favourites. They're filters in the VR lobby too.
+- **Pinball FX and Pinball M** launch in VR through UEVR, with pinball-tuned VR settings. See [Pinball FX and Pinball M](docs/pinball-fx-and-pinball-m.md).
 
-### Setup made easy
-- Copies the tables of another VPX install (with their ROMs, NVRAM, AltSound, AltColor and PuP packs) into the per-table layout, leaving the other install untouched.
-- Installs the official VPX VR build, checks your OpenXR runtime (Meta Quest Link, Virtual Desktop, SteamVR), and sets refresh rate, spacewarp and graphics quality. Rather tune VPX yourself? Switch the VR graphics off and VR play uses your own VPinballX.ini.
-- Keeps your own `VPinballX.ini` as it is, with separate VR and desktop overrides on top. See [VPX settings for VR and desktop play](docs/vpx-settings.md).
-- Explains what went wrong when a table crashes or exits early, using VPX's own log.
-- Shows disk use, sets render scale per table, clears caches, and backs up your settings and play history.
+### Setup
+- Installs the official VPX VR build, checks your OpenXR runtime (Meta Quest Link, Virtual Desktop, SteamVR), and sets the refresh rate, spacewarp and graphics quality. Rather tune VPX yourself? Switch the VR graphics off and VR play uses your own settings.
+- **FIT VR TO ME** lines every table up the same way, at the right height and real size, so you're not moving each one around in the headset.
+- Set VPX's keys and buttons on the **Controls** page, for desktop and VR or just one of them.
+- Your own `VPinballX.ini` stays as it is, with separate VR and desktop settings on top. See [VPX settings for VR and desktop play](docs/vpx-settings.md).
+- Copies the tables of another VPX install (with their ROMs, NVRAM, AltSound, AltColor and PuP packs) into the per-table layout, leaving the other install alone.
+- Tells you what went wrong when a table crashes or exits early, from VPX's own log.
+- Shows what's using your disk, sets render scale per table, clears caches, and backs up your settings and play history.
 
 ## Screenshots
 
@@ -52,106 +55,34 @@ Add-ons are matched to the table's ROM, installed where VPX's plugins look, and 
 |---|---|
 | ![Table cards with PUP, COLOUR DMD, ALTSOUND and RULES menus, and the PUP menu open](docs/screenshots/table-cards.jpg) | ![Get Tables: the whole Virtual Pinball Spreadsheet catalog](docs/screenshots/get-tables.jpg) |
 | **Add-ons and rules** on every table card, with Play and a ⋯ menu | **Get Tables:** 2,000+ tables, filtered to what works in VR |
-| ![A table's versions, authors and features, each with Install](docs/screenshots/table-versions.jpg) | ![Setup: Visual Pinball X, its settings files and the VR options](docs/screenshots/setup.jpg) |
-| **Every version** of a table, with one-click Install | **Setup:** VPX, your own VPinballX.ini with VR and desktop overrides, VPX's keys, and the VR options |
+| ![A table's versions, authors and features, each with Install](docs/screenshots/table-versions.jpg) | ![Setup: installing Visual Pinball X, your table folders and the layered VPX settings](docs/screenshots/setup.jpg) |
+| **Every version** of a table, with one-click Install | **Setup:** installing VPX, your table folders, and your own VPinballX.ini with VR and desktop settings on top |
 
 | | |
 |---|---|
 | ![Attack from Mars in the VR lobby](VrLobby/screenshots/screenshot-afm.jpg) | ![Total Nuclear Annihilation in the VR lobby](VrLobby/screenshots/screenshot-tna.jpg) |
-| **The VR lobby:** each table in its own cabinet, with its high scores overhead | The arcade room, and a wheel at your feet to jump between makers or letters |
+| **The VR lobby:** each table in its own cabinet, with its high scores overhead | The arcade room, with a wheel at your feet to jump between makers or letters |
 
-## Try it
+## Getting started
 
 1. Download the latest `VrTableManager-<version>-win-x64.zip` from [Releases](https://github.com/mikebm/VRTableManager/releases), unzip it anywhere and run `VrTableManager.exe`.
-2. On **Setup**, install Visual Pinball X with one click and make sure your headset's OpenXR runtime is active (Meta Quest Link or Virtual Desktop).
-3. On **Get Tables**, pick a VR-ready table and click **Install**. Its page opens in your browser: sign in if asked, accept the site's terms and click Download. The app takes it from there.
-4. Put your headset on and hit **Play in VR**, or **Launch VR Lobby** to browse your collection in the headset.
+2. On **Setup**, install Visual Pinball X with one click, and make sure your headset's OpenXR runtime is active (Meta Quest Link or Virtual Desktop).
+3. On **Get Tables**, pick a VR-ready table and click **Install**. Its page opens in your browser: sign in if it asks, accept the site's terms and click Download. The app takes it from there.
+4. Put your headset on and hit **Play in VR**, or **Launch VR Lobby** to browse your collection from inside the headset.
 
-You'll need Windows 10/11 (64-bit) and a web browser. Nothing else to install: the VR lobby comes ready to run in the zip (`VrLobby\VrLobby.exe`), with its own .NET.
-
-## Build from source
-
-### Requirements
-
-- Windows
-- [.NET 10 SDK](https://dotnet.microsoft.com/download)
-- For the VR lobby: [Godot 4.7.2 .NET](https://godotengine.org/download) (the .NET edition is required for C#)
-- For VR play: a configured OpenXR runtime and the relevant pinball games/tools. See the [manager guide](VrTableManager/README.md) and [lobby guide](VrLobby/README.md) for engine-specific requirements.
-
-### Build and run
-
-From the repository root, build the solution:
-
-```powershell
-dotnet build "VR Table Manager.slnx"
-```
-
-Run the desktop manager:
-
-```powershell
-dotnet run --project VrTableManager
-```
-
-Run the companion lobby with the Godot .NET executable:
-
-```powershell
-godot --path VrLobby
-```
-
-Open the manager once before using the lobby so it can record its executable path. VR hardware is not required to run the manager, build the projects, or open the lobby in desktop mode.
-
-### Run checks
-
-Run the console smoke-test suite:
-
-```powershell
-dotnet run --project SmokeTest
-```
-
-Run the lobby's Godot scene self-test:
-
-```powershell
-godot --headless --path VrLobby -- --selftest
-```
-
-The smoke tests may access online catalogs or release/site endpoints, so some checks depend on network availability.
-
-## Projects
-
-| Project | Description |
-| --- | --- |
-| [VrTableManager](VrTableManager/README.md) | Avalonia desktop app for browsing and installing tables, configuring engines, and launching games. |
-| [VrTableManager.Core](VrTableManager.Core/VrTableManager.Core.csproj) | Shared models, table services, engines, play tracking, and lobby logic. |
-| [VrLobby](VrLobby/README.md) | Godot C# VR lobby with table browsing, favorites, filters, and launch/return flow. |
-| [SmokeTest](SmokeTest/SmokeTest.csproj) | Console-based integration and behavior checks. |
-| [tools/IconGen](tools/IconGen/IconGen.csproj) | Utility for generating the desktop application icon. |
+You need Windows 10 or 11 (64-bit) and a web browser. Nothing else to install: the VR lobby is in the zip, ready to run. [Installing tables and add-ons](docs/installing-tables.md) goes through it all in more detail.
 
 ## Guides
 
-- [Desktop manager: features, engine setup, installation, and updates](VrTableManager/README.md)
-- [VR lobby: setup, controls, behavior, and test coverage](VrLobby/README.md)
-- [Custom artwork, videos and sounds: card pictures, lobby playfields, backglasses, videos and attract music](docs/custom-artwork.md)
-- [VPX settings for VR and desktop play: your own VPinballX.ini, with VR and desktop overrides on top](docs/vpx-settings.md)
-- [Cabinet buttons and game controllers in the VR lobby: PinOne, Pinscape, Xbox and PlayStation controllers](docs/cabinet-buttons.md)
-- [Launching a table from the command line: `VrTableManager.exe --play`, and returning to the VR lobby](docs/command-line.md)
+- [Installing tables and add-ons](docs/installing-tables.md): installing, ROMs, PuP packs, colour DMDs, AltSound and backglasses, and where each one goes
+- [The VR lobby](docs/vr-lobby.md): controls, getting around, cabinets, videos and music
+- [Custom artwork, videos and sounds](docs/custom-artwork.md): your own pictures, videos and music for any table
+- [VPX settings for VR and desktop play](docs/vpx-settings.md): your own VPinballX.ini, VR and desktop settings, FIT VR TO ME and controls
+- [Cabinet buttons and game controllers](docs/cabinet-buttons.md): PinOne, Pinscape, Xbox and PlayStation controllers in the lobby, and DOF
+- [Pinball FX and Pinball M](docs/pinball-fx-and-pinball-m.md): playing them in VR through UEVR
+- [Launching a table from the command line](docs/command-line.md): `VrTableManager.exe --play`, for shortcuts and other front ends
 
-## Releasing
-
-[`scripts/release.ps1`](scripts/release.ps1) builds a Windows release and publishes it on GitHub:
-
-```powershell
-.\scripts\release.ps1 -Version 1.0.0 -NoPublish   # build and zip only, into artifacts\release
-.\scripts\release.ps1 -Version 1.0.0              # also tag v1.0.0 and create the GitHub release
-```
-
-It runs the smoke test, publishes the manager self-contained for win-x64, bundles the VR lobby
-(already compiled, so players don't need the .NET SDK) and attaches
-`VrTableManager-<version>-win-x64.zip` and its `.sha256` to the release, with GitHub's generated
-change list. The working tree must be clean and pushed. Other options: `-Draft`, `-Prerelease`,
-`-Notes "…"` or `-NotesFile notes.md`, `-SkipTests`, `-Repo owner/name`.
-
-For GitHub access it uses `GITHUB_TOKEN` or `GH_TOKEN` if set, then the GitHub CLI's sign-in, then
-the credential Git already uses for github.com. The token needs `contents: write` on the repository.
+Want to build it yourself or help out? See [DEVELOPING.md](DEVELOPING.md).
 
 ## Credits
 
@@ -161,5 +92,4 @@ the credential Git already uses for github.com. The token needs `contents: write
 
 ## License
 
-VR Table Manager is released under the [MIT License](LICENSE). The libraries, fonts and data it uses are under their own
-licenses; see [THIRD-PARTY-NOTICES.md](THIRD-PARTY-NOTICES.md).
+VR Table Manager is released under the [MIT License](LICENSE). The libraries, fonts and data it uses are under their own licenses; see [THIRD-PARTY-NOTICES.md](THIRD-PARTY-NOTICES.md).

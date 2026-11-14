@@ -4,7 +4,7 @@ You don't need the Quest controllers to pick a table in the VR lobby. A pinball 
 
 ## Cabinet controllers
 
-**Nothing to set up:** the lobby uses the buttons you set up in VPX. If a button works in a table, it works in the lobby.
+There's nothing to set up. The lobby uses the buttons you set up in VPX, so if a button works in a table, it works in the lobby.
 
 | Cabinet button | VPX's default key | In the lobby |
 |---|---|---|
@@ -69,9 +69,9 @@ Joystick buttons only count on the board VPX has them mapped for, so a game pad 
 
 With **Setup → VR lobby → Cabinet feedback (DOF)** on, the lobby fires your cabinet's DOF effects as you browse: flipper pulses, lights, shaker and so on. It's off by default.
 
-**What you need:** DirectOutput (DOF) installed and working with your tables. The lobby finds it where its installer put it (usually `C:\DirectOutput`). Setup shows the folder it found, or says it found none.
+You need DirectOutput (DOF) installed and already working with your tables. The lobby finds it where its installer put it, usually `C:\DirectOutput`, and Setup shows the folder it found.
 
-**Where the effects come from:** the lobby acts like PinUP Popper's menu. It uses your usual DOF config (`GlobalConfig_B2SServer.xml`, the one your tables use) and the **pinupmenu** table in the [DOF Config Tool](https://configtool.vpuniverse.com). If you've set up effects for Popper's menu, they should work in the lobby as they are. To add or change them, edit the pinupmenu table in the Config Tool, then download and install your config again.
+The lobby acts like PinUP Popper's menu. It uses your usual DOF config (`GlobalConfig_B2SServer.xml`, the one your tables use) and the **pinupmenu** table in the [DOF Config Tool](https://configtool.vpuniverse.com). If you've set up effects for Popper's menu, they should work in the lobby as they are. To add or change them, edit the pinupmenu table in the Config Tool, then download and install your config again.
 
 | In the lobby | DOF event (Popper's name) |
 |---|---|
@@ -83,6 +83,6 @@ With **Setup → VR lobby → Cabinet feedback (DOF)** on, the lobby fires your 
 
 Each event is pulsed for 150 ms; durations and blinks set in the Config Tool take it from there.
 
-**When a table starts,** the lobby finishes DOF before handing over, so your table's own DOF can open the output boards. That turns every output off, so the Start effect (E806) gets under a second: a longer effect set for it in the Config Tool is cut short. The lobby starts DOF again when you're back in the lobby.
+When a table starts, the lobby lets go of DOF so the table's own DOF can use the output boards. Letting go turns every output off, so the Start effect (E806) only gets under a second, and a longer one set for it in the Config Tool gets cut short. DOF comes back on when you return to the lobby.
 
-**If nothing fires:** check the lobby's log (see above) for lines starting `DOF:`. `ready DOF …, global config …` means DOF is running with that config. `error …` says why it isn't. `not installed` means the lobby didn't find `DirectOutput.dll`.
+If nothing fires, look in the lobby's log (see above) for lines starting `DOF:`. `ready DOF …, global config …` means it's running with that config, `error …` says why it isn't, and `not installed` means the lobby didn't find `DirectOutput.dll`.

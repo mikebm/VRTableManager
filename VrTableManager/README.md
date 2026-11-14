@@ -1,12 +1,6 @@
-# VR Table Manager
+# VR Table Manager: developer notes
 
-Browse the Virtual Pinball Spreadsheet, install tables with one click, and play them in VR (Quest 3 via Link / Air Link / Virtual Desktop).
-
-## Run
-
-```
-dotnet run --project VrTableManager
-```
+How the desktop app works under the hood. For using it, start with the [README](../README.md) and the guides in [docs](../docs). Building and testing are in [DEVELOPING.md](../DEVELOPING.md).
 
 ## How it works
 
@@ -24,6 +18,8 @@ dotnet run --project VrTableManager
 - **Setup** – installs the latest official VPX BGFX build from GitHub (the build with OpenXR VR), shows the active OpenXR runtime, and finds Future Pinball + BAM.
 
 ## Pinball FX and Pinball M through UEVR
+
+The user side is in [docs/pinball-fx-and-pinball-m.md](../docs/pinball-fx-and-pinball-m.md).
 
 **Pinball settings for UEVR** (`Core/Services/UevrPinballProfile.cs`): before each VR launch (from here or the VR lobby) the app writes ten pinball-tuned settings into the game's UEVR profile (`%APPDATA%\UnrealVRMod\<game process>\config.txt`): level table (`VR_DecoupledPitch`), menus kept in front of you (`UI_FollowView`, `UI_Distance`, `UI_Size`, `VR_EnableGUI`), Quest controllers off for the game and UEVR's menu (`VR_ControllersAllowed`, `UI_Framework_MouseEmulation`), UEVR's menu only on a long thumbstick press and closed at start. Nothing else in the profile changes; the original is backed up to `config.vrtm-original.txt` the first time. Setup has **Reset to pinball defaults**, **Restore my original**, and switches for this and for the pre-launch checklist (gamepad detected?, controllers down, OpenXR in the injector, flagged when the last run used OpenVR, read from `Frontend_RequestedRuntime`).
 

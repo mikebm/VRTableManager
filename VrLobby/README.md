@@ -1,85 +1,32 @@
-# VR Pinball Lobby (prototype)
+# VR Pinball Lobby: developer notes
 
-An in-headset table picker for **VR Table Manager**. Your tables stand around you as **3D pinball cabinets** in a dark room lined with warm lamp bulbs and chrome edges, in VR Table Manager's "DMD & lamps" style. Each one shows its real playfield under glass and its real backglass, with chrome rails, a lockdown bar and a speaker panel. The selected cabinet steps up in front of you under a spotlight. Turn the ring with the thumbstick, jump through the alphabet with the **A–Z rail** at your knees, and pull the trigger to play. You land back in the lobby, on the same table, when you exit.
+The in-headset table picker for VR Table Manager, written in C# (Godot 4.7 .NET) on top of `VrTableManager.Core`, the same library the manager uses. So it lists exactly what the manager knows about (VPX, Future Pinball, Pinball FX and Pinball M), launches through the same engine code, and shares favourites and play history with it.
 
-It's written in **C#** (Godot 4.7 .NET) on top of `VrTableManager.Core`, the same library the manager uses. So the lobby lists exactly what the manager knows about (VPX, Future Pinball, Pinball FX and Pinball M) and launches through the same engine code. Favourites and play history are shared with the manager too.
+This file is for working on the lobby. How to use it is in [docs/vr-lobby.md](../docs/vr-lobby.md), and building and testing are in [DEVELOPING.md](../DEVELOPING.md).
 
-![Medieval Madness selected, with The Getaway and Monster Bash either side](screenshots/screenshot.jpg)
+![Medieval Madness selected in the VR lobby](screenshots/screenshot.jpg)
 
 | Attack from Mars | Total Nuclear Annihilation |
 |---|---|
 | ![Attack from Mars](screenshots/screenshot-afm.jpg) | ![Total Nuclear Annihilation](screenshots/screenshot-tna.jpg) |
 
-(Desktop-mode renders of the tables installed on this PC, 1920×1080. In the headset you stand about where the camera is.)
+(Desktop-mode renders, 1920×1080. In the headset you stand about where the camera is.)
 
-## Run it
+## Running it
 
-A release ships the lobby exported (`VrLobby\VrLobby.exe`, its `.pck` and its own .NET), and the manager's **Launch VR Lobby** button starts that. `scripts\release.ps1` makes the export with the `Windows` preset in `export_presets.cfg`, which needs Godot's .NET export templates installed on the PC that builds the release. From source:
+A release ships the lobby exported (`VrLobby\VrLobby.exe`, its `.pck` and its own .NET), and the manager's **Launch VR Lobby** button starts that. `scripts\release.ps1` makes the export with the `Windows` preset in `export_presets.cfg`, which needs Godot's .NET export templates on the PC that builds the release. From source, see [DEVELOPING.md](../DEVELOPING.md): open the manager once first, so the lobby can find it to launch tables.
 
-1. Install [Godot 4.7 **.NET**](https://godotengine.org/download) (the .NET edition; the standard one can't run C#) and the [.NET 10 SDK](https://dotnet.microsoft.com/download).
-2. Open **VR Table Manager** once. It records where its exe is, so the lobby can launch tables through it. (The manager's **Launch VR Lobby** button does steps 4–5 for you.)
-3. Put on the Quest 3, connect Quest Link / Air Link (or Virtual Desktop), and make sure an OpenXR runtime is active.
-4. From the `VR Table Manager` folder:
-
-```bash
-dotnet build VrLobby/VrLobby.csproj
-```
-
-```bash
-godot --path VrLobby
-```
-
-(`godot` is the Godot .NET editor exe.) No headset? It opens in a normal window instead, with the keyboard controls below.
-
-### Controls
-
-| VR | Keyboard | Action |
-|---|---|---|
-| Stick ← → (either hand) | ← → | Turn the ring to the previous / next table. Hold to keep going; it speeds up after a second. |
-| Stick ↑ ↓ (either hand) | ↑ ↓, PgUp / PgDn | Jump to the previous / next letter (or manufacturer / decade) |
-| Point at a cabinet | – | Selects it |
-| Point at a rail letter + Trigger | Type a letter | Jump to that letter |
-| Trigger or A | Enter | Play the selected table |
-| **Y** | **Ctrl+R** or **?** | **Random table** (plain letters are taken by the A–Z jump) |
-| B | Tab | Next filter |
-| Right grip | F | Favourite / unfavourite (★ above the cabinet) |
-| Hold left grip + left stick ↑ ↓ | + / − | Raise / lower yourself (see below) |
-| Hold left grip + click left stick | Home | Reset height |
-| Hold Menu (1 s) | Esc | Quit the lobby (a short press only shows "HOLD TO LEAVE"). Every close is written to the lobby's log with its reason. |
-
-### Cabinet buttons and game controllers
-
-On a cabinet controller (PinOne, Pinscape, Zeb's and the like) or a game controller (Xbox, PlayStation) you don't need the Quest controllers. Full guide, with troubleshooting: [Cabinet buttons and game controllers](../docs/cabinet-buttons.md).
-
-| Cabinet button | Default key | Game controller | Action |
-|---|---|---|---|
-| Left / right flipper | Left / Right Shift | LB / RB, stick or d-pad ← → | Previous / next table (hold to keep going) |
-| Left / right magna-save | Left / Right Ctrl | Stick or d-pad ↑ ↓ | Previous / next letter |
-| Start, Launch ball, Lockbar fire | 1, Enter, Left Alt | A, Start | Play |
-| Coin | 5 | B | Next filter |
-| Extra ball | B | Y | Random table |
-| Align VR view (VPX's recenter) | Keypad 5 | – | Recenter, facing the selected cabinet |
-| – | – | X | Favourite |
-| Exit Game | Esc (Q before 10.8.1) | Back | Hold 1 s to quit the lobby |
+## Input
 
 - **Cabinet buttons** are the player's own VPX controls, read from the settings VR play uses (VPX 10.8.1's `[Input]` mappings, or the older `[Player]` keys and joystick buttons; VPX's default keys where nothing is set). Joysticks Godot doesn't know as game controllers (cabinet boards) use the VPX joystick mapping: 10.8.1 names a joystick `SDLJoy_<SDL GUID>_<n>` and maps SDL's raw button numbers (d-pad directions as `0x100 + hat × 4 + direction`), which match Godot's for such joysticks; its bindings count only on the board with that GUID (`Input.GetJoyGuid`), unless no connected joystick has one.
-- **Game controllers** Godot knows (`Input.IsJoyKnown`) use the fixed layout above, since Godot renumbers their buttons to SDL's gamepad layout.
+- **Game controllers** Godot knows (`Input.IsJoyKnown`) use a fixed layout, since Godot renumbers their buttons to SDL's gamepad layout.
 - **Where they count:** keys count only in VR, so the desktop window keeps its own keyboard controls. Joysticks work in both, and also while the lobby window isn't focused (`ignore_joypad_on_unfocused_application = false`), but not while a table plays with the lobby waiting behind it.
 - **Log:** every controller is written to the lobby's log when it connects, and every button press too (`Joystick 0 button 3`).
+- **State:** favourites and plays are in `%APPDATA%\VrTableManager\play-stats.json` (shared with the manager, picked up within 2 seconds), collections in `collections.json`, and the lobby's own filter and height in `lobby-state.json`. A play is counted by the manager's `--play` launcher once the table actually starts.
 
-The old flat "wall" view is gone: the cabinet ring replaces it, and the thumbstick click no longer switches views.
+## The cabinets
 
-### Getting to the M tables (in a 100-table library)
-
-- **Fastest:** point the right-hand laser at **M** on the rail and pull the trigger.
-- **By stick:** push the stick **down** to jump letter by letter (#, A, B …). Hold it and the jumps speed up, so # to M takes about 2 seconds. A big letter flashes so you know where you are.
-- **Desktop:** press **M** on the keyboard.
-
-Empty letters are greyed out on the rail and skipped. "The …" titles file and sort under their second word (The Getaway → G).
-
-### The cabinets
-
-Each table stands in **its own VR cabinet**, the 3D cabinet its author built into the `.vpx`: the real side art, backbox, speaker panel, lockdown bar, legs and coin door you'd see playing it in VPX VR. All 12 tables on this PC have one.
+Each table stands in **its own VR cabinet**, the 3D cabinet its author built into the `.vpx`: the real side art, backbox, speaker panel, lockdown bar, legs and coin door you'd see playing it in VPX VR.
 
 - **How it's read:** the lobby picks out the cabinet parts in three ways:
   - by name (`PinCab_Cabinet`, `PinCab_Rails`, `Lockdownbar`, `VR_Legs…`, and camel-case ones like AC/DC's `TAFCabLeft`);
@@ -115,35 +62,10 @@ Each table stands in **its own VR cabinet**, the 3D cabinet its author built int
   1. An `.ogg` / `.mp3` / `.wav` in the table's folder or its `music` folder (names with "attract", "intro" or "theme" first). VR Table Manager's **Get attract audio** (a table's MORE menu) saves one there as `music\attract.mp3` from the table's community media pack, when VPS lists one that has audio.
   2. Otherwise, the table's own ROM, recorded once: the first time you settle on a ROM table, a headless copy of the lobby (`-- --record-audio=<table path>`) runs the ROM in VPX's PinMAME for about 50 s. It drops coins, presses Start with balls in the trough (switch numbers read from the table script) and keeps the game-start music in `%APPDATA%\VrTableManager\vr-lobby\attract-audio\<rom>.wav`. It works on a scratch copy of the ROM with empty nvram, so your scores and settings are never touched. It's stopped when a table starts. ROMs that give nothing are remembered and not tried again. Turn it off with `LobbyRecordsRomAudio` in VR Table Manager's settings (default on), if it slows the lobby down.
 
-![Every table in the borrowed Medieval Madness cabinet (--borrow-all): The Addams Family, Attack from Mars, Elvira and the Party Monsters](screenshots/screenshot-borrowed.jpg)
+![Every table on the default cabinet (--borrow-all): Apollo 13, Attack from Mars and Batman 66](screenshots/screenshot-borrowed.jpg)
 
-### Filters (B / Tab)
 
-All → VPX → Future Pinball → Pinball FX → Pinball M → Recently played → Most played → Favourites → Manufacturer → Decade, then your own collections and smart collections from VR Table Manager.
-
-- **Manufacturer** and **Decade** sort the tables into groups, and the rail shows those groups (Bally, Gottlieb, Stern … / 1970s, 1980s …) instead of letters.
-- **Recently played** shows the last 30 tables you launched, newest first. **Most played** shows the 30 with the most plays.
-- **Pinball FX** and **Pinball M** each appear as one cabinet when the game is installed. You pick the table inside the game.
-- **Your collections** (made in VR Table Manager: a table's ⋯ menu → Collections) come after Decade, one filter each, A–Z with the letter rail. They're kept in `%APPDATA%\VrTableManager\collections.json`. A collection added, changed or deleted in the manager should show up while the lobby is open, the same way favourites do; if the one you're looking at is deleted, the lobby goes back to All.
-- **Smart collections** come last: the ready-made ones (Never played, New this month, Not played in 3 months, Forgotten favourites, Needs a ROM), only when they have tables in them, then the ones you saved in VR Table Manager (SAVE AS SMART in My Tables). The lobby works them out itself from your tables, plays and the cached catalog, so they keep up as you play. One that looks at a table's type or themes only counts that table once the catalog has loaded, a moment after the lobby opens.
-- An empty filter says why, for example "No plays counted yet" or "Pinball M isn't installed".
-
-### Favourites and play history (shared with the manager)
-
-- **Shared file:** favourites, play counts, time played and last played live in `%APPDATA%\VrTableManager\play-stats.json`, shared with VR Table Manager. A favourite starred in either place shows up in the other, within 2 seconds while the lobby is open.
-- **Status line:** the selected table's status shows, for example, "Played 12× · 3 h 20 min · last played yesterday".
-- **What counts as a play:** a play is counted by the manager's `--play` launcher once the table actually starts.
-- **Lobby settings:** the lobby keeps its filter and height in `%APPDATA%\VrTableManager\lobby-state.json`.
-
-### If your height looks wrong
-
-The lobby puts the floor where the Quest's Guardian says it is (OpenXR **Local Floor**). If the cabinets feel too tall or too short:
-- **Adjust:** hold the **left grip** and push the **left stick** up or down (about 30 cm per second, up to ±60 cm; a "Height +12 cm" readout appears).
-- **Reset:** hold the left grip and **click the left stick**.
-- **Saved:** the adjustment is saved and comes back every time the lobby starts.
-- **Recentering:** holding the Oculus button recenters where you stand and which way you face, and leaves your height alone. VPX's own recenter control (**Align VR view**: keypad 5, or whatever you mapped it to in VPX, including a cabinet button) does the same in the lobby. If you start facing backwards or inside a cabinet, face the way you want and recenter.
-
-### Look ("DMD & lamps", shared with the manager)
+## Look ("DMD & lamps", shared with the manager)
 
 - **Room:** an arcade, in neutral black and charcoal (`#0A0A0B`, `#141416`, `#1E1E21`).
   - **Floor:** blacklight arcade carpet: neon squiggles, rings, stars, zigzags and confetti on black, glowing faintly. It's an original pattern, drawn at start-up from a fixed seed (`ArcadeRoom.cs`), and tiles every 1.5 m.
@@ -179,28 +101,8 @@ VrTableManager.Core   models, table scanning, engines (VPX / Future Pinball / Pi
 - **When a table fails to start:** if it fails, or closes before it reaches the headset, the lobby goes back to the ring and shows why. The manager is passed the lobby's process id (`--lobby-pid`), so it doesn't start a second lobby when the first is still open.
 - **Turning it off:** VR Table Manager's **Show a loading screen in the VR lobby while a table starts** setting (`LobbyWaitsForTable`, on by default). Turn it off for an OpenXR runtime that won't run two VR apps at once. Off, the lobby quits straight away, as it used to.
 
-## What was verified, and what wasn't
+## Not verified yet (needs the headset)
 
-Verified on this PC (no headset connected):
-- **SmokeTest** (`dotnet run --project SmokeTest`), 138 checks, all passing. The lobby-related ones cover:
-  - VR cabinets from a synthetic `.vpx`: raw and zlib meshes, VPX's transform order and axis mapping, winding, the nested material format, anchoring, and leaving out playfield bolts and the VR room; plus this PC's real Medieval Madness cabinet coming out real-size
-  - A–Z navigation, with every rail letter one contiguous run
-  - the backglass and playfield choices, and attract-sound picking
-  - the cached VPS catalog: 2,116 of 2,645 games have a backglass picture
-  - `.vpx` extraction on a synthetic table file: named image, the "named image isn't a playfield" fallback, caching, a damaged file
-  - this PC's real Attack from Mars giving its 1824×4096 playfield
-- **In-engine self-test** (`godot --headless --path VrLobby -- --selftest`), 45 checks, all passing, including: this PC's real Attack from Mars cabinet built in Godot (26 surfaces, 15 DXT-compressed textures, real size, playfield located, ~0.4 s), and a second load of it coming from the cabinet cache, identical and faster (~25 ms); the bundled default cabinet loading (14 surfaces, 9 textures, real size) and every table without its own wearing it from the start; and the drawn cabinet only when that file is missing. Also:
-  - the pool of 11 cabinets, the selected cabinet straight ahead at 0.9 m with the rest on the ring behind
-  - one step re-dressing exactly one cabinet, typing M
-  - backglass vs title plate, the side tint following the art, the 1024 px cap, and only the selected cabinet lit lamp-amber
-  - Random always picking a different table
-  - the attract sound playing from a table folder and stopping when you move on
-  - filters, favourites and play stats, and height
-- **Real tables:** `.vpx` playfields extract from 10 of the 12 installed tables in 20–140 ms each. Fish Tales and Metallica don't name a usable playfield image. Fish Tales is found by name ("FT_PF_…"); Metallica uses the VPS picture.
-- **Rendered frames** at 1080p with the installed tables (screenshots above): each table in its own VR cabinet, a VPS backglass filling in where a cabinet has none (the --borrow-all shot), every table in the borrowed Medieval Madness cabinet, and `--select` returning to the right table.
-- **Crash dump:** the one Godot crash dump on this PC (Oct 17) came from the editor's first headless import of the C# project, not from the lobby. None of the many runs since has produced another.
-
-**Not verified (needs the headset):**
 - **Inside the headset:**
   - rendering, frame rate and comfort in the Quest 3 over Link / Air Link
   - the cabinet scale (does the selected one feel life-size at 0.9 m?)
@@ -215,8 +117,7 @@ Verified on this PC (no headset connected):
 - **Smoothness:** `godot --xr-mode off --path VrLobby -- --perf-trace[=steps]` steps through the tables by itself (8 by default, 3 s each) and prints every frame over 10 ms with what happened in it (art arriving, a cabinet ready, the ring snapping, the video or sound starting).
 - **Height:** that Local Floor puts you at the right height, and the left-grip height control.
 
-## Not included (ideas for later)
+## Ideas for later
 
-- Cabinet side art from the table's own files (VPX tables often include cabinet art images).
 - Wheel art on every cabinet in the ring (a lit topper), not just over the selected one.
 - A video backglass.

@@ -6,9 +6,9 @@ VR Table Manager picks pictures, videos and sounds for every table by itself. Yo
 |---|---|---|---|
 | Card picture | The table's card in **My Tables** | The catalog's (VPS) picture | `artwork\card.*` |
 | Playfield picture | The cabinet's playfield in the VR lobby | The playfield inside the `.vpx`, else the catalog's picture | `artwork\playfield.*` |
-| Backglass picture | The cabinet's backglass in the VR lobby | The table's own VR cabinet backglass, else the picture in its installed `.directb2s`, else the catalog's backglass | `artwork\backglass.*` |
+| Backglass picture | The cabinet's backglass in the VR lobby | The table's own VR cabinet backglass, else the picture in its installed `.directb2s`, else the backglass picture inside the `.vpx`, else the catalog's | `artwork\backglass.*` |
 | Wheel art | The game's logo over the selected lobby cabinet | None until you get one (catalog wheel art or media pack) | `artwork\wheel.*` |
-| Playfield video | Moving playfield on the selected lobby cabinet | None until you get one | A media pack, a VPX recording, or your own video |
+| Playfield video | Moving playfields on the lobby cabinets | None until you get one | A media pack, a VPX recording, or your own video |
 | Loading video | A big screen in the VR lobby while the table starts | None until you get one | A media pack, or your own video (one table, or every table) |
 | Attract sound | Plays from the selected lobby cabinet | The table's ROM, recorded once | `music\attract.*` |
 
@@ -68,7 +68,7 @@ Downloads from the table sites happen in your own browser: each download page op
 
 ## Playfield videos (VR lobby)
 
-The selected cabinet in the VR lobby can play a moving playfield. VPX tables only. From the table's **⋯** menu:
+With a lobby video, a cabinet's playfield moves in the VR lobby. Every cabinet you can see plays its own. VPX tables only. From the table's **⋯** menu:
 
 - **Get a playfield video for the VR lobby** uses the playfield video from the table's media pack in the catalog. When there is none, it offers to record the attract mode in VPX instead: a small VPX window opens for about half a minute with the sound off, then closes by itself.
 - **Record lobby video in VPX** records even when a media pack exists.
@@ -81,7 +81,7 @@ The video is stored as frames in `<table folder>\medias\lobby-video\`.
 
 The selected cabinet in the VR lobby shows the game's logo over its title, the picture front ends such as PinUP Popper and PinballX show on their selection wheel. VPX tables in their own folder. From the table's **⋯** menu:
 
-- **Get wheel art for the VR lobby** downloads the catalog's wheel art for the game, or, when there is none, its media pack, and keeps only the wheel picture. A wheel download can hold many games' wheels: the one named after this game is used (its exact name first, and never one whose year in brackets is another machine's), or a plainly named one like `wheel.png`, or the download's only picture.
+- **Get wheel art for the VR lobby** downloads the catalog's wheel art for the game, or its media pack when there's none, and keeps just the wheel picture. If the download has wheels for lots of games, it picks the one for this game.
 - Getting a playfield video, attract audio or loading video from a media pack also keeps the pack's wheel, when the table has none yet.
 - **Remove wheel art** deletes the downloaded one.
 
@@ -95,6 +95,8 @@ While a table starts, the VR lobby's loading screen can play a video on a big sc
 - **Use my own loading video…** turns a video file you have into the table's loading video.
 - **Setup → VR lobby → Starting tables → CHOOSE A VIDEO…** sets one loading video for every table that has none of its own, such as one of the generic loading videos front-end users share.
 - **Remove loading video** (the **⋯** menu) or **REMOVE** (Setup) deletes it.
+
+When you choose your own video, the app asks whether to turn it a quarter, for a video made sideways for a cabinet's screen. To turn one you already have, use **Rotate loading video…** in the table's **⋯** menu, or **ROTATE…** next to the one for every table on Setup. If the video you chose is still where it was, it's made again from that, so nothing's lost; otherwise its frames are turned.
 
 The first 30 seconds are used, at the video's own shape, with its sound. `.mp4` (H.264) works best; `.m4v`, `.mov`, `.wmv`, `.avi`, `.mkv` and `.f4v` work when Windows can play them. A table's own is stored in `<table folder>\medias\loading-video\`, the one for every table in `%APPDATA%\VrTableManager\loading-video\`.
 
