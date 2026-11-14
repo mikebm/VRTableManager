@@ -144,6 +144,7 @@ public sealed partial class LibraryViewModel(MainViewModel app) : ChildViewModel
             item.Compact = IsCompactCards;
             if (item.Table.IsVpx)
             {
+                item.LobbyGenericCabinet = Settings.IsGenericCabinetTable(item.Table.TablePath);
                 item.TableScale = VpxGraphics.ReadTableScale(item.Table.TablePath);
                 item.TableVrHeight = VrFit.ReadTableHeight(item.Table.TablePath);
                 item.HasAttractAudio = MediaPackAudio.Existing(item.Table.Folder) != null;

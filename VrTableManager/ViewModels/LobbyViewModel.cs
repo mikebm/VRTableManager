@@ -29,6 +29,20 @@ public sealed partial class LobbyViewModel(MainViewModel app) : ChildViewModel(a
     [ObservableProperty]
     public partial bool LobbyLoadingVideos { get; set; }
 
+    /// <summary>Every table stands on the generic cabinet in the VR lobby, not the VR cabinet built into its file.</summary>
+    [ObservableProperty, NotifyPropertyChangedFor(nameof(LobbyOwnCabinets))]
+    public partial bool LobbyGenericCabinets { get; set; }
+
+    /// <summary>The other choice of the pair on Setup: a table's own VR cabinet when it has one.</summary>
+    public bool LobbyOwnCabinets
+    {
+        get => !LobbyGenericCabinets;
+        set => LobbyGenericCabinets = !value;
+    }
+
+    partial void OnLobbyGenericCabinetsChanged(bool value) =>
+        SaveSetting(s => s.LobbyGenericCabinets = value);
+
     partial void OnLobbyRecordsRomAudioChanged(bool value) =>
         SaveSetting(s => s.LobbyRecordsRomAudio = value);
 
@@ -50,6 +64,7 @@ public sealed partial class LobbyViewModel(MainViewModel app) : ChildViewModel(a
         LobbyWaitsForTable = s.LobbyWaitsForTable;
         LobbyStaysOpen = s.LobbyStaysOpen;
         LobbyLoadingVideos = s.LobbyLoadingVideos;
+        LobbyGenericCabinets = s.LobbyGenericCabinets;
         LobbyCabinetCount = s.LobbyCabinetCount;
         LobbyCabinetScale = s.LobbyCabinetScalePercent;
     }

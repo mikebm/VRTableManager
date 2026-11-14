@@ -238,6 +238,30 @@ public sealed class AppSettings
     /// </summary>
     public int LobbyCabinetCount { get; set; } = Lobby.LobbyLayout.DefaultCount;
 
+    /// <summary>
+    /// Every table stands in the VR lobby on the generic cabinet, wearing its own playfield and backglass, instead of
+    /// the VR cabinet built into its file (some look poor out of their table). Off: a table's own cabinet when it has one.
+    /// </summary>
+    public bool LobbyGenericCabinets { get; set; }
+
+    /// <summary>Tables (by path) shown on the generic cabinet in the VR lobby even when the rest use their own (My Tables).</summary>
+    public List<string> LobbyGenericCabinetTables { get; set; } = [];
+
+    public bool IsGenericCabinetTable(string tablePath) =>
+        LobbyGenericCabinetTables.Contains(tablePath, StringComparer.OrdinalIgnoreCase);
+
+    /// <summary>Adds or removes a table from <see cref="LobbyGenericCabinetTables"/>.</summary>
+    public void SetGenericCabinetTable(string tablePath, bool generic)
+    {
+        LobbyGenericCabinetTables.RemoveAll(p =>
+            string.Equals(p, tablePath, StringComparison.OrdinalIgnoreCase)
+        );
+        if (generic)
+        {
+            LobbyGenericCabinetTables.Add(tablePath);
+        }
+    }
+
     /// <summary>How big the cards in My Tables are: "Large", "Medium", "Small" or "Text" (no pictures).</summary>
     public string CardSize { get; set; } = "Large";
 

@@ -58,9 +58,22 @@ public static class LobbyArt
                 : PlayfieldUrl(t)
         );
 
+    /// <summary>Art key for the backglass picture inside the table's installed .directb2s (see <see cref="DirectB2s"/>).</summary>
+    public const string B2sScheme = "b2s:";
+
     /// <summary>
-    /// Picture for the backbox, or null to show a lit title plate. A picture you chose (<see cref="UserArtwork"/>)
-    /// comes first, and also replaces the backglass the table's own VR cabinet brings.
+    /// Picture for the backbox, or null to show a lit title plate, in this order:
+    /// <list type="number">
+    /// <item>a picture you chose (<see cref="UserArtwork"/>), which also replaces the backglass the table's own VR
+    /// cabinet brings;</item>
+    /// <item>the backglass picture in the table's installed .directb2s, as "b2s:&lt;path&gt;": the glass itself, made
+    /// for the table you have;</item>
+    /// <item>the catalog's backglass picture (<see cref="BackglassFallback"/>), which is often a photo or render of the
+    /// whole backbox (frame, speaker panel and DMD), so on a cabinet's own backbox it showed a backbox inside a
+    /// backbox (Star Trek: TNG, Twilight Zone);</item>
+    /// <item>a store game's header picture.</item>
+    /// </list>
+    /// A table's own VR cabinet keeps the backglass printed on it unless you chose one (Cabinet.ShowReal).
     /// </summary>
     public static string? BackglassFor(LobbyTable t, IReadOnlyDictionary<string, string>? index)
     {
@@ -69,6 +82,37 @@ public static class LobbyArt
             return mine;
         }
 
+        return InstalledB2s(t) is { } b2s ? B2sScheme + b2s : BackglassFallback(t, index);
+    }
+
+    /// <summary>The VPX table's .directb2s (beside it, named like it), when it's there.</summary>
+    static string? InstalledB2s(LobbyTable t)
+    {
+        if (
+            t.Engine != TableManifest.Vpx
+            || !t.Source.TablePath.EndsWith(".vpx", StringComparison.OrdinalIgnoreCase)
+        )
+        {
+            return null;
+        }
+
+        var path = Backglasses.PathFor(t.Source);
+        return File.Exists(path) ? path : null;
+    }
+
+    /// <summary>
+    /// The lobby shows this table on the generic cabinet rather than the VR cabinet built into its file: when that's
+    /// chosen for every table (<see cref="AppSettings.LobbyGenericCabinets"/>), or for this one (My Tables).
+    /// </summary>
+    public static bool UsesGenericCabinet(LobbyTable t, AppSettings s) =>
+        s.LobbyGenericCabinets || s.IsGenericCabinetTable(t.Source.TablePath);
+
+    /// <summary>The backglass picture used when there's no .directb2s or it has none: the catalog's, or a store game's header.</summary>
+    public static string? BackglassFallback(
+        LobbyTable t,
+        IReadOnlyDictionary<string, string>? index
+    )
+    {
         var gameId = t.Source.Manifest.GameId;
         if (
             index != null

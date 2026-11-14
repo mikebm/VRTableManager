@@ -118,13 +118,30 @@ public static class VpxImages
         }
         // Shape alone isn't enough: VLM-baked tables (e.g. Metallica) have no flat playfield picture,
         // and their biggest portrait image is a light overlay. Those fall back to the VPS picture.
+        // Nor is the name, in a VLM-baked table: its playfield is baked into the VLM pictures, and what's left named
+        // like one is the author's reference (Fish Tales: "FT_PF_BlueprintOverlayed_New", the art under half-clear
+        // white parts outlines), which came out with white blotches. So there, only the picture GameData names.
+        if (images.Any(i => i.Name.StartsWith("VLM.", StringComparison.OrdinalIgnoreCase)))
+        {
+            return null;
+        }
+
         return images
             .Where(i =>
-                IsPlayfieldShaped(i) && LooksLikePlayfieldName(i.Name) && !IsPartOfPlayfield(i.Name)
+                IsPlayfieldShaped(i)
+                && LooksLikePlayfieldName(i.Name)
+                && !IsPartOfPlayfield(i.Name)
+                && !IsReference(i.Name)
             )
             .OrderByDescending(i => (long)i.Width * i.Height)
             .FirstOrDefault();
     }
+
+    /// <summary>A picture the author worked from, not the playfield: a blueprint, an overlay or a screenshot.</summary>
+    static bool IsReference(string name) =>
+        name.Contains("blueprint", StringComparison.OrdinalIgnoreCase)
+        || name.Contains("overlay", StringComparison.OrdinalIgnoreCase)
+        || name.Contains("screenshot", StringComparison.OrdinalIgnoreCase);
 
     /// <summary>
     /// Only part of the playfield ("lowerplayfield" on Black Knight 2000, whose upper half comes from another picture):
@@ -180,8 +197,8 @@ public static class VpxImages
         return null;
     }
 
-    /// <summary>Raised when the choice of picture changes, so cached picks are made again (2: no "lower"/"upper" parts).</summary>
-    const int PickVersion = 2;
+    /// <summary>Raised when the choice of picture changes, so cached picks are made again (2: no "lower"/"upper" parts; 3: no references, nothing unnamed in VLM tables).</summary>
+    const int PickVersion = 3;
 
     /// <summary>True when <see cref="CachedPlayfield"/> would answer from the cache, without reading the table.</summary>
     public static bool HasCachedPlayfield(string vpxPath, string cacheDir)

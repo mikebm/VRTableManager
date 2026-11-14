@@ -106,6 +106,10 @@ public partial class ArtLoader : Node
                 {
                     DropIfCorrupt(url, bytes);
                 }
+                else
+                {
+                    img = TrimGrille(url, img);
+                }
 
                 if (img == null && !string.IsNullOrEmpty(fallback))
                 {
@@ -146,7 +150,40 @@ public partial class ArtLoader : Node
         });
     }
 
-    /// <summary>Encoded picture bytes: from the table file, or the web picture via the manager's cache.</summary>
+    /// <summary>
+    /// A .directb2s backglass whose picture runs on into the speaker grille below the glass (its GrillHeight): the
+    /// grille is cut off, so only the glass goes in the backbox's glass opening.
+    /// </summary>
+    static Image TrimGrille(string url, Image img)
+    {
+        if (
+            !url.StartsWith(VrTableManager.Lobby.LobbyArt.B2sScheme, StringComparison.Ordinal)
+            || DirectB2s.CachedBackglass(
+                url[VrTableManager.Lobby.LobbyArt.B2sScheme.Length..],
+                CacheDir
+            )
+                is not { } b2s
+        )
+        {
+            return img;
+        }
+
+        var h = img.GetHeight();
+        var trim = DirectB2s.TrimFor(h, b2s.GrillHeight);
+        if (trim == 0)
+        {
+            return img;
+        }
+
+        if (img.IsCompressed())
+        {
+            img.Decompress();
+        }
+
+        return img.GetRegion(new Rect2I(0, 0, img.GetWidth(), h - trim));
+    }
+
+    /// <summary>Encoded picture bytes: from the table file, the backglass file, or the web picture via the manager's cache.</summary>
     async Task<byte[]?> FetchAsync(string url)
     {
         try
@@ -165,6 +202,16 @@ public partial class ArtLoader : Node
                     CacheDir
                 );
                 return extracted == null ? null : await File.ReadAllBytesAsync(extracted);
+            }
+
+            if (url.StartsWith(VrTableManager.Lobby.LobbyArt.B2sScheme, StringComparison.Ordinal))
+            {
+                // The backglass inside the table's .directb2s, extracted once per version of that file.
+                var b2s = DirectB2s.CachedBackglass(
+                    url[VrTableManager.Lobby.LobbyArt.B2sScheme.Length..],
+                    CacheDir
+                );
+                return b2s == null ? null : await File.ReadAllBytesAsync(b2s.Value.File);
             }
             var file = CachePath(url);
             if (!File.Exists(file))
@@ -224,6 +271,7 @@ public partial class ArtLoader : Node
             || !IsCorrupt(bytes)
             || UserArtwork.PathOf(url) != null
             || url.StartsWith(VrTableManager.Lobby.LobbyArt.VpxScheme, StringComparison.Ordinal)
+            || url.StartsWith(VrTableManager.Lobby.LobbyArt.B2sScheme, StringComparison.Ordinal)
         )
         {
             return;

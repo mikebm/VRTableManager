@@ -72,7 +72,23 @@ public sealed partial class LobbyMediaViewModel
             return;
         }
         RefreshArtwork(item.Table.TablePath);
-        App.Library.PlayStatus = $"{item.Title} is back to the catalog's and the table's own pictures.";
+        App.Library.PlayStatus =
+            $"{item.Title} is back to the catalog's and the table's own pictures.";
+    }
+
+    /// <summary>Puts this table on the generic cabinet in the VR lobby, or back on the one built into its file.</summary>
+    [RelayCommand]
+    void ToggleGenericCabinet(InstalledItem item)
+    {
+        var generic = !item.LobbyGenericCabinet;
+        SaveSetting(s => s.SetGenericCabinetTable(item.Table.TablePath, generic));
+        item.LobbyGenericCabinet = generic;
+        App.Library.PlayStatus =
+            generic
+                ? $"{item.Title} stands on the generic cabinet, with its own playfield and backglass, the next time the VR lobby opens."
+            : Settings.LobbyGenericCabinets
+                ? $"{item.Title} is back to the setting for every table (Setup → VR lobby: generic cabinets)."
+            : $"{item.Title} stands in its own VR cabinet, when its file has one, the next time the VR lobby opens.";
     }
 
     [RelayCommand]

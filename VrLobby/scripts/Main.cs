@@ -931,10 +931,17 @@ public partial class Main : Node3D
 
         if (cab.BackglassUrl != null && !cab.HasBackglassArt)
         {
-            _art.Request(cab.BackglassUrl);
+            // A .directb2s without a picture in it falls back to the catalog's.
+            _art.Request(
+                cab.BackglassUrl,
+                cab.Table != null
+                && cab.BackglassUrl.StartsWith(LobbyArt.B2sScheme, StringComparison.Ordinal)
+                    ? LobbyArt.BackglassFallback(cab.Table, _backglass)
+                    : null
+            );
         }
         // The table's own VR cabinet, read in the background the first time it's needed.
-        if (cab.Table != null && VpxFile(cab.Table) is { } vpx)
+        if (cab.Table != null && OwnCabinetFile(cab.Table) is { } vpx)
         {
             if (_cabs.IsKnown(vpx))
             {
@@ -953,6 +960,14 @@ public partial class Main : Node3D
         && t.Source.TablePath.EndsWith(".vpx", StringComparison.OrdinalIgnoreCase)
             ? t.Source.TablePath
             : null;
+
+    /// <summary>
+    /// The .vpx whose own VR cabinet this table stands in, or null for the generic one: not a VPX table, generic
+    /// cabinets chosen on Setup or for this table in My Tables (<see cref="LobbyArt.UsesGenericCabinet"/>), or
+    /// --borrow-all (diagnostic: every table borrows the template, to preview how it dresses other tables).
+    /// </summary>
+    string? OwnCabinetFile(LobbyTable t) =>
+        _borrowAll || LobbyArt.UsesGenericCabinet(t, Settings) ? null : VpxFile(t);
 
     // ---- Cabinets: the table's own, else the template, else the drawn one --------------
 
@@ -989,15 +1004,14 @@ public partial class Main : Node3D
             return;
         }
 
-        var vpx = VpxFile(cab.Table);
-        // --borrow-all (diagnostic): every table borrows the template, to preview how it dresses other tables.
-        var own = vpx != null && !_borrowAll ? _cabs.Get(vpx) : null;
+        var vpx = OwnCabinetFile(cab.Table);
+        var own = vpx != null ? _cabs.Get(vpx) : null;
         if (own != null)
         {
             cab.ShowReal(own);
         }
         // Not read yet: it may have its own, so show nothing rather than the default cabinet swapping out.
-        else if (vpx != null && !_borrowAll && !_cabs.IsKnown(vpx))
+        else if (vpx != null && !_cabs.IsKnown(vpx))
         {
             cab.ShowLoading();
         }

@@ -185,6 +185,15 @@ public sealed partial class InstalledItem : ObservableObject
     /// <summary>MORE → Get all VR lobby media: the playfield video, loading video, attract audio and wheel in one go.</summary>
     public bool CanGetLobbyMedia => Table.HasOwnFolder;
 
+    /// <summary>The VR lobby shows this table on the generic cabinet rather than the one built into its file.</summary>
+    [ObservableProperty, NotifyPropertyChangedFor(nameof(GenericCabinetMenuHeader))]
+    public partial bool LobbyGenericCabinet { get; set; }
+
+    public string GenericCabinetMenuHeader =>
+        LobbyGenericCabinet
+            ? "Use its own VR cabinet in the VR lobby"
+            : "Use the generic cabinet in the VR lobby";
+
     // ---- Disk use and per-table render scale ----
 
     [ObservableProperty, NotifyPropertyChangedFor(nameof(DiskInfo))]

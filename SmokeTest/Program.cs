@@ -2892,6 +2892,11 @@ Console.WriteLine($"   gamepad connected: {Gamepad.IsConnected()?.ToString() ?? 
     );
 }
 
+foreach (var (ok, name) in LobbyBackglassChecks.Run(root))
+{
+    Check(ok, name);
+}
+
 foreach (var (ok, name) in HighScoreChecks.Run())
 {
     Check(ok, name);

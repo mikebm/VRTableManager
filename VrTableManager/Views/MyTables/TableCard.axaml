@@ -355,6 +355,10 @@
                             ToolTip.Tip="A logo on a transparent background (.png) works best, like a front end's wheel image" />
                   <MenuItem Header="Open the artwork folder" Command="{Binding Owner.Media.OpenArtworkFolderCommand}" CommandParameter="{Binding}" />
                   <MenuItem Header="Remove my pictures" IsVisible="{Binding HasUserArtwork}" Command="{Binding Owner.Media.RemoveUserArtworkCommand}" CommandParameter="{Binding}" />
+                  <Separator IsVisible="{Binding IsVpx}" />
+                  <MenuItem Header="{Binding GenericCabinetMenuHeader}" IsVisible="{Binding IsVpx}"
+                            ToolTip.Tip="For a table whose own VR cabinet looks wrong in the lobby: it stands on the plain cabinet instead, wearing its playfield and backglass. Setup → VR lobby can do this for every table"
+                            Command="{Binding Owner.Media.ToggleGenericCabinetCommand}" CommandParameter="{Binding}" />
                 </MenuItem>
                 <MenuItem Header="Table settings" IsVisible="{Binding IsVpx}">
                   <MenuItem Header="{Binding ScaleMenuHeader}" ItemsSource="{Binding ScaleChoices}">

@@ -40,6 +40,15 @@
                          Text="The one you've picked and as many either side. More than 11 stand closer together round a bigger ring, and each one costs the headset a little frame rate." />
             </Grid>
             <TextBlock Classes="mono" TextWrapping="Wrap" Text="{Binding LobbyRingSummary}" />
+            <StackPanel Spacing="4">
+              <TextBlock Text="Cabinet style" FontWeight="SemiBold" />
+              <RadioButton GroupName="LobbyCabinetStyle" IsChecked="{Binding LobbyOwnCabinets}"
+                           Content="The table's own VR cabinet, when its file has one"
+                           ToolTip.Tip="VR tables carry a cabinet of their own, with the game's side art and backbox. Tables without one stand on the generic cabinet." />
+              <RadioButton GroupName="LobbyCabinetStyle" IsChecked="{Binding LobbyGenericCabinets}"
+                           Content="Always the generic cabinet, wearing the table's playfield and backglass"
+                           ToolTip.Tip="Every table looks alike apart from its art, and the lobby doesn't read the tables' own cabinets. For a few tables only, use MORE → My artwork on My Tables." />
+            </StackPanel>
             <WrapPanel>
               <Button Classes="small" Content="RESET TO DEFAULTS" Margin="0,0,8,0" Command="{Binding ResetLobbyCabinetsCommand}"
                       ToolTip.Tip="Real-size cabinets, 11 in the ring: the lobby as it always was." />

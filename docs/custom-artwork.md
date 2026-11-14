@@ -6,7 +6,7 @@ VR Table Manager picks pictures, videos and sounds for every table by itself. Yo
 |---|---|---|---|
 | Card picture | The table's card in **My Tables** | The catalog's (VPS) picture | `artwork\card.*` |
 | Playfield picture | The cabinet's playfield in the VR lobby | The playfield inside the `.vpx`, else the catalog's picture | `artwork\playfield.*` |
-| Backglass picture | The cabinet's backglass in the VR lobby | The table's own VR cabinet backglass, else the catalog's backglass | `artwork\backglass.*` |
+| Backglass picture | The cabinet's backglass in the VR lobby | The table's own VR cabinet backglass, else the picture in its installed `.directb2s`, else the catalog's backglass | `artwork\backglass.*` |
 | Wheel art | The game's logo over the selected lobby cabinet | None until you get one (catalog wheel art or media pack) | `artwork\wheel.*` |
 | Playfield video | Moving playfield on the selected lobby cabinet | None until you get one | A media pack, a VPX recording, or your own video |
 | Loading video | A big screen in the VR lobby while the table starts | None until you get one | A media pack, or your own video (one table, or every table) |
@@ -54,6 +54,8 @@ The app copies your file into the table's `artwork` folder, so you can delete or
 - **Playfield:** the playfield seen straight from above, top of the playfield at the top, about 1:2 (for example 1024 × 2048). The lobby shows it at up to 2048 pixels on the long side.
 - **Backglass:** the backglass picture, landscape, about 4:3 (for example 1280 × 1024). It also replaces the backglass a table's own VR cabinet brings, which helps when that one is blank or drawn by the table's script.
 - **Wheel art:** the game's logo on a transparent background (`.png`), landscape, like a front end's wheel image (for example 800 × 300). The lobby fits it into about 75 × 28 cm over the title.
+
+If a table's own VR cabinet looks wrong in the lobby, its **⋯** menu → **My artwork** → **Use the generic cabinet in the VR lobby** stands it on the plain cabinet instead, still wearing its playfield and backglass. **Setup → VR lobby → Cabinet style** does this for every table.
 
 ## All the VR lobby media at once
 
