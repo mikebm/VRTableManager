@@ -2976,6 +2976,14 @@ foreach (var (ok, name) in VrRoomSwitchChecks.Run(root))
 {
     Check(ok, name);
 }
+foreach (var (ok, name) in TableMusicChecks.Run(root))
+{
+    Check(ok, name);
+}
+foreach (var (ok, name) in LeftoverChecks.Run(root))
+{
+    Check(ok, name);
+}
 
 foreach (var (ok, name) in VpxTextureCacheChecks.Run(root))
 {

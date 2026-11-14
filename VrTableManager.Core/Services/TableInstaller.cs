@@ -228,6 +228,14 @@ public static class TableInstaller
             {
                 await Task.Run(() => RomRequirements.Update(table, settings), ct);
             }
+            else if (!isFp)
+            {
+                // Tables without a ROM (EMs, originals) are the ones that use PlayMusic most (Update does it too).
+                await Task.Run(
+                    () => TableMusic.FixLayout(installed.folder, installed.tablePath),
+                    ct
+                );
+            }
 
             await File.WriteAllTextAsync(
                 ManifestPathFor(installed.tablePath, isFp),

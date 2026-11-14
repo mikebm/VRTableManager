@@ -31,6 +31,9 @@ public partial class App : Application
             Report(e.Exception);
         };
 
+        // Work folders earlier runs couldn't delete (an install's unpacked download, ROM recordings).
+        _ = Task.Run(() => TempLeftovers.Sweep(Path.GetTempPath(), TimeSpan.FromDays(1)));
+
         base.OnFrameworkInitializationCompleted();
     }
 

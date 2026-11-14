@@ -10,13 +10,15 @@ namespace VrTableManager.Services;
 /// written to the table's pinmame\alias.txt so PinMAME finds it;</item>
 /// <item>parent sets a clone takes files from (afm_113b needs afm_113), when the set isn't complete without them.</item>
 /// </list>
-/// It also moves colorizations and AltSound into the folders VPX 10.8.1 reads (<see cref="AltPacks.FixLayout"/>).
+/// It also moves colorizations and AltSound into the folders VPX 10.8.1 reads (<see cref="AltPacks.FixLayout"/>),
+/// an nvram left beside the table into pinmame\nvram, and a music folder left there into music\
+/// (<see cref="TableMusic"/>).
 /// Uses VPX's own PinMAME for the facts; without it (VPX not installed), only the script is used.
 /// </summary>
 public static class RomRequirements
 {
     /// <summary>Bump when the check learns something new, so installed tables are checked again.</summary>
-    public const int Version = 6;
+    public const int Version = 7;
 
     /// <summary>The Virtual Pinball Spreadsheet's tag for a table file that runs without PinMAME.</summary>
     public const string NoRomFeature = "no ROM";
@@ -46,6 +48,8 @@ public static class RomRequirements
         var before = (string.Join(",", m.RomNames), string.Join(",", m.RomParents), m.RomAlias);
         AltPacks.FixLayout(t.Folder);
         MoveBundledRoms(t.Folder);
+        MoveLooseNvram(t.Folder);
+        TableMusic.FixLayout(t.Folder, t.TablePath);
 
         var info = RomDetector.Inspect(t.TablePath);
         if (info.NoRomNeeded || TaggedNoRom(m))
@@ -189,6 +193,32 @@ public static class RomRequirements
             catch (IOException) { }
             catch (UnauthorizedAccessException) { }
         }
+    }
+
+    /// <summary>
+    /// An nvram a table download ships right beside the .vpx (Hankin's Empire Strikes Back brings empsback.nv)
+    /// goes where PinMAME reads it, pinmame\nvram; beside the table it was never used, and PinMAME started the
+    /// machine from blank memory instead. One already in pinmame\nvram is your machine's own and is kept.
+    /// </summary>
+    public static void MoveLooseNvram(string folder)
+    {
+        var dest = Path.Combine(folder, "pinmame", "nvram");
+        try
+        {
+            foreach (var nv in Directory.EnumerateFiles(folder, "*.nv").ToList())
+            {
+                var target = Path.Combine(dest, Path.GetFileName(nv));
+                if (File.Exists(target))
+                {
+                    continue;
+                }
+
+                Directory.CreateDirectory(dest);
+                File.Move(nv, target);
+            }
+        }
+        catch (IOException) { }
+        catch (UnauthorizedAccessException) { }
     }
 
     static bool RomZip(string pinmameDir, string rom) =>
