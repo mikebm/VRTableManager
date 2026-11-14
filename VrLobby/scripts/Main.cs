@@ -348,7 +348,15 @@ public partial class Main : Node3D
                 lowCam.Position = new Vector3(lowCam.Position.X, camY, lowCam.Position.Z);
             }
 
-            GetTree().CreateTimer(6).Timeout += () =>
+            // --shot-wait=<seconds>: how long to give the art first (6 by default; pictures from the web can take longer).
+            var wait = float.TryParse(
+                args.GetValueOrDefault("shot-wait"),
+                System.Globalization.CultureInfo.InvariantCulture,
+                out var w
+            )
+                ? Math.Max(w, 1)
+                : 6;
+            GetTree().CreateTimer(wait).Timeout += () =>
             {
                 GetViewport().GetTexture().GetImage().SavePng(shot);
                 Leave("screenshot saved to " + shot);
