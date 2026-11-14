@@ -83,9 +83,23 @@ VPX 10.8.1 places every table in VR using these settings:
 
 **Table size** has three choices:
 
-- **Real size**, the default. Just before each VR launch, the app reads the table's playfield width from its `.vpx` and gives that launch the table's own `LockbarWidth`, so VPX shows it at its real size. Nothing's saved, so a width you change in VPX's menu only lasts until the table closes. A table whose own `<table>.ini` sets a `LockbarWidth` keeps it.
-- **The same width for every table**, for example to match a controller stand.
-- **VPX's own sizing**: 70 cm, or whatever you set in VPX.
+- **Real size**, the app's default. Just before each VR launch, the app reads the table's playfield width from its `.vpx` and gives that launch the table's own `LockbarWidth`, so VPX shows it at its real size and a widebody comes out wider than a standard table. Nothing's saved, so a width you change in VPX's menu only lasts until the table closes. A table whose own `<table>.ini` sets a `LockbarWidth` keeps it. Pick this if you play standing in open space.
+- **The same width for every table (a cabinet or controller stand)**: every table is sized to one lockbar width, so it always lines up with the real thing in front of you. See below.
+- **VPX's default sizing**: what VPX does without the app, a 70 cm lockbar for every table (or whatever you set in VPX). That makes a standard table about a fifth too big.
+
+### Playing at a cabinet or controller stand
+
+If you play VR at a real pinball cabinet, a cabinet-style controller like a PinOne on a stand, or anything else with a lockbar and flipper buttons you can touch, you want every table's lockbar to land exactly on your real one. Here's how:
+
+1. **Measure the lockbar height**: from the floor to the top of your lockbar. Put it in **Lockbar height**.
+2. **Pick "The same width for every table"** under **Table size**, and enter a **Lockbar width**. On a cabinet, measure across the playfield between the side rails and add 6 cm (2¼"), since that's how VPX measures it. A standard (WPC) body comes to 57 cm (22½"), a widebody about 65 cm. On a controller stand, 57 cm is a good place to start.
+3. Leave **Eyes behind it** at 10 cm unless you stand further back than usual.
+4. Tick **Also put the table straight ahead**, and click **FIT EVERY TABLE TO ME**.
+5. Start any table, stand where you play with your hands on the buttons, and recenter once: keypad 5, or the cabinet button you mapped to VPX's **Align VR view**. VPX keeps that position for every table.
+
+With Real size instead, a widebody would stick out past your cabinet and a narrow EM would sit inside it, so the flippers wouldn't line up with your buttons.
+
+If one table still sits too high or low (it happens when a table's author set an unusual glass height), fix just that one, as below.
 
 **FIT EVERY TABLE TO ME** also clears `TableZ`, since a height offset would move every lockbar away from the height you picked. Tick **Also put the table straight ahead** and it resets where the table sits too: straight ahead of the headset's centre, with your eyes the distance you chose behind the lockbar. If the lockbar then isn't where you're standing, press keypad 5 once from where you play. VPX keeps that for every table.
 

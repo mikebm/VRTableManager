@@ -30,8 +30,8 @@ public sealed partial class FitViewModel(MainViewModel app) : ChildViewModel(app
     public string[] FitSizes { get; } =
     [
         "Real size (each table its own width)",
-        "The same width for every table",
-        "VPX's own sizing (70 cm lockbar)",
+        "The same width for every table (a cabinet or controller stand)",
+        "VPX's default sizing (70 cm lockbar)",
     ];
 
     static readonly string[] FitSizeIds = [VrFit.SizeReal, VrFit.SizeSame, VrFit.SizeVpx];
@@ -362,5 +362,4 @@ public sealed partial class FitViewModel(MainViewModel app) : ChildViewModel(app
         }
         LoadVrView();
     }
-
 }

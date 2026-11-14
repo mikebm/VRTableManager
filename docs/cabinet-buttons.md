@@ -20,6 +20,8 @@ There's nothing to set up. The lobby uses the buttons you set up in VPX, so if a
 
 Favourites still need the Quest's right grip (or a game controller's X / Square).
 
+Playing VR at your cabinet? Set up **Fit VR to me** so every table's lockbar lands on your real one: see [Playing at a cabinet or controller stand](vpx-settings.md#playing-at-a-cabinet-or-controller-stand).
+
 The lobby reads the buttons from the settings VR play uses. In VPX 10.8.1 that's the control mappings in its in-game input settings, where a joystick shows up as **SDLJoy** followed by a long code (Pinscape boards, PinOne in joystick mode and other USB controllers all look like this). In older VPX it's the Keys dialog. Joystick buttons and d-pad directions count; analog axes like a plunger or nudge don't. A button you never changed uses VPX's default key from the table above.
 
 ### Keyboard mode and joystick mode

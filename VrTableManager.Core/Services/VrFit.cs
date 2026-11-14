@@ -403,7 +403,7 @@ public static class VrFit
         {
             SizeReal => "every table at its real size",
             SizeSame => $"every table scaled to a {width} lockbar",
-            _ => $"tables scaled to a {width} lockbar (VPX's own sizing)",
+            _ => $"tables scaled to a {width} lockbar (VPX's default sizing)",
         };
         return $"Lockbar {Format(height, inches)} high, {where}, {size}.";
     }
