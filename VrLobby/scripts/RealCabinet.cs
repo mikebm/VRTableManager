@@ -255,6 +255,26 @@ public sealed class RealCabinet
         PlayfieldCentre.Y + (PlayfieldCentre.Z - z) * Mathf.Tan(PlayfieldSlope);
 
     /// <summary>
+    /// How far forward of the playfield's back a board may stand and still count as the back board, as a share of
+    /// half the playfield's length from its centre (0.75: the last eighth of the length). Faces in the last 7.5% count
+    /// whatever they are; past that, only a part whose forward faces make a board (<see cref="IsBoard"/>).
+    /// </summary>
+    const float BoardReach = 0.75f;
+
+    /// <summary>
+    /// Do a part's forward faces past the back stretch (OwnWallsOn) make a board? Across most of the playfield's width
+    /// (70%); flat, at most 3 cm deep along the playfield, or 15% of its height for a tall board standing upright
+    /// rather than square to the sloped playfield (The Getaway's ramp, 11 cm deep and 5 cm high, is not); and more
+    /// than a sliver (at least 50 cm²): Big Trouble in Little China's brick board and its strip of lit signs, Dungeons
+    /// &amp; Dragons's wall. <paramref name="depth"/>: how far along the playfield the faces reach; <paramref
+    /// name="height"/>: how far above it.
+    /// </summary>
+    bool IsBoard(float area, Vector2 x, Vector2 depth, Vector2 height) =>
+        x.Y - x.X >= PlayfieldSize.X * 0.7f
+        && depth.Y - depth.X <= Mathf.Max(0.03f, (height.Y - height.X) * 0.15f)
+        && area >= 0.005f;
+
+    /// <summary>
     /// This cabinet's own inner walls round its playfield (the side walls above it and the board behind it, whatever
     /// they're called and however their art is laid out: Big Trouble in Little China's "backwall" wraps all three),
     /// fitted onto <paramref name="into"/>'s playfield, for a table shown on the default cabinet. Picked by place: the
@@ -343,6 +363,16 @@ public sealed class RealCabinet
             var pn = new[] { new List<Vector3>(), new List<Vector3>() };
             var pu = new[] { new List<Vector2>(), new List<Vector2>() };
             var backUvs = new List<Vector2>();
+            // Forward faces a little further from the back (BoardReach): taken only if, together, this part's faces make a
+            // board (IsBoard), not a ramp or toy near the back.
+            var nearV = new List<Vector3>();
+            var nearN = new List<Vector3>();
+            var nearU = new List<Vector2>();
+            var nearUvs = new List<Vector2>();
+            float nearArea = 0;
+            Vector2 nearX = new(float.MaxValue, float.MinValue),
+                nearAlong = nearX,
+                nearUp = nearX;
             for (var i = 0; i + 2 < idx.Length; i += 3)
             {
                 Vector3 a = v[idx[i]],
@@ -412,6 +442,33 @@ public sealed class RealCabinet
                     backX = Extend(backX, a.X, b.X, d.X);
                     backUvs.Add((uv[idx[i]] + uv[idx[i + 1]] + uv[idx[i + 2]]) / 3);
                 }
+                else if (normal.Z > 0.6f && mid.Z < c.Z - half.Y * BoardReach)
+                {
+                    nearArea += area;
+                    nearX = Extend(nearX, a.X, b.X, d.X);
+                    // Measured along the playfield and above it, not level and upright: boards are usually built square
+                    // to the sloped playfield, so lean back with it.
+                    nearAlong = Extend(
+                        nearAlong,
+                        (a - c).Dot(dirO),
+                        (b - c).Dot(dirO),
+                        (d - c).Dot(dirO)
+                    );
+                    nearUp = Extend(
+                        nearUp,
+                        a.Y - PlayfieldYAt(a.Z),
+                        b.Y - PlayfieldYAt(b.Z),
+                        d.Y - PlayfieldYAt(d.Z)
+                    );
+                    nearUvs.Add((uv[idx[i]] + uv[idx[i + 1]] + uv[idx[i + 2]]) / 3);
+                    foreach (var k in new[] { idx[i], idx[i + 1], idx[i + 2] })
+                    {
+                        nearV.Add(Map(v[k]) + normal * 0.002f);
+                        nearN.Add(n[k]);
+                        nearU.Add(uv[k]);
+                    }
+                    continue;
+                }
                 else
                 {
                     continue;
@@ -423,6 +480,18 @@ public sealed class RealCabinet
                     pn[to].Add(n[k]);
                     pu[to].Add(uv[k]);
                 }
+            }
+            if (IsBoard(nearArea, nearX, nearAlong, nearUp))
+            {
+                // A board standing a little forward of the back (Big Trouble in Little China's brick board, ~10 cm in
+                // front): on the table's own cabinet it hides whatever stands behind it, and copied with the rest it
+                // still does, as each face keeps its distance from the back.
+                pv[1].AddRange(nearV);
+                pn[1].AddRange(nearN);
+                pu[1].AddRange(nearU);
+                backUvs.AddRange(nearUvs);
+                backArea += nearArea;
+                backX = Extend(backX, nearX.X, nearX.Y, nearX.Y);
             }
             var material = src.SurfaceGetMaterial(s);
             for (var p = 0; p < 2; p++)
@@ -452,7 +521,9 @@ public sealed class RealCabinet
                     img.Decompress();
                 }
 
-                foreach (var u in backUvs.Take(64))
+                // Spread over all its faces (a board's own come after any others on the same sheet), at most 64.
+                var step = Math.Max(1, backUvs.Count / 64);
+                foreach (var u in backUvs.Where((_, j) => j % step == 0).Take(64))
                 {
                     var px = img.GetPixel(
                         Math.Clamp((int)(u.X * img.GetWidth()), 0, img.GetWidth() - 1),
@@ -788,8 +859,12 @@ public partial class RealCabinetLoader : Node
                 var glass = GlassZOf(parsed); // walks every triangle: here, not on the main thread
                 Callable.From(() => Finish(vpx, parsed, glass, sw)).CallDeferred();
             }
-            catch
+            catch (Exception e)
             {
+                if (e is not OperationCanceledException)
+                {
+                    GD.PushWarning($"Couldn't read the cabinet in {vpx}: {e}");
+                }
                 Callable.From(() => Finish(vpx, null, null, sw)).CallDeferred();
             }
             finally
