@@ -32,10 +32,11 @@ public static partial class VpxCabinet
     // The playfield itself (VPW's "BM_Playfield", a desktop "Playfield_Mesh"), the parts that are the cabinet, the
     // room or light rather than something standing on the playfield, a flipper's raised pose (VPW's "BM_LeftFlipperUp",
     // Fish Tales's "BM_FlipperLUp", shown by the script in place of the resting one) and an option's other look
-    // ("BM_RampCoversAlt").
+    // ("BM_RampCoversAlt"). Words, not letters inside one: each starts the name, follows "_" or a digit, or starts a
+    // capitalised word ("BallShadow"), so "Mushroom", "Hourglass" and "Cobalt" stay toys.
     static readonly Regex NotToy = new(
-        @"playfield|pincab|cabinet|^cab|blade|siderail|side_?rail|lockdown|lockbar|backbox|backglass|room|floor|ceiling|glass|reflect|shadow|^vr_|flipper[lr]?\d*up$|alt\d*$",
-        RegexOptions.IgnoreCase
+        @"(?:^|(?<=[^A-Za-z])|(?<=[a-z])(?=[A-Z]))(?i:playfield|pincab|cabinet|cab(?-i:(?![a-z]))|blade|siderail|side_?rail|lockdown|lockbar|backbox|backglass|room|floor|ceiling|glass|reflect|shadow|vr_)"
+            + @"|(?i:flipper[lr]?\d*up)$|(?:_(?i:alt)|Alt)\d*$"
     );
 
     /// <summary>
@@ -96,6 +97,15 @@ public static partial class VpxCabinet
                 })
                 .ToList();
             toys = DropPoses(toys, t);
+            // A lit copy beside the unlit one (24's "Safehouse_on" over "Safehouse"): the script shows one at a time.
+            var names = toys.Select(p => p.Name).ToHashSet(StringComparer.OrdinalIgnoreCase);
+            toys = toys.Where(p =>
+                    !(
+                        p.Name.EndsWith("_on", StringComparison.OrdinalIgnoreCase)
+                        && names.Contains(p.Name[..^3])
+                    )
+                )
+                .ToList();
 
             var vertices = toys.Sum(p => p.NumVerts);
             var size = new Vector2(w * VpuToMetres, h * VpuToMetres);
@@ -220,18 +230,26 @@ public static partial class VpxCabinet
         return kept.ToArray();
     }
 
-    static readonly Regex NumberedName = new(@"^(?<stem>.*?)\d+$");
+    static readonly Regex NumberedName = new(@"^(?<stem>.*?)(?<n>\d+)$");
 
     /// <summary>
     /// A toy's animation frames: parts named alike but for a number at the end ("BM_LeftSling1" to "BM_LeftSling4"),
     /// with the same picture, in the same place (within 1 cm). The script shows one at a time; drawn together they
-    /// flicker through each other. The first is kept.
+    /// flicker through each other. The lowest-numbered is kept.
     /// </summary>
     static List<Prim> DropPoses(List<Prim> toys, TableData t)
     {
         const float cm = 1f / 100f / VpuToMetres;
         var kept = new List<(Prim P, string? Stem, Vector3 A, Vector3 B)>();
-        foreach (var p in toys)
+        // Lowest number first, whatever the file order: "Sling1" is the resting one, not "Sling3".
+        foreach (
+            var p in toys.OrderBy(p =>
+                NumberedName.Match(p.Name) is { Success: true } m
+                && int.TryParse(m.Groups["n"].Value, out var n)
+                    ? n
+                    : 0
+            )
+        )
         {
             var stem = NumberedName.Match(p.Name) is { Success: true } m
                 ? m.Groups["stem"].Value

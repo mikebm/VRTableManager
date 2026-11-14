@@ -17,7 +17,9 @@ public partial class Cabinet
     /// <summary>
     /// Shows a table's toys standing on this cabinet's playfield, whichever cabinet it is (its own, or the default one
     /// it borrows: then they're stretched to that playfield, as its video is), or hides them with null. While they're
-    /// shown the playfield video lies flat: its depth would raise a second copy of every toy under them.
+    /// shown the playfield video lies flat (its depth would raise a second copy of every toy under them), and the glass
+    /// is off: toys at the back stand taller than the lobby's glass (24's safe house and sniper 16-19 cm, Batman 66's
+    /// cats 18-20 cm, the glass about 8 cm) and stood out through it.
     /// </summary>
     public void ShowToys(TableToys? toys)
     {
@@ -31,6 +33,7 @@ public partial class Cabinet
             if (Toys != null)
             {
                 Toys = null;
+                _glass.Visible = true;
                 SetPlayfieldDepth(_heldHeights, _heldDepth);
             }
             return;
@@ -44,6 +47,7 @@ public partial class Cabinet
         Toys = toys;
         _toys.Mesh = toys.Mesh;
         _toys.Visible = true;
+        _glass.Visible = false;
         PlaceToys();
         if (changed)
         {

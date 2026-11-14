@@ -66,6 +66,7 @@ public partial class Main
         {
             if (_toyLoader.IsKnown(vpx))
             {
+                _toyLoader.Touch(vpx); // on show: reading others must never forget it
                 want = _toyLoader.Get(vpx);
             }
             else

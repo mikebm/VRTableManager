@@ -11,7 +11,9 @@ namespace VrLobby;
 /// <item>its VR cabinet (<see cref="CabinetCache"/>), the slow one: about 10 s a table on a hard drive;</item>
 /// <item>its playfield picture (<see cref="VpxImages.CachedPlayfield"/>);</item>
 /// <item>its playfield's height map, for a table with a lobby video (<see cref="PlayfieldDepth"/>), unless lobby
-/// videos are turned off.</item>
+/// videos are turned off or Setup chose 3D toys instead of parallax;</item>
+/// <item>its 3D toys (<see cref="ToyCache"/>), when Setup chose them: a second or two a table, otherwise read the first
+/// time the table is picked;</item>
 /// <item>its own backglass, back panel and inner side wall pictures (<see cref="VpxImages.CachedBackglass"/>,
 /// <see cref="VpxImages.CachedBackPanel"/>), and its .directb2s's backglass (<see cref="DirectB2s"/>): the
 /// default cabinet wears them.</item>
@@ -86,6 +88,16 @@ static class PrepareTables
                 {
                     PlayfieldDepth.Load(videoFolder, vpx);
                 }
+
+                if (needs.Toys)
+                {
+                    // One that can't be read is kept as having none, or every run would read it again.
+                    ToyCache.Save(
+                        vpx,
+                        ToyCache.DefaultDir,
+                        TableToysLoader.Parse(vpx, TableToysLoader.DefaultBudget) ?? ToyCache.None
+                    );
+                }
             }
             catch (Exception e)
             {
@@ -105,11 +117,19 @@ static class PrepareTables
         bool OwnBackglass = false,
         bool BackPanel = false,
         bool Blades = false,
-        string? B2s = null
+        string? B2s = null,
+        bool Toys = false
     )
     {
         public bool Any =>
-            Cabinet || Playfield || Depth != null || OwnBackglass || BackPanel || Blades || B2s != null;
+            Cabinet
+            || Playfield
+            || Depth != null
+            || OwnBackglass
+            || BackPanel
+            || Blades
+            || B2s != null
+            || Toys;
     }
 
     static Work Needs(
@@ -126,8 +146,10 @@ static class PrepareTables
             LobbyArt.PlayfieldSource(t) is { } src
             && src.StartsWith(LobbyArt.VpxScheme, StringComparison.Ordinal)
             && !VpxImages.HasCachedPlayfield(vpx, artDir);
+        // With 3D toys the lobby shows no parallax, so no height maps: the toys instead.
         var depth =
             settings.LobbyPlayfieldVideos
+            && !settings.LobbyTableToys
             && LobbyArt.PlayfieldVideo(t) is var (folder, _)
             && !PlayfieldDepth.IsKnown(folder, vpx)
                 ? folder
@@ -139,8 +161,11 @@ static class PrepareTables
             depth,
             OwnBackglass: VpxImages.KnownBackglass(vpx, artDir) == null,
             BackPanel: VpxImages.KnownBackPanel(vpx, artDir) == null,
-            Blades: VpxImages.KnownBladeLeft(vpx, artDir) == null || VpxImages.KnownBladeRight(vpx, artDir) == null,
-            B2s: File.Exists(b2s) && !DirectB2s.IsCached(b2s, artDir) ? b2s : null
+            Blades: VpxImages.KnownBladeLeft(vpx, artDir) == null
+                || VpxImages.KnownBladeRight(vpx, artDir) == null,
+            B2s: File.Exists(b2s) && !DirectB2s.IsCached(b2s, artDir) ? b2s : null,
+            Toys: settings.LobbyTableToys
+                && !ToyCache.IsCurrent(vpx, ToyCache.DefaultDir, TableToysLoader.DefaultBudget)
         );
     }
 

@@ -19,7 +19,7 @@ public sealed class TableToys
 }
 
 /// <summary>
-/// Reads tables' toys in the background (Setup: "Show the selected table's 3D toys", off by default), keeps them on
+/// Reads tables' toys in the background (Setup: Playfield depth, "3D toys"; parallax by default), keeps them on
 /// disk beside the cabinets (<see cref="ToyCache"/>) and the last few in memory. A table whose toys come to more than
 /// <see cref="Budget"/> vertices is left without, and the log says so.
 /// </summary>
@@ -50,10 +50,26 @@ public partial class TableToysLoader : Node
 
     public TableToys? Get(string vpx) => _done.GetValueOrDefault(vpx);
 
+    /// <summary>
+    /// Marks a table as just used (it's on show), so reading others never forgets it: without this a table shown all along
+    /// dropped out as the ones scrolled past finished, its toys vanished, and it was read again.
+    /// </summary>
+    public void Touch(string vpx)
+    {
+        if (_recent.First?.Value != vpx && _recent.Remove(vpx))
+        {
+            _recent.AddFirst(vpx);
+        }
+    }
+
+    /// <summary>The table last asked for: a read still waiting for its turn is dropped once another is wanted.</summary>
+    volatile string? _wanted;
+
     public void Request(string vpx)
     {
         _recent.Remove(vpx);
         _recent.AddFirst(vpx);
+        _wanted = vpx;
         if (_done.ContainsKey(vpx) || !_pending.Add(vpx))
         {
             return;
@@ -68,14 +84,23 @@ public partial class TableToysLoader : Node
             try
             {
                 LobbyWork.Closing.ThrowIfCancellationRequested();
+                // Scrolled on while it waited: don't spend a second or two reading a table you've left. It's asked
+                // for again if you come back.
+                if (_wanted != vpx)
+                {
+                    Callable.From(() => _pending.Remove(vpx)).CallDeferred();
+                    return;
+                }
+
                 var from = "cache";
                 if (dir == null || !ToyCache.TryLoad(vpx, dir, budget, out var read))
                 {
                     from = "table";
                     read = Parse(vpx, budget);
-                    if (dir != null && read != null)
+                    if (dir != null)
                     {
-                        ToyCache.Save(vpx, dir, read);
+                        // A table that can't be read is remembered too (as having none), so it isn't read every time.
+                        ToyCache.Save(vpx, dir, read ?? ToyCache.None);
                     }
                 }
                 var ms = sw.ElapsedMilliseconds;
@@ -241,6 +266,11 @@ public partial class TableToysLoader : Node
     void Finish(string vpx, Read? read, string from, long ms)
     {
         _pending.Remove(vpx);
+        if (!_recent.Contains(vpx))
+        {
+            return; // forgotten while it was read: not built either (that's main-thread work)
+        }
+
         var name = Path.GetFileNameWithoutExtension(vpx);
         TableToys? toys = null;
         if (read == null)
@@ -266,11 +296,6 @@ public partial class TableToysLoader : Node
                     + $"{toys.Textures} pictures; read from the {from} in {ms} ms, built in {sw.ElapsedMilliseconds} ms"
             );
         }
-        if (!_recent.Contains(vpx))
-        {
-            return; // forgotten while it was read
-        }
-
         _done[vpx] = toys;
         while (_recent.Count > Keep)
         {
@@ -376,14 +401,50 @@ public partial class TableToysLoader : Node
 static class ToyCache
 {
     /// <summary>Bump when what TableToysLoader.Parse makes changes.</summary>
-    const int Version = 4; // 4: the back board the cabinet takes out of a baked mesh left out; 3: broken normals made finite; 2: animation frames, flipper-up poses and Alt options dropped
+    const int Version = 6; // 6: toy names matched as words (not "Mushroom", "Hourglass"), the lowest-numbered pose kept; 5: lit "_on" copies dropped; 4: the back board the cabinet takes out of a baked mesh left out; 3: broken normals made finite; 2: animation frames, flipper-up poses and Alt options dropped
     static readonly byte[] Magic = "VTMTOY"u8.ToArray();
 
     public static string DefaultDir =>
         Path.Combine(Path.GetDirectoryName(CabinetCache.DefaultDir.TrimEnd('\\', '/'))!, "toys");
 
+    /// <summary>What's kept for a table that couldn't be read: no toys, so it isn't read again until it changes.</summary>
+    public static readonly TableToysLoader.Read None = new(null, 0, 0, false);
+
     static string FileFor(string vpx, string dir) =>
         Path.ChangeExtension(CabinetCache.FileFor(vpx, dir), ".toys");
+
+    /// <summary>True if the cache holds this version of the table's toys, judged against this budget (reads only the header).</summary>
+    public static bool IsCurrent(string vpx, string dir, int budget)
+    {
+        try
+        {
+            var fi = new FileInfo(vpx);
+            var file = FileFor(vpx, dir);
+            if (!fi.Exists || !File.Exists(file))
+            {
+                return false;
+            }
+
+            using var r = new BinaryReader(File.OpenRead(file));
+            if (
+                !r.ReadBytes(Magic.Length).AsSpan().SequenceEqual(Magic)
+                || r.ReadInt32() != Version
+                || r.ReadInt64() != fi.Length
+                || r.ReadInt64() != fi.LastWriteTimeUtc.Ticks
+            )
+            {
+                return false;
+            }
+
+            var vertices = r.ReadInt32();
+            r.ReadInt32();
+            return r.ReadBoolean() ? vertices > budget : vertices <= budget;
+        }
+        catch
+        {
+            return false;
+        }
+    }
 
     public static bool TryLoad(string vpx, string dir, int budget, out TableToysLoader.Read? read)
     {
