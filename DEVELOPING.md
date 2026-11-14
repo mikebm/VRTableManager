@@ -62,7 +62,8 @@ These go after `--` on the lobby's command line, for example `godot --path VrLob
 | `--no-depth` | Show the playfield video flat, to compare. |
 | `--dump-cabinet=<table.vpx>` | Save that table's VR cabinet as the default cabinet, then quit. |
 | `--prepare-tables` | Read every table's cabinet and pictures into the cache, then quit. Setup's PREPARE TABLES runs this. |
-| `--record-audio=<table>` | Record a ROM table's attract music, then quit. The lobby runs this itself. |
+
+A ROM table's attract music is recorded by the manager, not the lobby: `VrTableManager.exe --record-rom-audio <rom> <table folder> <table.vpx> <seconds> <pinmame64.dll>` records one ROM into `%APPDATA%\VrTableManager\vr-lobby\attract-audio` and exits with 0 (recorded), 10 (gave nothing, remembered) or 11 (failed, tried again later). GENERATE ATTRACT MUSIC and the other ways in run several of these at once (`RomAudioBatch`); the lobby's fallback runs one. Set `VRTM_DATA_DIR` to record into a test cache instead of yours.
 
 From source, the manager starts the lobby in the Godot editor it downloads to `%LOCALAPPDATA%\VrTableManager\godot\`. To return to it with `--play … --return`, point `--return` at that `Godot_v…_mono_win64.exe` and add `--return-arg --path --return-arg "<repo>\VrLobby"` before the `--`.
 

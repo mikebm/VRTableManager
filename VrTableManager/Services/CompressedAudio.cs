@@ -129,6 +129,58 @@ public static class CompressedAudio
         }
     }
 
+    /// <summary>
+    /// A WAV clip as a 128 kbps MP3 (a ROM's attract music, <see cref="RomAudio.ToMp3"/>), with Windows' own Media
+    /// Foundation encoder: written beside <paramref name="mp3"/> under a name of its own, read back and checked to
+    /// last as long as the WAV, then moved into place. False (and nothing left behind) when it can't be done; the
+    /// WAV is never touched.
+    /// </summary>
+    public static bool WavToMp3(string wav, string mp3)
+    {
+        if (!OperatingSystem.IsWindows())
+        {
+            return false;
+        }
+
+        // Media Foundation picks the container by the extension, so the temp name ends in .mp3 too.
+        var tmp = Path.Combine(
+            Path.GetDirectoryName(mp3)!,
+            $"{Path.GetFileNameWithoutExtension(mp3)}.{Guid.NewGuid():N}.tmp.mp3"
+        );
+        try
+        {
+            MediaFoundationApi.Startup();
+            TimeSpan length;
+            using (var reader = new WaveFileReader(wav))
+            {
+                length = reader.TotalTime;
+                MediaFoundationEncoder.EncodeToMp3(reader, tmp, 128_000);
+            }
+            using (var check = new MediaFoundationReader(tmp))
+            {
+                // MP3 frames pad the ends a little: anything much shorter is a broken file.
+                if (
+                    new FileInfo(tmp).Length == 0
+                    || Math.Abs((check.TotalTime - length).TotalSeconds) > 0.5
+                )
+                {
+                    throw new InvalidDataException("the MP3 doesn't match the recording");
+                }
+            }
+            File.Move(tmp, mp3, overwrite: true);
+            return true;
+        }
+        catch
+        {
+            try
+            {
+                File.Delete(tmp);
+            }
+            catch { }
+            return false;
+        }
+    }
+
     /// <summary>Interleaved samples (at most stereo) from the first sound on, faded out; null when silent.</summary>
     static (float[]? samples, int rate, int channels) ReadClip(
         ISampleProvider source,

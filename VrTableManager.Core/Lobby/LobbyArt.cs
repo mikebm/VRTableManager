@@ -130,12 +130,6 @@ public static class LobbyArt
     static readonly string[] Preferred = ["attract", "intro", "theme", "title", "main"];
     const long MaxAudioBytes = 20 * 1024 * 1024;
 
-    /// <summary>
-    /// A short sound to play when the cabinet is selected: an .ogg/.mp3/.wav in the VPX table's own
-    /// folder or its music/ subfolder (names with "attract", "intro", "theme"… first). Never for
-    /// Future Pinball (its Tables folder is shared) or store games. Without such a file, the sound
-    /// recorded from the table's ROM (<see cref="RomAudio"/>), if it has been. Null when there's nothing suitable.
-    /// </summary>
     /// <summary>The table's lobby video (medias\lobby-video: JPEG frames the lobby streams onto the playfield), or null.</summary>
     public static (string Folder, LobbyVideo.Info Info)? PlayfieldVideo(LobbyTable t) =>
         t.Engine == TableManifest.Vpx
@@ -151,17 +145,27 @@ public static class LobbyArt
     public static LoadingVideo.Video? LoadingVideoFor(LobbyTable t, AppSettings s) =>
         s.LobbyLoadingVideos ? LoadingVideo.For(t.Source) : null;
 
-    public static string? AttractSound(LobbyTable t) =>
-        LooseSound(t) ?? (t.Engine == TableManifest.Vpx ? RomAudio.Cached(t.Source) : null);
+    /// <summary>
+    /// A short sound to play when the cabinet is selected: an .ogg/.mp3/.wav in the VPX table's own
+    /// folder or its music/ subfolder (names with "attract", "intro", "theme"… first). Never for
+    /// Future Pinball (its Tables folder is shared) or store games. Without such a file, the sound
+    /// recorded from the table's ROM (<see cref="RomAudio"/>), at <paramref name="seconds"/> if there is one, else
+    /// at another length. Null when there's nothing suitable.
+    /// </summary>
+    public static string? AttractSound(LobbyTable t, int seconds = RomAudio.DefaultSeconds) =>
+        t.Engine != TableManifest.Vpx
+            ? null
+            : LooseSound(t.Source) ?? RomAudio.Cached(t.Source, seconds);
 
-    static string? LooseSound(LobbyTable t)
+    /// <summary>A sound file of the table's own (a music folder, a media pack's attract.mp3), or null.</summary>
+    public static string? LooseSound(InstalledTable t)
     {
-        if (t.Engine != TableManifest.Vpx)
+        if (!t.IsVpx)
         {
             return null;
         }
 
-        var folder = t.Source.Folder;
+        var folder = t.Folder;
         if (string.IsNullOrEmpty(folder) || !Directory.Exists(folder))
         {
             return null;

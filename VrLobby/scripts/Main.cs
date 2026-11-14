@@ -53,6 +53,9 @@ public partial class Main : Node3D
     public bool BackglassIndexReady => _backglass != null;
     public string? AttractPlaying { get; private set; }
 
+    /// <summary>How many seconds the playing (or last) attract sound plays for: Setup's music length.</summary>
+    public double AttractPlaysFor { get; private set; }
+
     readonly ArtLoader _art = new();
     readonly RealCabinetLoader _cabs = new();
     readonly List<Cabinet> _pool = [];
@@ -288,16 +291,6 @@ public partial class Main : Node3D
         {
             GD.Print("Cabinet buttons not read: " + e.Message);
         }
-        // --record-audio=<table id>: record that table's ROM sound (see RomRecorder), then quit.
-        if (args.GetValueOrDefault("record-audio") is { Length: > 0 } recordId)
-        {
-            var file = Library.FirstOrDefault(x => x.Id == recordId) is { } rt
-                ? RomAudio.Record(rt.Source, RomAudio.PinmameDll(Settings), m => GD.Print(m))
-                : null;
-            GD.Print(file != null ? $"Recorded {file}" : $"No sound recorded for {recordId}");
-            GetTree().Quit(file != null ? 0 : 1);
-            return;
-        }
         // --prepare-tables (headless, from the manager's PREPARE TABLES): read every table now that the lobby would
         // otherwise read the first time it shows it (cabinet, playfield picture, depth map), then quit.
         if (args.ContainsKey("prepare-tables"))
@@ -309,7 +302,9 @@ public partial class Main : Node3D
         // Never in the self-test, which may run on the player's real settings: it would fire their cabinet.
         _dof.Enabled = !selfTest;
         _dof.Start(Settings);
-        _recorder.SettingsPath = _settingsPath;
+        _recorder.ManagerExe = LobbyLauncher.FindManagerExe(Settings);
+        _recorder.PinmameDll = RomAudio.PinmameDll(Settings);
+        _recorder.Seconds = Settings.AttractSeconds;
         _borrowAll = args.ContainsKey("borrow-all");
         _noDepth = args.ContainsKey("no-depth"); // flat playfield video, for comparing (PlayfieldDepth)
         // --screenshot=<png> [--pitch=<degrees>] (desktop, diagnostic): save one frame once the art is in, then quit.
@@ -1837,7 +1832,7 @@ public partial class Main : Node3D
         var t = Shown[Selected];
         if (!_attractFiles.TryGetValue(t.Id, out var file))
         {
-            _attractFiles[t.Id] = file = LobbyArt.AttractSound(t);
+            _attractFiles[t.Id] = file = LobbyArt.AttractSound(t, Settings.AttractSeconds);
         }
 
         if (file == null)
@@ -1910,7 +1905,7 @@ public partial class Main : Node3D
         _attract.Play();
         Trace("attract " + Path.GetFileName(file));
         AttractPlaying = file;
-        _attractLeft = 10.0;
+        _attractLeft = AttractPlaysFor = Settings.AttractSeconds;
     }
 
     string? _attractLoading;

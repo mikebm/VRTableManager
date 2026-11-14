@@ -168,7 +168,7 @@ public static class AppFolders
             ),
             E(
                 "Lobby attract sound",
-                "Each table's attract-mode sound, recorded from its ROM for the VR lobby. Recording it again takes about 40 seconds a table.",
+                "Each ROM table's attract music, recorded from its ROM for the VR lobby. Setup → VR lobby → GENERATE ATTRACT MUSIC records it again, several at a time (about half a minute a table).",
                 true,
                 Lobby.LobbyFiles.AttractAudio
             ),

@@ -9,7 +9,7 @@ namespace VrTableManager.ViewModels;
 // The VR lobby: launching it, and Setup → VR lobby.
 public sealed partial class LobbyViewModel(MainViewModel app) : ChildViewModel(app)
 {
-    /// <summary>The VR lobby records a ROM table's start-up music in the background the first time you stop on it.</summary>
+    /// <summary>The VR lobby records a ROM table's music itself, one at a time, when you stop on one that has none yet (the fallback).</summary>
     [ObservableProperty]
     public partial bool LobbyRecordsRomAudio { get; set; }
 
@@ -77,6 +77,7 @@ public sealed partial class LobbyViewModel(MainViewModel app) : ChildViewModel(a
         LobbyDof = s.LobbyDof;
         DofStatusText = DofStatus();
         LobbyRecordsRomAudio = s.LobbyRecordsRomAudio;
+        AttractMusicSeconds = s.AttractSeconds;
         LobbyPlayfieldVideos = s.LobbyPlayfieldVideos;
         LobbyWaitsForTable = s.LobbyWaitsForTable;
         LobbyStaysOpen = s.LobbyStaysOpen;
@@ -110,6 +111,13 @@ public sealed partial class LobbyViewModel(MainViewModel app) : ChildViewModel(a
         {
             App.Library.PlayStatus =
                 "Tables are being prepared for the VR lobby: wait for it, or cancel it under Downloads, then launch.";
+            return;
+        }
+
+        if (IsGeneratingAttractMusic)
+        {
+            App.Library.PlayStatus =
+                "Attract music is being recorded: wait for it, or cancel it under Downloads, then launch the VR lobby.";
             return;
         }
 

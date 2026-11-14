@@ -102,9 +102,28 @@
         <Border Classes="panel">
           <StackPanel Spacing="10">
             <TextBlock Classes="h2" Text="Music" />
+            <TextBlock Classes="muted" TextWrapping="Wrap"
+                       Text="When you stop on a table, the lobby plays its music from the backbox: a sound file in the table's folder (from a media pack, say), or for a ROM table without one, music recorded from its ROM. Recording runs the ROM in real time, so it's best done ahead of time. Only ROM tables without music are recorded, and each only once." />
+            <Grid ColumnDefinitions="210,Auto,*" ColumnSpacing="12">
+              <TextBlock Text="Music length" VerticalAlignment="Center" FontWeight="SemiBold" />
+              <ComboBox Grid.Column="1" ItemsSource="{Binding AttractMusicLengths}" SelectedItem="{Binding AttractMusicSeconds}" Width="150">
+                <ComboBox.ItemTemplate>
+                  <DataTemplate x:DataType="x:Int32">
+                    <TextBlock Text="{Binding StringFormat='{}{0} s'}" />
+                  </DataTemplate>
+                </ComboBox.ItemTemplate>
+              </ComboBox>
+              <TextBlock Grid.Column="2" Classes="muted" VerticalAlignment="Center" TextWrapping="Wrap"
+                         Text="How long the lobby plays a table's music. A recording keeps this much; after a change, GENERATE ATTRACT MUSIC records them again (the old ones play meanwhile)." />
+            </Grid>
+            <WrapPanel>
+              <Button Classes="small" Content="GENERATE ATTRACT MUSIC" Margin="0,0,8,0" Command="{Binding GenerateAttractMusicCommand}"
+                      IsEnabled="{Binding !IsGeneratingAttractMusic}"
+                      ToolTip.Tip="Records the music of every ROM table that has none yet, several at a time, in the background: follow it under Downloads. Each takes about half a minute plus the music length. GET LOBBY MEDIA and PREPARE TABLES can do this too." />
+            </WrapPanel>
             <CheckBox IsChecked="{Binding LobbyRecordsRomAudio}"
-                      Content="Record a table's music from its ROM in the VR lobby"
-                      ToolTip.Tip="Runs the ROM for about 50 s in the background the first time you stop on a table. Off: only audio files already there play." />
+                      Content="Let the VR lobby record a table's music when it has none yet"
+                      ToolTip.Tip="For a table you stop on that wasn't recorded ahead of time: one table at a time, in the background, and it plays after about half a minute if you're still there. Off: the lobby only plays music that's already there." />
           </StackPanel>
         </Border>
 

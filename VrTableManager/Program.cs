@@ -14,6 +14,13 @@ static class Program
             return PlaySession.RunAsync(args).GetAwaiter().GetResult();
         }
 
+        // One ROM's attract music, recorded for GENERATE ATTRACT MUSIC (several of these run at once) or the VR lobby.
+        if (RomAudioBatch.IsCommand(args))
+        {
+            RomAudio.ToMp3 = CompressedAudio.WavToMp3;
+            return RomAudioBatch.RunCommand(args);
+        }
+
         // One manager window at a time: each clears the downloads folder as it starts (left over from the last
         // close), which would take a running one's downloads. (--play above runs beside it as before.)
         Mutex? single;

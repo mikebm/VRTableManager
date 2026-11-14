@@ -61,8 +61,8 @@ If a table's own VR cabinet looks wrong in the lobby, its **⋯** menu → **My 
 
 A table's media pack in the catalog usually has its playfield video, loading video, music and wheel art. You can get all of them in one go instead of one menu item at a time. Only what's missing is added: nothing the table already has, or that you chose yourself, is replaced.
 
-- **One table:** its **⋯** menu → **Get all VR lobby media**. Media packs are big, so it downloads one at most once and keeps every missing piece from it. When only the wheel art or music is missing, it tries the catalog's small wheel and sound files first, and often doesn't need a pack at all. If there's still no playfield video at the end, it offers to record one in VPX, once the table has its ROM.
-- **Many tables:** **◆ GET LOBBY MEDIA** at the top of **My Tables** does the same for every table shown, one after another, so search or filter first if you only want some. You choose whether tables still without a playfield video get recorded in VPX afterwards, about half a minute each in a small window. Tables missing their ROM are skipped.
+- **One table:** its **⋯** menu → **Get all VR lobby media**. Media packs are big, so it downloads one at most once and keeps every missing piece from it. When only the wheel art or music is missing, it tries the catalog's small wheel and sound files first, and often doesn't need a pack at all. If there's still no playfield video at the end, it offers to record one in VPX, once the table has its ROM. If there's still no music, a ROM table gets its music recorded from the ROM in the background.
+- **Many tables:** **◆ GET LOBBY MEDIA** at the top of **My Tables** does the same for every table shown, one after another, so search or filter first if you only want some. You choose whether tables still without a playfield video get recorded in VPX afterwards, about half a minute each in a small window. ROM tables still without music get it recorded from their ROMs at the end, and the question says how long that takes. Tables missing their ROM are skipped.
 
   While it runs, the button turns into **■ STOP**, which ends the run. Cancelling one table's job in the Downloads list skips just that table. You can't launch the VR lobby while tables are being recorded.
 
@@ -106,10 +106,10 @@ It plays only with **Show a loading screen in the VR lobby while a table starts*
 
 ## Attract sound (VR lobby)
 
-When you settle on a cabinet in the lobby, about 10 seconds of the table's music plays from its backbox. It comes from the first of these:
+When you settle on a cabinet in the lobby, the table's music plays from its backbox, for 10 seconds unless you change **Music length** under **Setup → VR lobby → Music**. It comes from the first of these:
 
 1. An `.ogg`, `.mp3` or `.wav` file in the table's folder or its `music` folder. Names containing "attract", "intro" or "theme" are picked first, so `music\attract.mp3` is the safest name. **Get attract audio for the VR lobby** in the table's **⋯** menu saves one there from the table's media pack.
-2. The table's ROM: the first time you settle on a ROM table, the lobby records its start-up music once in the background.
+2. The table's ROM: its start-up music, recorded once and kept as a small MP3. **GENERATE ATTRACT MUSIC** under **Setup → VR lobby → Music** records every ROM table without music, several at a time. GET LOBBY MEDIA, Get all VR lobby media and PREPARE TABLES can do it too. Any table you haven't recorded gets recorded by the lobby itself when you stop on it, unless you turn that off. [Attract music](vr-lobby.md#attract-music) has the details.
 
 To use your own, drop a file named `attract.mp3` (or `.ogg` / `.wav`) into the table's `music` folder. **Remove attract audio** in the **⋯** menu deletes the one there.
 

@@ -58,13 +58,26 @@ The lobby reads these when it starts.
 
 ### Prepare tables
 
-The first time the lobby shows a table, it reads the table's file for its cabinet, playfield and pictures. That takes a few seconds a table, longer on a hard drive, so cabinets can pop in as you turn the ring. **Setup → VR lobby → PREPARE TABLES** reads them all ahead of time, in the background, and you can follow it under Downloads. A big collection on a hard drive can take an hour or more the first time. After that, only new or updated tables need reading.
+The first time the lobby shows a table, it reads the table's file for its cabinet, playfield and pictures. That takes a few seconds a table, longer on a hard drive, so cabinets can pop in as you turn the ring. **Setup → VR lobby → PREPARE TABLES** reads them all ahead of time, in the background, and you can follow it under Downloads. A big collection on a hard drive can take an hour or more the first time. After that, only new or updated tables need reading. If some ROM tables have no music yet, it first asks whether to record that too, afterwards (see [Attract music](#attract-music)).
 
 ## Videos and music
 
 - **Playfield videos:** with a lobby video, a cabinet's playfield moves, ramps and all. Every cabinet you can see plays its video, so the ones you turn towards are already moving. Get them from a table's **⋯** menu, or for everything at once with **GET LOBBY MEDIA** on My Tables. Turn them off under **Setup → VR lobby** if your PC or drive struggles.
 - **Wheel art:** the game's logo floats over the selected cabinet's title.
-- **Music:** when you stop on a table, about 10 seconds of its music plays from the backbox. It comes from the table's media pack or a music file in its folder. If there's neither, the lobby records the start-up music from the table's ROM the first time you stop on it (about 50 seconds, in the background; your scores and settings aren't touched). You can turn the recording off under **Setup → VR lobby → Music**.
+- **Music:** when you stop on a table, its music plays from the backbox, for 10 seconds unless you change **Music length** under **Setup → VR lobby → Music**. It comes from the table's media pack or a music file in its folder. A ROM table with neither gets its start-up music recorded from its ROM. See [Attract music](#attract-music) below.
+
+### Attract music
+
+Recording a ROM's music runs the ROM in real time, about half a minute a table, so it's best done before you put the headset on. Your scores and settings aren't touched. There are four ways in, and they all do the same recording, as one job you can follow and cancel under Downloads:
+
+- **Setup → VR lobby → Music → GENERATE ATTRACT MUSIC** records every ROM table that has no music yet.
+- **GET LOBBY MEDIA** on My Tables, and **Get all VR lobby media** in a table's **⋯** menu, record it for the tables still without music once the downloads are done.
+- **PREPARE TABLES** asks whether to record the music too, and says how long it would take. It records after the tables are read.
+- **LAUNCH VR LOBBY** asks once there are 20 or more tables without music, along with the prepare question. **LAUNCH, DON'T ASK AGAIN** stops it.
+
+Several ROMs are recorded at once, depending on how many processor cores your PC has. Each ROM is recorded once. A ROM that gives no music is skipped from then on, unless you add a ROM file to its table. After you change **Music length**, GENERATE ATTRACT MUSIC records them all again at the new length. The old clips keep playing until then.
+
+**Let the VR lobby record a table's music when it has none yet** is the fallback for tables you haven't recorded. When you stop on one, the lobby records it in the background, one table at a time, and plays it after about half a minute if you're still there. If you move on, it finishes the one it started and keeps it for next time. Turn it off if you only want music that's already there.
 
 [Custom artwork, videos and sounds](custom-artwork.md) covers getting these, and using your own.
 

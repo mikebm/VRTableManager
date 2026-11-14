@@ -651,12 +651,19 @@ public static class SelfTest
         );
 
         // ---- Attract sound (the tiny WAV written at the start) ----------------------------
+        var musicWas = lobby.Settings.AttractMusicSeconds;
+        lobby.Settings.AttractMusicSeconds = 7; // Setup → VR lobby → Music length
         lobby.Select(mmIndex);
         await Seconds(lobby, 2.5); // ring settles (~0.8 s), then the sound waits 0.8 s
         Check(
             lobby.AttractPlaying?.EndsWith("attract.wav") == true,
             $"selected table's own attract sound plays after a moment (found: {LobbyArt.AttractSound(lobby.Shown[mmIndex]) ?? "none"}, playing: {lobby.AttractPlaying ?? "nothing"})"
         );
+        Check(
+            lobby.AttractPlaysFor == 7,
+            $"it plays for Setup's music length ({lobby.AttractPlaysFor} s of 7)"
+        );
+        lobby.Settings.AttractMusicSeconds = musicWas;
         if (nvWritten)
         {
             Check(

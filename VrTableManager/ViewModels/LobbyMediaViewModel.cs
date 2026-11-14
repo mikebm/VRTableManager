@@ -213,6 +213,13 @@ public sealed partial class LobbyMediaViewModel(MainViewModel app) : ChildViewMo
             return; // cancelled
         }
 
+        // Music is media too: a ROM table still without a sound file gets its music recorded from the ROM, in the
+        // background (nothing when it has some, or when it can't be recorded now).
+        if (table.IsVpx && !item.NeedsRom)
+        {
+            _ = App.Lobby.GenerateAttractMusicAsync([table], quietIfNone: true);
+        }
+
         if (r.Left.Video && item.CanHaveLobbyVideo)
         {
             await OfferRecordingAsync(item, LobbyMedia.WhyNoVideo(r.Problems, r.HadPack));
@@ -240,8 +247,8 @@ public sealed partial class LobbyMediaViewModel(MainViewModel app) : ChildViewMo
             return;
         }
 
-        var shown = App.Library.Installed
-            .Where(i => i.Table.HasOwnFolder && !i.Table.IsIncomplete)
+        var shown = App
+            .Library.Installed.Where(i => i.Table.HasOwnFolder && !i.Table.IsIncomplete)
             .DistinctBy(i => i.Table.TablePath, StringComparer.OrdinalIgnoreCase)
             .Select(i => (Item: i, Needs: LobbyMedia.Needs.Of(i.Table)))
             .Where(x => x.Needs.Any)
@@ -254,8 +261,30 @@ public sealed partial class LobbyMediaViewModel(MainViewModel app) : ChildViewMo
             .Where(x => x.Needs.Video && x.Item.CanHaveLobbyVideo && !x.Item.NeedsRom)
             .Select(x => x.Item)
             .ToList();
+        // ROM tables shown without music: recorded from their ROMs once the downloads are done (a download may
+        // bring a media pack's music first), through the same routine as Setup's GENERATE ATTRACT MUSIC.
+        var musicTables = App.Library.Installed.Select(i => i.Table).ToList();
+        var noMusic =
+            App.Lobby.CantGenerateMusicWhy() == null
+                ? (await App.Lobby.AttractMusicTodoAsync(musicTables)).Count
+                : 0;
         if (fromCatalog == 0 && recordable == 0)
         {
+            if (noMusic > 0)
+            {
+                if (
+                    await Ui.ChoiceAsync(
+                        "Record the attract music?",
+                        "The catalog has nothing more for the tables shown. "
+                            + App.Lobby.AttractMusicSummary(noMusic),
+                        ["RECORD MUSIC", "CANCEL"]
+                    ) == 0
+                )
+                {
+                    await App.Lobby.GenerateAttractMusicAsync(musicTables);
+                }
+                return;
+            }
             App.Library.PlayStatus =
                 shown.Count == 0
                     ? "Every table shown already has all its VR lobby media."
@@ -263,7 +292,8 @@ public sealed partial class LobbyMediaViewModel(MainViewModel app) : ChildViewMo
             return;
         }
 
-        var filtered = App.Library.Installed.Count < App.Library._allInstalled.Count ? " shown" : "";
+        var filtered =
+            App.Library.Installed.Count < App.Library._allInstalled.Count ? " shown" : "";
         var message =
             $"{shown.Count} of the tables{filtered} are missing some VR lobby media: a playfield video, loading video, "
             + "attract audio or wheel art. Only what's missing is added; nothing you have is replaced.\n\n"
@@ -284,6 +314,13 @@ public sealed partial class LobbyMediaViewModel(MainViewModel app) : ChildViewMo
                 recordable > 0 && fromCatalog > 0 && toRecord.Count > 0
                     ? $"• RECORD VIDEOS ONLY skips the catalog and just records a playfield video in VPX for the {toRecord.Count} "
                         + $"table{(toRecord.Count == 1 ? "" : "s")} without one.\n\n"
+                    : ""
+            )
+            + (
+                noMusic > 0
+                    ? $"• Afterwards, the ROM tables still without music get it recorded from their ROMs. "
+                        + App.Lobby.AttractMusicSummary(noMusic)
+                        + "\n\n"
                     : ""
             )
             + "Cancelling one table's job in the Downloads list skips that table; STOP ends the run. "
@@ -423,5 +460,11 @@ public sealed partial class LobbyMediaViewModel(MainViewModel app) : ChildViewMo
                 skipped,
                 stopped
             ) + await App.Lobby.PrepareHintAsync();
+
+        // Last, the music: its own job under Downloads, several ROMs at a time.
+        if (!stopped && noMusic > 0)
+        {
+            await App.Lobby.GenerateAttractMusicAsync(musicTables, quietIfNone: true);
+        }
     }
 }

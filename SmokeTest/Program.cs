@@ -2971,6 +2971,11 @@ foreach (var (ok, name) in HighScoreChecks.Run())
     Check(ok, name);
 }
 
+foreach (var (ok, name) in RomAudioBatchChecks.Run(root))
+{
+    Check(ok, name);
+}
+
 foreach (var (ok, name) in RomAudioChecks.Run())
 {
     Check(ok, name);

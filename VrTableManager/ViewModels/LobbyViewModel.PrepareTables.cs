@@ -12,8 +12,16 @@ public sealed partial class LobbyViewModel
     [ObservableProperty]
     public partial bool IsPreparingLobbyTables { get; set; }
 
+    /// <summary>Setup → PREPARE TABLES: asks first whether to record missing attract music afterwards.</summary>
     [RelayCommand]
-    async Task PrepareLobbyTablesAsync()
+    Task PrepareLobbyTablesAsync() => PrepareLobbyTablesCoreAsync(music: null);
+
+    /// <summary>
+    /// Reads every table for the lobby; then, as a second job, records the ROM tables' missing attract music when
+    /// <paramref name="music"/> says so (null: asks, with how long it would take, when there is any to record).
+    /// Recording is real time, so it's never slipped silently into PREPARE TABLES.
+    /// </summary>
+    internal async Task PrepareLobbyTablesCoreAsync(bool? music)
     {
         if (IsPreparingLobbyTables)
         {
@@ -52,6 +60,27 @@ public sealed partial class LobbyViewModel
                         out _
                     )
                 );
+
+        var allTables = App.Library._allInstalled.Select(i => i.Table).ToList();
+        var noMusic =
+            music != false && CantGenerateMusicWhy() == null
+                ? (await AttractMusicTodoAsync(allTables)).Count
+                : 0;
+        if (music == null && noMusic > 0)
+        {
+            var pick = await Ui.ChoiceAsync(
+                "Record attract music too?",
+                AttractMusicSummary(noMusic)
+                    + "\n\nIt runs after the tables are prepared, as a job of its own under Downloads, and you can "
+                    + "cancel it there. Setup → VR lobby → Music → GENERATE ATTRACT MUSIC does it on its own any time.",
+                ["PREPARE AND RECORD MUSIC", "PREPARE ONLY"]
+            );
+            if (pick < 0)
+            {
+                return;
+            }
+            music = pick == 0;
+        }
 
         IsPreparingLobbyTables = true;
         var job = new JobItem("Preparing tables for the VR lobby");
@@ -143,15 +172,22 @@ public sealed partial class LobbyViewModel
         {
             IsPreparingLobbyTables = false;
         }
+
+        // The second step you chose: the music, after the tables (also when a few couldn't be read).
+        if (finished && music == true)
+        {
+            await GenerateAttractMusicAsync(allTables);
+        }
     }
 
-    /// <summary>Fewer tables not yet prepared than this aren't worth a question: they're read as they come round.</summary>
+    /// <summary>Fewer tables not yet prepared (or without music) than this aren't worth a question: they're read as they come round.</summary>
     const int AskToPrepareFrom = 20;
 
     /// <summary>
-    /// On LAUNCH VR LOBBY, while many tables haven't been read for the lobby (no cabinet file yet): offers PREPARE
-    /// TABLES first, until ticked off. Shown says whether it asked (then the lobby video tip waits for another
-    /// launch: one question at a time); Launch is false when the launch stops (preparing instead, or closed).
+    /// On LAUNCH VR LOBBY, while many tables haven't been read for the lobby (no cabinet file yet), or many ROM tables
+    /// have no attract music yet: offers PREPARE TABLES and/or recording the music first, until ticked off. Shown says
+    /// whether it asked (then the lobby video tip waits for another launch: one question at a time); Launch is false
+    /// when the launch stops (preparing instead, or closed).
     /// </summary>
     async Task<(bool Shown, bool Launch)> LobbyPrepareTipAsync()
     {
@@ -162,35 +198,76 @@ public sealed partial class LobbyViewModel
 
         var tables = App.Library._allInstalled.Select(i => i.Table).ToList();
         var unprepared = await Task.Run(() => Lobby.CabinetFiles.Unprepared(tables));
-        if (unprepared < AskToPrepareFrom)
+        var noMusic =
+            CantGenerateMusicWhy() == null ? (await AttractMusicTodoAsync(tables)).Count : 0;
+        var prepare = unprepared >= AskToPrepareFrom;
+        if (!prepare && noMusic < AskToPrepareFrom)
         {
             return (false, true);
         }
 
-        string[] buttons = ["PREPARE TABLES FIRST", "LAUNCH VR LOBBY", "LAUNCH, DON'T ASK AGAIN"];
-        var pick = await Ui.ChoiceAsync(
-            "Prepare your tables for the VR lobby?",
-            $"{unprepared} of your tables haven't been prepared for the VR lobby yet. The first time each one comes "
+        const string PrepareFirst = "PREPARE TABLES FIRST",
+            PrepareAndMusic = "PREPARE AND RECORD MUSIC",
+            MusicFirst = "RECORD MUSIC FIRST",
+            Launch = "LAUNCH VR LOBBY",
+            LaunchDontAsk = "LAUNCH, DON'T ASK AGAIN";
+        var music =
+            noMusic > 0
+                ? $"{AttractMusicSummary(noMusic)} Without it, the lobby records a table's music only when you stop on it, "
+                    + "and it takes about half a minute to arrive.\n\n"
+                : "";
+        string title;
+        string text;
+        string[] buttons;
+        if (prepare)
+        {
+            title = "Prepare your tables for the VR lobby?";
+            text =
+                $"{unprepared} of your tables haven't been prepared for the VR lobby yet. The first time each one comes "
                 + "round the ring, the lobby reads its table file for its cabinet and playfield: a few seconds a table, "
                 + "longer on a hard drive, and it waits behind the tables before it.\n\n"
+                + music
                 + "• PREPARE TABLES FIRST reads them all now, in the background: follow it under Downloads, then launch "
                 + "the lobby when it's done. A big library on a hard drive can take an hour or more, once.\n\n"
+                + (
+                    noMusic > 0
+                        ? "• PREPARE AND RECORD MUSIC records the missing music once the tables are read.\n\n"
+                        : ""
+                )
                 + "• Later, Setup → VR lobby → PREPARE TABLES does the same, and only reads tables added or updated "
-                + "since.",
-            buttons
-        );
-        if (pick == 0)
+                + "since.";
+            buttons =
+                noMusic > 0
+                    ? [PrepareFirst, PrepareAndMusic, Launch, LaunchDontAsk]
+                    : [PrepareFirst, Launch, LaunchDontAsk];
+        }
+        else
         {
-            _ = PrepareLobbyTablesCommand.ExecuteAsync(null); // an hour, maybe: not holding LAUNCH VR LOBBY meanwhile
-            return (true, false);
+            title = "Record your tables' attract music?";
+            text =
+                music
+                + "• RECORD MUSIC FIRST records it now: follow it under Downloads, then launch the lobby when it's done.\n\n"
+                + "• Later, Setup → VR lobby → Music → GENERATE ATTRACT MUSIC does the same.";
+            buttons = [MusicFirst, Launch, LaunchDontAsk];
         }
 
-        if (pick == 2)
+        var pick = await Ui.ChoiceAsync(title, text, buttons);
+        var picked = pick >= 0 ? buttons[pick] : null;
+        switch (picked)
         {
-            Settings.AskToPrepareLobbyTables = false;
-            Settings.Save();
+            case PrepareFirst or PrepareAndMusic:
+                // An hour, maybe: not holding LAUNCH VR LOBBY meanwhile.
+                _ = PrepareLobbyTablesCoreAsync(music: picked == PrepareAndMusic);
+                return (true, false);
+            case MusicFirst:
+                _ = GenerateAttractMusicAsync(tables);
+                return (true, false);
+            case LaunchDontAsk:
+                Settings.AskToPrepareLobbyTables = false;
+                Settings.Save();
+                break;
         }
-        return (true, pick is 1 or 2);
+        return (true, picked is Launch or LaunchDontAsk);
     }
 
     /// <summary>After GET LOBBY MEDIA: " …PREPARE TABLES…" while many tables haven't been prepared, else "".</summary>
