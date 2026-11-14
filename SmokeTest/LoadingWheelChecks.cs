@@ -131,6 +131,89 @@ static class LoadingWheelChecks
                 Math.Abs(played - seconds) < 0.5,
                 $"the frames play as long as the video lasts ({played:0.0} s of frames for {seconds:0.0} s of video)"
             );
+
+            // The same video turned anticlockwise: the frames take the turned shape, and it remembers its video.
+            var turnedDest = Path.Combine(root, "loading-real-turned");
+            var turned = VideoFrames.LoadingFromVideo(
+                real,
+                turnedDest,
+                CancellationToken.None,
+                -1,
+                rememberSource: true
+            );
+            yield return (
+                turned != null
+                    && made != null
+                    && turned.Width == made.Height
+                    && turned.Height == made.Width
+                    && LoadingVideo.OriginIn(turnedDest) is { QuarterTurns: 3 } o
+                    && o.Video == Path.GetFullPath(real),
+                $"a real .mp4 turned 90° anticlockwise swaps its shape ({made?.Width}×{made?.Height} → {turned?.Width}×{turned?.Height}) and remembers its video"
+            );
+        }
+
+        // A launch video made sideways (for a cabinet screen) turned a quarter either way: the frames take the turned
+        // shape, and the picture turns the right way. A 64×32 frame, red on the left, blue on the right: clockwise
+        // puts the left side at the top, anticlockwise at the bottom.
+        var wide = new byte[64 * 32 * 4];
+        for (var y = 0; y < 32; y++)
+        {
+            for (var x = 0; x < 64; x++)
+            {
+                var p = (y * 64 + x) * 4;
+                (wide[p], wide[p + 2], wide[p + 3]) =
+                    x < 32 ? ((byte)255, (byte)0, (byte)255) : ((byte)0, (byte)255, (byte)255);
+            }
+        }
+        static string TopBottom(string folder)
+        {
+            using var bmp = SkiaSharp.SKBitmap.Decode(LobbyVideo.FramePath(folder, 0));
+            static string C(SkiaSharp.SKColor c) =>
+                c.Red > 180 && c.Blue < 80 ? "red"
+                : c.Blue > 180 && c.Red < 80 ? "blue"
+                : "?";
+            return $"{bmp.Width}×{bmp.Height} {C(bmp.GetPixel(bmp.Width / 2, bmp.Height / 4))}/{C(bmp.GetPixel(bmp.Width / 2, bmp.Height * 3 / 4))}";
+        }
+        foreach (
+            var (turns, expect, way) in new[]
+            {
+                (1, "32×64 red/blue", "clockwise"),
+                (-1, "32×64 blue/red", "anticlockwise"),
+            }
+        )
+        {
+            var turned = Path.Combine(root, "loading-turned-" + way);
+            using (var b = new LobbyVideo.Builder(turned, "loading", LoadingVideo.Fps))
+            {
+                VideoFrames.WriteLoadingFrames(b, [(64, 32, wide), (64, 32, wide)], turns);
+                b.Commit();
+            }
+            var info = LoadingVideo.In(turned)?.Info;
+            yield return (
+                info is { Width: 32, Height: 64, Frames: 2 } && TopBottom(turned) == expect,
+                $"a sideways video turned 90° {way} comes out tall and upright ({info?.Width}×{info?.Height}, frame {TopBottom(turned)})"
+            );
+        }
+
+        // Turning an already-made loading video (a media pack's, whose video is gone) turns its frames, keeps its sound.
+        var made2 = Path.Combine(root, "loading-turned-clockwise");
+        File.WriteAllBytes(Path.Combine(made2, LoadingVideo.AudioName + ".mp3"), [1, 2, 3]);
+        LoadingVideo.WriteOrigin(made2, new(null, 1));
+        var back = VideoFrames.RotateLoading(made2, -1, CancellationToken.None);
+        yield return (
+            back is { Width: 64, Height: 32, Frames: 2 }
+                && LoadingVideo.AudioIn(made2) != null
+                && LoadingVideo.OriginIn(made2) is { Video: null, QuarterTurns: 0 },
+            $"rotating a made loading video back anticlockwise turns its frames back ({back?.Width}×{back?.Height}), keeps its sound and counts the turn"
+        );
+        using (var left = SkiaSharp.SKBitmap.Decode(LobbyVideo.FramePath(made2, 0)))
+        {
+            var l = left.GetPixel(8, 16);
+            var r = left.GetPixel(56, 16);
+            yield return (
+                l.Red > 180 && l.Blue < 80 && r.Blue > 180 && r.Red < 80,
+                "…with red back on the left and blue on the right"
+            );
         }
 
         // Replacing a video swaps whole folders, so it's always the old one or the new one, never a mix.

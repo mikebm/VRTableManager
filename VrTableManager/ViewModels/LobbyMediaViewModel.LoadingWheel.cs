@@ -48,7 +48,7 @@ public sealed partial class LobbyMediaViewModel
             return;
         }
 
-        if (await PickLoadingVideoAsync($"Choose a loading video for {item.Title}") is not { } file)
+        if (await PickLoadingVideoAsync($"Choose a loading video for {item.Title}") is not { } pick)
         {
             return;
         }
@@ -62,7 +62,8 @@ public sealed partial class LobbyMediaViewModel
         {
             if (
                 await MakeLoadingVideoAsync(
-                    file,
+                    pick.File,
+                    pick.QuarterTurns,
                     LoadingVideo.TableFolder(table.Folder),
                     table.Manifest.GameName,
                     "while this table starts"
@@ -113,15 +114,129 @@ public sealed partial class LobbyMediaViewModel
         }
     }
 
-    internal Task<string?> PickLoadingVideoAsync(string title) =>
-        Ui.PickFileAsync(
+    [RelayCommand(AllowConcurrentExecutions = true)]
+    async Task RotateLoadingVideo(InstalledItem item)
+    {
+        var table = item.Table;
+        if (!item.HasLoadingVideo || !App.Library.TryBeginBusy(table.TablePath))
+        {
+            return;
+        }
+
+        try
+        {
+            await RotateLoadingVideoAsync(
+                LoadingVideo.TableFolder(table.Folder),
+                item.Title,
+                "while this table starts"
+            );
+        }
+        finally
+        {
+            App.Library.EndBusy(table.TablePath);
+        }
+    }
+
+    /// <summary>A video file to make a loading video from, and which way to turn it (asked after the file); null when cancelled.</summary>
+    internal async Task<(string File, int QuarterTurns)?> PickLoadingVideoAsync(string title)
+    {
+        var file = await Ui.PickFileAsync(
             title,
             VideoFiles,
             startFolder: Environment.GetFolderPath(Environment.SpecialFolder.MyVideos)
         );
+        if (file == null)
+        {
+            return null;
+        }
 
-    /// <summary>Turns a video into a loading video in <paramref name="folder"/>, as a job. True when it worked.</summary>
-    internal async Task<bool> MakeLoadingVideoAsync(string video, string folder, string forWhat, string when)
+        var pick = await Ui.ChoiceAsync(
+            "Rotation",
+            $"{Path.GetFileName(file)}\n\nSome PinUP Popper launch videos were made turned a quarter, for a cabinet's "
+                + "screen, so they show sideways. Turn it so it's upright; its shape turns with it.",
+            ["NONE", "90° CLOCKWISE", "90° ANTICLOCKWISE", "CANCEL"]
+        );
+        return pick switch
+        {
+            0 => (file, 0),
+            1 => (file, 1),
+            2 => (file, -1),
+            _ => null,
+        };
+    }
+
+    /// <summary>
+    /// Turns the loading video in <paramref name="folder"/> a quarter, as a job: made again from the video you
+    /// chose when it's still there (no quality lost), else by turning its frames. True when it worked.
+    /// </summary>
+    internal async Task<bool> RotateLoadingVideoAsync(string folder, string forWhat, string when)
+    {
+        var origin = LoadingVideo.OriginIn(folder);
+        var source = origin?.Video is { } v && File.Exists(v) ? v : null;
+        var pick = await Ui.ChoiceAsync(
+            $"Rotate the loading video for {forWhat}",
+            "Turns it a quarter, keeping its shape (a wide video becomes a tall one). "
+                + (
+                    source != null
+                        ? $"It's made again from {Path.GetFileName(source)}."
+                        : "Its frames are turned (the video it came from isn't at hand any more)."
+                ),
+            ["90° CLOCKWISE", "90° ANTICLOCKWISE", "CANCEL"]
+        );
+        if (pick is not (0 or 1))
+        {
+            return false;
+        }
+
+        var turn = pick == 0 ? 1 : -1;
+        var way = turn > 0 ? "clockwise" : "anticlockwise";
+        if (source != null)
+        {
+            return await MakeLoadingVideoAsync(
+                source,
+                origin!.QuarterTurns + turn,
+                folder,
+                forWhat,
+                $"{when}, now turned {way}"
+            );
+        }
+
+        var job = new JobItem($"Loading video for {forWhat}") { FileNames = [forWhat] };
+        App.Downloads.Jobs.Insert(0, job);
+        try
+        {
+            job.Report("Turning the loading screen's frames…");
+            var info = await Task.Run(() => VideoFrames.RotateLoading(folder, turn, job.Cts.Token));
+            job.Finish(
+                info == null
+                    ? "There's no loading video to turn."
+                    : $"✓ Turned the loading video {way}: {info.Width}×{info.Height} now.",
+                error: info == null
+            );
+            return info != null;
+        }
+        catch (OperationCanceledException)
+        {
+            job.Finish("Cancelled", error: true);
+        }
+        catch (Exception e)
+        {
+            job.Finish("Couldn't turn the loading video: " + e.Message, error: true);
+        }
+        return false;
+    }
+
+    /// <summary>
+    /// Turns a video into a loading video in <paramref name="folder"/>, turned <paramref name="quarterTurns"/>
+    /// clockwise (−1 anticlockwise), as a job. True when it worked.
+    /// </summary>
+    internal async Task<bool> MakeLoadingVideoAsync(
+        string video,
+        int quarterTurns,
+        string folder,
+        string forWhat,
+        string when
+    )
     {
         var job = new JobItem($"Loading video for {forWhat}") { FileNames = [forWhat] };
         App.Downloads.Jobs.Insert(0, job);
@@ -129,7 +244,13 @@ public sealed partial class LobbyMediaViewModel
         {
             job.Report("Making the loading screen's frames…");
             var info = await Task.Run(() =>
-                VideoFrames.LoadingFromVideo(video, folder, job.Cts.Token)
+                VideoFrames.LoadingFromVideo(
+                    video,
+                    folder,
+                    job.Cts.Token,
+                    quarterTurns,
+                    rememberSource: true
+                )
             );
             if (info == null)
             {
@@ -161,7 +282,9 @@ public sealed partial class LobbyMediaViewModel
     internal IReadOnlyList<(MediaPackAudio.Source Source, bool WheelPack)> WheelArtSourcesFor(
         InstalledTable t
     ) =>
-        t.HasOwnFolder && t.Manifest.GameId != "" && App.Catalog.CatalogGame(t.Manifest.GameId) is { } game
+        t.HasOwnFolder
+        && t.Manifest.GameId != ""
+        && App.Catalog.CatalogGame(t.Manifest.GameId) is { } game
             ? WheelArt.SourcesFor(game)
             : [];
 
@@ -221,5 +344,4 @@ public sealed partial class LobbyMediaViewModel
             i.HasWheelArt = on;
         }
     }
-
 }

@@ -75,6 +75,8 @@
             <WrapPanel>
               <Button Classes="small" Content="CHOOSE A VIDEO…" Margin="0,0,8,0" Command="{Binding ChooseDefaultLoadingVideoCommand}"
                       ToolTip.Tip="Any video file (.mp4 works best), such as one of the generic loading videos front-end users share. The first 30 seconds are used, with their sound." />
+              <Button Classes="small" Content="ROTATE…" Margin="0,0,8,0" IsVisible="{Binding HasDefaultLoadingVideo}" Command="{Binding RotateDefaultLoadingVideoCommand}"
+                      ToolTip.Tip="Turns it a quarter, clockwise or anticlockwise, for a video made sideways for a cabinet's screen. Its shape turns with it." />
               <Button Classes="small" Content="REMOVE" IsVisible="{Binding HasDefaultLoadingVideo}" Command="{Binding RemoveDefaultLoadingVideoCommand}" />
             </WrapPanel>
           </StackPanel>

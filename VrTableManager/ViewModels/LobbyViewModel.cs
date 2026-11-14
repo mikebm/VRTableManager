@@ -279,14 +279,26 @@ public sealed partial class LobbyViewModel(MainViewModel app) : ChildViewModel(a
     {
         if (
             await App.Media.PickLoadingVideoAsync("Choose a loading video for every table")
-            is not { } file
+            is not { } pick
         )
         {
             return;
         }
 
         await App.Media.MakeLoadingVideoAsync(
-            file,
+            pick.File,
+            pick.QuarterTurns,
+            LoadingVideo.DefaultFolder,
+            "every table",
+            "while a table without its own starts"
+        );
+        RefreshDefaultLoadingVideo();
+    }
+
+    [RelayCommand]
+    async Task RotateDefaultLoadingVideo()
+    {
+        await App.Media.RotateLoadingVideoAsync(
             LoadingVideo.DefaultFolder,
             "every table",
             "while a table without its own starts"

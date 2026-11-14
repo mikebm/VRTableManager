@@ -52,6 +52,41 @@ public static class LoadingVideo
     /// <summary>What plays while <paramref name="t"/> starts: its own loading video, else the one for every table, else null.</summary>
     public static Video? For(InstalledTable t) => Own(t) ?? In(DefaultFolder);
 
+    /// <summary>
+    /// Where a loading video's frames came from, kept beside them in <see cref="OriginFile"/> so it can be turned
+    /// again from the video itself: the video you chose (null for a media pack's, whose copy is deleted) and the
+    /// clockwise quarter turns its frames were given.
+    /// </summary>
+    public sealed record Origin(string? Video, int QuarterTurns);
+
+    public const string OriginFile = "source.json";
+
+    /// <summary>The <see cref="Origin"/> saved in <paramref name="folder"/>, or null (none: made before it was kept).</summary>
+    public static Origin? OriginIn(string folder)
+    {
+        try
+        {
+            var path = Path.Combine(folder, OriginFile);
+            return File.Exists(path)
+                ? System.Text.Json.JsonSerializer.Deserialize<Origin>(File.ReadAllText(path))
+                : null;
+        }
+        catch (Exception e)
+            when (e is IOException or System.Text.Json.JsonException or UnauthorizedAccessException)
+        {
+            return null;
+        }
+    }
+
+    public static void WriteOrigin(string folder, Origin origin) =>
+        File.WriteAllText(
+            Path.Combine(folder, OriginFile),
+            System.Text.Json.JsonSerializer.Serialize(origin)
+        );
+
+    /// <summary>Clockwise quarter turns as 0–3 (−1, anticlockwise, is 3).</summary>
+    public static int Turns(int quarterTurns) => ((quarterTurns % 4) + 4) % 4;
+
     public static void Remove(string folder)
     {
         if (Directory.Exists(folder))
@@ -73,13 +108,20 @@ public static class LoadingVideo
         return (Even(w * scale), Even(h * scale));
     }
 
+    /// <summary><see cref="FrameSize(int, int)"/> after <paramref name="quarterTurns"/> clockwise quarter turns (odd turns swap the sides).</summary>
+    public static (int W, int H) FrameSize(int w, int h, int quarterTurns) =>
+        Turns(quarterTurns) % 2 == 1 ? FrameSize(h, w) : FrameSize(w, h);
+
     /// <summary>
     /// How good a media pack entry is as the table's loading video, or null when it isn't one. PinUP Popper keeps
     /// it in <c>Loading\</c>; some packs name it "… loading …" or put it with the launch media.
     /// </summary>
     public static int? Score(string entryPath, long size, string gameName)
     {
-        if (size <= 0 || !LobbyVideo.VideoExts.Contains(Path.GetExtension(entryPath).ToLowerInvariant()))
+        if (
+            size <= 0
+            || !LobbyVideo.VideoExts.Contains(Path.GetExtension(entryPath).ToLowerInvariant())
+        )
         {
             return null;
         }

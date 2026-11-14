@@ -319,6 +319,9 @@
                     <MenuItem Header="{Binding OwnLoadingVideoMenuHeader}"
                               ToolTip.Tip="Turns a video file you have (.mp4 works best) into the video the VR lobby plays while this table starts, with its sound; the first 30 seconds, looping if the table takes longer"
                               IsEnabled="{Binding !IsBusy}" Command="{Binding Owner.Media.UseOwnLoadingVideoCommand}" CommandParameter="{Binding}" />
+                    <MenuItem Header="Rotate loading video…" IsVisible="{Binding HasLoadingVideo}"
+                              ToolTip.Tip="Turns this table's loading video a quarter, clockwise or anticlockwise, for a launch video made sideways for a cabinet's screen. Its shape turns with it."
+                              IsEnabled="{Binding !IsBusy}" Command="{Binding Owner.Media.RotateLoadingVideoCommand}" CommandParameter="{Binding}" />
                     <MenuItem Header="Remove loading video" IsVisible="{Binding HasLoadingVideo}" IsEnabled="{Binding !IsBusy}" Command="{Binding Owner.Media.RemoveLoadingVideoCommand}" CommandParameter="{Binding}" />
                   </MenuItem>
                   <MenuItem Header="Attract audio">

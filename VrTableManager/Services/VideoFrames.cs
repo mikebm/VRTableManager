@@ -27,7 +27,14 @@ public sealed class VideoFrames : LobbyVideo.IFrameSink
     )
     {
         using var src = ToBitmap(width, height, rgba);
-        quarterTurns = ((quarterTurns % 4) + 4) % 4;
+        WriteFit(src, quarterTurns, destJpg, outW, outH);
+    }
+
+    static void WriteFit(SKBitmap src, int quarterTurns, string destJpg, int outW, int outH)
+    {
+        int width = src.Width,
+            height = src.Height;
+        quarterTurns = LoadingVideo.Turns(quarterTurns);
         var (w, h) = quarterTurns % 2 == 1 ? (height, width) : (width, height);
         // Fit inside the frame, keeping the shape; pad with black.
         var scale = Math.Min((float)outW / w, (float)outH / h);
@@ -301,34 +308,25 @@ public sealed class VideoFrames : LobbyVideo.IFrameSink
     /// <summary>
     /// Turns a video into a loading video in <paramref name="folder"/> (<see cref="LoadingVideo"/>): its first
     /// <see cref="LoadingVideo.MaxSeconds"/> s at its own shape, plus its sound track from the very start (so it
-    /// stays in time with the pictures). Null when Windows can't decode the video.
+    /// stays in time with the pictures). <paramref name="quarterTurns"/> turns each frame clockwise first (−1 is
+    /// anticlockwise), for videos made sideways for a cabinet screen; the frames take the turned shape. With
+    /// <paramref name="rememberSource"/> the video's path is kept so it can be turned again from the video itself.
+    /// Null when Windows can't decode the video.
     /// </summary>
     public static LobbyVideo.Info? LoadingFromVideo(
         string video,
         string folder,
-        CancellationToken ct
+        CancellationToken ct,
+        int quarterTurns = 0,
+        bool rememberSource = false
     )
     {
         using var builder = new LobbyVideo.Builder(folder, "loading", LoadingVideo.Fps);
-        foreach (
-            var (w, h, rgba) in DecodeVideo(video, LoadingVideo.Fps, LoadingVideo.MaxFrames, ct)
-        )
-        {
-            if (builder.Count == 0)
-            {
-                (builder.FrameWidth, builder.FrameHeight) = LoadingVideo.FrameSize(w, h);
-            }
-
-            WriteFit(
-                w,
-                h,
-                rgba,
-                0,
-                builder.NextFramePath(),
-                builder.FrameWidth,
-                builder.FrameHeight
-            );
-        }
+        WriteLoadingFrames(
+            builder,
+            DecodeVideo(video, LoadingVideo.Fps, LoadingVideo.MaxFrames, ct),
+            quarterTurns
+        );
         if (builder.Count == 0)
         {
             return null;
@@ -351,6 +349,93 @@ public sealed class VideoFrames : LobbyVideo.IFrameSink
             );
         }
 
+        LoadingVideo.WriteOrigin(
+            builder.Staging,
+            new(rememberSource ? Path.GetFullPath(video) : null, LoadingVideo.Turns(quarterTurns))
+        );
+        return builder.Commit();
+    }
+
+    /// <summary>
+    /// Writes decoded frames as loading video frames: turned <paramref name="quarterTurns"/> clockwise, at the
+    /// turned shape (<see cref="LoadingVideo.FrameSize(int, int, int)"/> of the first frame).
+    /// </summary>
+    public static void WriteLoadingFrames(
+        LobbyVideo.Builder builder,
+        IEnumerable<(int Width, int Height, byte[] Rgba)> frames,
+        int quarterTurns
+    )
+    {
+        foreach (var (w, h, rgba) in frames)
+        {
+            if (builder.Count == 0)
+            {
+                (builder.FrameWidth, builder.FrameHeight) = LoadingVideo.FrameSize(
+                    w,
+                    h,
+                    quarterTurns
+                );
+            }
+
+            WriteFit(
+                w,
+                h,
+                rgba,
+                quarterTurns,
+                builder.NextFramePath(),
+                builder.FrameWidth,
+                builder.FrameHeight
+            );
+        }
+    }
+
+    /// <summary>
+    /// Turns the loading video already in <paramref name="folder"/> a further <paramref name="quarterTurns"/>
+    /// clockwise (−1 is anticlockwise), frame by frame, keeping its sound. For one whose video isn't at hand any
+    /// more (a media pack's); one made from a video you still have is better made again from that video. Null when
+    /// there's no loading video there.
+    /// </summary>
+    public static LobbyVideo.Info? RotateLoading(
+        string folder,
+        int quarterTurns,
+        CancellationToken ct
+    )
+    {
+        if (LoadingVideo.In(folder) is not { } video)
+        {
+            return null;
+        }
+
+        var info = video.Info;
+        var turns = LoadingVideo.Turns(quarterTurns);
+        var origin = LoadingVideo.OriginIn(folder);
+        using var builder = new LobbyVideo.Builder(folder, info.Source, info.Fps);
+        (builder.FrameWidth, builder.FrameHeight) =
+            turns % 2 == 1 ? (info.Height, info.Width) : (info.Width, info.Height);
+        for (var i = 0; i < info.Frames; i++)
+        {
+            ct.ThrowIfCancellationRequested();
+            using var frame =
+                SKBitmap.Decode(LobbyVideo.FramePath(folder, i))
+                ?? throw new InvalidDataException($"Frame {i} can't be read.");
+            WriteFit(
+                frame,
+                turns,
+                builder.NextFramePath(),
+                builder.FrameWidth,
+                builder.FrameHeight
+            );
+        }
+
+        if (video.Audio != null)
+        {
+            File.Copy(video.Audio, Path.Combine(builder.Staging, Path.GetFileName(video.Audio)));
+        }
+
+        LoadingVideo.WriteOrigin(
+            builder.Staging,
+            new(origin?.Video, LoadingVideo.Turns((origin?.QuarterTurns ?? 0) + turns))
+        );
         return builder.Commit();
     }
 
