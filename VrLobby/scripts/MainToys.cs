@@ -32,6 +32,9 @@ public partial class Main
             return;
         }
 
+        // Setup offers toys or parallax, not both: with toys, no playfield gets a height map (a table without toys, or
+        // over the budget, plays its video flat), and none are read or built.
+        _noDepth = true;
         AddChild(_toyLoader);
         _toyLoader.ToysReady += (vpx, _) => Trace("toys " + Path.GetFileNameWithoutExtension(vpx));
     }
