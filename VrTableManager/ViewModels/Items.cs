@@ -486,7 +486,7 @@ public sealed partial class InstalledItem : ObservableObject
     public string WheelArtMenuHeader =>
         HasWheelArt ? "Replace wheel art (from the catalog)" : "Get wheel art for the VR lobby";
 
-    /// <summary>medias\lobby-video is in the table folder (the VR lobby plays it on the selected cabinet's playfield).</summary>
+    /// <summary>medias\lobby-video is in the table folder (the VR lobby plays it on the table's cabinet while it's in view).</summary>
     [ObservableProperty, NotifyPropertyChangedFor(nameof(LobbyVideoMenuHeader))]
     public partial bool HasLobbyVideo { get; set; }
 

@@ -13,7 +13,7 @@ public sealed partial class LobbyViewModel(MainViewModel app) : ChildViewModel(a
     [ObservableProperty]
     public partial bool LobbyRecordsRomAudio { get; set; }
 
-    /// <summary>The VR lobby plays lobby videos on the selected cabinet's playfield.</summary>
+    /// <summary>The VR lobby plays lobby videos on the playfields of the cabinets in view.</summary>
     [ObservableProperty]
     public partial bool LobbyPlayfieldVideos { get; set; }
 

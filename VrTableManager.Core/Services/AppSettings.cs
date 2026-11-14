@@ -198,7 +198,7 @@ public sealed class AppSettings
     public bool LobbyRecordsRomAudio { get; set; } = true;
 
     /// <summary>
-    /// The selected cabinet's playfield plays the table's lobby video (medias\lobby-video), with its depth map. Off:
+    /// Cabinets in view play their table's lobby video on the playfield (medias\lobby-video), with its depth map. Off:
     /// still playfields, and the lobby never reads the videos or builds depth maps (weaker PCs, slow drives, testing).
     /// </summary>
     public bool LobbyPlayfieldVideos { get; set; } = true;

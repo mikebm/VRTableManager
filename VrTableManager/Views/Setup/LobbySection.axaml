@@ -94,8 +94,8 @@
                       ToolTip.Tip="Reads every table now, in the background: follow it under Downloads. A big library on a hard drive can take an hour or more the first time; you can keep using the app meanwhile." />
             </WrapPanel>
             <CheckBox IsChecked="{Binding LobbyPlayfieldVideos}"
-                      Content="Play lobby videos on the selected cabinet's playfield"
-                      ToolTip.Tip="Off: playfields stay still pictures, and the lobby neither reads the videos nor works out their depth. For slower PCs and hard drives, or to compare." />
+                      Content="Play lobby videos on the cabinets' playfields"
+                      ToolTip.Tip="Every cabinet you can see plays its table's lobby video on its playfield, with the ramps and toys standing up, so the ones you turn towards are already moving. Turn it off on a slower PC or a hard drive: playfields stay still pictures, and the lobby doesn't read the videos at all." />
           </StackPanel>
         </Border>
 
