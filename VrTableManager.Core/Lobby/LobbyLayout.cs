@@ -27,9 +27,6 @@ public static class LobbyLayout
     /// <summary>The selected cabinet steps out of the ring to about arm's length (its front, in metres).</summary>
     public const double SelectedFront = 0.9;
 
-    /// <summary>Cabinets on the ring turn this much further away from the selected one, so it stands out.</summary>
-    public static readonly double AngleAway = Deg(12);
-
     /// <summary>The angle between neighbours at the defaults.</summary>
     public static readonly double BaseStep = Deg(34);
 
@@ -221,8 +218,8 @@ public static class LobbyLayout
         var focus = Math.Clamp(1 - Math.Abs(offset), 0, 1);
         var front = ring.RingFront + (SelectedFront - ring.RingFront) * focus;
         var dist = front + ring.CabinetLength / 2;
-        var yaw = -a + Math.Sign(offset) * Math.Min(Math.Abs(offset), 1) * AngleAway;
-        return (Math.Sin(a) * dist, -Math.Cos(a) * dist, yaw, focus);
+        // Every cabinet's front faces you, wherever it stands on the ring (or part-way through a turn of it).
+        return (Math.Sin(a) * dist, -Math.Cos(a) * dist, -a, focus);
     }
 
     /// <summary>"11 cabinets, 34° apart, 2.1 m from you": shown under the controls on Setup.</summary>

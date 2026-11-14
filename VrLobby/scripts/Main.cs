@@ -7,7 +7,7 @@ namespace VrLobby;
 /// <summary>
 /// VR Pinball Lobby: your tables as 3D pinball cabinets standing in a ring around you, in a dark
 /// room with neon trim. The selected cabinet steps in front of you under a spotlight; the rest
-/// wait around the ring, angled away and dimmed. An A–Z rail (or manufacturer / decade rail) at
+/// wait around the ring, facing you and dimmed. An A–Z rail (or manufacturer / decade rail) at
 /// knee height jumps between groups. Without a headset it runs in a window with the keyboard.
 /// </summary>
 public partial class Main : Node3D
@@ -1161,8 +1161,8 @@ public partial class Main : Node3D
                 RequestArt(cab);
             }
 
-            // Where on the ring (LobbyLayout.Place, shared with SmokeTest's overlap checks): facing you, neighbours
-            // turned a little away so the selected one stands out, which steps up to arm's length.
+            // Where on the ring (LobbyLayout.Place, shared with SmokeTest's overlap checks): every front faces you,
+            // and the selected one steps up to arm's length.
             var spot = LobbyLayout.Place(_layout, i - _scroll);
             cab.Position = new Vector3((float)spot.X, 0, (float)spot.Z);
             cab.Rotation = new Vector3(0, (float)spot.Yaw, 0);
