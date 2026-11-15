@@ -150,16 +150,18 @@ An alternative to the height map (section 2), off by default (`AppSettings.Lobby
 
 ### Picking toys: `VpxCabinet.Toys`
 
-- Visible, textured 3D primitives in playfield space, standing at least 5 mm up and at most 45 cm, inside the playfield's outline (with a small margin).
+- Visible 3D primitives with a picture or a material (metal rails, wire guides and brackets often have only a material, and are drawn in its colour), standing at least 5 mm up and at most 45 cm, inside the playfield's outline (with a small margin).
 - Left out:
-  - cabinet parts (`Pick`) and the edge parts the default cabinet copies onto its walls (`EdgePrims`);
-  - lightmaps (`LM_`) and `…Off` variants;
+  - cabinet parts (`Pick`), and of the edge parts the default cabinet may copy onto its walls (`EdgePrims`), those that are only wall by the cabinet's own numbers (`IsWallOnly`): 90% of their vertices in the outer bands; sides at most 3 cm deep, 2 cm high and along 70% of the playfield; a back board at least 10 cm high and a fifth of the width. Ramps, rails and screws that only reach the edge, and walls the cabinet wouldn't keep, stay toys: skipped here, they showed nowhere;
+  - parts with thousands of vertices on a tiny footprint (over 5,000, and over 10,000 to a cm² of floor): high-poly posts, lock nuts and the like (Batman 66's posts are 25,000 each);
+  - lightmaps (`LM_`);
   - parts named as the playfield, cabinet, room, glass, reflection or shadow (`NotToy`), matched as words so that "Mushroom" or "Hourglass" stay;
   - flat playfield-sized layers.
 - Duplicates the script shows one at a time are dropped:
   - flipper-up poses (`BM_LeftFlipperUp`, `BM_FlipperLUp`);
   - `…Alt` options;
-  - lit `…_on` copies beside the unlit one;
+  - lit `…_on` copies beside the unlit one, and unlit `…off` copies beside the lit one (The Addams Family's `RGP9_GI1_5off`);
+  - GI pairs (`…gioff` shown, `…gion` hidden until the script swaps them, Tales of the Arabian Nights's ramp and plastics): the lit copy is drawn, hidden or not. An `…off` part with no lit twin is kept, being the only copy;
   - animation frames (`BM_LeftSling1` to `4`: same stem and picture, same place within 1 cm). The lowest number is kept.
 - The back board the cabinet takes out of a baked mesh (`BakedBackBoard`, `BM_Parts_BackBoard`) is cut out of the toys' copy too.
 - Normals that aren't finite become "up". Godot warned once per bad normal, and Die Hard Trilogy's `BM_BIPL` held the lobby for a second.

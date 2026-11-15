@@ -562,6 +562,13 @@ public partial class TableToysLoader : Node
             Roughness = m != null ? Mathf.Clamp(1f - m.Roughness, 0.06f, 1f) : 0.6f,
             Metallic = m is { IsMetal: true } ? 1f : 0f,
         };
+        // No picture (metal rails, wire guides, brackets): the material's colour, as the cabinets draw such parts.
+        if (tex == null && m != null)
+        {
+            var (r, g, b) = m.Rgb;
+            mat.AlbedoColor = new Color(r, g, b);
+        }
+
         // VPX uses a picture's alpha only on a material with opacity on: VPW's solid bakes ("VLM.Bake.Solid") share
         // sheets whose alpha is junk where they're solid, and cut out they left holes in Fish Tales's apron cards.
         if (m is { OpacityActive: false })
@@ -584,7 +591,7 @@ public partial class TableToysLoader : Node
         if (m is { OpacityActive: true, Opacity: < 0.99f })
         {
             mat.Transparency = BaseMaterial3D.TransparencyEnum.Alpha;
-            mat.AlbedoColor = new Color(1, 1, 1, Mathf.Clamp(m.Opacity, 0.35f, 1f));
+            mat.AlbedoColor = new Color(mat.AlbedoColor, Mathf.Clamp(m.Opacity, 0.35f, 1f));
         }
         if (selfLit >= 0.5f)
         {
@@ -603,7 +610,7 @@ public partial class TableToysLoader : Node
 static class ToyCache
 {
     /// <summary>Bump when what TableToysLoader.Parse makes changes.</summary>
-    const int Version = 7; // 7: big meshes in 60k-vertex pieces, pictures at 1024 past 8 of them; 6: toy names matched as words (not "Mushroom", "Hourglass"), the lowest-numbered pose kept; 5: lit "_on" copies dropped; 4: the back board the cabinet takes out of a baked mesh left out; 3: broken normals made finite; 2: animation frames, flipper-up poses and Alt options dropped
+    const int Version = 9; // 9: lit "…gion" copies drawn in place of unlit "…gioff" ones, walls told by their vertices; 8: ramps and rails reaching the playfield's edge kept (only thin walls left to the cabinet), parts with a material but no picture kept; 7: big meshes in 60k-vertex pieces, pictures at 1024 past 8 of them; 6: toy names matched as words (not "Mushroom", "Hourglass"), the lowest-numbered pose kept; 5: lit "_on" copies dropped; 4: the back board the cabinet takes out of a baked mesh left out; 3: broken normals made finite; 2: animation frames, flipper-up poses and Alt options dropped
     static readonly byte[] Magic = "VTMTOY"u8.ToArray();
 
     public static string DefaultDir => VrTableManager.Lobby.ToyFiles.Dir;

@@ -40,10 +40,10 @@ public static partial class VpxCabinet
     );
 
     /// <summary>
-    /// The table's toys: its visible, textured 3D primitives standing on the playfield (up to 45 cm above it, within its
-    /// outline), not cabinet parts (<see cref="Load"/>'s or <see cref="LooksLikeCabinetPart"/>-named ones on the
-    /// playfield's edge), not the VR room, not VLM lightmaps ("LM_"), not the playfield's own mesh or anything else lying
-    /// flat on it, and not the edge parts the lobby already copies onto the default cabinet's walls. VPX ramps, walls and
+    /// The table's toys: its visible 3D primitives with a picture or a material, standing on the playfield (up to 45 cm
+    /// above it, within its outline), not cabinet parts (<see cref="Load"/>'s or <see cref="LooksLikeCabinetPart"/>-named
+    /// ones on the playfield's edge), not the VR room, not VLM lightmaps ("LM_"), not the playfield's own mesh or anything
+    /// else lying flat on it, and not the thin wall parts the lobby copies onto the default cabinet's walls. VPX ramps, walls and
     /// rubbers (built from curves) are left out: tables built from those (most older ones) have few toys this way.
     /// Over <paramref name="maxVertices"/> in all, no parts come back, only the count. Null when the table can't be read.
     /// </summary>
@@ -61,20 +61,61 @@ public static partial class VpxCabinet
 
             ShowScriptShown(t, vpxPath);
             var picked = Pick(t);
-            var skip = picked.Concat(EdgePrims(t, picked)).ToHashSet();
             const float cm = 1f / 100f / VpuToMetres;
+            // Lit and unlit copies of a part, "…gioff" and "…gion" (Tales of the Arabian Nights's ramp, plastics, screws
+            // and walls): the file shows the unlit one and the script swaps in the lit one, or hides both until it
+            // starts. Drawn once, lit, as the video shows the table: dropping the unlit copy and skipping the hidden lit
+            // one left that table's back half bare.
+            var byName = t
+                .Prims.GroupBy(p => p.Name, StringComparer.OrdinalIgnoreCase)
+                .ToDictionary(g => g.Key, g => g.First(), StringComparer.OrdinalIgnoreCase);
+            var litOf = new Dictionary<Prim, Prim>();
+            foreach (var p in t.Prims.Where(p => OffVariant.IsMatch(p.Name)))
+            {
+                var i = p.Name.LastIndexOf("off", StringComparison.OrdinalIgnoreCase);
+                if (
+                    i >= 0
+                    && byName.TryGetValue(p.Name[..i] + "on" + p.Name[(i + 3)..], out var lit)
+                    && lit != p
+                )
+                {
+                    litOf[p] = lit;
+                }
+            }
+            var unlitOf = litOf
+                .GroupBy(kv => kv.Value)
+                .ToDictionary(g => g.Key, g => g.First().Key);
+            // Of the edge parts the lobby may copy onto the default cabinet's walls, only the walls themselves: all
+            // but a few of their vertices in the outer bands, each band's no more than 4 cm deep. The rest (Medieval
+            // Madness's wire ramps, Attack from Mars's chrome rails and clear ramps, Elvira's screws) only reach the
+            // edge: the lobby leaves them off its walls, piece by piece, so they belong here. Skipping them all left
+            // most tables' ramps and metal shown nowhere.
+            var edge = EdgePrims(t, picked).ToHashSet();
+            var skip = picked.ToHashSet();
             var toys = t
                 .Prims.Where(p =>
+                    !unlitOf.ContainsKey(p) // a lit copy: comes in through its unlit one
+                    && (p.Visible || litOf.ContainsKey(p))
+                )
+                .Select(p => litOf.GetValueOrDefault(p) ?? p)
+                .Where(p =>
                     !skip.Contains(p)
-                    && p.Visible
+                    && !(
+                        (edge.Contains(p) || unlitOf.TryGetValue(p, out var u) && edge.Contains(u))
+                        && IsWallOnly(p, t)
+                    )
                     && p.Use3DMesh
                     && p.Verts != null
                     && p.Indices != null
                     && p.NumVerts > 0
-                    && !string.IsNullOrWhiteSpace(p.Image)
+                    // A picture, or at least a material: metal rails, wire guides and brackets usually have only a
+                    // metal material, and are drawn in its colour.
+                    && (
+                        !string.IsNullOrWhiteSpace(p.Image)
+                        || p.Material != null && t.Materials.ContainsKey(p.Material)
+                    )
                     && !NotGeometry.IsMatch(p.Name)
                     && !NotToy.IsMatch(p.Name)
-                    && !OffVariant.IsMatch(p.Name)
                     && SpaceOf(p.Group, t) == 0
                 )
                 .Where(p =>
@@ -92,6 +133,14 @@ public static partial class VpxCabinet
                     {
                         return false;
                     }
+                    // Thousands of vertices on a few millimetres: Batman 66's posts are 25,000 each, 1.6 cm across, and
+                    // thirty of them came to 750,000. A detailed figure is a few hundred to a cm² of floor.
+                    var footprint =
+                        MathF.Max(b.X - a.X, 0.5f * cm) * MathF.Max(b.Y - a.Y, 0.5f * cm);
+                    if (p.NumVerts > 5_000 && p.NumVerts / (footprint / (cm * cm)) > 10_000)
+                    {
+                        return false;
+                    }
                     // Playfield-sized and nearly flat: a second playfield (an insert or lighting layer), not a toy.
                     return !(b.X - a.X >= w * 0.8f && b.Y - a.Y >= h * 0.8f && b.Z < 1 * cm);
                 })
@@ -99,10 +148,16 @@ public static partial class VpxCabinet
             toys = DropPoses(toys, t);
             // A lit copy beside the unlit one (24's "Safehouse_on" over "Safehouse"): the script shows one at a time.
             var names = toys.Select(p => p.Name).ToHashSet(StringComparer.OrdinalIgnoreCase);
+            // And an unlit copy beside the lit one (The Addams Family's "RGP9_GI1_5off" over "RGP9_GI1_5"): the video
+            // shows the table lit.
             toys = toys.Where(p =>
                     !(
                         p.Name.EndsWith("_on", StringComparison.OrdinalIgnoreCase)
                         && names.Contains(p.Name[..^3])
+                    )
+                    && !(
+                        p.Name.EndsWith("off", StringComparison.OrdinalIgnoreCase)
+                        && names.Contains(p.Name[..^3].TrimEnd('_'))
                     )
                 )
                 .ToList();
@@ -228,6 +283,87 @@ public static partial class VpxCabinet
             }
         }
         return kept.ToArray();
+    }
+
+    /// <summary>
+    /// <summary>
+    /// True when a part is only wall the lobby keeps on the default cabinet (RealCabinet.OwnWallsOn), by its numbers:
+    /// at least 90% of its vertices in the playfield's outer eighth either side or its back eighth; a side's no more
+    /// than 3 cm deep across, at least 2 cm high and along at least 70% of the playfield; the back's at least 10 cm
+    /// high, across at least a fifth of the playfield, and no deeper along it than 8 cm or 15% of its height (a board
+    /// leaning back, or a sign on it; the lobby measures where most of its area is, finer than this). Tales of
+    /// the Arabian Nights's "sidewallsgion" (both side walls in one mesh) and X-Men's Sentinel board are walls; a wire
+    /// ramp down a side (Medieval Madness's catapult ramp, 8 cm across), Batman 66's 3 cm metal walls along half the
+    /// sides and The Getaway's low guide wall at the back are not, and stay toys: the lobby would leave them off its
+    /// walls too, and skipped here they'd show nowhere.
+    /// </summary>
+    static bool IsWallOnly(Prim p, TableData t)
+    {
+        if (p.Verts == null || p.NumVerts == 0)
+        {
+            return false;
+        }
+
+        const float cm = 1f / 100f / VpuToMetres;
+        float w = t.Right - t.Left,
+            h = t.Bottom - t.Top;
+        var m = FullMatrix(p, t);
+        // Per band (left, right, back): its vertices' extent in x, y and z.
+        var lo = new Vector3[3];
+        var hi = new Vector3[3];
+        var any = new bool[3];
+        var inner = 0;
+        for (var i = 0; i < p.NumVerts; i++)
+        {
+            var o = i * 8;
+            var v = Vector3.Transform(new Vector3(p.Verts[o], p.Verts[o + 1], p.Verts[o + 2]), m);
+            bool left = v.X <= t.Left + w / 8,
+                right = v.X >= t.Right - w / 8,
+                back = v.Y <= t.Top + h / 8;
+            // The back corners are both: they count as wall but measure neither, or a side wall's back end made it
+            // look 14 cm deep along, and a back board's ends as deep across.
+            var band =
+                back && !left && !right ? 2
+                : left && !back ? 0
+                : right && !back ? 1
+                : -1;
+            if (band >= 0)
+            {
+                lo[band] = any[band] ? Vector3.Min(lo[band], v) : v;
+                hi[band] = any[band] ? Vector3.Max(hi[band], v) : v;
+                any[band] = true;
+            }
+            else if (!back && !left && !right)
+            {
+                inner++;
+            }
+        }
+
+        if (inner > p.NumVerts * 0.1f || !any.Any(a => a))
+        {
+            return false;
+        }
+
+        for (var s = 0; s < 2; s++)
+        {
+            if (
+                any[s]
+                && (
+                    hi[s].X - lo[s].X > 3 * cm
+                    || hi[s].Z - MathF.Max(lo[s].Z, 0) < 2 * cm
+                    || hi[s].Y - lo[s].Y < h * 0.7f
+                )
+            )
+            {
+                return false;
+            }
+        }
+
+        var height = hi[2].Z - MathF.Max(lo[2].Z, 0);
+        return !any[2]
+            || height >= 10 * cm
+                && hi[2].X - lo[2].X >= w * 0.2f
+                && hi[2].Y - lo[2].Y <= MathF.Max(8 * cm, height * 0.15f);
     }
 
     static readonly Regex NumberedName = new(@"^(?<stem>.*?)(?<n>\d+)$");
