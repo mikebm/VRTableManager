@@ -80,6 +80,55 @@ public sealed partial class LobbyViewModel(MainViewModel app) : ChildViewModel(a
 
     partial void OnLobbyDofChanged(bool value) => SaveSetting(s => s.LobbyDof = value);
 
+    /// <summary>Which effects the lobby fires: "auto", "popper" or "basic" (<see cref="AppSettings.LobbyDofEffects"/>).</summary>
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(DofEffectsAuto))]
+    [NotifyPropertyChangedFor(nameof(DofEffectsPopper))]
+    [NotifyPropertyChangedFor(nameof(DofEffectsBasic))]
+    public partial string LobbyDofEffects { get; set; } = "auto";
+
+    public bool DofEffectsAuto
+    {
+        get => LobbyDofEffects is not ("popper" or "basic");
+        set
+        {
+            if (value)
+            {
+                LobbyDofEffects = "auto";
+            }
+        }
+    }
+
+    public bool DofEffectsPopper
+    {
+        get => LobbyDofEffects == "popper";
+        set
+        {
+            if (value)
+            {
+                LobbyDofEffects = "popper";
+            }
+        }
+    }
+
+    public bool DofEffectsBasic
+    {
+        get => LobbyDofEffects == "basic";
+        set
+        {
+            if (value)
+            {
+                LobbyDofEffects = "basic";
+            }
+        }
+    }
+
+    partial void OnLobbyDofEffectsChanged(string value)
+    {
+        SaveSetting(s => s.LobbyDofEffects = value);
+        DofStatusText = DofStatus(Settings);
+    }
+
     static string DofStatus(AppSettings s)
     {
         if (VrTableManager.Lobby.LobbyDof.Find(s) is not { } dof)
@@ -92,12 +141,14 @@ public sealed partial class LobbyViewModel(MainViewModel app) : ChildViewModel(a
             return $"Using {dof}. No DOF config there yet: download your config from the DOF Config Tool and unzip it into that folder.";
         }
 
-        return $"Using {dof}.";
+        var effects = VrTableManager.Lobby.LobbyDof.ChooseEffects(s, dof);
+        return $"Using {dof}.\nEffects: {effects.Why}.";
     }
 
     internal override void LoadSettings(AppSettings s)
     {
         LobbyDof = s.LobbyDof;
+        LobbyDofEffects = string.IsNullOrWhiteSpace(s.LobbyDofEffects) ? "auto" : s.LobbyDofEffects;
         DofStatusText = DofStatus(s);
         LobbyRecordsRomAudio = s.LobbyRecordsRomAudio;
         AttractMusicSeconds = s.AttractSeconds;

@@ -21,7 +21,9 @@ public sealed class DofOutput
 
     Process? _bridge;
     LobbyDof.Install? _install;
+    LobbyDof.Effects _effects = LobbyDof.ChooseEffects("popper", _ => null);
     bool _looked;
+    bool _saidOff;
     Task? _stopping; // a stop in progress: DOF hasn't let go of the boards yet
     AppSettings? _startAfterStop; // a start asked for meanwhile, done once it has
     volatile bool _quiet; // shutting down: the helper's last lines aren't logged
@@ -37,8 +39,21 @@ public sealed class DofOutput
     /// </summary>
     public void Start(AppSettings settings)
     {
-        if (!Enabled || !settings.LobbyDof || Running)
+        if (!Enabled || Running)
         {
+            return;
+        }
+
+        if (!settings.LobbyDof)
+        {
+            if (!_saidOff)
+            {
+                _saidOff = true; // once: the lobby starts DOF again after every table
+                GD.Print(
+                    $"DOF: off (Setup → VR lobby → Cabinet feedback, read from {settings.SourcePath ?? AppSettings.DefaultPath})"
+                );
+            }
+
             return;
         }
 
@@ -57,6 +72,11 @@ public sealed class DofOutput
                     ? $"DOF: {_install}"
                     : "DOF: not found (no DOF plugin in VPX's plugins\\dof, no DirectOutput.dll registered or in C:\\DirectOutput)"
             );
+            if (_install != null)
+            {
+                _effects = LobbyDof.ChooseEffects(settings, _install);
+                GD.Print($"DOF: effects from table {_effects.Rom}, {_effects.Why}");
+            }
         }
 
         if (_install == null)
@@ -93,7 +113,7 @@ public sealed class DofOutput
             psi.ArgumentList.Add(_install.Folder);
         }
         psi.ArgumentList.Add("--rom");
-        psi.ArgumentList.Add(LobbyDof.Rom);
+        psi.ArgumentList.Add(_effects.Rom);
         try
         {
             var p = Process.Start(psi)!;
@@ -114,18 +134,30 @@ public sealed class DofOutput
         }
     }
 
-    /// <summary>Pulses a menu event (E800 …) on the cabinet. Nothing when DOF isn't running.</summary>
-    public void Pulse(int element)
+    /// <summary>
+    /// Pulses a menu event (E800 …) on the cabinet, or the test table's toys standing in for it (basic effects).
+    /// Nothing when DOF isn't running.
+    /// </summary>
+    public void Pulse(int menuEvent)
     {
         if (!Running)
         {
             return;
         }
 
-        GD.Print($"DOF: E{element}"); // like the button presses: what was sent, for when nothing fires
+        var elements = _effects.Elements(menuEvent);
+        // Like the button presses: what was sent, for when nothing fires.
+        GD.Print(
+            elements.Count == 1 && elements[0] == menuEvent
+                ? $"DOF: E{menuEvent}"
+                : $"DOF: E{menuEvent} as {string.Join(", ", elements.Select(e => "E" + e))}"
+        );
         try
         {
-            _bridge!.StandardInput.WriteLine($"E {element}");
+            foreach (var element in elements)
+            {
+                _bridge!.StandardInput.WriteLine($"E {element}");
+            }
         }
         catch (Exception e)
         {

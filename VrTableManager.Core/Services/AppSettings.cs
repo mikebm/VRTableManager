@@ -268,6 +268,14 @@ public sealed class AppSettings
     public bool LobbyDof { get; set; }
 
     /// <summary>
+    /// Which DOF effects the VR lobby fires (<see cref="Lobby.LobbyDof.Effects"/>): "popper" for PinUP Popper's menu
+    /// (the "pinupmenu" table in the DOF Config Tool), "basic" for the DOF test table's flippers, slingshots and so on
+    /// ("dof_test"), which work without setting anything up, or "auto" (the default): Popper's menu when the
+    /// player's config sets it up, otherwise basic.
+    /// </summary>
+    public string LobbyDofEffects { get; set; } = "auto";
+
+    /// <summary>
     /// How big the VR lobby's cabinets are, in percent of a real machine (75–125, see <see cref="Lobby.LobbyLayout"/>).
     /// A bigger cabinet keeps the same gap to its neighbours, so the ring grows with it.
     /// </summary>

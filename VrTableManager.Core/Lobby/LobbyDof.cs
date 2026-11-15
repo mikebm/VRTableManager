@@ -23,6 +23,172 @@ public static class LobbyDof
         FavAdd = 816,
         FavDel = 817;
 
+    /// <summary>
+    /// The DOF test table in the DOF Config Tool: E101 / E102 the left / right flipper, E103 / E104 the slingshots,
+    /// E105–E110 the bumpers, E112 the shaker and E119 the strobe (its row in a Config Tool download). The lobby's
+    /// "basic" effects use it, so the cabinet's flippers and the rest fire without setting anything up. "auto" only
+    /// picks it when the player's config has its row.
+    /// </summary>
+    public const string BasicRom = "dof_test";
+
+    /// <summary>
+    /// The effects the lobby fires: the DOF "ROM" it runs as, and each of Popper's menu events (<see cref="GameNext"/>
+    /// …) as the table elements to pulse for it. <see cref="Basic"/>: the test table's toys stand in for Popper's
+    /// menu.
+    /// </summary>
+    public sealed record Effects(string Rom, bool Basic, string Why)
+    {
+        public IReadOnlyList<int> Elements(int menuEvent) =>
+            Basic ? BasicElements(menuEvent) : [menuEvent];
+    }
+
+    /// <summary>
+    /// Popper's menu event as test-table toys: the flippers fire the flippers, the magna-saves the slingshots, the coin
+    /// a bumper, Start the strobe and shaker, a favourite two bumpers.
+    /// </summary>
+    public static IReadOnlyList<int> BasicElements(int menuEvent) =>
+        menuEvent switch
+        {
+            GamePrior => [101],
+            GameNext => [102],
+            PagePrior => [103],
+            PageNext => [104],
+            ListNext => [105],
+            GameStart => [112, 119],
+            FavAdd => [106],
+            FavDel => [107],
+            _ => [],
+        };
+
+    /// <summary>
+    /// Which effects to fire for the <see cref="AppSettings.LobbyDofEffects"/> choice. "auto" looks at the player's
+    /// config (<paramref name="configLine"/>: a ROM's row in it, null when it has none): Popper's menu when its row uses
+    /// any of the lobby's events, otherwise the test table when its row is there, otherwise Popper's menu (as before).
+    /// </summary>
+    public static Effects ChooseEffects(string? choice, Func<string, string?> configLine)
+    {
+        switch (choice?.Trim().ToLowerInvariant())
+        {
+            case "popper":
+                return new(Rom, false, "PinUP Popper's menu, as chosen in Setup");
+            case "basic":
+                return new(
+                    BasicRom,
+                    true,
+                    "the DOF test table's flippers, slingshots and so on, as chosen in Setup"
+                );
+        }
+
+        if (configLine(Rom) is { } menu && UsesMenuEvents(menu))
+        {
+            return new(Rom, false, "PinUP Popper's menu: your config sets it up");
+        }
+
+        if (configLine(BasicRom) != null)
+        {
+            return new(
+                BasicRom,
+                true,
+                "the DOF test table's flippers, slingshots and so on: your config has nothing for PinUP Popper's menu"
+            );
+        }
+
+        return new(Rom, false, "PinUP Popper's menu: no DOF test table found in your config");
+    }
+
+    /// <summary>Whether a pinupmenu row fires on any of the lobby's events (E800–E822).</summary>
+    public static bool UsesMenuEvents(string row) =>
+        System.Text.RegularExpressions.Regex.IsMatch(
+            row,
+            @"(?<![A-Za-z0-9])E8(0\d|1\d|2[0-2])(?!\d)",
+            System.Text.RegularExpressions.RegexOptions.IgnoreCase
+        );
+
+    /// <summary>
+    /// A ROM's row in the Config Tool's table configs (the [Config DOF] section of directoutputconfig*.ini, or the older
+    /// ledcontrol*.ini), from the first file that has it; null when none does. Other sections ([TableVariables] …)
+    /// also start lines with ROM names, so only that one counts.
+    /// </summary>
+    public static string? ConfigLine(IEnumerable<string> iniFiles, string rom)
+    {
+        foreach (var file in iniFiles)
+        {
+            IEnumerable<string> lines;
+            try
+            {
+                lines = File.ReadLines(file).ToList();
+            }
+            catch (Exception e) when (e is IOException or UnauthorizedAccessException)
+            {
+                continue;
+            }
+
+            var inConfig = false;
+            foreach (var raw in lines)
+            {
+                var line = raw.Trim();
+                if (line.StartsWith('['))
+                {
+                    inConfig =
+                        line.Equals("[Config DOF]", StringComparison.OrdinalIgnoreCase)
+                        || line.Equals("[Config outs]", StringComparison.OrdinalIgnoreCase);
+                    continue;
+                }
+
+                if (inConfig && line.StartsWith(rom + ",", StringComparison.OrdinalIgnoreCase))
+                {
+                    return line;
+                }
+            }
+        }
+
+        return null;
+    }
+
+    /// <summary>
+    /// The Config Tool's table configs this DOF reads: libdof's directoutputconfig folder, or the Config folder beside
+    /// or above an installed DirectOutput.
+    /// </summary>
+    public static IEnumerable<string> ConfigFiles(Install dof)
+    {
+        var folders = dof.LibDofConfigDir is { } dir
+            ? new[] { dir }
+            : new[]
+            {
+                Path.Combine(dof.Folder, "Config"),
+                Path.Combine(dof.Folder, "..", "Config"),
+                @"C:\DirectOutput\Config",
+            };
+        foreach (
+            var folder in folders
+                .Select(Path.GetFullPath)
+                .Distinct(StringComparer.OrdinalIgnoreCase)
+        )
+        {
+            if (!Directory.Exists(folder))
+            {
+                continue;
+            }
+
+            foreach (
+                var f in Directory
+                    .EnumerateFiles(folder, "directoutputconfig*.ini")
+                    .Concat(Directory.EnumerateFiles(folder, "ledcontrol*.ini"))
+                    .Order(StringComparer.OrdinalIgnoreCase)
+            )
+            {
+                yield return f;
+            }
+        }
+    }
+
+    /// <summary>The effects to fire with this DOF, for the player's choice in Setup.</summary>
+    public static Effects ChooseEffects(AppSettings s, Install dof)
+    {
+        var files = ConfigFiles(dof).ToList();
+        return ChooseEffects(s.LobbyDofEffects, rom => ConfigLine(files, rom));
+    }
+
     /// <summary>DOF's COM object, which its installer registers with the path to the DLLs.</summary>
     const string ComClsid = "{a23bfdbc-9a8a-46c0-8672-60f23d54ffb6}";
 

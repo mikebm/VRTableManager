@@ -15,11 +15,25 @@ public abstract class ChildViewModel(MainViewModel app) : ObservableObject
 
     protected IUiHost Ui => App.Ui;
 
-    /// <summary>Changes a setting and saves the settings file (a Setup field changed).</summary>
+    /// <summary>
+    /// Changes a setting and saves the settings file (a Setup field changed). Called from a bound property's setter,
+    /// where a failure would be swallowed by the binding (the box stays ticked, the file keeps the old value), so a
+    /// failed save is thrown again on the UI thread, where the app logs it to errors.log and shows it.
+    /// </summary>
     protected void SaveSetting(Action<AppSettings> change)
     {
         change(Settings);
-        Settings.Save();
+        try
+        {
+            Settings.Save();
+        }
+        catch (Exception e)
+        {
+            var path = Settings.SourcePath ?? AppSettings.DefaultPath;
+            Avalonia.Threading.Dispatcher.UIThread.Post(() =>
+                throw new IOException($"Your change couldn't be saved to {path}: {e.Message}", e)
+            );
+        }
     }
 
     /// <summary>Shows what the settings say (at startup, and after a backup is restored).</summary>

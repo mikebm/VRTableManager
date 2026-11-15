@@ -75,18 +75,22 @@ You don't have to install DOF separately. VPX 10.8.1 and later come with their o
 
 Setup shows which one it found, and for VPX's plugin the folder it reads the config from, with a warning when there's no config in it yet. Either way, DOF does nothing until it has your config from the DOF Config Tool. The classic DirectOutput may still be worth having for Philips Hue lights and SSF (sound-based feedback): [libdof's README](https://github.com/vpinball/libdof) lists them as not supported yet.
 
-The lobby acts like PinUP Popper's menu. It uses your usual DOF config (`GlobalConfig_B2SServer.xml`, the one your tables use) and the **pinupmenu** table in the [DOF Config Tool](https://configtool.vpuniverse.com). If you've set up effects for Popper's menu, they should work in the lobby as they are. To add or change them, edit the pinupmenu table in the Config Tool, then download and install your config again.
+The lobby uses your usual DOF config (`GlobalConfig_B2SServer.xml`, the one your tables use). **Effects** under Cabinet feedback picks which effects it fires:
 
-| In the lobby | DOF event (Popper's name) |
-|---|---|
-| Left / right flipper (previous / next table) | E800 GamePrior / E801 GameNext |
-| Right / left magna-save (next / previous letter) | E804 PageNext / E805 PagePrior |
-| Start (play) | E806 GameStart |
-| Coin (next filter) | E802 ListNext |
-| Favourite on / off | E816 FavAdd / E817 FavDel |
+- **Basic** uses the DOF test table (**dof_test**) that comes in DOF Config Tool downloads, so it should work without setting anything up: the flippers fire your flipper solenoids, and so on (see the table below).
+- **PinUP Popper's menu** fires the effects set up for Popper's menu: the **pinupmenu** table in the [DOF Config Tool](https://configtool.vpuniverse.com). If you've set them up for Popper, they should work in the lobby as they are. To add or change them, edit the pinupmenu table in the Config Tool, then download and install your config again. Most configs have a pinupmenu table with nothing set up for these events, and then nothing fires.
+- **Automatic** (the default) uses Popper's menu when your config's pinupmenu table uses any of the events below, and basic otherwise. Setup says which one it picked.
+
+| In the lobby | Popper's menu | Basic (dof_test) |
+|---|---|---|
+| Left / right flipper (previous / next table) | E800 GamePrior / E801 GameNext | E101 / E102: left / right flipper |
+| Left / right magna-save (previous / next letter) | E805 PagePrior / E804 PageNext | E103 / E104: left / right slingshot |
+| Start (play) | E806 GameStart | E112 / E119: shaker and strobe |
+| Coin (next filter) | E802 ListNext | E105: a bumper |
+| Favourite on / off | E816 FavAdd / E817 FavDel | E106 / E107: bumpers |
 
 Each event is pulsed for 150 ms; durations and blinks set in the Config Tool take it from there.
 
 When a table starts, the lobby lets go of DOF so the table's own DOF can use the output boards. Letting go turns every output off, so the Start effect (E806) only gets under a second, and a longer one set for it in the Config Tool gets cut short. DOF comes back on when you return to the lobby.
 
-If nothing fires, look in the lobby's log (see above) for lines starting `DOF:`. `ready …, global config …` means it's running with that config. With VPX's plugin, `global config none` is fine as long as the same line counts one or more table config files; with none of either it has nothing to fire. `error …` says why it isn't running, and `not found` means the lobby found neither VPX's DOF plugin nor `DirectOutput.dll`.
+If nothing fires, look in the lobby's log (see above) for lines starting `DOF:`. `effects from table …` says which effects it fires and why. `ready …, global config …` means it's running with that config. With VPX's plugin, `global config none` is fine as long as the same line counts one or more table config files; with none of either it has nothing to fire. `error …` says why it isn't running, and `not found` means the lobby found neither VPX's DOF plugin nor `DirectOutput.dll`.

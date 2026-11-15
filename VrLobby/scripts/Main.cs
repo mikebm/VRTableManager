@@ -241,6 +241,21 @@ public partial class Main : Node3D
         // The room, its lamps and the cabinet pool are built after the settings are read: their size and
         // number decide where the ring stands.
         _layout = LobbyLayout.Ring(Settings.LobbyCabinetCount, Settings.LobbyCabinetScalePercent);
+        // Which build this is (the manager's version, from the shared Core library), so a log says what ran.
+        GD.Print(
+            "VR lobby "
+                + (
+                    typeof(AppSettings)
+                        .Assembly.GetCustomAttributes(
+                            typeof(System.Reflection.AssemblyInformationalVersionAttribute),
+                            false
+                        )
+                        .OfType<System.Reflection.AssemblyInformationalVersionAttribute>()
+                        .FirstOrDefault()
+                        ?.InformationalVersion
+                    ?? "?"
+                )
+        );
         GD.Print(
             $"Cabinets: {_layout.Count} at {CabinetScale * 100:0}%, ring {_layout.RingFront:0.00} m"
         );
