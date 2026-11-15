@@ -44,7 +44,50 @@ static class Program
         }
 
         RecordExePath();
-        return BuildAvaloniaApp().StartWithClassicDesktopLifetime(args);
+        try
+        {
+            return BuildAvaloniaApp().StartWithClassicDesktopLifetime(args);
+        }
+        catch (Exception e)
+        {
+            // Before the window is up the app's own error reporting isn't hooked in yet, and the app would just not
+            // open: say why, and keep it for a bug report.
+            StartupFailed(e);
+            return 1;
+        }
+    }
+
+    /// <summary>The app couldn't start: the error goes to errors.log and a message box.</summary>
+    static void StartupFailed(Exception e)
+    {
+        var log = "errors.log";
+        try
+        {
+            log = Path.Combine(AppSettings.DataDir, "errors.log");
+            File.AppendAllText(
+                log,
+                $"{DateTime.Now:s} VR Table Manager couldn't start: {e}{Environment.NewLine}{Environment.NewLine}"
+            );
+        }
+        catch
+        { /* the message box still says what happened */
+        }
+
+        if (OperatingSystem.IsWindows())
+        {
+            var inner = e is AggregateException { InnerExceptions.Count: 1 } agg
+                ? agg.InnerExceptions[0]
+                : e;
+            MessageBoxW(
+                IntPtr.Zero,
+                $"VR Table Manager couldn't start:\n\n{inner.GetType().Name}: {inner.Message}\n\n"
+                    + "If you've just unzipped an update or patch over it, close VR Table Manager and the VR lobby "
+                    + "(check Task Manager) and unzip it again: a file that was in use may not have been replaced.\n\n"
+                    + $"The details are saved in {log}.",
+                "VR Table Manager",
+                0x10 // MB_ICONERROR
+            );
+        }
     }
 
     /// <summary>Brings the manager that's already open to the front, instead of opening a second one.</summary>
