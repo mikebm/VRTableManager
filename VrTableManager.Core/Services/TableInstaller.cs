@@ -368,6 +368,14 @@ public static class TableInstaller
                 AltSound = replacing?.Manifest.AltSound,
                 Backglass = isFp ? null : KeptBackglass(replacing, installed.tablePath),
                 RemixOriginal = carried,
+                // An update (or a reinstall) into a folder of yours keeps it yours: Remove must still leave the folder.
+                UserFolder =
+                    !isFp
+                    && (
+                        replacing?.Manifest.UserFolder == true
+                        || ReadManifest(Path.Combine(installed.folder, ManifestName))?.UserFolder
+                            == true
+                    ),
             };
 
             var table = new InstalledTable(manifest, installed.tablePath, installed.folder);
@@ -1051,12 +1059,11 @@ public static class TableInstaller
                 return folder;
             }
 
-            var owner =
-                ReadManifest(Path.Combine(folder, ManifestName))?.TableFileId
-                ?? ReadMarker(folder)?.TableFileId;
+            var existing = ReadManifest(Path.Combine(folder, ManifestName));
+            var owner = existing?.TableFileId ?? ReadMarker(folder)?.TableFileId;
             // A folder this app didn't make is only used when it's empty: Remove deletes the table's whole folder.
             var ours =
-                File.Exists(Path.Combine(folder, ManifestName))
+                (existing != null && !existing.UserFolder)
                 || File.Exists(Path.Combine(folder, InstallingMarker));
             if (
                 owner is { Length: > 0 } ? owner == tableFileId
@@ -1300,7 +1307,11 @@ public static class TableInstaller
             throw new InvalidOperationException("Unexpected table layout; not removing.");
         }
 
-        if (table.IsVpx && File.Exists(Path.Combine(table.Folder, ManifestName)))
+        if (
+            table.IsVpx
+            && File.Exists(Path.Combine(table.Folder, ManifestName))
+            && !table.Manifest.UserFolder
+        )
         {
             Directory.Delete(table.Folder, recursive: true); // folder was created by this app
         }
@@ -1327,6 +1338,12 @@ public static class TableInstaller
     public static void SaveManifest(InstalledTable table)
     {
         var path = ManifestPathFor(table.TablePath, !table.IsVpx);
+        // The first vrtm.json in a VPX folder this app didn't make (installs and imports write their own, not
+        // through here): marked as yours, so Remove leaves the folder.
+        if (table.IsVpx && !table.SharedFolder && !File.Exists(path))
+        {
+            table.Manifest.UserFolder = true;
+        }
         File.WriteAllText(path, JsonSerializer.Serialize(table.Manifest, Json));
     }
 
@@ -1343,10 +1360,10 @@ public static class TableInstaller
             : (catalogName, null);
 
     /// <summary>
-    /// Whether the table's name can be changed: it needs a manifest of its own to keep the name in. A VPX table
-    /// folder you set up by hand (no vrtm.json) can't, because writing one would make this app treat the folder
-    /// as its own (Remove deletes the whole folder); loose .vpx files and store games have nowhere to keep it.
-    /// A Future Pinball table can: its manifest sits beside the .fpt and Remove only deletes those two files.
+    /// Whether the table's name (or catalog link) can be changed: it needs a manifest of its own to keep it in. A
+    /// VPX table in a folder of its own can: one you set up by hand gets a vrtm.json marked as yours
+    /// (<see cref="TableManifest.UserFolder"/>), so Remove still leaves the folder. Loose .vpx files and store games
+    /// have nowhere to keep it. A Future Pinball table's manifest sits beside the .fpt.
     /// </summary>
     public static bool CanRename(InstalledTable table) =>
         File.Exists(table.TablePath) // not removed meanwhile (no stray manifest beside a deleted .fpt)
@@ -1354,7 +1371,12 @@ public static class TableInstaller
         && table.Manifest.Engine switch
         {
             TableManifest.Vpx => !table.SharedFolder
-                && File.Exists(ManifestPathFor(table.TablePath, false)),
+                && SamePath(table.Folder, Path.GetDirectoryName(table.TablePath)!)
+                // A folder of yours holding several tables: which one it "is" isn't clear, so no manifest goes in.
+                && (
+                    File.Exists(ManifestPathFor(table.TablePath, false))
+                    || !Directory.EnumerateFiles(table.Folder, "*.vpx").Skip(1).Any()
+                ),
             TableManifest.FuturePinball => true,
             _ => false,
         };
@@ -1502,6 +1524,15 @@ public static class TableInstaller
 
     static bool SamePath(string a, string b) =>
         string.Equals(Path.GetFullPath(a), Path.GetFullPath(b), StringComparison.OrdinalIgnoreCase);
+
+    /// <summary>
+    /// The table with its manifest as saved now (a rename or job may have saved it since the scan), or the table
+    /// itself when it has none.
+    /// </summary>
+    public static InstalledTable Fresh(InstalledTable t) =>
+        ReadManifest(ManifestPathFor(t.TablePath, !t.IsVpx)) is { } m
+            ? new InstalledTable(m, t.TablePath, t.Folder) { SharedFolder = t.SharedFolder }
+            : t;
 
     static TableManifest? ReadManifest(string path)
     {

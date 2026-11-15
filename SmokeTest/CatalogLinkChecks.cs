@@ -102,6 +102,188 @@ static class CatalogLinkChecks
             )
         );
 
+        // AUTO-LINK's version guess: the author and version in the names (or Table Info) must point to one table file.
+        VpsTableFile Tf(string id, string version, params string[] authors) =>
+            new()
+            {
+                Id = id,
+                TableFormat = "VPX",
+                Version = version,
+                Authors = [.. authors],
+                Urls = [new VpsUrl { Url = $"https://x/{id}" }],
+                UpdatedAt = 5,
+            };
+        var mmGame = new VpsGame
+        {
+            Id = "mm",
+            Name = "Medieval Madness",
+            TableFiles =
+            [
+                Tf("mm-vpw", "2.0.1", "VPW", "Flupper"),
+                Tf("mm-dv", "1.0.0", "DarthVito"),
+                Tf("mm-old", "1.2", "Rothbauerw"),
+                Tf("mm-mod", "1.2", "Rothbauerw", "Bigus1"),
+            ],
+        };
+        TableFileGuess.Guess? G(string file, TableFileGuess.TableInfo? info = null) =>
+            TableFileGuess.Find(mmGame, [file], info);
+        results.Add(
+            (
+                G("Medieval Madness (Williams 1997) VPW v2.0.1.vpx")?.File.Id == "mm-vpw"
+                    && G("MM VPW v.2.0.1.vpx")?.File.Id == "mm-vpw"
+                    && G("Medieval Madness.vpx", new("MM", "VPW", "2.0.1"))?.File.Id == "mm-vpw"
+                    && G("MM_Bigus1_1.2.vpx")?.File.Id == "mm-mod"
+                    // A folder name keeps its last ".1" (only a .vpx name has an extension).
+                    && TableFileGuess.Find(
+                        mmGame,
+                        ["Medieval Madness.vpx", "Medieval Madness VPW 2.0.1"],
+                        null
+                    )
+                        is { Version: "2.0.1", File.Id: "mm-vpw" },
+                "auto-link: a version in the name (v2.0.1, v.2.0.1), folder or Table Info picks the table file, the authors decide between same versions"
+            )
+        );
+        var older = G("Medieval Madness VPW 1.9.vpx");
+        results.Add(
+            (
+                older?.File.Id == "mm-vpw"
+                    && older.Version == "1.9"
+                    // The name's version beats a stale Table Info one.
+                    && G("Medieval Madness 1.5.vpx", new(null, "VPW", "2.0.1"))
+                        is { Version: "1.5", File.Id: "mm-vpw" }
+                    && G("Medieval Madness VPW 2.5.vpx") == null,
+                "auto-link: the author's older version links with its own version (an update shows); a newer one doesn't link"
+            )
+        );
+        results.Add(
+            (
+                G("Medieval Madness (Williams 1997).vpx") == null
+                    && G("Medieval Madness Rothbauerw.vpx") == null
+                    && G("Medieval Madness 1.0.vpx") == null
+                    && G("MM v.2.0.1.vpx") == null
+                    && G("VR ROOM Medieval Madness VPW v01.vpx") == null
+                    && G("Medieval Madness VPW 1.5 VR 1.1.vpx") == null,
+                "auto-link: no version, two equal fits, a version with no author, a v01, or two versions: no guess"
+            )
+        );
+
+        var afolder = Path.Combine(root, "catalog-link", "Medieval Madness VPW");
+        Directory.CreateDirectory(afolder);
+        var avpx = Path.Combine(afolder, "Medieval Madness VPW v2.0.1.vpx");
+        File.WriteAllText(avpx, "not a compound file");
+        var am = new TableManifest
+        {
+            GameName = "Medieval Madness VPW",
+            VpxFile = Path.GetFileName(avpx),
+            CatalogLink = CatalogLink.Version, // the automatic pass already tried it
+        };
+        File.WriteAllText(Path.Combine(afolder, "vrtm.json"), JsonSerializer.Serialize(am));
+        var at = new InstalledTable(am, avpx, afolder);
+        var auto = CatalogLink.AutoLink(at, [.. games, mmGame]);
+        results.Add(
+            (
+                auto == CatalogLink.AutoLinkResult.Linked
+                    && am.GameId == "mm"
+                    && am.TableFileId == "mm-vpw"
+                    && am.Version == "2.0.1"
+                    && am.GameName == "Medieval Madness VPW"
+                    && TableUpdates.Find([at], [mmGame]).Count == 0
+                    && CatalogLink.AutoLink(at, [mmGame]) == CatalogLink.AutoLinkResult.Skipped,
+                "auto-link: links game and version (no rename, no false update), and leaves a linked table alone"
+            )
+        );
+
+        // A table folder of your own (no vrtm.json): linked only when the version is sure, the manifest marked as yours.
+        var mine = Path.Combine(root, "catalog-link", "My MM");
+        Directory.CreateDirectory(mine);
+        var mineVpx = Path.Combine(mine, "Medieval Madness VPW v2.0.1.vpx");
+        File.WriteAllText(mineVpx, "x");
+        var mineTable = new InstalledTable(
+            new TableManifest { GameName = "My MM", VpxFile = Path.GetFileName(mineVpx) },
+            mineVpx,
+            mine
+        );
+        var mineResult = CatalogLink.AutoLink(mineTable, [mmGame]);
+        if (mineResult == CatalogLink.AutoLinkResult.Linked)
+        {
+            TableInstaller.SaveManifest(mineTable);
+        }
+        var unsure = Path.Combine(root, "catalog-link", "My other MM");
+        Directory.CreateDirectory(unsure);
+        var unsureVpx = Path.Combine(unsure, "Medieval Madness.vpx");
+        File.WriteAllText(unsureVpx, "x");
+        var unsureTable = new InstalledTable(
+            new TableManifest { GameName = "My other MM", VpxFile = "Medieval Madness.vpx" },
+            unsureVpx,
+            unsure
+        );
+        results.Add(
+            (
+                mineResult == CatalogLink.AutoLinkResult.Linked
+                    && mineTable.Manifest is { TableFileId: "mm-vpw", UserFolder: true }
+                    && CatalogLink.AutoLink(unsureTable, [mmGame])
+                        == CatalogLink.AutoLinkResult.NoGame
+                    && unsureTable.Manifest.GameId == ""
+                    && !File.Exists(Path.Combine(unsure, "vrtm.json")),
+                "auto-link: a folder of your own is linked when sure (vrtm.json marked as yours), else left untouched"
+            )
+        );
+
+        // Tables installed from the catalog know their real version: the guess should agree when it guesses.
+        if (catalog.Count > 0)
+        {
+            var byId = catalog.ToDictionary(g => g.Id);
+            int right = 0,
+                wrong = 0,
+                none = 0;
+            foreach (
+                var inst in TableInstaller
+                    .Scan(new AppSettings())
+                    .Where(x => x.IsVpx && x.Manifest.TableFileId != "")
+            )
+            {
+                if (!byId.TryGetValue(inst.Manifest.GameId, out var g))
+                {
+                    continue;
+                }
+                var guess = TableFileGuess.Find(
+                    g,
+                    [Path.GetFileName(inst.TablePath), Path.GetFileName(inst.Folder)],
+                    TableFileGuess.ReadInfo(inst.TablePath)
+                );
+                if (guess == null)
+                {
+                    none++;
+                }
+                else if (guess.File.Id == inst.Manifest.TableFileId)
+                {
+                    right++;
+                }
+                else
+                {
+                    wrong++;
+                }
+            }
+            if (right + wrong == 0)
+            {
+                Console.WriteLine(
+                    "SKIP  auto-link guesses vs installed tables (none from the catalog here)"
+                );
+            }
+            else
+            {
+                Console.WriteLine(
+                    $"      auto-link on installed tables: {right} right, {wrong} wrong, {none} not guessed"
+                );
+                results.Add(
+                    (
+                        wrong * 10 <= right + wrong,
+                        "auto-link: on tables installed from the catalog, at most 1 guess in 10 is wrong"
+                    )
+                );
+            }
+        }
+
         // The real catalog: well-known names link to the right game, and a first pass is cheap.
         if (catalog.Count > 0)
         {

@@ -186,9 +186,25 @@ public static class TableImport
     )
     {
         var manifestPath = Path.Combine(folder, "vrtm.json");
-        // Copied from another VR Table Manager: its manifest already says what the table is.
+        // Copied from another VR Table Manager: its manifest already says what the table is. This folder is one
+        // the import made, though, even if the source was a folder of yours there: Remove may delete it whole.
         if (File.Exists(manifestPath))
         {
+            try
+            {
+                var copied = JsonSerializer.Deserialize<TableManifest>(
+                    File.ReadAllText(manifestPath)
+                );
+                if (copied is { UserFolder: true })
+                {
+                    copied.UserFolder = false;
+                    File.WriteAllText(manifestPath, JsonSerializer.Serialize(copied, Json));
+                }
+            }
+            catch (JsonException)
+            {
+                // Not readable: the scan treats it as no manifest anyway.
+            }
             return;
         }
 

@@ -76,7 +76,7 @@ public static class VpxSetup
     )
     {
         var releases = ParseReleases(
-            await Http.Client.GetStringAsync(ReleasesApi, ct),
+            await GitHubApi.GetStringAsync(ReleasesApi, ct),
             useDoNotUse
         );
         return nightly ? WithNightly(releases, await FindNightlyAsync(ct)) : releases;
@@ -103,7 +103,7 @@ public static class VpxSetup
 
     /// <summary>The BGFX build from the newest successful master-branch run, or null.</summary>
     public static async Task<VpxRelease?> FindNightlyAsync(CancellationToken ct) =>
-        ParseNightlyRuns(await Http.Client.GetStringAsync(NightlyRunsApi, ct)).FirstOrDefault()
+        ParseNightlyRuns(await GitHubApi.GetStringAsync(NightlyRunsApi, ct)).FirstOrDefault()
             is { } run
             ? await ResolveAsync(run, ct)
             : null;
@@ -118,8 +118,8 @@ public static class VpxSetup
         bool nightly
     )
     {
-        var releases = Http.Client.GetStringAsync(ReleasesApi, ct);
-        var runs = nightly ? Http.Client.GetStringAsync(NightlyRunsListApi, ct) : null;
+        var releases = GitHubApi.GetStringAsync(ReleasesApi, ct);
+        var runs = nightly ? GitHubApi.GetStringAsync(NightlyRunsListApi, ct) : null;
         var builds = ParseReleaseList(await releases, useDoNotUse);
         if (runs != null)
         {
@@ -199,7 +199,7 @@ public static class VpxSetup
         build.Release
         ?? (
             build.ArtifactsUrl is { } url
-                ? ParseNightlyArtifacts(await Http.Client.GetStringAsync(url, ct))
+                ? ParseNightlyArtifacts(await GitHubApi.GetStringAsync(url, ct))
                 : null
         );
 
@@ -288,6 +288,9 @@ public static class VpxSetup
         return null;
     }
 
+    /// <summary>Starts <see cref="DescribeUpdate"/>'s line for a build you picked and are staying on ("Pinned v… → v…").</summary>
+    public const string PinnedMark = "Pinned ";
+
     /// <summary>
     /// The Setup tab's line about VPX updates, and whether to offer one. <paramref name="kept"/> is a build the
     /// player picked from the build list (<see cref="AppSettings.VpxKeptBuild"/>): while it's installed, newer
@@ -316,7 +319,7 @@ public static class VpxSetup
         var latest = r.Latest.Nightly ? $"{r.Latest.Tag} (nightly)" : r.Latest.Tag;
         if (installed == null)
         {
-            return ($"Not installed. Latest is {latest}.{note}", false);
+            return ($"Not Installed: latest is {latest}.{note}", false);
         }
 
         if (installed == r.Latest.Tag || SameBuild(installed, r.Latest.Tag))
@@ -325,8 +328,10 @@ public static class VpxSetup
         }
         if (kept != null && (installed == kept || SameBuild(installed, kept)))
         {
+            // Drawn like an update line (VersionChange), the pinned build in yellow; still not offered.
             return (
-                $"Keeping {installed}, the build you picked. Newest is {latest}: INSTALL / UPDATE VPX goes back to it.",
+                $"{PinnedMark}{installed} → {latest}. Newer builds aren't installed while you stay on the build you "
+                    + "picked: INSTALL / UPDATE VPX on the VPX page installs the newest and turns updates back on.",
                 false
             );
         }

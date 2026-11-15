@@ -594,13 +594,30 @@ public static class Converters
         var next = text[(at + 3)..];
         var space = next.IndexOf(' ');
         var (tag, rest) = space < 0 ? (next, "") : (next[..space], next[space..]);
+        if (tag.EndsWith('.'))
+        {
+            (tag, rest) = (tag[..^1], "." + rest); // "v10.8.1-6815-f99. Newer…": the full stop isn't part of it
+        }
         var green = new SolidColorBrush(Color.Parse("#63C46E"));
-        inlines.Add(
-            new Run($"You have {old}   ")
-            {
-                Foreground = new SolidColorBrush(Color.Parse("#9B9BA4")),
-            }
-        );
+        var muted = new SolidColorBrush(Color.Parse("#9B9BA4"));
+        if (old.StartsWith(VrTableManager.Services.VpxSetup.PinnedMark, StringComparison.Ordinal))
+        {
+            // A build you picked and are staying on: yours in yellow, so it reads as held rather than behind.
+            var amber = new SolidColorBrush(Color.Parse("#FFB547"));
+            inlines.Add(new Run("You have ") { Foreground = muted });
+            inlines.Add(
+                new Run($"{old[VrTableManager.Services.VpxSetup.PinnedMark.Length..]} PINNED")
+                {
+                    Foreground = amber,
+                    FontWeight = FontWeight.Bold,
+                }
+            );
+            inlines.Add(new Run("   "));
+        }
+        else
+        {
+            inlines.Add(new Run($"You have {old}   ") { Foreground = muted });
+        }
         inlines.Add(new Run("NEW ") { Foreground = green, FontWeight = FontWeight.Bold });
         inlines.Add(new Run(tag) { Foreground = green, FontWeight = FontWeight.Bold });
         inlines.Add(new Run(rest));

@@ -317,8 +317,7 @@ public sealed partial class LibraryViewModel
     [RelayCommand]
     async Task FixTableMatchAsync(InstalledItem item)
     {
-        var games = App.Catalog._allGames;
-        if (games.Count == 0)
+        if (App.Catalog._allGames.Count == 0)
         {
             await Ui.ChoiceAsync(
                 "The catalog hasn't loaded",
@@ -328,9 +327,19 @@ public sealed partial class LibraryViewModel
             return;
         }
 
+        await MatchOneAsync(item, null);
+    }
+
+    /// <summary>
+    /// Fix table match for one table. <paramref name="progress"/> ("Table 3 of 40") heads the dialogs when it's
+    /// one of several (<see cref="FixUnlinkedNowAsync"/>). False when the search was closed: skipped.
+    /// </summary>
+    async Task<bool> MatchOneAsync(InstalledItem item, string? progress)
+    {
+        var games = App.Catalog._allGames;
         if (!item.CanRename)
         {
-            return;
+            return false;
         }
 
         var table = item.Table;
@@ -347,6 +356,10 @@ public sealed partial class LibraryViewModel
                             ? $", {VersionLabel(now)}."
                             : "."
                     );
+        if (progress != null)
+        {
+            heading = $"{progress} · close this window to skip it.\n\n{heading}";
+        }
         // Start from the game it's linked to, else the likeliest from its file and folder names.
         var start =
             current?.Name
@@ -367,7 +380,7 @@ public sealed partial class LibraryViewModel
             game = await SearchCatalogAsync(table.TablePath, heading, start);
             if (game == null)
             {
-                return;
+                return false;
             }
             start = game.Name;
             // Always asked here (when there's a choice): the version guessed from the file name may be what
@@ -393,7 +406,7 @@ public sealed partial class LibraryViewModel
                 "Its table file or vrtm.json is gone, so the link can't be saved. Rescan My Tables and try again.",
                 error: true
             );
-            return;
+            return true;
         }
 
         // An update, add-on or ROM job on this table rewrites its vrtm.json from what it read at the start.
@@ -403,7 +416,7 @@ public sealed partial class LibraryViewModel
                 "This table has a job running (see above): fix its match once that's done.",
                 error: true
             );
-            return;
+            return true;
         }
 
         try
@@ -427,13 +440,13 @@ public sealed partial class LibraryViewModel
             if (!TableInstaller.Relink(table, game, tf, script))
             {
                 job.Finish($"✓ Already linked to {game.DisplayTitle}, v{tf.Version ?? "?"}.");
-                return;
+                return true;
             }
         }
         catch (Exception e)
         {
             job.Finish("Failed: " + e.Message, error: true);
-            return;
+            return true;
         }
         finally
         {
@@ -444,6 +457,42 @@ public sealed partial class LibraryViewModel
         ShowInstalled(); // its ROM, add-ons, rules and update check now go by the new game
         App.Catalog.ApplyFilter(); // Get Tables marks it installed
         job.Finish($"✓ Linked to {game.DisplayTitle}, v{tf.Version ?? "?"}.");
+        return true;
+    }
+
+    /// <summary>
+    /// FIX THEM NOW after AUTO-LINK: Fix table match for each table in turn. Closing a search asks whether to
+    /// go on to the next or stop, so nobody is made to link a hundred tables in one go.
+    /// </summary>
+    internal async Task FixUnlinkedNowAsync(IReadOnlyList<InstalledItem> items)
+    {
+        for (var i = 0; i < items.Count; i++)
+        {
+            // Linked meanwhile (a rescan, or by hand), or its folder is gone.
+            if (!IsUnlinked(items[i]) || !items[i].CanRename)
+            {
+                continue;
+            }
+
+            if (await MatchOneAsync(items[i], $"Table {i + 1} of {items.Count}"))
+            {
+                continue;
+            }
+
+            var left = items.Skip(i + 1).Count(t => IsUnlinked(t) && t.CanRename);
+            if (
+                left == 0
+                || await Ui.ChoiceAsync(
+                    "Skipped",
+                    $"{items[i].Title} stays unlinked. {left} more to go: carry on with the next one, or stop and "
+                        + "fix the rest later (they're under My Tables → Not linked).",
+                    ["NEXT TABLE", "STOP FOR NOW"]
+                ) != 0
+            )
+            {
+                return;
+            }
+        }
     }
 
     /// <summary>"14 VPX tables": how many of the game's table files are of the file's kind.</summary>

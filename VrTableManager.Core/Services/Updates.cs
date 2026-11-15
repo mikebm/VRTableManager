@@ -75,7 +75,7 @@ public static class UevrSetup
         );
 
     public static async Task<ToolRelease?> FindLatestAsync(CancellationToken ct) =>
-        ParseLatest(await Http.Client.GetStringAsync(ReleasesApi, ct));
+        ParseLatest(await GitHubApi.GetStringAsync(ReleasesApi, ct));
 
     /// <summary>
     /// The newest stable release with a UEVR.zip, from GitHub's releases list (newest first); drafts and

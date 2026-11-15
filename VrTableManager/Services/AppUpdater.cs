@@ -68,7 +68,7 @@ public static class AppUpdater
     {
         try
         {
-            return ParseLatest(await Http.Client.GetStringAsync(LatestApi, ct));
+            return ParseLatest(await GitHubApi.GetStringAsync(LatestApi, ct));
         }
         catch (HttpRequestException e) when (e.StatusCode == System.Net.HttpStatusCode.NotFound)
         {

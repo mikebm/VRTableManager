@@ -60,6 +60,14 @@ public sealed class TableManifest
     /// Only tables that didn't come from the catalog (Import tables) are tried.
     /// </summary>
     public int CatalogLink { get; set; }
+
+    /// <summary>
+    /// The folder was there before this app wrote vrtm.json into it (a table folder you set up yourself, linked or
+    /// renamed here): Remove deletes only the table file and this manifest, not the folder. False for folders this
+    /// app made (installs, Import tables), and in manifests written before this existed.
+    /// </summary>
+    public bool UserFolder { get; set; }
+
     public DateTime InstalledAt { get; set; }
 
     /// <summary>VPS UpdatedAt (epoch ms) of the table file when it was installed; used for update checks.</summary>

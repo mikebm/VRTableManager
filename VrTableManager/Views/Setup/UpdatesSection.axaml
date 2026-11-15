@@ -76,8 +76,14 @@
               <TextBlock Grid.Row="1" Classes="k" Text="YOUR TABLES" />
               <TextBlock Grid.Row="1" Grid.Column="1" Classes="v" Text="{Binding App.Library.TableUpdateText}"
                          Classes.new="{Binding App.Library.TableUpdateCount, Converter={x:Static v:Converters.NonZero}}" />
-              <Button Grid.Row="1" Grid.Column="2" Classes="small" Content="UPDATE TABLES" Command="{Binding App.Library.UpdateAllTablesCommand}"
-                      IsVisible="{Binding App.Library.TableUpdateCount, Converter={x:Static v:Converters.NonZero}}" />
+              <StackPanel Grid.Row="1" Grid.Column="2" Orientation="Horizontal" Spacing="8" VerticalAlignment="Center">
+                <Button Classes="small" Content="AUTO-LINK" Command="{Binding App.Library.AutoLinkTablesCommand}"
+                        IsVisible="{Binding App.Library.AutoLinkableCount, Converter={x:Static v:Converters.NonZero}}"
+                        IsEnabled="{Binding !App.Library.IsAutoLinking}"
+                        ToolTip.Tip="Links tables that didn't come from the catalog (copied from another VPX install, or added by hand) to their catalog version, guessed from the author and version in their file names and Table Info, so they're checked for updates. Only sure matches are linked; the rest are listed to link with ⋯ → Fix table match…." />
+                <Button Classes="small" Content="UPDATE TABLES" Command="{Binding App.Library.UpdateAllTablesCommand}"
+                        IsVisible="{Binding App.Library.TableUpdateCount, Converter={x:Static v:Converters.NonZero}}" />
+              </StackPanel>
 
               <TextBlock Grid.Row="2" Classes="k" Text="ADD-ONS" />
               <TextBlock Grid.Row="2" Grid.Column="1" Classes="v" Text="{Binding App.Addons.AddonUpdateText}"
@@ -87,8 +93,10 @@
 
               <TextBlock Grid.Row="3" Classes="k" Text="VISUAL PINBALL X" />
               <TextBlock Grid.Row="3" Grid.Column="1" Classes="v" Inlines="{Binding VpxUpdateText, Converter={x:Static v:Converters.VersionChange}}" />
-              <Button Grid.Row="3" Grid.Column="2" Classes="small" Content="UPDATE VPX" Command="{Binding App.Vpx.InstallVpxCommand}"
-                      IsVisible="{Binding HasVpxUpdate}" />
+              <!-- VPX installs and updates live on Setup → Visual Pinball X (builds, nightlies, progress, cancel); this just goes there. -->
+              <Button Grid.Row="3" Grid.Column="2" Classes="small" Content="VPX SETUP  ›" Command="{Binding App.ShowSetupSectionCommand}"
+                      CommandParameter="vpx"
+                      ToolTip.Tip="Install, update or pick a VPX build on Setup → Visual Pinball X. UPDATE ALL above updates VPX too." />
 
               <TextBlock Grid.Row="4" Classes="k" Text="UEVR" />
               <TextBlock Grid.Row="4" Grid.Column="1" Classes="v" Inlines="{Binding UevrUpdateText, Converter={x:Static v:Converters.VersionChange}}" />

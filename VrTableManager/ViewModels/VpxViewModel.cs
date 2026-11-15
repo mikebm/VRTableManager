@@ -444,11 +444,13 @@ public sealed partial class VpxViewModel(MainViewModel app) : ChildViewModel(app
         );
         App.Downloads.Jobs.Insert(0, job);
         ImportStatus = "Copying tables…";
+        var copied = 0;
         try
         {
             var r = await Task.Run(() =>
                 TableImport.Import(src, Settings, job.Report, job.Cts.Token)
             );
+            copied = r.Copied.Count;
             var text =
                 $"✓ Copied {r.Copied.Count} table{(r.Copied.Count == 1 ? "" : "s")}."
                 + (r.Skipped.Count > 0 ? $" {r.Skipped.Count} already here, left as they are." : "")
@@ -469,6 +471,23 @@ public sealed partial class VpxViewModel(MainViewModel app) : ChildViewModel(app
         finally
         {
             App.Library.RefreshInstalled();
+        }
+
+        // Copied tables have no catalog version, so no update checks: offer to link them.
+        if (
+            copied > 0
+            && App.Catalog._allGames.Count > 0
+            && await Ui.ChoiceAsync(
+                "Link the copied tables?",
+                $"Copied tables aren't linked to the catalog, so they aren't checked for updates. AUTO-LINK links each "
+                    + "one it's sure of to its catalog version, from the author and version in its file name and "
+                    + "Table Info, and lists the rest for you to link with ⋯ → Fix table match…. You can run it later "
+                    + "from Setup → Updates.",
+                ["AUTO-LINK", "NOT NOW"]
+            ) == 0
+        )
+        {
+            await App.Library.AutoLinkTablesAsync();
         }
     }
 

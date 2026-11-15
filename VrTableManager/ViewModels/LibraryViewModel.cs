@@ -73,10 +73,13 @@ public sealed partial class LibraryViewModel(MainViewModel app) : ChildViewModel
     public partial string PlayStatus { get; set; } = "";
 
     public string[] InstalledFilters { get; } =
-    ["All", "Favourites", UpdatesFilter, "Most played", "Recently played"];
+    ["All", "Favourites", UpdatesFilter, "Most played", "Recently played", UnlinkedFilter];
 
     /// <summary>The filter that shows only tables with a newer version (the updates banner's SHOW THEM).</summary>
     const string UpdatesFilter = "Updates";
+
+    /// <summary>Tables update checks can't compare (no catalog version): AUTO-LINK's SHOW THEM, to fix by hand.</summary>
+    const string UnlinkedFilter = "Not linked";
 
     [RelayCommand]
     void ShowTableUpdates()
@@ -165,8 +168,11 @@ public sealed partial class LibraryViewModel(MainViewModel app) : ChildViewModel
         }
         ShowInstalled();
         _ = RefreshSizesAsync();
-        _ = LinkImportedTablesAsync();
+        _gameLinking = LinkImportedTablesAsync();
     }
+
+    /// <summary>The last scan's automatic game linking: AUTO-LINK waits for it, so the two don't both write vrtm.json.</summary>
+    internal Task _gameLinking = Task.CompletedTask;
 
     /// <summary>
     /// Tables copied in by Import tables have no catalog entry, so no picture, backglass, add-ons or rules:
@@ -320,6 +326,8 @@ public sealed partial class LibraryViewModel(MainViewModel app) : ChildViewModel
                 .OrderBy(i => LetterRails.SortKey(i.Title), StringComparer.OrdinalIgnoreCase),
             UpdatesFilter => pool.Where(i => i.HasUpdate)
                 .OrderBy(i => LetterRails.SortKey(i.Title), StringComparer.OrdinalIgnoreCase),
+            UnlinkedFilter => pool.Where(IsUnlinked)
+                .OrderBy(i => LetterRails.SortKey(i.Title), StringComparer.OrdinalIgnoreCase),
             "Most played" => pool.Where(i => i.Plays > 0)
                 .OrderByDescending(i => i.Plays)
                 .ThenByDescending(i => i.LastPlayed),
@@ -344,7 +352,7 @@ public sealed partial class LibraryViewModel(MainViewModel app) : ChildViewModel
             search == null
                 && InstalledFilter switch
                 {
-                    "Favourites" or UpdatesFilter => true,
+                    "Favourites" or UpdatesFilter or UnlinkedFilter => true,
                     "Most played" or "Recently played" => false,
                     _ => InstalledSort == InstalledSorts[0],
                 }
@@ -377,6 +385,8 @@ public sealed partial class LibraryViewModel(MainViewModel app) : ChildViewModel
                     "Updates are checked once the catalog has loaded.",
                 UpdatesFilter =>
                     "No updates: every table from the catalog is on its newest version.",
+                UnlinkedFilter =>
+                    "Every table is linked to its catalog version, so all of them are checked for updates.",
                 _ =>
                     "Nothing played yet. Your plays from here and from the VR lobby show up in this list.",
             };

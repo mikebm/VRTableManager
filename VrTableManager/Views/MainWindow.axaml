@@ -30,7 +30,7 @@
     </Border>
     <Border Height="2" Margin="0,64,0,0" VerticalAlignment="Top" Background="{StaticResource Chrome}" Opacity="0.55" />
 
-    <TabControl Classes="nav">
+    <TabControl Classes="nav" SelectedIndex="{Binding MainTab}">
       <TabControl.Styles>
         <Style Selector="TabControl.nav /template/ ItemsPresenter#PART_ItemsPresenter">
           <Setter Property="HorizontalAlignment" Value="Right" />

@@ -156,23 +156,34 @@ static class RenameChecks
             root,
             root
         );
-        var refused = false;
-        try
-        {
-            TableInstaller.Rename(handTable, "Nope");
-        }
-        catch (InvalidOperationException)
-        {
-            refused = true;
-        }
         results.Add(
             (
-                !TableInstaller.CanRename(handTable)
-                    && !TableInstaller.CanRename(loose)
-                    && !TableInstaller.CanRename(store)
-                    && refused
-                    && !File.Exists(Path.Combine(hand, "vrtm.json")),
-                "rename: not offered without a manifest of its own (no vrtm.json written into a hand-made folder)"
+                !TableInstaller.CanRename(loose) && !TableInstaller.CanRename(store),
+                "rename: not offered for a loose .vpx or a store game (nowhere to keep the name)"
+            )
+        );
+
+        // A folder you set up yourself: renaming (or linking) writes a vrtm.json marked as yours, and Remove then
+        // deletes only the table file and that manifest, never the folder and what else is in it.
+        var handOther = Path.Combine(hand, "my notes.txt");
+        File.WriteAllText(handOther, "keep me");
+        var handRenamed =
+            TableInstaller.CanRename(handTable) && TableInstaller.Rename(handTable, "Mine");
+        var handManifest = Path.Combine(hand, "vrtm.json");
+        var handSaved = File.Exists(handManifest)
+            ? JsonSerializer.Deserialize<TableManifest>(File.ReadAllText(handManifest))
+            : null;
+        var handScanned = new InstalledTable(handSaved ?? new(), handVpx, hand);
+        TableInstaller.Remove(handScanned);
+        results.Add(
+            (
+                handRenamed
+                    && handSaved is { UserFolder: true, GameName: "Mine" }
+                    && Directory.Exists(hand)
+                    && File.Exists(handOther)
+                    && !File.Exists(handVpx)
+                    && !File.Exists(handManifest),
+                "rename: a hand-made folder's vrtm.json is marked as yours, and Remove keeps the folder and its other files"
             )
         );
 

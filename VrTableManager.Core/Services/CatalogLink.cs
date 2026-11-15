@@ -9,8 +9,9 @@ namespace VrTableManager.Services;
 /// <item>the table's ROM is listed for a catalog game whose name also matches the table's file or folder, or</item>
 /// <item>the name alone matches one game clearly better than any other.</item>
 /// </list>
-/// It never sets the table file id: which version of the table this is isn't known, and a guess would show
-/// updates that aren't.
+/// <see cref="TryLink"/> (automatic, after every scan) never sets the table file id: a wrong version shows updates
+/// that aren't. <see cref="AutoLink"/> (when you ask: AUTO-LINK, or after Import tables) also links the version
+/// when <see cref="TableFileGuess"/> is sure of it.
 /// </summary>
 public static class CatalogLink
 {
@@ -113,6 +114,98 @@ public static class CatalogLink
         }
 
         return true;
+    }
+
+    public enum AutoLinkResult
+    {
+        /// <summary>Already has its version, or isn't a table this can link (not VPX, no vrtm.json of its own).</summary>
+        Skipped,
+
+        /// <summary>Linked to its catalog version: update checks compare it now.</summary>
+        Linked,
+
+        /// <summary>The game isn't clear from its names and ROM (or, in a folder with no vrtm.json yet, the version
+        /// isn't either): nothing changed.</summary>
+        NoGame,
+
+        /// <summary>The game is known (and linked), but not which of its tables this is.</summary>
+        NoVersion,
+    }
+
+    /// <summary>
+    /// AUTO-LINK (asked for, unlike <see cref="TryLink"/>): links a table to its catalog game, and to the table file
+    /// (version) <see cref="TableFileGuess"/> is sure of, so updates are checked. The manifest needs saving unless
+    /// the result is <see cref="AutoLinkResult.Skipped"/>. Reads the .vpx's Table Info, so run it off the UI thread.
+    /// </summary>
+    public static AutoLinkResult AutoLink(InstalledTable t, IReadOnlyList<VpsGame> games)
+    {
+        var m = t.Manifest;
+        if (
+            !t.IsVpx
+            || t.SharedFolder
+            || m.TableFileId != ""
+            || games.Count == 0
+            // A folder of its own: one you set up by hand gets a vrtm.json marked as yours (TableManifest.UserFolder).
+            || !TableInstaller.CanRename(t)
+        )
+        {
+            return AutoLinkResult.Skipped;
+        }
+        // In a folder of yours, only a sure version is worth writing a vrtm.json for, not the game alone.
+        var hasManifest = File.Exists(Path.Combine(t.Folder, "vrtm.json"));
+
+        string[] names = [Path.GetFileName(t.TablePath), Path.GetFileName(t.Folder)];
+        var game =
+            m.GameId != ""
+                ? games.FirstOrDefault(g => g.Id == m.GameId)
+                : Find(m.RomNames, [.. names, m.GameName], games);
+        if (game == null)
+        {
+            return AutoLinkResult.NoGame;
+        }
+
+        var guess = TableFileGuess.Find(game, names, TableFileGuess.ReadInfo(t.TablePath));
+        if (guess == null && !hasManifest)
+        {
+            return AutoLinkResult.NoGame; // nothing written: see hasManifest
+        }
+
+        if (m.GameId == "")
+        {
+            Apply(m, game);
+        }
+        m.CatalogLink = Math.Max(m.CatalogLink, Version);
+        if (guess == null)
+        {
+            return AutoLinkResult.NoVersion;
+        }
+
+        ApplyFile(m, guess.File, guess.Version);
+        return AutoLinkResult.Linked;
+    }
+
+    /// <summary>
+    /// Links the table file, as installing it would have, without renaming the table or touching its ROMs.
+    /// <paramref name="version"/> is the version the table is (older than the table file's when an update is out).
+    /// </summary>
+    public static void ApplyFile(TableManifest m, VpsTableFile tf, string? version)
+    {
+        m.TableFileId = tf.Id;
+        m.Version = version;
+        m.SourceUpdatedAt = tf.UpdatedAt;
+        if (m.Authors.Count == 0)
+        {
+            m.Authors = tf.Authors ?? [];
+        }
+        if (m.Features.Count == 0)
+        {
+            m.Features = VpuRemix.FeaturesOf(tf);
+        }
+        m.SourceUrl ??= tf.Urls?.FirstOrDefault()?.Url;
+        if (!string.IsNullOrWhiteSpace(tf.ImgUrl))
+        {
+            m.ImgUrl = tf.ImgUrl;
+        }
     }
 
     /// <summary>Fills in what the catalog knows about the game (not the table file: see the class summary).</summary>

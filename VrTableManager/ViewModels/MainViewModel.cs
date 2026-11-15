@@ -108,7 +108,7 @@ public sealed partial class MainViewModel : ObservableObject, IAsyncDisposable
     internal void CatalogLoaded()
     {
         Library.ShowInstalled(); // My Tables' type and theme filters come from the catalog; also runs ApplyTableUpdates
-        _ = Library.LinkImportedTablesAsync();
+        Library._gameLinking = Library.LinkImportedTablesAsync(); // AUTO-LINK waits for it
         _ = Updates.CheckUpdatesAsync(); // VPX / UEVR / BAM, in the background
         _ = Library.LoadRuleSheetsAsync();
         _ = Library.RefreshHighScoreMapsAsync();

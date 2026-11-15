@@ -37,22 +37,36 @@ public sealed partial class LibraryViewModel
             _ = App.Roms.RecheckRomNeedAsync(item.Table);
         }
         TableUpdateCount = updates.Count;
+        // Only tables linked to a catalog version (installed from the catalog, AUTO-LINK, Fix table match) can be
+        // checked. Say how many others there are, or 18 of 381 reads as "all 18".
         var tracked = _allInstalled.Count(i => i.Table.Manifest.TableFileId != "");
+        var untracked = UnlinkedCount = _allInstalled.Count(IsUnlinked);
+        AutoLinkableCount = _allInstalled.Count(i => IsUnlinked(i) && i.Table.IsVpx && i.CanRename);
+        var others =
+            untracked == 0 ? ""
+            : untracked == 1
+                ? " 1 other table isn't linked to a catalog version, so it can't be checked."
+            : $" {untracked} other tables aren't linked to a catalog version, so they can't be checked.";
         TableUpdateText = updates.Count switch
         {
-            0 when tracked == 0 => "No tables installed from the catalog yet.",
-            0 => tracked == 1
-                ? "Your table is up to date."
-                : $"All {tracked} tables are up to date.",
+            0 when tracked == 0 => untracked == 0 ? "No tables installed from the catalog yet."
+            : untracked == 1
+                ? "Your table isn't linked to a catalog version, so it can't be checked."
+            : $"None of your {untracked} tables are linked to a catalog version, so they can't be checked.",
+            0 => (
+                tracked == 1
+                    ? "Your 1 linked table is up to date."
+                    : $"All {tracked} linked tables are up to date."
+            ) + others,
             // Name them when they fit on the line; SHOW THEM lists them all either way.
             1 => $"{updates.Values.First().Table.Manifest.GameName} has a newer version.",
             <= 3 =>
                 $"{string.Join(", ", updates.Values.Select(u => u.Table.Manifest.GameName).Order())} have newer versions.",
             _ => $"{updates.Count} tables have newer versions.",
         };
-        if (InstalledFilter == UpdatesFilter)
+        if (InstalledFilter is UpdatesFilter or UnlinkedFilter)
         {
-            FilterInstalled(); // one was updated, or a new version came out
+            FilterInstalled(); // one was updated or linked, or a new version came out
         }
         App.Addons.ApplyAddons();
         ApplyRules();
@@ -62,6 +76,164 @@ public sealed partial class LibraryViewModel
             + (App.Updates.HasVpxUpdate ? 1 : 0)
             + (App.Updates.HasUevrUpdate ? 1 : 0)
             + (App.Updates.HasAppUpdate ? 1 : 0);
+    }
+
+    // ---- AUTO-LINK: tables that didn't come from the catalog (Import tables, copied in by hand) ----
+
+    /// <summary>VPX and Future Pinball tables with no catalog version, so update checks skip them.</summary>
+    [ObservableProperty]
+    public partial int UnlinkedCount { get; set; }
+
+    /// <summary>The unlinked tables AUTO-LINK can try (VPX with a vrtm.json of their own): shows its button.</summary>
+    [ObservableProperty]
+    public partial int AutoLinkableCount { get; set; }
+
+    [ObservableProperty]
+    public partial bool IsAutoLinking { get; set; }
+
+    static bool IsUnlinked(InstalledItem i) =>
+        i.Table.Manifest.TableFileId == ""
+        && i.Table.Manifest.Engine is TableManifest.Vpx or TableManifest.FuturePinball;
+
+    /// <summary>
+    /// Links every table it can to its catalog version (<see cref="CatalogLink.AutoLink"/>), then says how many
+    /// are left and offers to list them, to link by hand with ⋯ → Fix table match….
+    /// </summary>
+    [RelayCommand]
+    internal async Task AutoLinkTablesAsync()
+    {
+        var games = App.Catalog._allGames;
+        if (games.Count == 0)
+        {
+            await Ui.ChoiceAsync(
+                "The catalog hasn't loaded",
+                "AUTO-LINK needs the catalog. Try again once Get Tables has loaded it.",
+                ["OK"]
+            );
+            return;
+        }
+
+        if (IsAutoLinking)
+        {
+            return;
+        }
+
+        IsAutoLinking = true;
+        List<InstalledItem> toFix = [];
+        try
+        {
+            await _gameLinking;
+            // Tables with a job running (update, add-on, ROM, Fix table match) are left alone: the job saves
+            // vrtm.json from what it read at its start, and would undo the link, or this would undo its work.
+            var tables = _allInstalled
+                .Select(i => i.Table)
+                .Where(t => !_busyTables.Contains(t.TablePath))
+                .ToList();
+            var (linked, changed) = await Task.Run(() =>
+            {
+                var n = 0;
+                var touched = new List<InstalledTable>();
+                foreach (var scanned in tables)
+                {
+                    try
+                    {
+                        // As saved now, not as scanned: a rename meanwhile mustn't be written back over.
+                        var t = TableInstaller.Fresh(scanned);
+                        var r = CatalogLink.AutoLink(t, games);
+                        if (
+                            r
+                            is CatalogLink.AutoLinkResult.Skipped
+                                or CatalogLink.AutoLinkResult.NoGame
+                        )
+                        {
+                            continue;
+                        }
+                        TableInstaller.SaveManifest(t);
+                        touched.Add(t);
+                        if (r == CatalogLink.AutoLinkResult.Linked)
+                        {
+                            n++;
+                        }
+                    }
+                    catch (Exception e) when (e is IOException or UnauthorizedAccessException)
+                    {
+                        // Read-only folder or the file's in use: left for next time.
+                    }
+                }
+                return (n, touched);
+            });
+
+            // Read them back from disk: a rescan while this ran (a download finishing, the lobby closing) may have
+            // replaced the tables with copies read before they were saved, which would still show as unlinked.
+            if (changed.Count > 0)
+            {
+                RefreshInstalled(); // re-reads vrtm.json and pictures
+            }
+            ApplyTableUpdates();
+
+            var left = _allInstalled.Where(IsUnlinked).ToList();
+            var fixable = left.Count(i => i.CanRename);
+            var message =
+                (
+                    linked == 0 ? "No more tables could be linked surely."
+                    : linked == 1
+                        ? "Linked 1 table to its catalog version: it's checked for updates now."
+                    : $"Linked {linked} tables to their catalog versions: they're checked for updates now."
+                )
+                + (
+                    left.Count == 0
+                        ? " Every table is linked."
+                        : $"\n\n{left.Count} {(left.Count == 1 ? "table still isn't" : "tables still aren't")} linked. "
+                            + "AUTO-LINK only links VPX tables, and only when the author and version in the file point "
+                            + "to one catalog table clearly."
+                            + (
+                                fixable > 0
+                                    ? "\n\nFIX THEM NOW goes through them one at a time, the likeliest game first, "
+                                        + "and you can stop whenever you like. LATER leaves them under My Tables → "
+                                        + "Not linked, to fix with ⋯ → Fix table match…, or come back here."
+                                    : ""
+                            )
+                );
+            var choice = await Ui.ChoiceAsync(
+                "Auto-link tables",
+                message,
+                fixable > 0 ? ["FIX THEM NOW", "SHOW THEM", "LATER"] : ["OK"]
+            );
+            if (fixable > 0 && choice == 0)
+            {
+                toFix =
+                [
+                    .. left.Where(i => i.CanRename)
+                        .OrderBy(i => i.Title, StringComparer.OrdinalIgnoreCase),
+                ];
+            }
+            else if (fixable > 0 && choice == 1)
+            {
+                ShowUnlinkedTables();
+            }
+        }
+        finally
+        {
+            IsAutoLinking = false;
+        }
+
+        if (toFix.Count > 0)
+        {
+            await FixUnlinkedNowAsync(toFix);
+        }
+    }
+
+    /// <summary>My Tables, filtered to the tables with no catalog version (AUTO-LINK's SHOW THEM).</summary>
+    [RelayCommand]
+    void ShowUnlinkedTables()
+    {
+        _refillingChoices = true;
+        InstalledSearch = "";
+        InstalledEngine = InstalledEngines[0];
+        _refillingChoices = false;
+        ClearInstalledFilters();
+        InstalledFilter = UnlinkedFilter;
+        App.MainTab = 0;
     }
 
     // ---- Rules: The Pinball Primer's page for the machine and the catalog's instruction cards (My Tables → RULES) ----

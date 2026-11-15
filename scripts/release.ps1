@@ -87,7 +87,14 @@ Write-Host "Releasing $tag of $Repo from $branch @ $($commit.Substring(0,7))"
 
 if (-not $SkipTests) {
     Step "Running the smoke test"
-    Run dotnet @('run', '--project', (Join-Path $root 'SmokeTest'), '-c', 'Release')
+    # Releases also run the live GitHub checks; everyday runs leave GitHub alone (it allows 60 calls an hour).
+    $env:VRTM_LIVE = '1'
+    try {
+        Run dotnet @('run', '--project', (Join-Path $root 'SmokeTest'), '-c', 'Release')
+    }
+    finally {
+        Remove-Item Env:VRTM_LIVE -ErrorAction SilentlyContinue
+    }
 }
 
 # ---- Build ----------------------------------------------------------------------------------

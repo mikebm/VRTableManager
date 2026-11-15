@@ -84,7 +84,7 @@ public sealed partial class UpdatesViewModel(MainViewModel app) : ChildViewModel
                 uevrErr != null ? "Couldn't check GitHub: " + uevrErr
                 : uevr == null ? "No UEVR release found."
                 : uevrHave == null
-                    ? $"Not installed. Latest is {uevr.Tag} (only needed for Pinball FX)."
+                    ? $"Not Installed: latest is {uevr.Tag} (only needed for Pinball FX)."
                 : uevrHave == "unknown"
                     ? $"Installed (version unknown). Latest is {uevr.Tag}; updating makes it trackable."
                 : HasUevrUpdate ? $"{uevrHave} → {uevr.Tag}"
@@ -97,7 +97,7 @@ public sealed partial class UpdatesViewModel(MainViewModel app) : ChildViewModel
                 bamErr != null ? "Couldn't reach ravarcade.pl: " + bamErr
                 : bam == null ? "Couldn't read the latest version from ravarcade.pl."
                 : bamHave == null
-                    ? $"Latest is v{bam}. BAM isn't installed (only needed for Future Pinball)."
+                    ? $"Not Installed: latest is v{bam} (only needed for Future Pinball)."
                 : $"Latest is v{bam}; yours: {bamHave}. Install from the BAM page if yours is older.";
 
             App.Library.ApplyTableUpdates();
@@ -185,5 +185,4 @@ public sealed partial class UpdatesViewModel(MainViewModel app) : ChildViewModel
             IsUpdating = false;
         }
     }
-
 }

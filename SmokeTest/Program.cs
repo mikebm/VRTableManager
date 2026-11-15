@@ -17,6 +17,10 @@ void Check(bool ok, string what)
 // Live checks call GitHub's API, which allows 60 unauthenticated calls an hour per address: they run only with
 // VRTM_LIVE=1, and GitHub being unreachable or rate-limited skips them. The parsing they rely on is checked offline.
 var live = Environment.GetEnvironmentVariable("VRTM_LIVE") == "1";
+
+// Live checks ask GitHub itself, not the answers the app kept (and never write into the app's cache).
+GitHubApi.CacheDir = Path.Combine(Path.GetTempPath(), "vrtm-smoke-github-" + Environment.ProcessId);
+GitHubApi.FreshFor = TimeSpan.Zero;
 async Task Live(string what, Func<Task> check)
 {
     if (!live)
@@ -34,8 +38,11 @@ async Task Live(string what, Func<Task> check)
     }
 }
 
-// 1. Catalog
-var games = await VpsCatalog.LoadAsync(forceRefresh: false);
+// 1. Catalog. The spreadsheet lives on GitHub Pages: outside a live run (releases), use the copy the app saved,
+// and download it only when there's none yet.
+var games = live
+    ? await VpsCatalog.LoadAsync(forceRefresh: false)
+    : VpsCatalog.LoadCached() ?? await VpsCatalog.LoadAsync(forceRefresh: false);
 var vrGames = games
     .Where(g => g.TableFiles!.Any(t => VpsCatalog.IsVpx(t) && VpsCatalog.IsVrReady(t)))
     .ToList();

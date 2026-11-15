@@ -41,6 +41,10 @@ public sealed partial class MainViewModel
         Settings.Save();
     }
 
+    /// <summary>The top tab showing: 0 My Tables, 1 Get Tables, 2 Setup.</summary>
+    [ObservableProperty]
+    public partial int MainTab { get; set; }
+
     /// <summary>The NEXT button at the foot of each Setup section.</summary>
     [RelayCommand]
     void ShowSetupSection(string section) => SetupSection = section;

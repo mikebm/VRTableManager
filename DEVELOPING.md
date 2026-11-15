@@ -35,7 +35,7 @@ dotnet run --project SmokeTest
 godot --headless --path VrLobby -- --selftest
 ```
 
-SmokeTest hits the online catalog and a few release and site endpoints, so some checks need a network connection. Checks that need a particular table installed are skipped when it isn't.
+SmokeTest leaves GitHub alone by default: it uses the catalog the app saved (downloading it only when there's none), and the checks against GitHub's API run only with `VRTM_LIVE=1`, which `scripts/release.ps1` sets. GitHub allows 60 unauthenticated API calls an hour per address, and the app itself needs some of those. Checks that need a particular table installed are skipped when it isn't.
 
 ## Projects
 

@@ -37,7 +37,9 @@ public static class UserArtwork
 
     public static string FolderFor(InstalledTable t)
     {
-        if (t.IsVpx && File.Exists(Path.Combine(t.Folder, "vrtm.json")))
+        // Inside the table's folder only when this app made it; a folder of yours (even once linked) keeps its
+        // artwork where it was, so linking it doesn't lose your pictures.
+        if (t.IsVpx && File.Exists(Path.Combine(t.Folder, "vrtm.json")) && !t.Manifest.UserFolder)
         {
             return Path.Combine(t.Folder, FolderName);
         }
