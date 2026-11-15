@@ -224,7 +224,7 @@ public sealed class AppSettings
     public bool LobbyPlayfieldVideos { get; set; } = true;
 
     /// <summary>
-    /// The VR lobby's selected cabinet shows its table's own 3D toys (ramps, plastics, toys) on the playfield, its lobby
+    /// The VR lobby's cabinets in view show their tables' own 3D toys (ramps, plastics, toys) on the playfield, the lobby
     /// video lying flat under them, and no playfield gets parallax depth (Setup offers one or the other). Off by default
     /// (parallax): a table's toys can be a million vertices and more, so tables over the
     /// lobby's budget are left without, and older tables' toys, lit by VPX at play time, can look flat.

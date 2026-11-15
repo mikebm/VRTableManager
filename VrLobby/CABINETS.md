@@ -146,7 +146,7 @@ Every cabinet gets a glass sheet. On a VR cabinet it lies along the side rails' 
 
 ## 5. 3D toys (Setup: Playfield depth → 3D toys)
 
-An alternative to the height map (section 2), off by default (`AppSettings.LobbyTableToys`). The selected cabinet shows the table's own 3D primitives standing on its playfield. Its lobby video plays flat, and no playfield gets a height map in this mode. Code: `VpxToys.cs` (Core), and `TableToys.cs`, `CabinetToys.cs` and `MainToys.cs` (lobby).
+An alternative to the height map (section 2), off by default (`AppSettings.LobbyTableToys`). Every cabinet in view shows its table's own 3D primitives standing on its playfield. Their lobby videos play flat, and no playfield gets a height map in this mode. Code: `VpxToys.cs` (Core), and `TableToys.cs`, `CabinetToys.cs` and `MainToys.cs` (lobby).
 
 ### Picking toys: `VpxCabinet.Toys`
 
@@ -176,11 +176,11 @@ An alternative to the height map (section 2), off by default (`AppSettings.Lobby
 
 ### Loading and showing
 
-- **Reading:** read in the background, only once the ring has almost stopped. A read still waiting is dropped once you've moved on.
+- **Reading:** read in the background, only once the ring has almost stopped. A read still waiting is dropped once its table is no longer in view.
 - **Building:** done on the main thread a piece a frame (about 4 ms each: a picture or a surface, big meshes split into 60k-vertex pieces), and the toys are shown only once complete.
 - **Placement:** `Cabinet.ShowToys` places them on the cabinet's playfield quad, own or default, tipped to its slope and stretched to its size as the video is.
 - **Depth and glass:** while toys are shown, `SetPlayfieldDepth` keeps the video flat and the glass is off. Both come back when the toys go.
-- Only the selected cabinet shows toys, and the last three tables are kept in memory.
+- Every cabinet in view shows toys (the side videos' angles: within 70° of where you look, kept until 85°), the selected one read and built first. Toys already read stay on show while the ring scrolls; new ones are read only once it has nearly stopped. Every table on show is kept in memory, and two more.
 
 ## Caches
 

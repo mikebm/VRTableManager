@@ -6,7 +6,7 @@ using SurfaceData = VrLobby.RealCabinetLoader.SurfaceData;
 namespace VrLobby;
 
 /// <summary>
-/// A table's own 3D toys (<see cref="VpxCabinet.Toys"/>), ready to draw on the selected cabinet's playfield
+/// A table's own 3D toys (<see cref="VpxCabinet.Toys"/>), ready to draw on a cabinet's playfield
 /// (<see cref="Cabinet.ShowToys"/>): one mesh, a surface per look, in playfield space (x across from its centre, y up
 /// from it, z along it towards the player), for a playfield of <see cref="PlayfieldSize"/>.
 /// </summary>
@@ -33,8 +33,14 @@ public partial class TableToysLoader : Node
 
     public int Budget { get; set; } = DefaultBudget;
 
-    /// <summary>Tables kept in memory: the selected one and the last one or two (scrolling back is quick).</summary>
+    /// <summary>
+    /// Tables kept in memory when only the selected one is on show: it and the last one or two (scrolling back is
+    /// quick). With more on show (<see cref="Want"/>), every one of them and two more.
+    /// </summary>
     public int Keep { get; set; } = 3;
+
+    /// <summary>Tables kept in memory now (<see cref="Keep"/>, or more while more are on show).</summary>
+    int _keep = 3;
 
     public string? CacheDir { get; set; } = ToyCache.DefaultDir;
 
@@ -54,25 +60,54 @@ public partial class TableToysLoader : Node
     public TableToys? Get(string vpx) => _done.GetValueOrDefault(vpx);
 
     /// <summary>
-    /// Marks a table as just used (it's on show), so reading others never forgets it: without this a table shown all along
-    /// dropped out as the ones scrolled past finished, its toys vanished, and it was read again.
+    /// The tables on show, the one you're on first (it's read and built first). Each one not known yet is read when
+    /// <paramref name="read"/> (the ring has nearly stopped); a read still waiting for its turn is dropped once its
+    /// table is no longer wanted (scrolled on, or turned away from). Tables on show are kept in memory whatever else is
+    /// read: without that a table shown all along dropped out as the ones scrolled past finished, its toys vanished,
+    /// and it was read again.
     /// </summary>
-    public void Touch(string vpx)
+    public void Want(IReadOnlyList<string> tables, bool read)
     {
-        if (_recent.First?.Value != vpx && _recent.Remove(vpx))
+        _keep = Math.Max(Keep, tables.Count + 2);
+        _first = read && tables.Count > 0 ? tables[0] : null;
+        if (!read)
         {
-            _recent.AddFirst(vpx);
+            if (_wanted.Count > 0)
+            {
+                _wanted = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+            }
+        }
+        else if (!_wanted.SetEquals(tables))
+        {
+            _wanted = new HashSet<string>(tables, StringComparer.OrdinalIgnoreCase);
+        }
+
+        // Most recent first: the one you're on ends up at the front.
+        for (var i = tables.Count - 1; i >= 0; i--)
+        {
+            var vpx = tables[i];
+            if (read || _done.ContainsKey(vpx))
+            {
+                _recent.Remove(vpx);
+                _recent.AddFirst(vpx);
+            }
+        }
+
+        if (read)
+        {
+            foreach (var vpx in tables) // in order: the one you're on queues first
+            {
+                Request(vpx);
+            }
         }
     }
 
-    /// <summary>The table last asked for: a read still waiting for its turn is dropped once another is wanted.</summary>
-    volatile string? _wanted;
+    /// <summary>Tables wanted now (read on any thread: replaced, never changed), and the one you're on.</summary>
+    volatile HashSet<string> _wanted = new(StringComparer.OrdinalIgnoreCase);
+    volatile string? _first;
 
-    public void Request(string vpx)
+    void Request(string vpx)
     {
-        _recent.Remove(vpx);
-        _recent.AddFirst(vpx);
-        _wanted = vpx;
         if (_done.ContainsKey(vpx) || !_pending.Add(vpx))
         {
             return;
@@ -88,9 +123,9 @@ public partial class TableToysLoader : Node
             try
             {
                 LobbyWork.Closing.ThrowIfCancellationRequested();
-                // Scrolled on while it waited: don't spend a second or two reading a table you've left. It's asked
-                // for again if you come back.
-                if (_wanted != vpx)
+                // Scrolled on (or turned away) while it waited: don't spend a second or two reading a table you've
+                // left. It's asked for again if you come back.
+                if (!_wanted.Contains(vpx))
                 {
                     Callable.From(() => _pending.Remove(vpx)).CallDeferred();
                     return;
@@ -394,7 +429,7 @@ public partial class TableToysLoader : Node
         }
 
         _done[vpx] = toys;
-        while (_recent.Count > Keep)
+        while (_recent.Count > _keep)
         {
             _done.Remove(_recent.Last!.Value);
             _recent.RemoveLast();
@@ -429,7 +464,7 @@ public partial class TableToysLoader : Node
         if (_building.Count > 0)
         {
             // The table you're on first: one you moved on from may still be queued ahead of it.
-            BuildStep(_building.Find(b => b.Vpx == _wanted) ?? _building[0]);
+            BuildStep(_building.Find(b => b.Vpx == _first) ?? _building[0]);
         }
     }
 

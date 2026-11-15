@@ -2,7 +2,7 @@ using Godot;
 
 namespace VrLobby;
 
-// A table's own 3D toys on this cabinet's playfield (TableToys), for the selected cabinet only.
+// A table's own 3D toys on this cabinet's playfield (TableToys), on every cabinet in view (Main.UpdateToys).
 public partial class Cabinet
 {
     MeshInstance3D? _toys;

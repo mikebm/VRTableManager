@@ -49,7 +49,7 @@ public sealed partial class LobbyViewModel(MainViewModel app) : ChildViewModel(a
     partial void OnLobbyPlayfieldVideosChanged(bool value) =>
         SaveSetting(s => s.LobbyPlayfieldVideos = value);
 
-    /// <summary>The VR lobby's selected cabinet shows its table's own 3D toys (experimental), and no playfield has parallax.</summary>
+    /// <summary>The VR lobby's cabinets in view show their tables' own 3D toys (experimental), and no playfield has parallax.</summary>
     [ObservableProperty, NotifyPropertyChangedFor(nameof(LobbyParallax))]
     public partial bool LobbyTableToys { get; set; }
 
