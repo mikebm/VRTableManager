@@ -1257,6 +1257,40 @@ foreach (var vpw in new[] { "Fish Tales (Williams 1992) VPW", "Metallica Premium
     );
 }
 
+// The saved 3D toys within Setup's size (ToyFiles.Prune): the files used longest ago go, never the one just
+// written, and with no limit nothing goes.
+{
+    var toyDir = Directory.CreateTempSubdirectory("vrtm-toys-").FullName;
+    var now = DateTime.UtcNow;
+    string Toy(string name, int kb, int minutesAgo)
+    {
+        var f = Path.Combine(toyDir, name + ".toys");
+        File.WriteAllBytes(f, new byte[kb * 1024]);
+        File.SetLastWriteTimeUtc(f, now.AddMinutes(-minutesAgo));
+        return f;
+    }
+    var oldest = Toy("a", 400, 30);
+    var older = Toy("b", 400, 20);
+    var newest = Toy("c", 400, 10);
+    var justWritten = Toy("d", 400, 40); // written now, but its date says otherwise: kept as `keep`
+    Check(ToyFiles.Prune(0, null, toyDir) == 0, "toy cache: no limit deletes nothing");
+    var dropped = ToyFiles.Prune(1000 * 1024, justWritten, toyDir);
+    Check(
+        dropped == 2
+            && !File.Exists(oldest)
+            && !File.Exists(older)
+            && File.Exists(newest)
+            && File.Exists(justWritten)
+            && ToyFiles.SizeBytes(toyDir) == 800 * 1024,
+        "toy cache: over its size, the tables used longest ago go, never the one just written"
+    );
+    Check(
+        ToyFiles.ClearAll(toyDir) == 800 * 1024 && ToyFiles.SizeBytes(toyDir) == 0,
+        "toy cache: clearing it deletes every table's toys"
+    );
+    Directory.Delete(toyDir, true);
+}
+
 // The lobby's optional 3D toys (VpxCabinet.Toys): the baked toys, not the playfield, the lightmaps, the back board the
 // cabinet already has, a flipper's raised pose or a slingshot's other frames; and over the budget, nothing but the count.
 WithTable(

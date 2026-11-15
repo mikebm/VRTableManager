@@ -91,6 +91,13 @@ public sealed partial class LobbyMediaViewModel
             : $"{item.Title} stands in its own VR cabinet, when its file has one, the next time the VR lobby opens.";
     }
 
+    /// <summary>Deletes what the VR lobby saved of this table's 3D toys; it reads them again when the table is next picked.</summary>
+    [RelayCommand]
+    void ClearTableToys(InstalledItem item) =>
+        App.Library.PlayStatus = VrTableManager.Lobby.ToyFiles.Clear(item.Table.TablePath)
+            ? $"Cleared {item.Title}'s saved 3D toys. The VR lobby reads them again from the table the next time you pick it."
+            : $"{item.Title} has no saved 3D toys to clear.";
+
     [RelayCommand]
     void OpenArtworkFolder(InstalledItem item) =>
         Ui.OpenExternal(Directory.CreateDirectory(UserArtwork.FolderFor(item.Table)).FullName);

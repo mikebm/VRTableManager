@@ -93,6 +93,7 @@ public sealed partial class LobbyViewModel(MainViewModel app) : ChildViewModel(a
         AttractMusicSeconds = s.AttractSeconds;
         LobbyPlayfieldVideos = s.LobbyPlayfieldVideos;
         LobbyTableToys = s.LobbyTableToys;
+        LoadToyCacheSettings(s);
         LobbyWaitsForTable = s.LobbyWaitsForTable;
         LobbyStaysOpen = s.LobbyStaysOpen;
         LobbyLoadingVideos = s.LobbyLoadingVideos;

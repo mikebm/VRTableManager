@@ -47,7 +47,7 @@ SmokeTest hits the online catalog and a few release and site endpoints, so some 
 | [SmokeTest](SmokeTest/SmokeTest.csproj) | Console checks for both apps. |
 | [tools/IconGen](tools/IconGen/IconGen.csproj) | Makes the app icon. |
 
-[VrLobby/CABINETS.md](VrLobby/CABINETS.md) explains how the lobby reads a table's cabinet, picks its art and builds the playfield's depth.
+[VrLobby/CABINETS.md](VrLobby/CABINETS.md) explains how the lobby reads a table's cabinet, picks its art, builds the playfield's depth and picks its 3D toys.
 
 ## VR lobby options for development
 

@@ -58,13 +58,23 @@ The lobby reads these when it starts.
 
 ### Prepare tables
 
-The first time the lobby shows a table, it reads the table's file for its cabinet, playfield and pictures. That takes a few seconds a table, longer on a hard drive, so cabinets can pop in as you turn the ring. **Setup → VR lobby → PREPARE TABLES** reads them all ahead of time, in the background, and you can follow it under Downloads. A big collection on a hard drive can take an hour or more the first time. After that, only new or updated tables need reading. If some ROM tables have no music yet, it first asks whether to record that too, afterwards (see [Attract music](#attract-music)).
+The first time the lobby shows a table, it reads the table's file for its cabinet, playfield and pictures. That takes a few seconds a table, longer on a hard drive, so cabinets can pop in as you turn the ring. **Setup → VR lobby → PREPARE TABLES** reads them all ahead of time, in the background, and you can follow it under Downloads. A big collection on a hard drive can take an hour or more the first time. After that, only new or updated tables need reading. With **3D toys** chosen, it reads each table's toys too (and skips the parallax height maps, which that mode doesn't use), up to the space set for them. If some ROM tables have no music yet, it first asks whether to record that too, afterwards (see [Attract music](#attract-music)).
 
 ## Videos and music
 
 - **Playfield videos:** with a lobby video, a cabinet's playfield moves, ramps and all. Every cabinet you can see plays its video, so the ones you turn towards are already moving. Get them from a table's **⋯** menu, or for everything at once with **GET LOBBY MEDIA** on My Tables. Turn them off under **Setup → VR lobby** if your PC or drive struggles.
+- **Playfield depth:** **Setup → VR lobby → Playfield depth** picks how the playfield you've picked stands up. See [Parallax or 3D toys](#parallax-or-3d-toys) below.
 - **Wheel art:** the game's logo floats over the selected cabinet's title.
 - **Music:** when you stop on a table, its music plays from the backbox, for 10 seconds unless you change **Music length** under **Setup → VR lobby → Music**. It comes from the table's media pack or a music file in its folder. A ROM table with neither gets its start-up music recorded from its ROM. See [Attract music](#attract-music) below.
+
+### Parallax or 3D toys
+
+Under **Setup → VR lobby → Playfield depth** you choose one of two ways for the playfield you've picked to stand up. The playfield videos keep playing either way.
+
+- **Parallax** (the default): the lobby video's ramps and toys rise as you move your head, worked out from a height map of the table's file. It works for every table with a lobby video, and the glass stays on.
+- **3D toys** (experimental): the picked cabinet shows the table's own ramps, plastics and toys, taken from its file, standing on its playfield. The lobby video lies flat under them, and that cabinet's glass is off, since some toys stand taller than it. No table gets parallax in this mode. A table whose toys are too heavy (over a million vertices), or that has none, shows a flat playfield. Toys look best on newer tables with baked lighting (VPW's); older tables' toys can look flat. Ramps, walls and rubbers that a table builds from curves rather than 3D models aren't shown.
+
+The first time you pick a table its toys are read from its file, which takes a second or two, so they appear a moment after you arrive. After that they're saved and show at once. **PREPARE TABLES** reads every table's toys ahead of time when 3D toys is chosen. Saved toys can take tens of MB a table. **Space for 3D toys** sets how much they may take, unlimited by default. Over it, the tables you picked longest ago are dropped and read again when you next pick them. **CLEAR SAVED 3D TOYS** deletes them all, as does **Lobby 3D toys** under **Setup → Maintenance → Storage**, and **MORE → My artwork → Clear saved 3D toys** on My Tables deletes one table's.
 
 ### Attract music
 

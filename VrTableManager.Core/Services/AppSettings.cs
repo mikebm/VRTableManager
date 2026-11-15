@@ -231,6 +231,12 @@ public sealed class AppSettings
     /// </summary>
     public bool LobbyTableToys { get; set; }
 
+    /// <summary>
+    /// Most the VR lobby's saved 3D toys may take on disk, in GB (<see cref="Lobby.ToyFiles"/>); 0, the default, is no
+    /// limit. Over it, the tables used longest ago are dropped and read again from their table when next picked.
+    /// </summary>
+    public int LobbyToyCacheGb { get; set; }
+
     /// <summary>On LAUNCH VR LOBBY, offer PREPARE TABLES while many tables haven't been read for the lobby yet.</summary>
     public bool AskToPrepareLobbyTables { get; set; } = true;
 

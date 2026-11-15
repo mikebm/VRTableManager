@@ -12,7 +12,8 @@ namespace VrLobby;
 /// <item>its playfield picture (<see cref="VpxImages.CachedPlayfield"/>);</item>
 /// <item>its playfield's height map, for a table with a lobby video (<see cref="PlayfieldDepth"/>), unless lobby
 /// videos are turned off or Setup chose 3D toys instead of parallax;</item>
-/// <item>its 3D toys (<see cref="ToyCache"/>), when Setup chose them: a second or two a table, otherwise read the first
+/// <item>its 3D toys (<see cref="ToyCache"/>), when Setup chose them, until they fill the size chosen there: a second
+/// or two a table, otherwise read the first
 /// time the table is picked;</item>
 /// <item>its own backglass, back panel and inner side wall pictures (<see cref="VpxImages.CachedBackglass"/>,
 /// <see cref="VpxImages.CachedBackPanel"/>), and its .directb2s's backglass (<see cref="DirectB2s"/>): the
@@ -28,6 +29,7 @@ static class PrepareTables
     public static int Run(IEnumerable<LobbyTable> library, AppSettings settings, string? cabinetDir)
     {
         var artDir = ArtLoader.ExtractDir;
+        var toyLimit = ToyFiles.Bytes(settings.LobbyToyCacheGb);
         var tables = library
             .Select(t => (Table: t, Vpx: Main.VpxFile(t)))
             .Where(x => x.Vpx != null && File.Exists(x.Vpx))
@@ -36,10 +38,20 @@ static class PrepareTables
             .OrderBy(x => x.Vpx, StringComparer.OrdinalIgnoreCase)
             .Select(x => (x.Table, Vpx: x.Vpx!))
             .ToList();
+        // The saved toys: those from an older version first (unusable, but they'd count against the space), then how
+        // much room is left. Already full: no toys are planned, so they aren't counted as work that never happens.
+        long toyBytes = 0;
+        if (settings.LobbyTableToys)
+        {
+            ToyCache.DropStale(ToyCache.DefaultDir);
+            toyBytes = ToyFiles.SizeBytes();
+        }
+        var toysFit = toyLimit <= 0 || toyBytes < toyLimit;
         var todo = tables
             .Select(x =>
                 (x.Table, x.Vpx, Needs: Needs(x.Table, x.Vpx, settings, cabinetDir, artDir))
             )
+            .Select(x => toysFit ? x : x with { Needs = x.Needs with { Toys = false } })
             .Where(x => x.Needs.Any)
             .ToList();
         Say($"PREPARE-TOTAL {todo.Count} {tables.Count}");
@@ -89,7 +101,8 @@ static class PrepareTables
                     PlayfieldDepth.Load(videoFolder, vpx);
                 }
 
-                if (needs.Toys)
+                // Within the size chosen on Setup: once the toys fill it, the rest are read when they're first picked.
+                if (needs.Toys && (toyLimit <= 0 || toyBytes < toyLimit))
                 {
                     // One that can't be read is kept as having none, or every run would read it again.
                     ToyCache.Save(
@@ -97,6 +110,8 @@ static class PrepareTables
                         ToyCache.DefaultDir,
                         TableToysLoader.Parse(vpx, TableToysLoader.DefaultBudget) ?? ToyCache.None
                     );
+                    var saved = new FileInfo(ToyFiles.FileFor(vpx));
+                    toyBytes += saved.Exists ? saved.Length : 0;
                 }
             }
             catch (Exception e)

@@ -1,4 +1,4 @@
-# VR lobby: playfield depth and cabinet art
+# VR lobby: playfield depth, cabinet art and 3D toys
 
 How the VR lobby turns a `.vpx` into what you see: a playfield with real depth, and a cabinet dressed in the table's own art. VPX has no field that says "this picture is the side art" or "this part is the back board", so all of this is worked out from names, shapes and where things stand. The code is in `VrTableManager.Core/Services/VpxCabinet.cs` and `VpxImages.cs` (reading the table) and `VrLobby/scripts/` (showing it).
 
@@ -142,7 +142,45 @@ The apron and the template's instruction cards are hidden, since they'd show Med
 
 ### Glass
 
-Every cabinet gets a glass sheet. On a VR cabinet it lies along the side rails' tops, from the front rail's top edge to the back one's (`RealCabinet.RailTops`), 8 cm longer than the playfield run, at the rails' slope.
+Every cabinet gets a glass sheet. On a VR cabinet it lies along the side rails' tops, from the front rail's top edge to the back one's (`RealCabinet.RailTops`), 8 cm longer than the playfield run, at the rails' slope. A cabinet showing 3D toys (section 5) has its glass off: toys at the back stand taller than it.
+
+## 5. 3D toys (Setup: Playfield depth → 3D toys)
+
+An alternative to the height map (section 2), off by default (`AppSettings.LobbyTableToys`). The selected cabinet shows the table's own 3D primitives standing on its playfield. Its lobby video plays flat, and no playfield gets a height map in this mode. Code: `VpxToys.cs` (Core), and `TableToys.cs`, `CabinetToys.cs` and `MainToys.cs` (lobby).
+
+### Picking toys: `VpxCabinet.Toys`
+
+- Visible, textured 3D primitives in playfield space, standing at least 5 mm up and at most 45 cm, inside the playfield's outline (with a small margin).
+- Left out:
+  - cabinet parts (`Pick`) and the edge parts the default cabinet copies onto its walls (`EdgePrims`);
+  - lightmaps (`LM_`) and `…Off` variants;
+  - parts named as the playfield, cabinet, room, glass, reflection or shadow (`NotToy`), matched as words so that "Mushroom" or "Hourglass" stay;
+  - flat playfield-sized layers.
+- Duplicates the script shows one at a time are dropped:
+  - flipper-up poses (`BM_LeftFlipperUp`, `BM_FlipperLUp`);
+  - `…Alt` options;
+  - lit `…_on` copies beside the unlit one;
+  - animation frames (`BM_LeftSling1` to `4`: same stem and picture, same place within 1 cm). The lowest number is kept.
+- The back board the cabinet takes out of a baked mesh (`BakedBackBoard`, `BM_Parts_BackBoard`) is cut out of the toys' copy too.
+- Normals that aren't finite become "up". Godot warned once per bad normal, and Die Hard Trilogy's `BM_BIPL` held the lobby for a second.
+- VPX ramps, walls and rubbers (built from curves) aren't included.
+- Over `TableToysLoader.DefaultBudget` (1,000,000 vertices in all), a table gets none, and the log says so.
+- Output is in playfield space: metres, centred on the playfield, y up, the playfield lying flat.
+
+### Looks
+
+- "Disable lighting" parts (all VPW `BM_` bakes) are drawn unshaded, like the video under them; the rest are lit by the room.
+- A picture's alpha counts only where the VPX material has opacity on, as in VPX. VPW's solid bakes have junk alpha, which cut holes in Fish Tales's apron and hid its wire ramps.
+- Clear plastic is drawn at no less than 35%. VPX also shows the edges more opaque, which a flat alpha can't.
+- Pictures are kept at up to 2048 px, or 1024 px when a table has more than 8 of them.
+
+### Loading and showing
+
+- **Reading:** read in the background, only once the ring has almost stopped. A read still waiting is dropped once you've moved on.
+- **Building:** done on the main thread a piece a frame (about 4 ms each: a picture or a surface, big meshes split into 60k-vertex pieces), and the toys are shown only once complete.
+- **Placement:** `Cabinet.ShowToys` places them on the cabinet's playfield quad, own or default, tipped to its slope and stretched to its size as the video is.
+- **Depth and glass:** while toys are shown, `SetPlayfieldDepth` keeps the video flat and the glass is off. Both come back when the toys go.
+- Only the selected cabinet shows toys, and the last three tables are kept in memory.
 
 ## Caches
 
@@ -150,6 +188,7 @@ Everything slow is read once and cached under `%APPDATA%\VrTableManager\vr-lobby
 
 - `cabinets\` holds the parsed cabinets;
 - `pictures\` holds the pictures extracted from table files;
-- `attract-audio\` holds attract-mode sound.
+- `attract-audio\` holds attract-mode sound;
+- `toys\` holds each table's 3D toys (`ToyCache`, `.toys` files named like the cabinets'). Each file is stamped with the table file's size and date and with the budget verdict, so a raised budget reads an over-budget table again. A table that can't be read is kept as having none. The folder is kept within **Space for 3D toys** (`AppSettings.LobbyToyCacheGb`, 0 = unlimited) by `ToyFiles.Prune`: the files used longest ago go first (a file's date is set when it's used). Setup's **CLEAR SAVED 3D TOYS** and the storage page's **Lobby 3D toys** clear it all, and My Tables' **MORE → My artwork → Clear saved 3D toys** clears one table's. PREPARE TABLES first deletes toys saved by an older version, then reads only while there's room.
 
-**PREPARE TABLES** fills all of them ahead of time (`VrLobby/scripts/PrepareTables.cs`). Height maps sit with each table's lobby video, as above.
+**PREPARE TABLES** fills all of them ahead of time (`VrLobby/scripts/PrepareTables.cs`), the toys only when 3D toys is chosen (then without height maps) and up to their space. Height maps sit with each table's lobby video, as above.

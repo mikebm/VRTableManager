@@ -382,6 +382,9 @@
                   <MenuItem Header="{Binding GenericCabinetMenuHeader}" IsVisible="{Binding IsVpx}"
                             ToolTip.Tip="For a table whose own VR cabinet looks wrong in the lobby: it stands on the plain cabinet instead, wearing its playfield and backglass. Setup → VR lobby can do this for every table"
                             Command="{Binding Owner.Media.ToggleGenericCabinetCommand}" CommandParameter="{Binding}" />
+                  <MenuItem Header="Clear saved 3D toys" IsVisible="{Binding IsVpx}"
+                            ToolTip.Tip="For the VR lobby's 3D toys (Setup → VR lobby): deletes what it saved of this table's toys, so it reads them again from the table the next time you pick it"
+                            Command="{Binding Owner.Media.ClearTableToysCommand}" CommandParameter="{Binding}" />
                 </MenuItem>
                 <MenuItem Header="Table settings" IsVisible="{Binding IsVpx}">
                   <MenuItem Header="{Binding ScaleMenuHeader}" ItemsSource="{Binding ScaleChoices}">

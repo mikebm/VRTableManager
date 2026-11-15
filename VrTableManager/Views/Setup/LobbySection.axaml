@@ -105,6 +105,18 @@
                            Content="3D toys: the picked table's own ramps, plastics and toys on its playfield (experimental)"
                            ToolTip.Tip="The cabinet you've picked shows the table's real toys, taken from its file, with its lobby video lying flat under them. No parallax on any table. Tables whose toys are too heavy for the headset, or that have none, show a flat playfield. Looks best on newer tables with baked lighting (VPW's); older tables' toys can look flat, and ramps and walls the table builds from curves aren't shown." />
             </StackPanel>
+            <!-- The saved 3D toys (ToyFiles): read once per table, kept within this size. -->
+            <Grid ColumnDefinitions="210,Auto,*" ColumnSpacing="12">
+              <TextBlock Text="Space for 3D toys" VerticalAlignment="Center" FontWeight="SemiBold" />
+              <ComboBox Grid.Column="1" ItemsSource="{Binding LobbyToyCacheChoices}" SelectedIndex="{Binding LobbyToyCacheIndex}" Width="150" />
+              <TextBlock Grid.Column="2" Classes="muted" VerticalAlignment="Center" TextWrapping="Wrap"
+                         Text="Each table's toys are read from its file once (a second or two) and kept, so they show at once next time. Over this size, the tables you picked longest ago are dropped, and read again when you next pick them." />
+            </Grid>
+            <TextBlock Classes="mono" TextWrapping="Wrap" Text="{Binding LobbyToyCacheText}" />
+            <WrapPanel>
+              <Button Classes="small" Content="CLEAR SAVED 3D TOYS" Margin="0,0,8,0" Command="{Binding ClearLobbyToysCommand}"
+                      ToolTip.Tip="Deletes every table's saved toys. The VR lobby reads a table's again when you pick it, or PREPARE TABLES does them all. For one table: MORE → My artwork on My Tables." />
+            </WrapPanel>
           </StackPanel>
         </Border>
 

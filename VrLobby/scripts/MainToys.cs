@@ -22,6 +22,7 @@ public partial class Main
     {
         _toysOn = Settings.LobbyTableToys || args.ContainsKey("toys");
         _toyStats = args.ContainsKey("toy-stats");
+        _toyLoader.CacheLimitBytes = VrTableManager.Lobby.ToyFiles.Bytes(Settings.LobbyToyCacheGb);
         if (int.TryParse(args.GetValueOrDefault("toy-budget"), out var budget) && budget > 0)
         {
             _toyLoader.Budget = budget;

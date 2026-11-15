@@ -167,6 +167,12 @@ public static class AppFolders
                 Lobby.LobbyFiles.Pictures
             ),
             E(
+                "Lobby 3D toys",
+                "Each table's 3D toys, read from its file for the VR lobby's 3D toys option. Read again when a table is next picked, or by PREPARE TABLES. Setup → VR lobby sets how much space they may take.",
+                true,
+                Lobby.ToyFiles.Dir
+            ),
+            E(
                 "Lobby attract sound",
                 "Each ROM table's attract music, recorded from its ROM for the VR lobby. Setup → VR lobby → GENERATE ATTRACT MUSIC records it again, several at a time (about half a minute a table).",
                 true,

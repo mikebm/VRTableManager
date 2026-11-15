@@ -38,6 +38,9 @@ public partial class TableToysLoader : Node
 
     public string? CacheDir { get; set; } = ToyCache.DefaultDir;
 
+    /// <summary>Most the saved toys may take on disk (Setup, AppSettings.LobbyToyCacheGb); 0: no limit.</summary>
+    public long CacheLimitBytes { get; set; }
+
     /// <summary>Table path, and its toys (null: none, over budget, or unreadable).</summary>
     public event Action<string, TableToys?>? ToysReady;
 
@@ -77,6 +80,7 @@ public partial class TableToysLoader : Node
 
         var dir = CacheDir;
         var budget = Budget;
+        var limit = CacheLimitBytes;
         _ = LobbyWork.Run(async () =>
         {
             await _oneAtATime.WaitAsync(LobbyWork.Closing);
@@ -101,7 +105,25 @@ public partial class TableToysLoader : Node
                     {
                         // A table that can't be read is remembered too (as having none), so it isn't read every time.
                         ToyCache.Save(vpx, dir, read ?? ToyCache.None);
+                        // Within the size chosen on Setup: the tables used longest ago go, never this one.
+                        var pruned = VrTableManager.Lobby.ToyFiles.Prune(
+                            limit,
+                            VrTableManager.Lobby.ToyFiles.FileFor(vpx, dir),
+                            dir
+                        );
+                        if (pruned > 0)
+                        {
+                            GD.Print(
+                                $"Toys: {pruned} table(s) used longest ago dropped from the cache, to keep it within its size"
+                            );
+                        }
                     }
+                }
+                else
+                {
+                    VrTableManager.Lobby.ToyFiles.MarkUsed(
+                        VrTableManager.Lobby.ToyFiles.FileFor(vpx, dir)
+                    );
                 }
                 var ms = sw.ElapsedMilliseconds;
                 Callable.From(() => Finish(vpx, read, from, ms)).CallDeferred();
@@ -126,6 +148,65 @@ public partial class TableToysLoader : Node
     /// <summary>What <see cref="Parse"/> makes: the toys (null when over budget) and how many vertices they came to.</summary>
     internal sealed record Read(Parsed? Toys, int Vertices, int Primitives, bool OverBudget);
 
+    /// <summary>Most vertices in one surface: about one frame's upload (Fish Tales's 464k-vertex "BM_Parts" was 25 ms).</summary>
+    const int ChunkVertices = 60_000;
+
+    /// <summary>Pictures past this many are drawn at <see cref="TextureMaxSideMany"/>.</summary>
+    const int ManyPictures = 8;
+    public const int TextureMaxSideMany = 1024;
+
+    /// <summary>
+    /// A merged mesh in pieces of whole triangles, at most <see cref="ChunkVertices"/> vertices each, each with just the
+    /// vertices it uses. One piece when it's small enough already.
+    /// </summary>
+    static IEnumerable<(Vector3[], Vector3[], Vector2[], int[])> Chunks(
+        List<Vector3> verts,
+        List<Vector3> norms,
+        List<Vector2> uvs,
+        List<int> idx
+    )
+    {
+        if (verts.Count <= ChunkVertices)
+        {
+            yield return (verts.ToArray(), norms.ToArray(), uvs.ToArray(), idx.ToArray());
+            yield break;
+        }
+
+        var map = new Dictionary<int, int>();
+        List<Vector3> v = [],
+            n = [];
+        List<Vector2> u = [];
+        List<int> ix = [];
+        for (var t = 0; t + 2 < idx.Count; t += 3)
+        {
+            if (map.Count + 3 > ChunkVertices)
+            {
+                yield return (v.ToArray(), n.ToArray(), u.ToArray(), ix.ToArray());
+                map.Clear();
+                v = [];
+                n = [];
+                u = [];
+                ix = [];
+            }
+            for (var k = 0; k < 3; k++)
+            {
+                var old = idx[t + k];
+                if (!map.TryGetValue(old, out var nu))
+                {
+                    nu = map[old] = v.Count;
+                    v.Add(verts[old]);
+                    n.Add(norms[old]);
+                    u.Add(uvs[old]);
+                }
+                ix.Add(nu);
+            }
+        }
+        if (ix.Count > 0)
+        {
+            yield return (v.ToArray(), n.ToArray(), u.ToArray(), ix.ToArray());
+        }
+    }
+
     /// <summary>Background part: read the toys, decode their pictures and merge them into a surface per look.</summary>
     internal static Read? Parse(string vpx, int budget)
     {
@@ -143,12 +224,15 @@ public partial class TableToysLoader : Node
         var images = new Dictionary<string, Image>(StringComparer.OrdinalIgnoreCase);
         var alpha = new Dictionary<string, Image.AlphaMode>(StringComparer.OrdinalIgnoreCase);
         var catalogue = VpxImages.ListImages(vpx);
-        foreach (
-            var name in model
-                .Parts.Select(p => p.Image)
-                .OfType<string>()
-                .Distinct(StringComparer.OrdinalIgnoreCase)
-        )
+        var names = model
+            .Parts.Select(p => p.Image)
+            .OfType<string>()
+            .Distinct(StringComparer.OrdinalIgnoreCase)
+            .ToList();
+        // A few big shared sheets (VPW's) keep their detail at 2048; a picture per toy (Futurama's 102) is 1024, or
+        // they took 100+ MB of video memory and as much again on disk.
+        var maxSide = names.Count > ManyPictures ? TextureMaxSideMany : TextureMaxSide;
+        foreach (var name in names)
         {
             var info = catalogue.FirstOrDefault(i =>
                 string.Equals(i.Name, name, StringComparison.OrdinalIgnoreCase)
@@ -174,7 +258,7 @@ public partial class TableToysLoader : Node
                 img.Decompress();
             }
 
-            ArtLoader.Shrink(img, TextureMaxSide);
+            ArtLoader.Shrink(img, maxSide);
             img.GenerateMipmaps();
             var a = RealCabinetLoader.AlphaOf(img);
             if (DxtEncoder.GodotCan)
@@ -231,19 +315,23 @@ public partial class TableToysLoader : Node
                 }
             }
             var first = group.First();
-            surfaces.Add(
-                new SurfaceData(
-                    first.Name,
-                    verts.ToArray(),
-                    norms.ToArray(),
-                    uvs.ToArray(),
-                    idx.ToArray(),
-                    first.Image,
-                    first.Material,
-                    group.Key.Lit,
-                    false
-                )
-            );
+            // In pieces of at most ChunkVertices: each piece is one frame's upload on the main thread (BuildStep).
+            foreach (var (cv, cn, cu, ci) in Chunks(verts, norms, uvs, idx))
+            {
+                surfaces.Add(
+                    new SurfaceData(
+                        first.Name,
+                        cv,
+                        cn,
+                        cu,
+                        ci,
+                        first.Image,
+                        first.Material,
+                        group.Key.Lit,
+                        false
+                    )
+                );
+            }
         }
 
         var size = new Vector2(model.PlayfieldSize.X, model.PlayfieldSize.Y);
@@ -265,9 +353,9 @@ public partial class TableToysLoader : Node
 
     void Finish(string vpx, Read? read, string from, long ms)
     {
-        _pending.Remove(vpx);
         if (!_recent.Contains(vpx))
         {
+            _pending.Remove(vpx);
             return; // forgotten while it was read: not built either (that's main-thread work)
         }
 
@@ -289,13 +377,22 @@ public partial class TableToysLoader : Node
         }
         else
         {
-            var sw = System.Diagnostics.Stopwatch.StartNew();
-            toys = Build(read.Toys, read.Vertices);
-            GD.Print(
-                $"Toys {name}: {read.Primitives} parts, {read.Vertices:N0} vertices, {toys.Mesh.GetSurfaceCount()} surfaces, "
-                    + $"{toys.Textures} pictures; read from the {from} in {ms} ms, built in {sw.ElapsedMilliseconds} ms"
-            );
+            // Built a piece a frame (BuildStep), shown once whole: built at once, a table's pictures and meshes held
+            // the frame for 60-95 ms just as you arrived at it.
+            _building.Add(new Building(vpx, name, read, from, ms));
+            return;
         }
+        Done(vpx, toys);
+    }
+
+    void Done(string vpx, TableToys? toys)
+    {
+        _pending.Remove(vpx); // pending until here, built or not, so it isn't asked for again meanwhile
+        if (!_recent.Contains(vpx))
+        {
+            return; // forgotten meanwhile
+        }
+
         _done[vpx] = toys;
         while (_recent.Count > Keep)
         {
@@ -305,40 +402,110 @@ public partial class TableToysLoader : Node
         ToysReady?.Invoke(vpx, toys);
     }
 
-    static TableToys Build(Parsed p, int vertices)
+    /// <summary>A table's toys being put together on the main thread, a piece at a time.</summary>
+    sealed class Building(string vpx, string name, Read read, string from, long readMs)
     {
-        var textures = p.Images.ToDictionary(
-            kv => kv.Key,
-            kv => (Texture2D)ImageTexture.CreateFromImage(kv.Value),
+        public readonly string Vpx = vpx,
+            Name = name,
+            From = from;
+        public readonly Read Read = read;
+        public readonly long ReadMs = readMs;
+        public readonly Dictionary<string, Texture2D> Textures = new(
             StringComparer.OrdinalIgnoreCase
         );
-        var mesh = new ArrayMesh();
-        foreach (var s in p.Surfaces)
+        public readonly ArrayMesh Mesh = new();
+        public int Next;
+        public double BuildMs;
+        public int Frames;
+    }
+
+    readonly List<Building> _building = [];
+
+    /// <summary>Main-thread time a frame may spend building toys (a 90 Hz frame is 11 ms).</summary>
+    const double BuildSliceMs = 4;
+
+    public override void _Process(double delta)
+    {
+        if (_building.Count > 0)
         {
+            // The table you're on first: one you moved on from may still be queued ahead of it.
+            BuildStep(_building.Find(b => b.Vpx == _wanted) ?? _building[0]);
+        }
+    }
+
+    /// <summary>
+    /// Adds pieces to the toys being built, a picture or a surface at a time, until this frame's slice is used (at least
+    /// one piece a frame). Done: they're handed over; forgotten meanwhile: dropped.
+    /// </summary>
+    void BuildStep(Building b)
+    {
+        if (!_recent.Contains(b.Vpx))
+        {
+            _building.Remove(b);
+            _pending.Remove(b.Vpx);
+            return;
+        }
+
+        var p = b.Read.Toys!;
+        var sw = System.Diagnostics.Stopwatch.StartNew();
+        b.Frames++;
+        while (b.Next < p.Surfaces.Count)
+        {
+            var s = p.Surfaces[b.Next];
+            Texture2D? tex = null;
+            if (s.Image != null && !b.Textures.TryGetValue(s.Image, out tex))
+            {
+                if (p.Images.TryGetValue(s.Image, out var img))
+                {
+                    tex = b.Textures[s.Image] = ImageTexture.CreateFromImage(img);
+                    if (sw.Elapsed.TotalMilliseconds >= BuildSliceMs)
+                    {
+                        break; // the picture is up; its surface next frame
+                    }
+                }
+            }
             var arrays = new Godot.Collections.Array();
             arrays.Resize((int)Godot.Mesh.ArrayType.Max);
             arrays[(int)Godot.Mesh.ArrayType.Vertex] = s.Verts;
             arrays[(int)Godot.Mesh.ArrayType.Normal] = s.Norms;
             arrays[(int)Godot.Mesh.ArrayType.TexUV] = s.Uvs;
             arrays[(int)Godot.Mesh.ArrayType.Index] = s.Indices;
-            mesh.AddSurfaceFromArrays(Godot.Mesh.PrimitiveType.Triangles, arrays);
-            var tex = s.Image != null && textures.TryGetValue(s.Image, out var t) ? t : null;
+            b.Mesh.AddSurfaceFromArrays(Godot.Mesh.PrimitiveType.Triangles, arrays);
             var a =
                 s.Image != null && p.Alpha.TryGetValue(s.Image, out var am)
                     ? am
                     : Image.AlphaMode.None;
-            mesh.SurfaceSetMaterial(
-                mesh.GetSurfaceCount() - 1,
+            b.Mesh.SurfaceSetMaterial(
+                b.Mesh.GetSurfaceCount() - 1,
                 MaterialFor(s.Material, tex, a, s.Lit)
             );
+            b.Next++;
+            if (sw.Elapsed.TotalMilliseconds >= BuildSliceMs)
+            {
+                break;
+            }
         }
-        return new TableToys
+        b.BuildMs += sw.Elapsed.TotalMilliseconds;
+        if (b.Next < p.Surfaces.Count)
         {
-            Mesh = mesh,
-            PlayfieldSize = p.PlayfieldSize,
-            Vertices = vertices,
-            Textures = textures.Count,
-        };
+            return;
+        }
+
+        _building.Remove(b);
+        GD.Print(
+            $"Toys {b.Name}: {b.Read.Primitives} parts, {b.Read.Vertices:N0} vertices, {b.Mesh.GetSurfaceCount()} surfaces, "
+                + $"{b.Textures.Count} pictures; read from the {b.From} in {b.ReadMs} ms, built in {b.BuildMs:0} ms over {b.Frames} frames"
+        );
+        Done(
+            b.Vpx,
+            new TableToys
+            {
+                Mesh = b.Mesh,
+                PlayfieldSize = p.PlayfieldSize,
+                Vertices = b.Read.Vertices,
+                Textures = b.Textures.Count,
+            }
+        );
     }
 
     /// <summary>
@@ -401,17 +568,59 @@ public partial class TableToysLoader : Node
 static class ToyCache
 {
     /// <summary>Bump when what TableToysLoader.Parse makes changes.</summary>
-    const int Version = 6; // 6: toy names matched as words (not "Mushroom", "Hourglass"), the lowest-numbered pose kept; 5: lit "_on" copies dropped; 4: the back board the cabinet takes out of a baked mesh left out; 3: broken normals made finite; 2: animation frames, flipper-up poses and Alt options dropped
+    const int Version = 7; // 7: big meshes in 60k-vertex pieces, pictures at 1024 past 8 of them; 6: toy names matched as words (not "Mushroom", "Hourglass"), the lowest-numbered pose kept; 5: lit "_on" copies dropped; 4: the back board the cabinet takes out of a baked mesh left out; 3: broken normals made finite; 2: animation frames, flipper-up poses and Alt options dropped
     static readonly byte[] Magic = "VTMTOY"u8.ToArray();
 
-    public static string DefaultDir =>
-        Path.Combine(Path.GetDirectoryName(CabinetCache.DefaultDir.TrimEnd('\\', '/'))!, "toys");
+    public static string DefaultDir => VrTableManager.Lobby.ToyFiles.Dir;
 
     /// <summary>What's kept for a table that couldn't be read: no toys, so it isn't read again until it changes.</summary>
     public static readonly TableToysLoader.Read None = new(null, 0, 0, false);
 
     static string FileFor(string vpx, string dir) =>
-        Path.ChangeExtension(CabinetCache.FileFor(vpx, dir), ".toys");
+        VrTableManager.Lobby.ToyFiles.FileFor(vpx, dir);
+
+    /// <summary>
+    /// Deletes saved toys of an older <see cref="Version"/> (or unreadable): nothing can use them, and they'd count against
+    /// the space chosen on Setup (PREPARE TABLES, before it works out the room left). Reads only each file's header.
+    /// </summary>
+    public static int DropStale(string dir)
+    {
+        var dropped = 0;
+        try
+        {
+            foreach (var file in Directory.Exists(dir) ? Directory.GetFiles(dir, "*.toys") : [])
+            {
+                bool current;
+                try
+                {
+                    using var r = new BinaryReader(File.OpenRead(file));
+                    current =
+                        r.ReadBytes(Magic.Length).AsSpan().SequenceEqual(Magic)
+                        && r.ReadInt32() == Version;
+                }
+                catch (EndOfStreamException)
+                {
+                    current = false;
+                }
+                catch (IOException)
+                {
+                    continue; // in use: leave it
+                }
+
+                if (!current)
+                {
+                    try
+                    {
+                        File.Delete(file);
+                        dropped++;
+                    }
+                    catch (Exception e) when (e is IOException or UnauthorizedAccessException) { }
+                }
+            }
+        }
+        catch (Exception e) when (e is IOException or UnauthorizedAccessException) { }
+        return dropped;
+    }
 
     /// <summary>True if the cache holds this version of the table's toys, judged against this budget (reads only the header).</summary>
     public static bool IsCurrent(string vpx, string dir, int budget)
