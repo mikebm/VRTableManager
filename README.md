@@ -23,6 +23,7 @@ It's built for Meta Quest (Link, Air Link or Virtual Desktop) with the official 
 - **Colour DMDs:** Serum and Pin2DMD colorizations turn the orange dot-matrix display into full colour.
 - **AltSound:** remastered soundtracks that replace the ROM's original sound.
 - **Backglasses:** `.directb2s` backglasses from the catalog.
+- **VPU Remixes:** mods of a table shared as a `.dif` patch. The app says which remix fits the table you have, makes it from your copy, and can put the original back. See [VPU Remixes](docs/installing-tables.md#vpu-remixes).
 - **Rules:** The Pinball Primer's rules and strategy guide, and the table's instruction cards.
 - **Your own artwork:** use your own card picture, lobby playfield, backglass, wheel art, videos and music for any table. See [Custom artwork, videos and sounds](docs/custom-artwork.md).
 
@@ -74,7 +75,7 @@ You need Windows 10 or 11 (64-bit) and a web browser. Nothing else to install: t
 
 ## Guides
 
-- [Installing tables and add-ons](docs/installing-tables.md): installing, ROMs, PuP packs, colour DMDs, AltSound and backglasses, and where each one goes
+- [Installing tables and add-ons](docs/installing-tables.md): installing, VPU Remixes, ROMs, PuP packs, colour DMDs, AltSound and backglasses, and where each one goes
 - [The VR lobby](docs/vr-lobby.md): controls, getting around, cabinets, videos and music
 - [Custom artwork, videos and sounds](docs/custom-artwork.md): your own pictures, videos and music for any table
 - [VPX settings for VR and desktop play](docs/vpx-settings.md): your own VPinballX.ini, VR and desktop settings, FIT VR TO ME and controls
