@@ -30,10 +30,69 @@ public static class LobbyRunner
     /// Where a release puts the exported lobby, under this app's folder: <c>VrLobby\bin</c>, two folders down, which
     /// is how it runs on this app's .NET (the release lays that out like a .NET install in this app's folder, and an
     /// exported Godot lobby takes the folder two above its own for the install). Releases before 0.12 had it in
-    /// <c>VrLobby</c> with a .NET of its own; an install updated from one still has that copy, which is used only
-    /// when there's no new one.
+    /// <c>VrLobby</c> with a .NET of its own; an install updated from one still has that copy (the updater only adds
+    /// and replaces files) until <see cref="RemoveOldExport"/> takes it away, and it's used only when there's no new one.
     /// </summary>
     public static readonly string[] ExportedDirs = [Path.Combine("VrLobby", "bin"), "VrLobby"];
+
+    /// <summary>What a release before 0.12 put in VrLobby, all of it the old exported lobby.</summary>
+    static readonly string[] OldExportFiles = ["VrLobby.exe", "VrLobby.console.exe", "VrLobby.pck"];
+
+    static readonly string[] OldExportDirs = ["data_VrLobby_windows_x86_64", "dof"];
+
+    /// <summary>
+    /// On an install updated from a release before 0.12, removes the old exported lobby from VrLobby (about 200 MB
+    /// with its own .NET), so it isn't run by mistake (a shortcut to it) and doesn't take the space. Only once the new
+    /// lobby is in VrLobby\bin, and only those files and folders by name. Its exe goes first: while that lobby runs,
+    /// Windows won't delete it, and nothing else is touched until a later start. Never throws; returns what it removed.
+    /// </summary>
+    public static List<string> RemoveOldExport(string? appDir = null)
+    {
+        var removed = new List<string>();
+        try
+        {
+            var lobby = Path.Combine(appDir ?? AppContext.BaseDirectory, "VrLobby");
+            var newExe = Path.Combine(lobby, "bin", ExportedExe);
+            if (
+                !File.Exists(newExe)
+                || !File.Exists(Path.ChangeExtension(newExe, ".pck"))
+                || !File.Exists(Path.Combine(lobby, OldExportFiles[0]))
+            )
+            {
+                return removed;
+            }
+
+            foreach (var name in OldExportFiles)
+            {
+                var f = Path.Combine(lobby, name);
+                if (File.Exists(f))
+                {
+                    File.Delete(f); // the exe first: in use (that lobby running), this stops here
+                    removed.Add(f);
+                }
+            }
+            foreach (var name in OldExportDirs)
+            {
+                var d = Path.Combine(lobby, name);
+                if (Directory.Exists(d))
+                {
+                    // A link (none of ours were) goes alone, without what it points to.
+                    Directory.Delete(
+                        d,
+                        recursive: !new DirectoryInfo(d).Attributes.HasFlag(
+                            FileAttributes.ReparsePoint
+                        )
+                    );
+                    removed.Add(d);
+                }
+            }
+        }
+        catch (Exception e) when (e is IOException or UnauthorizedAccessException)
+        {
+            // In use or read-only (Program Files without admin rights): the next start tries again.
+        }
+        return removed;
+    }
 
     /// <summary>The exported lobby a release ships next to this app, if there is one.</summary>
     public static string? FindExported(string? appDir = null)

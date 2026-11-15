@@ -631,6 +631,89 @@ await Live(
             && !LobbyDotnet.IsExported(Path.Combine(app, "Godot_v4_mono_win64.exe")),
         "exported lobby: returned to without the app's .NET; the editor still gets it"
     );
+
+    // An install updated from before 0.12: the old lobby goes once the new one is there, and nothing else does.
+    string OldInstall(string name, bool withNew)
+    {
+        var dir = Path.Combine(root, name);
+        var lobby = Path.Combine(dir, "VrLobby");
+        foreach (var d in new[] { "data_VrLobby_windows_x86_64", Path.Combine("dof", "x64") })
+        {
+            Directory.CreateDirectory(Path.Combine(lobby, d));
+        }
+        File.WriteAllText(Path.Combine(lobby, "data_VrLobby_windows_x86_64", "coreclr.dll"), "");
+        File.WriteAllText(Path.Combine(lobby, "dof", "x64", "DofBridge.exe"), "");
+        foreach (
+            var f in new[] { "VrLobby.exe", "VrLobby.console.exe", "VrLobby.pck", "notes.txt" }
+        )
+        {
+            File.WriteAllText(Path.Combine(lobby, f), "");
+        }
+        if (withNew)
+        {
+            Directory.CreateDirectory(Path.Combine(lobby, "bin", "dof", "x64"));
+            foreach (
+                var f in new[]
+                {
+                    "VrLobby.exe",
+                    "VrLobby.pck",
+                    Path.Combine("dof", "x64", "DofBridge.exe"),
+                }
+            )
+            {
+                File.WriteAllText(Path.Combine(lobby, "bin", f), "");
+            }
+        }
+        return dir;
+    }
+
+    var onlyOld = OldInstall("old-only", withNew: false);
+    Check(
+        LobbyRunner.RemoveOldExport(onlyOld).Count == 0
+            && File.Exists(Path.Combine(onlyOld, "VrLobby", "VrLobby.exe")),
+        "old lobby: kept while there's no new one in VrLobby\\bin"
+    );
+
+    var updated = OldInstall("updated", withNew: true);
+    var gone = LobbyRunner.RemoveOldExport(updated);
+    var updLobby = Path.Combine(updated, "VrLobby");
+    Check(
+        gone.Count == 5
+            && !File.Exists(Path.Combine(updLobby, "VrLobby.exe"))
+            && !File.Exists(Path.Combine(updLobby, "VrLobby.console.exe"))
+            && !File.Exists(Path.Combine(updLobby, "VrLobby.pck"))
+            && !Directory.Exists(Path.Combine(updLobby, "data_VrLobby_windows_x86_64"))
+            && !Directory.Exists(Path.Combine(updLobby, "dof"))
+            && File.Exists(Path.Combine(updLobby, "notes.txt"))
+            && File.Exists(Path.Combine(updLobby, "bin", "VrLobby.exe"))
+            && File.Exists(Path.Combine(updLobby, "bin", "dof", "x64", "DofBridge.exe")),
+        "old lobby: removed after an update, the new one and other files kept"
+    );
+    Check(
+        LobbyRunner.RemoveOldExport(updated).Count == 0,
+        "old lobby: nothing to do the next time"
+    );
+
+    var running = OldInstall("running", withNew: true);
+    using (
+        new FileStream(
+            Path.Combine(running, "VrLobby", "VrLobby.exe"),
+            FileMode.Open,
+            FileAccess.Read,
+            FileShare.None
+        )
+    )
+    {
+        Check(
+            LobbyRunner.RemoveOldExport(running).Count == 0
+                && File.Exists(Path.Combine(running, "VrLobby", "VrLobby.pck"))
+                && Directory.Exists(
+                    Path.Combine(running, "VrLobby", "data_VrLobby_windows_x86_64")
+                ),
+            "old lobby: left alone while its exe is in use (that lobby running)"
+        );
+    }
+    Check(LobbyRunner.RemoveOldExport(running).Count == 5, "old lobby: removed on a later start");
 }
 Console.WriteLine(VpxSetup.DescribeOpenXrRuntime());
 

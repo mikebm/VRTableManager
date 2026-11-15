@@ -33,6 +33,8 @@ public partial class App : Application
 
         // Work folders earlier runs couldn't delete (an install's unpacked download, ROM recordings).
         _ = Task.Run(() => TempLeftovers.Sweep(Path.GetTempPath(), TimeSpan.FromDays(1)));
+        // The lobby an older release had in VrLobby, once an update has put the new one in VrLobby\bin.
+        _ = Task.Run(() => LobbyRunner.RemoveOldExport());
 
         base.OnFrameworkInitializationCompleted();
     }
