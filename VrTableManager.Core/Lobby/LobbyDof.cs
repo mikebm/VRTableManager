@@ -1,3 +1,5 @@
+using VrTableManager.Services;
+
 namespace VrTableManager.Lobby;
 
 /// <summary>
@@ -24,15 +26,114 @@ public static class LobbyDof
     /// <summary>DOF's COM object, which its installer registers with the path to the DLLs.</summary>
     const string ComClsid = "{a23bfdbc-9a8a-46c0-8672-60f23d54ffb6}";
 
-    /// <summary>A folder holding DirectOutput.dll, and whether that DOF is the 64-bit build.</summary>
-    public sealed record Install(string Folder, bool Is64);
+    /// <summary>
+    /// The DOF the lobby runs. Either the .NET DirectOutput: a folder holding DirectOutput.dll, and whether it's the
+    /// 64-bit build. Or, with <see cref="ConfigBase"/> set, libdof (the native port VPX 10.8.1 and later ship as its
+    /// DOF plugin): the plugin's folder holding dof64.dll, which reads its config from
+    /// <c>ConfigBase\directoutputconfig</c>.
+    /// </summary>
+    public sealed record Install(string Folder, bool Is64, string? ConfigBase = null)
+    {
+        public bool IsLibDof => ConfigBase != null;
+
+        /// <summary>The global config this DOF reads (libdof only: the .NET DOF finds its own).</summary>
+        public string? LibDofGlobalConfig =>
+            ConfigBase == null
+                ? null
+                : Path.Combine(ConfigBase, LibDofConfigFolder, GlobalConfigName);
+
+        /// <summary>The folder libdof reads its config from (libdof only).</summary>
+        public string? LibDofConfigDir =>
+            ConfigBase == null ? null : Path.Combine(ConfigBase, LibDofConfigFolder);
+
+        public override string ToString() =>
+            IsLibDof
+                ? $"VPX's DOF plugin (libdof) in {Folder}, config in {Path.Combine(ConfigBase!, LibDofConfigFolder)}"
+                : $"DirectOutput in {Folder} ({(Is64 ? "64" : "32")}-bit)";
+    }
+
+    /// <summary>The folder libdof looks for its config in, under its base path.</summary>
+    public const string LibDofConfigFolder = "directoutputconfig";
+
+    public const string GlobalConfigName = "GlobalConfig_B2SServer.xml";
 
     /// <summary>
-    /// The DOF to run: the 64-bit one when there is one (a 32-bit-only install still works, through the 32-bit
-    /// helper). Looks where DOF's COM object is registered, then in DOF's usual folder (C:\DirectOutput, with x64 /
-    /// x86 subfolders since R3++, flat before). Null when DOF isn't installed.
+    /// Whether a libdof config folder holds a config: the global config, or the Config Tool's table configs
+    /// (directoutputconfig*.ini, or the older ledcontrol*.ini), which libdof loads without a global config too.
     /// </summary>
-    public static Install? Find() =>
+    public static bool HasLibDofConfig(string folder)
+    {
+        try
+        {
+            return File.Exists(Path.Combine(folder, GlobalConfigName))
+                || (
+                    Directory.Exists(folder)
+                    && (
+                        Directory.EnumerateFiles(folder, "directoutputconfig*.ini").Any()
+                        || Directory.EnumerateFiles(folder, "ledcontrol*.ini").Any()
+                    )
+                );
+        }
+        catch
+        {
+            return false; // unreadable: as good as none
+        }
+    }
+
+    /// <summary>libdof's library in VPX's DOF plugin folder (64-bit only).</summary>
+    public const string LibDofDll = "dof64.dll";
+
+    /// <summary>
+    /// The DOF to run, the one the player's tables use where both are there. VPX's own DOF plugin (libdof, bundled
+    /// with VPX 10.8.1 and later) when it's switched on in VPX's settings; otherwise an installed .NET DirectOutput;
+    /// otherwise the bundled plugin anyway, so DOF needn't be installed separately. Null when there's neither.
+    /// </summary>
+    public static Install? Find(AppSettings s)
+    {
+        var plugin = Path.Combine(s.VpxDir, "plugins", "dof");
+        var ini = VpxIniLayers.Effective(s, vr: true);
+        var pluginOn = ini.GetValueOrDefault(("Plugin.DOF", "Enable")) == "1";
+        var dofPath = ini.GetValueOrDefault(("Plugin.DOF", "DOFPath"));
+        var configBase = !string.IsNullOrWhiteSpace(dofPath)
+            ? dofPath.Trim()
+            : VpxIniLayers.PrefsFolder(s);
+        return Choose(
+            File.Exists(Path.Combine(plugin, LibDofDll)) ? plugin : null,
+            configBase,
+            pluginOn,
+            FindDotNet
+        );
+    }
+
+    /// <summary>
+    /// <see cref="Find(AppSettings)"/>'s choice, given what's there (for tests): <paramref name="libDofFolder"/> is
+    /// VPX's DOF plugin folder when it has libdof, <paramref name="dotNet"/> looks for an installed DirectOutput.
+    /// </summary>
+    public static Install? Choose(
+        string? libDofFolder,
+        string? configBase,
+        bool pluginOn,
+        Func<Install?> dotNet
+    )
+    {
+        var libDof =
+            libDofFolder != null && configBase != null
+                ? new Install(libDofFolder, true, configBase)
+                : null;
+        if (libDof != null && pluginOn)
+        {
+            return libDof;
+        }
+
+        return dotNet() ?? libDof;
+    }
+
+    /// <summary>
+    /// An installed .NET DirectOutput: the 64-bit one when there is one (a 32-bit-only install still works, through
+    /// the 32-bit helper). Looks where DOF's COM object is registered, then in DOF's usual folder (C:\DirectOutput,
+    /// with x64 / x86 subfolders since R3++, flat before). Null when it isn't installed.
+    /// </summary>
+    public static Install? FindDotNet() =>
         Find(RegisteredFolders(), [@"C:\DirectOutput"], File.Exists, DllIs64);
 
     /// <summary>

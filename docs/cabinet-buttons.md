@@ -67,7 +67,13 @@ Joystick buttons only count on the board VPX has them mapped for, so a game pad 
 
 With **Setup → VR lobby → Cabinet feedback (DOF)** on, the lobby fires your cabinet's DOF effects as you browse: flipper pulses, lights, shaker and so on. It's off by default.
 
-You need DirectOutput (DOF) installed and already working with your tables. The lobby finds it where its installer put it, usually `C:\DirectOutput`, and Setup shows the folder it found.
+You don't have to install DOF separately. VPX 10.8.1 and later come with their own DOF plugin (libdof, in VPX's `plugins\dof` folder), and the lobby can use it. It picks the DOF your tables use:
+
+- **VPX's DOF plugin** when it's switched on in VPX's settings. Its config goes in a `directoutputconfig` folder inside the **DOF Path** set for the plugin, or VPX's preferences folder (`%APPDATA%\VPinballX\10.8`) when that's empty.
+- Otherwise, **DirectOutput** if you've installed it (the classic .NET DOF, usually in `C:\DirectOutput`, config in its `Config` folder).
+- Otherwise, VPX's DOF plugin anyway.
+
+Setup shows which one it found, and for VPX's plugin the folder it reads the config from, with a warning when there's no config in it yet. Either way, DOF does nothing until it has your config from the DOF Config Tool. The classic DirectOutput may still be worth having for Philips Hue lights and SSF (sound-based feedback): [libdof's README](https://github.com/vpinball/libdof) lists them as not supported yet.
 
 The lobby acts like PinUP Popper's menu. It uses your usual DOF config (`GlobalConfig_B2SServer.xml`, the one your tables use) and the **pinupmenu** table in the [DOF Config Tool](https://configtool.vpuniverse.com). If you've set up effects for Popper's menu, they should work in the lobby as they are. To add or change them, edit the pinupmenu table in the Config Tool, then download and install your config again.
 
@@ -83,4 +89,4 @@ Each event is pulsed for 150 ms; durations and blinks set in the Config Tool tak
 
 When a table starts, the lobby lets go of DOF so the table's own DOF can use the output boards. Letting go turns every output off, so the Start effect (E806) only gets under a second, and a longer one set for it in the Config Tool gets cut short. DOF comes back on when you return to the lobby.
 
-If nothing fires, look in the lobby's log (see above) for lines starting `DOF:`. `ready DOF …, global config …` means it's running with that config, `error …` says why it isn't, and `not installed` means the lobby didn't find `DirectOutput.dll`.
+If nothing fires, look in the lobby's log (see above) for lines starting `DOF:`. `ready …, global config …` means it's running with that config. With VPX's plugin, `global config none` is fine as long as the same line counts one or more table config files; with none of either it has nothing to fire. `error …` says why it isn't running, and `not found` means the lobby found neither VPX's DOF plugin nor `DirectOutput.dll`.

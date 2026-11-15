@@ -6,8 +6,8 @@ using VrTableManager.Services;
 namespace VrLobby;
 
 /// <summary>
-/// The lobby's DirectOutput (DOF): the DofBridge helper, a .NET Framework program that runs the player's own DOF (a
-/// .NET Framework library this .NET 10 lobby can't load), fed the lobby's menu events (<see cref="LobbyDof"/>) as
+/// The lobby's DirectOutput (DOF): the DofBridge helper, a .NET Framework program that runs the player's DOF (VPX's own
+/// DOF plugin, libdof, or an installed .NET DirectOutput this .NET 10 lobby can't load), out of the lobby's process, fed the lobby's menu events (<see cref="LobbyDof"/>) as
 /// lines on its stdin. DOF holds the cabinet's output boards while it runs, so it's stopped before a table starts
 /// (the table's own DOF needs them) and started again when the lobby has the headset back.
 /// </summary>
@@ -51,11 +51,11 @@ public sealed class DofOutput
         if (!_looked)
         {
             _looked = true;
-            _install = LobbyDof.Find();
+            _install = LobbyDof.Find(settings);
             GD.Print(
                 _install != null
-                    ? $"DOF: {_install.Folder} ({(_install.Is64 ? "64" : "32")}-bit)"
-                    : "DOF: not installed (no DirectOutput.dll registered or in C:\\DirectOutput)"
+                    ? $"DOF: {_install}"
+                    : "DOF: not found (no DOF plugin in VPX's plugins\\dof, no DirectOutput.dll registered or in C:\\DirectOutput)"
             );
         }
 
@@ -79,8 +79,19 @@ public sealed class DofOutput
             RedirectStandardOutput = true,
             WorkingDirectory = _install.Folder,
         };
-        psi.ArgumentList.Add("--dof");
-        psi.ArgumentList.Add(_install.Folder);
+        if (_install.ConfigBase is { } configBase)
+        {
+            psi.WorkingDirectory = Directory.Exists(configBase) ? configBase : _install.Folder;
+            psi.ArgumentList.Add("--libdof");
+            psi.ArgumentList.Add(_install.Folder);
+            psi.ArgumentList.Add("--base");
+            psi.ArgumentList.Add(configBase);
+        }
+        else
+        {
+            psi.ArgumentList.Add("--dof");
+            psi.ArgumentList.Add(_install.Folder);
+        }
         psi.ArgumentList.Add("--rom");
         psi.ArgumentList.Add(LobbyDof.Rom);
         try

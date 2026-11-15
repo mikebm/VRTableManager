@@ -88,6 +88,32 @@ static class LobbyDofChecks
             "lobby DOF: none installed, none found"
         );
 
+        // Which DOF: VPX's plugin (libdof) when VPX has it on, else an installed DirectOutput, else the plugin anyway.
+        var plugin = @"C:\VPinball\VPinballX\plugins\dof";
+        var prefs = @"C:\Users\p\AppData\Roaming\VPinballX\10.8";
+        var dotNet = new LobbyDof.Install(x64, true);
+        yield return (
+            LobbyDof.Choose(plugin, prefs, pluginOn: true, () => dotNet)
+                is { IsLibDof: true, Is64: true } on
+                && on.Folder == plugin
+                && on.LibDofGlobalConfig
+                    == Path.Combine(prefs, "directoutputconfig", "GlobalConfig_B2SServer.xml"),
+            "lobby DOF: VPX's DOF plugin switched on wins over an installed DirectOutput"
+        );
+        yield return (
+            LobbyDof.Choose(plugin, prefs, pluginOn: false, () => dotNet) == dotNet,
+            "lobby DOF: with VPX's plugin off, an installed DirectOutput (the tables' DOF) is used"
+        );
+        yield return (
+            LobbyDof.Choose(plugin, prefs, pluginOn: false, () => null) is { IsLibDof: true },
+            "lobby DOF: without DirectOutput installed, VPX's bundled plugin is used"
+        );
+        yield return (
+            LobbyDof.Choose(null, prefs, pluginOn: true, () => dotNet) == dotNet
+                && LobbyDof.Choose(null, prefs, pluginOn: false, () => null) == null,
+            "lobby DOF: a VPX without the plugin falls back to DirectOutput, or none"
+        );
+
         yield return (
             LobbyDof.FromCodeBase("file:///C:/DirectOutput/x64/DirectOutputComObject.dll")
                 == @"C:\DirectOutput\x64\DirectOutputComObject.dll"
@@ -97,6 +123,22 @@ static class LobbyDofChecks
                 && LobbyDof.FromCodeBase("file://server/share/DOF/DirectOutputComObject.dll")
                     == @"\\server\share\DOF\DirectOutputComObject.dll",
             "lobby DOF: a registered CodeBase reads as a path ('#', '%', network share)"
+        );
+
+        // libdof's config: the global config or the Config Tool's table configs count; an empty or missing folder doesn't.
+        var cfg = Path.Combine(root, "lobby-dof-config");
+        Directory.CreateDirectory(cfg);
+        var empty =
+            !LobbyDof.HasLibDofConfig(cfg) && !LobbyDof.HasLibDofConfig(Path.Combine(cfg, "nope"));
+        File.WriteAllText(Path.Combine(cfg, "directoutputconfig51.ini"), "");
+        var iniOnly = LobbyDof.HasLibDofConfig(cfg);
+        File.Delete(Path.Combine(cfg, "directoutputconfig51.ini"));
+        File.WriteAllText(Path.Combine(cfg, LobbyDof.GlobalConfigName), "<GlobalConfig />");
+        var xmlOnly = LobbyDof.HasLibDofConfig(cfg);
+        Directory.Delete(cfg, true);
+        yield return (
+            empty && iniOnly && xmlOnly,
+            "lobby DOF: libdof's config is the global config or the Config Tool's .ini files"
         );
 
         // Bitness from a real file: not a DLL at all says nothing.

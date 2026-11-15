@@ -80,15 +80,25 @@ public sealed partial class LobbyViewModel(MainViewModel app) : ChildViewModel(a
 
     partial void OnLobbyDofChanged(bool value) => SaveSetting(s => s.LobbyDof = value);
 
-    static string DofStatus() =>
-        VrTableManager.Lobby.LobbyDof.Find() is { } dof
-            ? $"DOF found: {dof.Folder} ({(dof.Is64 ? "64" : "32")}-bit)"
-            : "DOF isn't installed on this PC (no DirectOutput.dll registered or in C:\\DirectOutput).";
+    static string DofStatus(AppSettings s)
+    {
+        if (VrTableManager.Lobby.LobbyDof.Find(s) is not { } dof)
+        {
+            return "No DOF found: VPX 10.8.1 and later come with it (plugins\\dof), and there's no DirectOutput.dll registered or in C:\\DirectOutput.";
+        }
+
+        if (dof.LibDofConfigDir is { } dir && !VrTableManager.Lobby.LobbyDof.HasLibDofConfig(dir))
+        {
+            return $"Using {dof}. No DOF config there yet: download your config from the DOF Config Tool and unzip it into that folder.";
+        }
+
+        return $"Using {dof}.";
+    }
 
     internal override void LoadSettings(AppSettings s)
     {
         LobbyDof = s.LobbyDof;
-        DofStatusText = DofStatus();
+        DofStatusText = DofStatus(s);
         LobbyRecordsRomAudio = s.LobbyRecordsRomAudio;
         AttractMusicSeconds = s.AttractSeconds;
         LobbyPlayfieldVideos = s.LobbyPlayfieldVideos;

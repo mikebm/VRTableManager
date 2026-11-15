@@ -40,7 +40,14 @@ static class Program
 
         try
         {
-            Start(dofDir, host, rom);
+            if (opts.TryGetValue("libdof", out var libDofDir) && libDofDir.Length > 0)
+            {
+                StartLibDof(libDofDir, opts.TryGetValue("base", out var b) ? b : "", rom);
+            }
+            else
+            {
+                Start(dofDir, host, rom);
+            }
         }
         catch (Exception e)
         {
@@ -122,6 +129,44 @@ static class Program
             $"ready DOF {version}, rom {rom}, global config {(config ?? "none (DOF's defaults)")}, {(Environment.Is64BitProcess ? "64" : "32")}-bit"
         );
     }
+
+    /// <summary>VPX's DOF plugin (libdof), with the config under <paramref name="basePath"/>\directoutputconfig.</summary>
+    static void StartLibDof(string folder, string basePath, string rom)
+    {
+        if (basePath.Length == 0)
+        {
+            throw new ArgumentException(
+                "libdof needs --base, the folder holding directoutputconfig"
+            );
+        }
+
+        // libdof also tries .\directoutputconfig: the same folder.
+        if (Directory.Exists(basePath))
+        {
+            Directory.SetCurrentDirectory(basePath);
+        }
+
+        var configDir = Path.Combine(basePath, "directoutputconfig");
+        var config = Path.Combine(configDir, "GlobalConfig_B2SServer.xml");
+        // Without a global config libdof still loads the Config Tool's table configs (directoutputconfig*.ini).
+        var tableConfigs = Directory.Exists(configDir)
+            ? Directory
+                .EnumerateFiles(configDir, "directoutputconfig*.ini")
+                .Concat(Directory.EnumerateFiles(configDir, "ledcontrol*.ini"))
+                .Count()
+            : 0;
+        var dof = new LibDof(folder, basePath, rom, Say);
+        lock (Gate)
+        {
+            _libDof = dof;
+        }
+
+        Say(
+            $"ready libdof (VPX's DOF plugin), rom {rom}, global config {(File.Exists(config) ? config : "none (DOF's defaults)")}, {tableConfigs} table config file(s) in {configDir}, 64-bit"
+        );
+    }
+
+    static LibDof? _libDof;
 
     /// <summary>
     /// The global config DOF itself would use for <paramref name="host"/> (GlobalConfig_B2SServer.xml for the player's
@@ -208,14 +253,20 @@ static class Program
     {
         lock (Gate)
         {
-            if (_pinball == null || _receive == null)
+            if (_libDof == null && (_pinball == null || _receive == null))
             {
                 return false;
             }
 
             try
             {
-                _receive.Invoke(_pinball, new object[] { type, number, value });
+                if (_libDof != null)
+                {
+                    _libDof.DataReceive(type, number, value);
+                    return true;
+                }
+
+                _receive!.Invoke(_pinball, new object[] { type, number, value });
                 return true;
             }
             catch (Exception e)
@@ -231,6 +282,22 @@ static class Program
     {
         lock (Gate)
         {
+            if (_libDof != null)
+            {
+                try
+                {
+                    _libDof.Dispose();
+                    Say("log DOF finished");
+                }
+                catch (Exception e)
+                {
+                    Say("log DOF finish failed: " + Flatten(Inner(e)));
+                }
+
+                _libDof = null;
+                return;
+            }
+
             if (_pinball == null)
             {
                 return;

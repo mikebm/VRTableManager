@@ -111,4 +111,4 @@ If you start facing the wrong way or inside a cabinet, face where you want and r
 
 ## Cabinet feedback (DOF)
 
-If your cabinet has DirectOutput set up, the lobby can fire its effects as you browse, the same way PinUP Popper's menu does. Turn it on under **Setup → VR lobby → Cabinet feedback (DOF)**. See [Cabinet buttons and game controllers](cabinet-buttons.md#cabinet-feedback-dof) for the details.
+If your cabinet has DOF set up (VPX's own DOF plugin or DirectOutput), the lobby can fire its effects as you browse, the same way PinUP Popper's menu does. Turn it on under **Setup → VR lobby → Cabinet feedback (DOF)**. See [Cabinet buttons and game controllers](cabinet-buttons.md#cabinet-feedback-dof) for the details.

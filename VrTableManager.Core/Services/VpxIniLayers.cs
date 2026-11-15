@@ -38,34 +38,43 @@ public static class VpxIniLayers
     /// </summary>
     public static string? BasePath(AppSettings s)
     {
-        var prefs = AppFolders.VpxPrefs;
-        var version =
-            VpxSetup.InstalledVersion(s) is { } v
-            && System.Text.RegularExpressions.Regex.Match(v, @"(\d+)\.(\d+)") is { Success: true } m
-                ? $"{m.Groups[1].Value}.{m.Groups[2].Value}"
-                : null;
-        var candidates = new List<string>();
-        if (version != null)
-        {
-            candidates.Add(Path.Combine(prefs, version, "VPinballX.ini"));
-        }
-        else if (Directory.Exists(prefs))
-        {
-            candidates.AddRange(
-                Directory
-                    .EnumerateDirectories(prefs)
-                    // By version, not as text: "10.10" is newer than "10.8".
-                    .OrderByDescending(d =>
-                        Version.TryParse(Path.GetFileName(d), out var folderVersion)
-                            ? folderVersion
-                            : new Version(0, 0)
-                    )
-                    .Select(d => Path.Combine(d, "VPinballX.ini"))
-            );
-        }
-
+        var candidates = PrefsFolders(s).Select(d => Path.Combine(d, "VPinballX.ini")).ToList();
         candidates.Add(Path.Combine(s.VpxDir, "VPinballX.ini"));
         return candidates.FirstOrDefault(File.Exists);
+    }
+
+    /// <summary>
+    /// VPX's preferences folder (%APPDATA%\VPinballX\&lt;major.minor&gt;), where it keeps its settings and, unless
+    /// set otherwise, its plugins' files (libdof's directoutputconfig). The installed version's, whether or not it
+    /// exists yet; when the version isn't known, the newest one there. Null when neither.
+    /// </summary>
+    public static string? PrefsFolder(AppSettings s) => PrefsFolders(s).FirstOrDefault();
+
+    static IEnumerable<string> PrefsFolders(AppSettings s)
+    {
+        var prefs = AppFolders.VpxPrefs;
+        if (
+            VpxSetup.InstalledVersion(s) is { } v
+            && System.Text.RegularExpressions.Regex.Match(v, @"(\d+)\.(\d+)") is { Success: true } m
+        )
+        {
+            return [Path.Combine(prefs, $"{m.Groups[1].Value}.{m.Groups[2].Value}")];
+        }
+
+        if (!Directory.Exists(prefs))
+        {
+            return [];
+        }
+
+        return Directory
+            .EnumerateDirectories(prefs)
+            // By version, not as text: "10.10" is newer than "10.8".
+            .OrderByDescending(d =>
+                Version.TryParse(Path.GetFileName(d), out var folderVersion)
+                    ? folderVersion
+                    : new Version(0, 0)
+            )
+            .ToList();
     }
 
     /// <summary>The value VPX will use for each key in this mode: the player's own, then the mode's overrides.</summary>
