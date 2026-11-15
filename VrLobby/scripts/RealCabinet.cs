@@ -255,34 +255,139 @@ public sealed class RealCabinet
         PlayfieldCentre.Y + (PlayfieldCentre.Z - z) * Mathf.Tan(PlayfieldSlope);
 
     /// <summary>
-    /// How far forward of the playfield's back a board may stand and still count as the back board, as a share of
-    /// half the playfield's length from its centre (0.75: the last eighth of the length). Faces in the last 7.5% count
-    /// whatever they are; past that, only a part whose forward faces make a board (<see cref="IsBoard"/>).
+    /// How far forward of the playfield's back a face may stand and still be taken for the back board, as a share of
+    /// half the playfield's length from its centre (0.75: the last eighth of the length; Big Trouble in Little China's
+    /// brick board stands about 10 cm forward of the back).
     /// </summary>
     const float BoardReach = 0.75f;
 
     /// <summary>
-    /// Do a part's forward faces past the back stretch (OwnWallsOn) make a board? Across most of the playfield's width
-    /// (70%); flat, at most 3 cm deep along the playfield, or 15% of its height for a tall board standing upright
-    /// rather than square to the sloped playfield (The Getaway's ramp, 11 cm deep and 5 cm high, is not); and more
-    /// than a sliver (at least 50 cm²): Big Trouble in Little China's brick board and its strip of lit signs, Dungeons
-    /// &amp; Dragons's wall. <paramref name="depth"/>: how far along the playfield the faces reach; <paramref
-    /// name="height"/>: how far above it.
+    /// One part's faces on one wall of the playfield (left, right or back), gathered before deciding whether they make
+    /// wall art (<see cref="OwnWallsOn"/>). Positions are in this cabinet's own space; <see cref="Along"/> runs along
+    /// the playfield towards the back, <see cref="Up"/> above it.
     /// </summary>
-    bool IsBoard(float area, Vector2 x, Vector2 depth, Vector2 height) =>
-        x.Y - x.X >= PlayfieldSize.X * 0.7f
-        && depth.Y - depth.X <= Mathf.Max(0.03f, (height.Y - height.X) * 0.15f)
-        && area >= 0.005f;
+    sealed class WallPiece(int wall, Material? material, bool edge)
+    {
+        public int Wall { get; } = wall; // 0 left, 1 right, 2 back
+        public Material? Material { get; } = material;
+
+        /// <summary>From the table's playfield-edge parts (EdgeMesh), which its own cabinet doesn't draw.</summary>
+        public bool Edge { get; } = edge;
+        public List<(Vector3 P, Vector3 N, Vector2 Uv, Vector3 Face)> Corners { get; } = [];
+        public List<Vector2> UvCentres { get; } = [];
+
+        /// <summary>Each face's depth (across for a side wall, along the playfield for the back) and area.</summary>
+        public List<(float Depth, float Area)> Layers { get; } = [];
+        public float Area;
+        public Vector2 X = Empty,
+            Along = Empty,
+            Up = Empty;
+        public static readonly Vector2 Empty = new(float.MaxValue, float.MinValue);
+
+        public static Vector2 Extend(Vector2 r, float v) =>
+            new(Mathf.Min(r.X, v), Mathf.Max(r.Y, v));
+
+        /// <summary>
+        /// How deep the thinnest layer holding 80% of the piece's area is: a board's face, leaving out the relief and
+        /// bevels round it (Metallica's baked back board is 4.7 cm deep overall, its face under 1 cm). A ramp spreads
+        /// its area along its slope, so stays deep.
+        /// </summary>
+        public float CoreDepth()
+        {
+            var sorted = Layers.OrderBy(l => l.Depth).ToList();
+            var best = float.MaxValue;
+            var sum = 0f;
+            for (int i = 0, j = 0; j < sorted.Count; j++)
+            {
+                sum += sorted[j].Area;
+                while (i < j && sum - sorted[i].Area >= Area * 0.8f)
+                {
+                    sum -= sorted[i].Area;
+                    i++;
+                }
+                if (sum >= Area * 0.8f)
+                {
+                    best = Mathf.Min(best, sorted[j].Depth - sorted[i].Depth);
+                }
+            }
+            return best;
+        }
+    }
+
+    /// <summary>
+    /// Is a part's faces at the back a board, or a panel of one? Flat, 80% of it within 3 cm along the playfield, or
+    /// 15% of its height for a tall board standing upright rather than square to the sloped playfield (The Getaway's
+    /// ramp is not); more than a sliver (at least 50 cm²); either across most of the playfield's width (70%), or at
+    /// least a fifth of it and 10 cm high, one panel of a board made in parts (whether the panels together are wide
+    /// enough is judged on the whole back); and from a playfield-edge part, at least 10 cm high, a real board rather
+    /// than a metal guide wall at the back (The Getaway's): Big Trouble in Little China's brick board and its strip of
+    /// lit signs, Dungeons &amp; Dragons's wall, Metallica's baked board.
+    /// </summary>
+    bool IsBoard(WallPiece p)
+    {
+        var width = p.X.Y - p.X.X;
+        var height = p.Up.Y - p.Up.X;
+        return p.CoreDepth() <= Mathf.Max(0.03f, height * 0.15f)
+            && p.Area >= 0.005f
+            && (
+                width >= PlayfieldSize.X * 0.7f
+                || (width >= PlayfieldSize.X * 0.2f && height >= 0.10f)
+            )
+            && (!p.Edge || height >= 0.10f);
+    }
+
+    /// <summary>
+    /// Is a part's small flat piece mounted on one of the back boards: flat (at most 1.5 cm deep, or 15% of its height
+    /// for an upright sign on the sloped playfield), from 1 cm behind a board's front to 2 cm in front of it, over that
+    /// board (across and up), and filling at least 30% of its own outline, like a sign (Elvira's MSWall and Deadheads
+    /// sign)? Ramps, posts, wires, targets and plastics, standing further forward, beside the board or mostly gaps
+    /// (Dungeons &amp; Dragons's wire ramp along its back wall), are left to the playfield video, which shows them.
+    /// </summary>
+    static bool IsMounted(WallPiece p, IEnumerable<WallPiece> boards) =>
+        p.Along.Y - p.Along.X <= Mathf.Max(0.015f, (p.Up.Y - p.Up.X) * 0.15f)
+        && p.Area >= (p.X.Y - p.X.X) * (p.Up.Y - p.Up.X) * 0.3f
+        && boards.Any(b =>
+            p.Along.X >= b.Along.X - 0.02f
+            && p.Along.Y <= b.Along.X + 0.01f
+            && p.X.X >= b.X.X - 0.01f
+            && p.X.Y <= b.X.Y + 0.01f
+            && p.Up.X >= b.Up.X - 0.02f
+            && p.Up.Y <= b.Up.Y + 0.02f
+        );
+
+    /// <summary>
+    /// Is a part's faces on one side a wall, or a panel of one? Flat across (at most 3 cm, so a ramp or a rail's profile
+    /// is not); standing on the playfield (from at most 2 cm above it: a ramp's side starts higher); solid, at least
+    /// 2 cm high on average (not a row of posts or screws); and at least a tenth of the playfield's length (whether
+    /// the panels together run along enough of it is judged on the whole wall): Big Trouble in Little China's brick
+    /// walls, the kit's wall sheet, JAWS's low wooden side boards.
+    /// </summary>
+    bool IsSideWall(WallPiece p) =>
+        p.Along.Y - p.Along.X >= PlayfieldSize.Y * 0.1f
+        && p.X.Y - p.X.X <= 0.03f
+        && p.Up.X <= 0.02f
+        && p.Area >= (p.Along.Y - p.Along.X) * 0.02f;
+
+    /// <summary>
+    /// Is a material see-through as a whole (a clear plastic, the table's opacity below 1), rather than through its
+    /// picture? Such parts aren't wall art: as a cut-out (OwnWallsOn) they'd vanish or turn solid.
+    /// </summary>
+    static bool Translucent(Material? m) =>
+        m is StandardMaterial3D std
+        && std.Transparency != BaseMaterial3D.TransparencyEnum.Disabled
+        && std.AlbedoColor.A < 0.99f;
 
     /// <summary>
     /// This cabinet's own inner walls round its playfield (the side walls above it and the board behind it, whatever
     /// they're called and however their art is laid out: Big Trouble in Little China's "backwall" wraps all three),
     /// fitted onto <paramref name="into"/>'s playfield, for a table shown on the default cabinet. Picked by place: the
     /// textured faces that stand up (not floors or tops) within its playfield's outline (or up to 20 cm behind it, under
-    /// the backbox) and up to 30 cm above it,
-    /// facing inwards. Sides: both walls (null unless both have art along most of their length); Back: the back board
-    /// (null when it has none, or only black). Each face keeps its own material and texture coordinates. Made once per
-    /// default cabinet, then kept.
+    /// the backbox) and up to 30 cm above it, facing inwards, each part's judged on its own: a side wall
+    /// (<see cref="IsSideWall"/>), a back board (<see cref="IsBoard"/>) or something flat mounted on one
+    /// (<see cref="IsMounted"/>); ramps, rails, posts and toys near the edges are left out. Walls taller than the
+    /// default cabinet's own are scaled down to its height, so they don't stand up past its glass (JAWS's). Sides: both
+    /// walls (null unless both have art along most of their length); Back: the back board (null when it has none, or
+    /// only black). Each face keeps its own material and texture coordinates. Made once per default cabinet, then kept.
     /// </summary>
     public (ArrayMesh? Sides, ArrayMesh? Back) OwnWallsOn(RealCabinet into)
     {
@@ -297,12 +402,13 @@ public sealed class RealCabinet
         var dirT = new Vector3(0, Mathf.Sin(into.PlayfieldSlope), -Mathf.Cos(into.PlayfieldSlope));
         var sx = into.PlayfieldSize.X / Mathf.Max(PlayfieldSize.X, 1e-3f);
         var sz = into.PlayfieldSize.Y / Mathf.Max(PlayfieldSize.Y, 1e-3f);
-        // Own lobby space -> along / across / up from its playfield -> the same from the default cabinet's.
-        Vector3 Map(Vector3 p)
+        // Own lobby space -> along / across / up from its playfield -> the same from the default cabinet's, heights scaled
+        // by sy (walls taller than the default cabinet's are fitted to it, below).
+        Vector3 Map(Vector3 p, float sy)
         {
             var d = p - c;
             var along = d.Dot(dirO) * sz;
-            var up = p.Y - PlayfieldYAt(p.Z);
+            var up = (p.Y - PlayfieldYAt(p.Z)) * sy;
             var onPlayfield = into.PlayfieldCentre + dirT * along;
             return new Vector3(
                 into.PlayfieldCentre.X + d.X * sx,
@@ -311,23 +417,8 @@ public sealed class RealCabinet
             );
         }
 
-        var sides = new ArrayMesh();
-        var back = new ArrayMesh();
-        float left = 0,
-            right = 0,
-            backArea = 0,
-            backLight = 0,
-            backSamples = 0;
-        // How far along each wall (z) and across the back (x) the faces reach: (min, max).
-        Vector2 leftZ = new(float.MaxValue, float.MinValue),
-            rightZ = leftZ,
-            backX = leftZ;
-        static Vector2 Extend(Vector2 r, float p, float q, float s) =>
-            new(
-                Mathf.Min(r.X, Mathf.Min(p, Mathf.Min(q, s))),
-                Mathf.Max(r.Y, Mathf.Max(p, Mathf.Max(q, s)))
-            );
         // Its cabinet's art parts, then its playfield-edge parts (EdgeMesh): Elvira's walls are only there.
+        var pieces = new List<WallPiece>();
         var sources = Enumerable
             .Range(0, Mesh.GetSurfaceCount())
             .Select(s => (Src: Mesh, S: s, Edge: false))
@@ -359,20 +450,10 @@ public sealed class RealCabinet
             var n = arrays[(int)Godot.Mesh.ArrayType.Normal].AsVector3Array();
             var uv = arrays[(int)Godot.Mesh.ArrayType.TexUV].AsVector2Array();
             var idx = arrays[(int)Godot.Mesh.ArrayType.Index].AsInt32Array();
-            var pv = new[] { new List<Vector3>(), new List<Vector3>() };
-            var pn = new[] { new List<Vector3>(), new List<Vector3>() };
-            var pu = new[] { new List<Vector2>(), new List<Vector2>() };
-            var backUvs = new List<Vector2>();
-            // Forward faces a little further from the back (BoardReach): taken only if, together, this part's faces make a
-            // board (IsBoard), not a ramp or toy near the back.
-            var nearV = new List<Vector3>();
-            var nearN = new List<Vector3>();
-            var nearU = new List<Vector2>();
-            var nearUvs = new List<Vector2>();
-            float nearArea = 0;
-            Vector2 nearX = new(float.MaxValue, float.MinValue),
-                nearAlong = nearX,
-                nearUp = nearX;
+            var material = src.SurfaceGetMaterial(s);
+            // This part's faces on each wall (by first index), with how deep each stands: across for a side wall, along
+            // the playfield for the back board.
+            var faces = new List<(int I, Vector3 Normal, float Depth)>[] { [], [], [] };
             for (var i = 0; i + 2 < idx.Length; i += 3)
             {
                 Vector3 a = v[idx[i]],
@@ -412,149 +493,250 @@ public sealed class RealCabinet
                 }
 
                 var mid = (a + b + d) / 3;
-                var area = (b - a).Cross(d - a).Length() / 2;
-                int to;
-                // Facing inwards: a side wall towards the middle, the back board forwards.
-                // At the playfield's edge only: the outer eighth each side, the back stretch. Ramps and toys over the
-                // playfield face inwards too (Elvira's).
+                // Facing inwards: a side wall towards the middle, at the playfield's edge (its outer eighth); the back
+                // board forwards, at the back.
+                int wall;
                 if (
                     Mathf.Abs(normal.X) > 0.6f
                     && normal.X * (mid.X - c.X) < 0
                     && Mathf.Abs(mid.X - c.X) >= half.X * 0.75f
                 )
                 {
-                    to = 0;
-                    if (mid.X < c.X)
-                    {
-                        left += area;
-                        leftZ = Extend(leftZ, a.Z, b.Z, d.Z);
-                    }
-                    else
-                    {
-                        right += area;
-                        rightZ = Extend(rightZ, a.Z, b.Z, d.Z);
-                    }
-                }
-                else if (normal.Z > 0.6f && mid.Z < c.Z - half.Y * 0.85f)
-                {
-                    to = 1;
-                    backArea += area;
-                    backX = Extend(backX, a.X, b.X, d.X);
-                    backUvs.Add((uv[idx[i]] + uv[idx[i + 1]] + uv[idx[i + 2]]) / 3);
+                    wall = mid.X < c.X ? 0 : 1;
                 }
                 else if (normal.Z > 0.6f && mid.Z < c.Z - half.Y * BoardReach)
                 {
-                    nearArea += area;
-                    nearX = Extend(nearX, a.X, b.X, d.X);
-                    // Measured along the playfield and above it, not level and upright: boards are usually built square
-                    // to the sloped playfield, so lean back with it.
-                    nearAlong = Extend(
-                        nearAlong,
-                        (a - c).Dot(dirO),
-                        (b - c).Dot(dirO),
-                        (d - c).Dot(dirO)
-                    );
-                    nearUp = Extend(
-                        nearUp,
-                        a.Y - PlayfieldYAt(a.Z),
-                        b.Y - PlayfieldYAt(b.Z),
-                        d.Y - PlayfieldYAt(d.Z)
-                    );
-                    nearUvs.Add((uv[idx[i]] + uv[idx[i + 1]] + uv[idx[i + 2]]) / 3);
-                    foreach (var k in new[] { idx[i], idx[i + 1], idx[i + 2] })
-                    {
-                        nearV.Add(Map(v[k]) + normal * 0.002f);
-                        nearN.Add(n[k]);
-                        nearU.Add(uv[k]);
-                    }
-                    continue;
+                    wall = 2;
                 }
                 else
                 {
                     continue;
                 }
 
-                foreach (var k in new[] { idx[i], idx[i + 1], idx[i + 2] })
-                {
-                    pv[to].Add(Map(v[k]) + normal * 0.002f);
-                    pn[to].Add(n[k]);
-                    pu[to].Add(uv[k]);
-                }
+                faces[wall].Add((i, normal, wall == 2 ? (mid - c).Dot(dirO) : mid.X));
             }
-            if (IsBoard(nearArea, nearX, nearAlong, nearUp))
-            {
-                // A board standing a little forward of the back (Big Trouble in Little China's brick board, ~10 cm in
-                // front): on the table's own cabinet it hides whatever stands behind it, and copied with the rest it
-                // still does, as each face keeps its distance from the back.
-                pv[1].AddRange(nearV);
-                pn[1].AddRange(nearN);
-                pu[1].AddRange(nearU);
-                backUvs.AddRange(nearUvs);
-                backArea += nearArea;
-                backX = Extend(backX, nearX.X, nearX.Y, nearX.Y);
-            }
-            var material = src.SurfaceGetMaterial(s);
-            for (var p = 0; p < 2; p++)
-            {
-                if (pv[p].Count == 0)
-                {
-                    continue;
-                }
 
-                var face = new Godot.Collections.Array();
-                face.Resize((int)Godot.Mesh.ArrayType.Max);
-                face[(int)Godot.Mesh.ArrayType.Vertex] = pv[p].ToArray();
-                face[(int)Godot.Mesh.ArrayType.Normal] = pn[p].ToArray();
-                face[(int)Godot.Mesh.ArrayType.TexUV] = pu[p].ToArray();
-                var target = p == 0 ? sides : back;
-                target.AddSurfaceFromArrays(Godot.Mesh.PrimitiveType.Triangles, face);
-                target.SurfaceSetMaterial(target.GetSurfaceCount() - 1, material);
-            }
-            // How light the back board's art is where its faces take it from (a kit wall sheet often leaves it black).
-            if (
-                backUvs.Count > 0
-                && (material as StandardMaterial3D)?.AlbedoTexture?.GetImage() is { } img
-            )
+            // One piece per layer: faces of the same part more than 1.5 cm deeper than the last are another board or
+            // wall (Big Trouble in Little China's two brick boards, 10 cm apart, share a sheet).
+            for (var wall = 0; wall < 3; wall++)
             {
-                if (img.IsCompressed())
+                WallPiece? piece = null;
+                var last = float.MinValue;
+                foreach (var (i, normal, depth) in faces[wall].OrderBy(f => f.Depth))
                 {
-                    img.Decompress();
-                }
-
-                // Spread over all its faces (a board's own come after any others on the same sheet), at most 64.
-                var step = Math.Max(1, backUvs.Count / 64);
-                foreach (var u in backUvs.Where((_, j) => j % step == 0).Take(64))
-                {
-                    var px = img.GetPixel(
-                        Math.Clamp((int)(u.X * img.GetWidth()), 0, img.GetWidth() - 1),
-                        Math.Clamp((int)(u.Y * img.GetHeight()), 0, img.GetHeight() - 1)
-                    );
-                    backLight += px.R * 0.3f + px.G * 0.59f + px.B * 0.11f;
-                    backSamples++;
+                    if (piece == null || depth - last > 0.015f)
+                    {
+                        piece = new WallPiece(wall, material, edge);
+                        pieces.Add(piece);
+                    }
+                    last = depth;
+                    Vector3 a = v[idx[i]],
+                        b = v[idx[i + 1]],
+                        d = v[idx[i + 2]];
+                    var area = (b - a).Cross(d - a).Length() / 2;
+                    piece.Area += area;
+                    piece.Layers.Add((depth, area));
+                    piece.UvCentres.Add((uv[idx[i]] + uv[idx[i + 1]] + uv[idx[i + 2]]) / 3);
+                    foreach (var k in new[] { idx[i], idx[i + 1], idx[i + 2] })
+                    {
+                        var p = v[k];
+                        piece.Corners.Add((p, n[k], uv[k], normal));
+                        piece.X = WallPiece.Extend(piece.X, p.X);
+                        piece.Along = WallPiece.Extend(piece.Along, (p - c).Dot(dirO));
+                        piece.Up = WallPiece.Extend(piece.Up, p.Y - PlayfieldYAt(p.Z));
+                    }
                 }
             }
         }
-        // Enough to count: art along most of each wall's length, a few centimetres high; most of the back board's
-        // width, and not black.
+
+        // The same part twice in the same place, with the same picture (Big Trouble in Little China's arch, among both
+        // its cabinet parts and its playfield-edge parts): one is enough; two would flicker, each drawn through the
+        // other. A different picture there (a lit overlay on its board) is kept.
+        static Texture2D? Picture(WallPiece p) => (p.Material as StandardMaterial3D)?.AlbedoTexture;
+        pieces = pieces
+            .Where(
+                (p, j) =>
+                    !pieces
+                        .Take(j)
+                        .Any(q =>
+                            q.Wall == p.Wall
+                            && Picture(q) == Picture(p)
+                            && Mathf.Abs(q.Area - p.Area) <= p.Area * 0.01f
+                            && (q.X - p.X).Abs() is { X: <= 0.002f, Y: <= 0.002f }
+                            && (q.Along - p.Along).Abs() is { X: <= 0.002f, Y: <= 0.002f }
+                            && (q.Up - p.Up).Abs() is { X: <= 0.002f, Y: <= 0.002f }
+                        )
+            )
+            .ToList();
+
+        // Not the table's own backbox (its foot or speaker panel stands right behind the playfield, and on the default
+        // cabinet covered the default cabinet's backbox: Total Nuclear Annihilation's): the backbox stays the default
+        // cabinet's, as with the plain parts above. Only what stands (by its middle) higher than the default cabinet's
+        // own walls, though: a back board low down counts even inside a backbox reaching down to the playfield, and
+        // even if its top reaches a little past those walls (Metallica's, scaled to fit below).
+        var intoTop = into.WallTop();
+        if (Backbox is { } ownBox && intoTop > 0.03f)
+        {
+            var box = ownBox.Grow(0.01f);
+            pieces = pieces
+                .Where(p =>
+                {
+                    var centre =
+                        p.Corners.Aggregate(Vector3.Zero, (sum, q) => sum + q.P) / p.Corners.Count;
+                    return !box.HasPoint(centre) || centre.Y - PlayfieldYAt(centre.Z) <= intoTop;
+                })
+                .ToList();
+        }
+
+        // Clear plastics and other parts see-through as a whole aren't wall art (see Translucent).
+        pieces = pieces.Where(p => !Translucent(p.Material)).ToList();
+
+        // Which pieces are wall art.
+        var boards = pieces.Where(p => p.Wall == 2 && IsBoard(p)).ToList();
+        var backs = pieces
+            .Where(p => p.Wall == 2 && (boards.Contains(p) || IsMounted(p, boards)))
+            .ToList();
+        var walls = pieces.Where(p => p.Wall < 2 && IsSideWall(p)).ToList();
+
+        // Taller than the default cabinet's own walls (the kit's wall sheet, else its back board): scaled down to fit,
+        // the side walls and the back board each by their own height (the back by its boards', not what's mounted on
+        // them), so neither stands up past the default cabinet's glass (JAWS's walls).
+        float Fit(IEnumerable<WallPiece> group) =>
+            group.Any() && intoTop > 0.03f && group.Max(p => p.Up.Y) is var top && top > intoTop
+                ? intoTop / top
+                : 1f;
+        var sideScale = Fit(walls);
+        var backScale = Fit(boards);
+
+        // See-through art as a cut-out on the copies: blended pictures are drawn after everything solid, in an order by
+        // distance that changes as the ring turns, so two boards one in front of the other swapped places and flickered
+        // (Elvira's). Its own cabinet keeps the originals.
+        var cutOuts = new Dictionary<Material, Material>();
+        Material? Solid(Material? m)
+        {
+            if (
+                m is not StandardMaterial3D std
+                || std.Transparency
+                    is BaseMaterial3D.TransparencyEnum.Disabled
+                        or BaseMaterial3D.TransparencyEnum.AlphaScissor
+            )
+            {
+                return m;
+            }
+
+            if (!cutOuts.TryGetValue(std, out var cut))
+            {
+                var copy = (StandardMaterial3D)std.Duplicate();
+                copy.Transparency = BaseMaterial3D.TransparencyEnum.AlphaScissor;
+                copy.AlphaScissorThreshold = 0.5f;
+                cutOuts[std] = cut = copy;
+            }
+            return cut;
+        }
+
+        ArrayMesh Build(IEnumerable<WallPiece> group, float scale)
+        {
+            var mesh = new ArrayMesh();
+            foreach (var p in group)
+            {
+                var face = new Godot.Collections.Array();
+                face.Resize((int)Godot.Mesh.ArrayType.Max);
+                face[(int)Godot.Mesh.ArrayType.Vertex] = p
+                    .Corners.Select(q => Map(q.P, scale) + q.Face * 0.002f)
+                    .ToArray();
+                face[(int)Godot.Mesh.ArrayType.Normal] = p.Corners.Select(q => q.N).ToArray();
+                face[(int)Godot.Mesh.ArrayType.TexUV] = p.Corners.Select(q => q.Uv).ToArray();
+                mesh.AddSurfaceFromArrays(Godot.Mesh.PrimitiveType.Triangles, face);
+                mesh.SurfaceSetMaterial(mesh.GetSurfaceCount() - 1, Solid(p.Material));
+            }
+            return mesh;
+        }
+
+        // How light the back board's art is where its faces take it from (a kit wall sheet often leaves it black):
+        // spread over each piece's faces, at most 64 a piece, each piece weighing as much as its area (a small bright
+        // sign doesn't make a big black board light). Each picture read back once.
+        var images = new Dictionary<Texture2D, Image?>();
+        float backLight = 0,
+            backWeight = 0;
+        foreach (var p in backs)
+        {
+            if (Picture(p) is not { } tex)
+            {
+                continue;
+            }
+
+            if (!images.TryGetValue(tex, out var img))
+            {
+                img = tex.GetImage();
+                if (img?.IsCompressed() == true)
+                {
+                    img.Decompress();
+                }
+                images[tex] = img;
+            }
+            if (img == null)
+            {
+                continue;
+            }
+
+            var step = Math.Max(1, p.UvCentres.Count / 64);
+            var samples = p.UvCentres.Where((_, j) => j % step == 0).Take(64).ToList();
+            foreach (var u in samples)
+            {
+                var px = img.GetPixel(
+                    Math.Clamp((int)(u.X * img.GetWidth()), 0, img.GetWidth() - 1),
+                    Math.Clamp((int)(u.Y * img.GetHeight()), 0, img.GetHeight() - 1)
+                );
+                backLight += (px.R * 0.3f + px.G * 0.59f + px.B * 0.11f) * p.Area / samples.Count;
+            }
+            backWeight += samples.Count > 0 ? p.Area : 0;
+        }
+
         // Enough to count: art along most of each wall's length (bits of other parts that only happen to stand there
-        // don't make a wall: Elvira's), a few centimetres high; most of the back board's width, and not black.
-        var wallArea = PlayfieldSize.Y * 0.04f;
+        // don't make a wall: Elvira's), a few centimetres high; most of the back board's width, and not black. Judged
+        // on all of a wall's panels together.
+        bool SideEnough(int wall)
+        {
+            var w = walls.Where(p => p.Wall == wall).ToList();
+            return w.Count > 0
+                && w.Sum(p => p.Area) >= PlayfieldSize.Y * 0.04f
+                && w.Max(p => p.Along.Y) - w.Min(p => p.Along.X) >= PlayfieldSize.Y * 0.7f;
+        }
+        var backEnough =
+            backs.Count > 0
+            && backs.Sum(p => p.Area) >= PlayfieldSize.X * 0.04f
+            && boards.Max(p => p.X.Y) - boards.Min(p => p.X.X) >= PlayfieldSize.X * 0.7f
+            && backWeight > 0
+            && backLight / backWeight > 0.025f;
         made = (
-            left >= wallArea
-            && right >= wallArea
-            && leftZ.Y - leftZ.X >= PlayfieldSize.Y * 0.7f
-            && rightZ.Y - rightZ.X >= PlayfieldSize.Y * 0.7f
-                ? sides
-                : null,
-            backArea >= PlayfieldSize.X * 0.04f
-            && backX.Y - backX.X >= PlayfieldSize.X * 0.7f
-            && backSamples > 0
-            && backLight / backSamples > 0.025f
-                ? back
-                : null
+            SideEnough(0) && SideEnough(1) ? Build(walls, sideScale) : null,
+            backEnough ? Build(backs, backScale) : null
         );
         _wallsFor[into] = made;
         return made;
+    }
+
+    /// <summary>
+    /// How high this cabinet's own inner walls reach above its playfield: the top of the kit's wall sheet
+    /// (<see cref="KitBladesSurface"/>), else of its back board (<see cref="BackPanelSurface"/>); 0 when it has neither.
+    /// </summary>
+    float WallTop()
+    {
+        var surface = KitBladesSurface >= 0 ? KitBladesSurface : BackPanelSurface;
+        if (surface < 0 || surface >= Mesh.GetSurfaceCount())
+        {
+            return 0;
+        }
+
+        var top = 0f;
+        foreach (
+            var p in Mesh.SurfaceGetArrays(surface)[(int)Godot.Mesh.ArrayType.Vertex]
+                .AsVector3Array()
+        )
+        {
+            top = Mathf.Max(top, p.Y - PlayfieldYAt(p.Z));
+        }
+        return top;
     }
 
     readonly Dictionary<int, Dictionary<int, Rect2>> _uvLayouts = [];
