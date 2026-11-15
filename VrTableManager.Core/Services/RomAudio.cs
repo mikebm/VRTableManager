@@ -760,7 +760,7 @@ public static partial class RomAudio
                 return new([], 1, SampleRate, -1, RunEnd.Cut);
             }
 
-            var lib = NativeLibrary.Load(dll);
+            var lib = NativeCopy.Load(dll);
             T Fn<T>(string name) =>
                 Marshal.GetDelegateForFunctionPointer<T>(NativeLibrary.GetExport(lib, name));
             var setConfig = Fn<SetConfigFn>("PinmameSetConfig");

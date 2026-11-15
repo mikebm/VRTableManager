@@ -61,7 +61,7 @@ public static class PinmameInfo
 
             try
             {
-                var lib = NativeLibrary.Load(dll);
+                var lib = NativeCopy.Load(dll);
                 var setConfig = Marshal.GetDelegateForFunctionPointer<SetConfigFn>(
                     NativeLibrary.GetExport(lib, "PinmameSetConfig")
                 );

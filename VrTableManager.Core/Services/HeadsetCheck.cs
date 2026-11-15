@@ -192,7 +192,7 @@ public static class HeadsetCheck
     {
         try
         {
-            var lib = NativeLibrary.Load(loaderPath);
+            var lib = NativeCopy.Load(loaderPath);
             var create = Marshal.GetDelegateForFunctionPointer<XrCreateInstance>(
                 NativeLibrary.GetExport(lib, "xrCreateInstance")
             );
