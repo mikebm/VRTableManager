@@ -45,6 +45,36 @@ You can follow every install under **Setup → Downloads**. If you close the app
 
 If the app matched a table to the wrong catalog entry, or didn't match it, use **Fix table match…** in its **⋯** menu. That only changes which catalog table it's linked to, so it gets the right ROM, add-ons, picture and updates. The table's files stay as they are.
 
+## VPU Remixes
+
+A VPU Remix is someone's mod of an existing table: new lighting, physics fixes, a VR room and so on. Most are shared on VPUniverse as a small `.dif` patch, not as a whole table. The patch only works on the exact table file it was made from. So you need that table, at that version, and the remix is made from it on your PC.
+
+### Picking one that fits
+
+A patch made from a different table, or a different version of it, can't be applied. The app warns you about that before you download.
+
+- **In Get Tables**, a remix carries a **VPU REMIX** chip and says which table it needs. If you have that table, it says so. If you don't, it says so, and if yours is a different table it warns that the patch almost certainly won't fit it.
+- **Made before your version:** catalog entries are updated in place, so your copy of the base table may be newer than the one the remix was made from. When the remix came out before the version you have, the app tells you it needs an older version. You can still try it.
+- **Several `.dif` files on one page:** remix pages often have a patch for each version of the base table. The app names the one to download when it can tell. Check the page's **Original Table Version** field against the version on your table's card.
+
+### Installing a remix
+
+From **Get Tables**, click **INSTALL** on the remix. Or, on the base table's card in My Tables, use **⋯** (MORE) **→ VPU Remixes → Get from the catalog**. That list only shows remixes of this table. The ones that won't fit are marked "needs an older version" or "made for another table" and listed last.
+
+1. If you don't have the base table, the app offers to install it first, then the remix.
+2. The VPUniverse page opens in your browser. Download the `.dif` there. The app picks it up from your Downloads folder, the same way it does for tables.
+3. The app asks whether to install the remix **as a new table** next to the original, or **in place of** the original.
+
+**Already downloaded a remix?** On the base table's card, use **⋯ → VPU Remixes → Add a remix file you downloaded…**. It takes a `.dif`, a zip with one in it, or a remix someone has already made into a `.vpx`. The app asks which catalog remix it is, or **NOT LISTED** if it isn't in the catalog. It warns you before going on if the catalog says the remix is for a different table, or if the patch's size doesn't match your table.
+
+### What it does
+
+- **The patch is applied to your table file**, and the result is checked to be a readable VPX table. A `.dif` has no checksum, so this is how the app knows it worked. If a download has several `.dif` files, each one is tried until one fits.
+- **If it doesn't fit, nothing changes.** You get a message with the size of table the patch expects and the size of yours, and a reminder to check the remix page's **Original Table Version**.
+- **As a new table**, the remix gets its own folder like any other table. The original stays as it is.
+- **In place of the original**, the remix takes over the table's folder and keeps its ROM, NVRAM and add-ons. The original is kept beside it as `<table name>.vpx.original`. **⋯ → VPU Remixes → Put the original back** switches back and removes the remix's table file. Replacing is only offered when the table has a folder of its own, so it never touches other tables' files.
+- **`vrtm.json`** records the remix, the table it was made from, and the kept original.
+
 ## The ROM
 
 Most tables based on a real machine need its ROM to run. The app gets it for you right after the table installs.
