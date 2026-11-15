@@ -47,7 +47,7 @@ public sealed partial class LobbyViewModel
             App.Library.PlayStatus = "Couldn't find the VrLobby folder next to this app.";
             return;
         }
-        // As for LAUNCH VR LOBBY: an exported lobby brings its own .NET; a project runs on this app's own, else the
+        // As for LAUNCH VR LOBBY: an exported lobby finds its .NET itself; a project runs on this app's own, else the
         // installed one (off the UI thread: mklink, copies).
         var dotnetRoot =
             LobbyRunner.FindExported() != null

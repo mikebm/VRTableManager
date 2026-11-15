@@ -14,7 +14,7 @@ This file is for working on the lobby. How to use it is in [docs/vr-lobby.md](..
 
 ## Running it
 
-A release ships the lobby exported (`VrLobby\VrLobby.exe`, its `.pck` and its own .NET), and the manager's **Launch VR Lobby** button starts that. `scripts\release.ps1` makes the export with the `Windows` preset in `export_presets.cfg`, which needs Godot's .NET export templates on the PC that builds the release. From source, see [DEVELOPING.md](../DEVELOPING.md): open the manager once first, so the lobby can find it to launch tables.
+A release ships the lobby exported (`VrLobby\bin\VrLobby.exe` and its `.pck`, on the .NET the release includes for the manager), and the manager's **Launch VR Lobby** button starts that. `scripts\release.ps1` makes the export with the `Windows` preset in `export_presets.cfg`, which needs Godot's .NET export templates on the PC that builds the release. From source, see [DEVELOPING.md](../DEVELOPING.md): open the manager once first, so the lobby can find it to launch tables.
 
 ## Input
 

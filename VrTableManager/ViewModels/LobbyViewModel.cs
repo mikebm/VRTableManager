@@ -153,7 +153,7 @@ public sealed partial class LobbyViewModel(MainViewModel app) : ChildViewModel(a
             App.Library.PlayStatus = "Couldn't find the VrLobby folder next to this app.";
             return;
         }
-        // An exported lobby (a release) brings its own .NET. Run as a project, the lobby uses this app's own .NET
+        // An exported lobby (a release) finds its .NET itself (see LobbyRunner.ExportedDirs). Run as a project, the lobby uses this app's own .NET
         // when it can, else the installed one. Off the UI thread: it runs mklink and copies hostfxr.dll.
         var exported = LobbyRunner.FindExported() != null;
         var (dotnetRoot, noBundled) = exported

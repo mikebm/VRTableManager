@@ -5,10 +5,11 @@
 .DESCRIPTION
   1. Checks the working tree is clean, HEAD is pushed and the tag is new.
   2. Runs the smoke test (skip with -SkipTests).
-  3. Publishes the manager self-contained for win-x64 (no .NET install needed to run it).
-  4. Exports the VR lobby with Godot next to the app (VrTableManager\VrLobby\VrLobby.exe), so players need
-     neither the Godot editor nor the .NET SDK, and runs its self-test from the export. Needs the Godot .NET
-     editor (-Godot, else the one the app downloads) and its export templates installed.
+  3. Publishes the manager for win-x64 with .NET beside it, laid out like a .NET install (host, shared), so no .NET
+     install is needed to run it.
+  4. Exports the VR lobby with Godot next to the app (VrTableManager\VrLobby\bin\VrLobby.exe), running on that same
+     .NET, so players need neither the Godot editor nor the .NET SDK, and runs its self-test from the export. Needs
+     the Godot .NET editor (-Godot, else the one the app downloads) and its export templates installed.
   5. Zips it (plus a .sha256), tags v<Version>, pushes the tag and creates the GitHub release with
      the zip attached.
 
@@ -91,10 +92,56 @@ if (-not $SkipTests) {
 
 # ---- Build ----------------------------------------------------------------------------------
 
-Step "Publishing the manager (self-contained, win-x64)"
+# One .NET for the manager and the lobby, laid out like a .NET install in the app's own folder: host\fxr\<ver>\hostfxr.dll
+# and shared\Microsoft.NETCore.App\<ver>. The manager is published framework-dependent, its exe set to look for .NET
+# there (AppHostDotNetSearch=AppRelative); the lobby finds it from VrLobby\bin (see the lobby's export below).
+# The files come from the same runtime pack a self-contained publish would take them from.
+$managerProj = Join-Path $root 'VrTableManager\VrTableManager.csproj'
+$runtimeVersion = (& dotnet msbuild $managerProj -nologo '-getProperty:BundledNETCoreAppPackageVersion' | Out-String).Trim()
+if ($runtimeVersion -notmatch '^\d+\.\d+\.\d+') { throw "Couldn't tell the SDK's .NET runtime version (got '$runtimeVersion')" }
+$nugetRoot = ((& dotnet nuget locals global-packages --list | Out-String) -replace '^\s*global-packages:\s*', '').Trim()
+$runtimePack = Join-Path $nugetRoot "microsoft.netcore.app.runtime.win-x64\$runtimeVersion\runtimes\win-x64"
+if (-not (Test-Path $runtimePack)) {
+    # Only a self-contained restore downloads the runtime pack.
+    Run dotnet @('restore', $managerProj, '-r', 'win-x64', '-p:SelfContained=true', '-nologo')
+}
+if (-not (Test-Path (Join-Path $runtimePack 'native\hostfxr.dll'))) { throw "No .NET $runtimeVersion runtime pack at $runtimePack" }
+$fxrDir = Join-Path $stage "host\fxr\$runtimeVersion"
+$sharedDir = Join-Path $stage "shared\Microsoft.NETCore.App\$runtimeVersion"
+
+# Runs a release exe with .NET's host tracing on and checks it ran on the release's own .NET, not one installed on
+# this PC (which it would quietly fall back to).
+function RunOnShippedDotnet($exe, [string[]] $arguments, [int] $expectedExit, $what) {
+    $trace = Join-Path ([IO.Path]::GetTempPath()) "vrtm-release-host-trace.txt"
+    Remove-Item $trace -ErrorAction SilentlyContinue
+    $env:COREHOST_TRACE = '1'; $env:COREHOST_TRACEFILE = $trace
+    try {
+        # Start-Process -Wait, not &: PowerShell doesn't wait for a windowed exe like VrTableManager.exe.
+        $code = (Start-Process -FilePath $exe -ArgumentList $arguments -NoNewWindow -Wait -PassThru).ExitCode
+    }
+    finally { Remove-Item Env:COREHOST_TRACE, Env:COREHOST_TRACEFILE -ErrorAction SilentlyContinue }
+    if ($code -ne $expectedExit) { throw "$what`: $exe $($arguments -join ' ') exited $code, not $expectedExit" }
+    $log = if (Test-Path $trace) { [IO.File]::ReadAllText($trace) } else { '' }
+    Remove-Item $trace -ErrorAction SilentlyContinue
+    if ($log.IndexOf("Chose FX version [$sharedDir]", [StringComparison]::OrdinalIgnoreCase) -lt 0) {
+        throw "$what didn't run on the release's .NET ($sharedDir). Run it with COREHOST_TRACE=1 to see where it looked."
+    }
+    Write-Host "$what runs on the release's .NET $runtimeVersion"
+}
+
+Step "Publishing the manager (win-x64, on the .NET $runtimeVersion laid out beside it)"
 if (Test-Path $out) { Remove-Item $out -Recurse -Force }
-Run dotnet @('publish', (Join-Path $root 'VrTableManager\VrTableManager.csproj'), '-c', 'Release', '-r', 'win-x64',
-    '--self-contained', 'true', "-p:Version=$Version", "-p:SourceRevisionId=$commit", '-o', $stage, '-nologo')
+Run dotnet @('publish', $managerProj, '-c', 'Release', '-r', 'win-x64', '--self-contained', 'false',
+    '-p:AppHostDotNetSearch=AppRelative', '-p:AppHostRelativeDotNet=.',
+    "-p:Version=$Version", "-p:SourceRevisionId=$commit", '-o', $stage, '-nologo')
+New-Item -ItemType Directory -Force $fxrDir, $sharedDir | Out-Null
+Copy-Item (Join-Path $runtimePack 'native\hostfxr.dll') $fxrDir
+Copy-Item (Join-Path $runtimePack 'lib\net*\*'), (Join-Path $runtimePack 'native\*') $sharedDir -Exclude 'hostfxr.dll'
+foreach ($f in @('coreclr.dll', 'hostpolicy.dll', 'System.Private.CoreLib.dll', 'Microsoft.NETCore.App.deps.json')) {
+    if (-not (Test-Path (Join-Path $sharedDir $f))) { throw "The .NET runtime pack had no $f" }
+}
+# Exits 11 ("nothing to record") without its arguments: the manager's code ran, and on which .NET is in the trace.
+RunOnShippedDotnet (Join-Path $stage 'VrTableManager.exe') @('--record-rom-audio') 11 'The manager'
 
 Step "Exporting the VR lobby"
 $lobbySrc = Join-Path $root 'VrLobby'
@@ -111,17 +158,25 @@ $templates = Join-Path $env:APPDATA "Godot\export_templates\$godotVersion.stable
 if (-not (Test-Path (Join-Path $templates 'windows_release_x86_64.exe'))) {
     throw "Godot $godotVersion .NET export templates aren't installed ($templates). Install them from the editor (Editor > Manage Export Templates) or unzip Godot_v$godotVersion-stable_mono_export_templates.tpz's 'templates' folder there."
 }
-$lobbyOut = Join-Path $stage 'VrLobby'
+# Two folders down (VrLobby\bin): an exported Godot lobby loads hostfxr.dll from its data folder and, with no .NET
+# beside it, takes the folder two above its own for the .NET install, which here is the app's folder.
+$lobbyOut = Join-Path $stage 'VrLobby\bin'
+$lobbyData = Join-Path $lobbyOut 'data_VrLobby_windows_x86_64'
 New-Item -ItemType Directory -Force $lobbyOut | Out-Null
 # Builds the lobby's C# in Release (with the .NET SDK) and packs it with its assets: VrLobby.exe, VrLobby.pck, its
-# console wrapper (PREPARE TABLES reads its output) and data_VrLobby_windows_x86_64 (its code and its own .NET).
-Run $Godot @('--headless', '--path', $lobbySrc, '--export-release', 'Windows', (Join-Path $lobbyOut 'VrLobby.exe'))
+# console wrapper (PREPARE TABLES reads its output) and data_VrLobby_windows_x86_64 (its code). VRTM_SHARED_DOTNET
+# makes it framework-dependent (see VrLobby.csproj): no .NET of its own.
+$env:VRTM_SHARED_DOTNET = '1'
+try { Run $Godot @('--headless', '--path', $lobbySrc, '--export-release', 'Windows', (Join-Path $lobbyOut 'VrLobby.exe')) }
+finally { Remove-Item Env:VRTM_SHARED_DOTNET -ErrorAction SilentlyContinue }
 # Godot can report success after an export that wrote nothing, so check.
-foreach ($f in @('VrLobby.exe', 'VrLobby.pck', 'VrLobby.console.exe', 'data_VrLobby_windows_x86_64\coreclr.dll', 'data_VrLobby_windows_x86_64\VrLobby.dll')) {
+foreach ($f in @('VrLobby.exe', 'VrLobby.pck', 'VrLobby.console.exe', 'data_VrLobby_windows_x86_64\VrLobby.dll', 'data_VrLobby_windows_x86_64\VrLobby.runtimeconfig.json')) {
     if (-not (Test-Path (Join-Path $lobbyOut $f))) { throw "The lobby export didn't write $f" }
 }
-# The lobby's DOF helper (DofBridge), once per DOF bitness: VrLobby\dof\x64 and \x86. It runs the player's own DOF, so
-# nothing of DOF goes in the release.
+if (Test-Path (Join-Path $lobbyData 'coreclr.dll')) { throw "The lobby was exported with a .NET of its own (is VrLobby.csproj's SelfContained override still there?)" }
+Copy-Item (Join-Path $fxrDir 'hostfxr.dll') $lobbyData
+# The lobby's DOF helper (DofBridge), once per DOF bitness: VrLobby\bin\dof\x64 and \x86. It runs the player's own DOF,
+# so nothing of DOF goes in the release.
 foreach ($arch in @(@{ Name = 'x64'; Platform = 'AnyCPU' }, @{ Name = 'x86'; Platform = 'x86' })) {
     $dofOut = Join-Path $lobbyOut "dof\$($arch.Name)"
     Run dotnet @('build', (Join-Path $root 'DofBridge\DofBridge.csproj'), '-c', 'Release', "-p:Platform=$($arch.Platform)",
@@ -130,8 +185,9 @@ foreach ($arch in @(@{ Name = 'x64'; Platform = 'AnyCPU' }, @{ Name = 'x86'; Pla
     if (-not (Test-Path (Join-Path $dofOut 'DofBridge.exe'))) { throw "DofBridge wasn't built to $dofOut" }
 }
 Step "Checking the exported lobby"
-# Its in-engine self-test, run from the export itself: the default cabinet, fonts and code all come from the .pck.
-Run (Join-Path $lobbyOut 'VrLobby.console.exe') @('--headless', '--', '--selftest')
+# Its in-engine self-test, run from the export itself: the default cabinet, fonts and code all come from the .pck, and
+# its .NET from the app's folder.
+RunOnShippedDotnet (Join-Path $lobbyOut 'VrLobby.console.exe') @('--headless', '--', '--selftest') 0 "The lobby's self-test"
 
 Copy-Item (Join-Path $root 'README.md') $stage
 # The MIT license and the third-party notices (MPL-2.0 OpenMcdf, ODbL maps, OFL fonts) go with every copy.
@@ -141,7 +197,8 @@ Copy-Item (Join-Path $root 'THIRD-PARTY-NOTICES.md') $stage
 VR Table Manager $Version
 =========================
 
-Run VrTableManager.exe. Keep the VrLobby folder next to it (the VR lobby runs from there).
+Run VrTableManager.exe. Keep the folders next to it: VrLobby (the VR lobby), and host and shared (the .NET the
+app and the lobby run on).
 
 Needs: Windows 10/11 x64, a web browser (table sites are downloaded from in it), a Quest with Meta Quest Link
 or Virtual Desktop. Nothing else to install: the app and the VR lobby both run on the .NET included here.

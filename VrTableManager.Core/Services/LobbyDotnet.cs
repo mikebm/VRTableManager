@@ -3,8 +3,9 @@ using System.Diagnostics;
 namespace VrTableManager.Services;
 
 /// <summary>
-/// The .NET the VR lobby runs on when it runs as a project in the Godot editor. A release's exported lobby brings
-/// its own .NET, and releases no longer ship <see cref="DepsFile"/>, so <see cref="Prepare()"/> returns null there.
+/// The .NET the VR lobby runs on when it runs as a project in the Godot editor. A release's exported lobby finds the
+/// .NET the release lays out itself (see LobbyRunner.ExportedDirs), and releases no longer ship
+/// <see cref="DepsFile"/>, so <see cref="Prepare()"/> returns null there.
 /// The lobby is a Godot .NET project, and Godot starts .NET from a .NET install
 /// folder (DOTNET_ROOT, or the one Windows has). The manager is self-contained, so a player who never installed
 /// .NET has one only inside the manager's own folder, which is flat, not laid out like an install.

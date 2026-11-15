@@ -17,7 +17,7 @@ public sealed record LobbyProgram(string Exe, string? ProjectDir)
 
 /// <summary>
 /// One-click start for the VR lobby (VrLobby, a Godot 4.7 .NET project in this repo).
-/// A release ships it exported (<c>VrLobby\VrLobby.exe</c> next to this app), which runs as it is.
+/// A release ships it exported (<c>VrLobby\bin\VrLobby.exe</c> next to this app), which runs as it is.
 /// Running from source: the first time, downloads the official Godot .NET editor from GitHub into the app's data
 /// folder; every time, rebuilds the lobby's C# if its code changed, makes sure Godot has imported the project's
 /// assets, then runs the project in it. The lobby launches tables back through this app (--play).
@@ -26,12 +26,28 @@ public static class LobbyRunner
 {
     public const string ExportedExe = "VrLobby.exe";
 
-    /// <summary>The exported lobby a release ships in VrLobby next to this app, if there is one.</summary>
+    /// <summary>
+    /// Where a release puts the exported lobby, under this app's folder: <c>VrLobby\bin</c>, two folders down, which
+    /// is how it runs on this app's .NET (the release lays that out like a .NET install in this app's folder, and an
+    /// exported Godot lobby takes the folder two above its own for the install). Releases before 0.12 had it in
+    /// <c>VrLobby</c> with a .NET of its own; an install updated from one still has that copy, which is used only
+    /// when there's no new one.
+    /// </summary>
+    public static readonly string[] ExportedDirs = [Path.Combine("VrLobby", "bin"), "VrLobby"];
+
+    /// <summary>The exported lobby a release ships next to this app, if there is one.</summary>
     public static string? FindExported(string? appDir = null)
     {
-        var dir = Path.Combine(appDir ?? AppContext.BaseDirectory, "VrLobby");
-        var exe = Path.Combine(dir, ExportedExe);
-        return File.Exists(exe) && File.Exists(Path.Combine(dir, "VrLobby.pck")) ? exe : null;
+        foreach (var sub in ExportedDirs)
+        {
+            var dir = Path.Combine(appDir ?? AppContext.BaseDirectory, sub);
+            var exe = Path.Combine(dir, ExportedExe);
+            if (File.Exists(exe) && File.Exists(Path.Combine(dir, "VrLobby.pck")))
+            {
+                return exe;
+            }
+        }
+        return null;
     }
 
     /// <summary>True when there is a lobby to run, exported or as a project.</summary>

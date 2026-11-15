@@ -78,6 +78,6 @@ From source, the manager starts the lobby in the Godot editor it downloads to `%
 .\scripts\release.ps1 -Version 1.0.0              # also tag v1.0.0 and create the GitHub release
 ```
 
-It runs SmokeTest, publishes the manager self-contained for win-x64, exports the VR lobby with the `Windows` preset (so players don't need .NET or Godot), and attaches `VrTableManager-<version>-win-x64.zip` and its `.sha256` to the release with GitHub's generated change list. The export needs Godot's .NET export templates installed. The working tree has to be clean and pushed. Other options: `-Draft`, `-Prerelease`, `-Notes "…"` or `-NotesFile notes.md`, `-SkipTests`, `-Repo owner/name`.
+It runs SmokeTest, publishes the manager for win-x64 with a .NET laid out beside it (`host`, `shared`), exports the VR lobby with the `Windows` preset into `VrLobby\bin` to run on that same .NET (so players don't need .NET or Godot), and attaches `VrTableManager-<version>-win-x64.zip` and its `.sha256` to the release with GitHub's generated change list. The export needs Godot's .NET export templates installed. The working tree has to be clean and pushed. Other options: `-Draft`, `-Prerelease`, `-Notes "…"` or `-NotesFile notes.md`, `-SkipTests`, `-Repo owner/name`.
 
 For GitHub it uses `GITHUB_TOKEN` or `GH_TOKEN` if set, then the GitHub CLI's sign-in, then the credential Git already has for github.com. The token needs `contents: write` on the repo.

@@ -35,11 +35,11 @@ The lobby uses `--status` and `--lobby-pid`. You won't usually need them.
 
 The lobby can't start a table from its own command line. Its `--select` option just picks that table in the ring. To go straight into a table and land in the lobby when you quit, have VR Table Manager play the table and start the lobby afterwards with `--return`. That's what the lobby itself does when you pick a table.
 
-The lobby is `VrLobby\VrLobby.exe`, in the folder you unzipped VR Table Manager to. Anything after a lone `--` goes to the lobby itself:
+The lobby is `VrLobby\bin\VrLobby.exe` (`VrLobby\VrLobby.exe` before version 0.12), in the folder you unzipped VR Table Manager to. Anything after a lone `--` goes to the lobby itself:
 
 ```powershell
 VrTableManager.exe --play "C:\Tables\Medieval Madness.vpx" --vr `
-  --return "<VR Table Manager folder>\VrLobby\VrLobby.exe" `
+  --return "<VR Table Manager folder>\VrLobby\bin\VrLobby.exe" `
   --return-arg -- --return-arg "--select=C:\Tables\Medieval Madness.vpx"
 ```
 

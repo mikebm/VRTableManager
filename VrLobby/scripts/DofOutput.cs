@@ -216,7 +216,7 @@ public sealed class DofOutput
     }
 
     /// <summary>
-    /// DofBridge for this DOF's bitness: VrLobby\dof\x64 or \x86 in a release, or its build output beside the lobby's
+    /// DofBridge for this DOF's bitness: dof\x64 or \x86 beside the exported lobby in a release, or its build output beside the lobby's
     /// project when running from source.
     /// </summary>
     static string? BridgeExe(bool is64)

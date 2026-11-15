@@ -617,6 +617,15 @@ await Live(
     Check(LobbyRunner.FindExported(app) == null, "exported lobby: not without its .pck");
     File.WriteAllText(Path.Combine(app, "VrLobby", "VrLobby.pck"), "");
     Check(LobbyRunner.FindExported(app) == exe, "exported lobby: found next to the app");
+    // Since 0.12 in VrLobby\bin, on the app's .NET; an install updated from an older release keeps the old copy too.
+    var binExe = Path.Combine(app, "VrLobby", "bin", LobbyRunner.ExportedExe);
+    Directory.CreateDirectory(Path.GetDirectoryName(binExe)!);
+    File.WriteAllText(binExe, "");
+    File.WriteAllText(Path.ChangeExtension(binExe, ".pck"), "");
+    Check(
+        LobbyRunner.FindExported(app) == binExe,
+        "exported lobby: VrLobby\\bin is preferred to an older release's VrLobby"
+    );
     Check(
         LobbyDotnet.IsExported(exe)
             && !LobbyDotnet.IsExported(Path.Combine(app, "Godot_v4_mono_win64.exe")),

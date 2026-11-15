@@ -16,7 +16,7 @@ third-party work, each under its own license.
 | 7-Zip `7z.dll` 24.07 (bundled by SevenZipExtractor, in `x64\` and `x86\`) | GNU LGPL 2.1+, with the unRAR license restriction for its RAR code | https://www.7-zip.org/ |
 | SharpCompress | MIT | https://github.com/adamhathcock/sharpcompress |
 | SkiaSharp | MIT | https://github.com/mono/SkiaSharp |
-| .NET runtime (the release is self-contained) | MIT | https://github.com/dotnet/runtime |
+| .NET runtime (included in the release) | MIT | https://github.com/dotnet/runtime |
 
 OpenMcdf is used unmodified. Its source code is available at the link above, under the
 [Mozilla Public License 2.0](https://www.mozilla.org/MPL/2.0/).

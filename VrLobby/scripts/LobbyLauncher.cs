@@ -20,8 +20,9 @@ public static class LobbyLauncher
         {
             candidates.Add(s.ManagerExe);
         }
-        // Exported lobby: a release ships it in VrLobby next to the manager.
+        // Exported lobby: a release ships it in VrLobby\bin next to the manager (VrLobby before 0.12).
         var exeDir = Path.GetDirectoryName(OS.GetExecutablePath()) ?? "";
+        candidates.Add(Path.Combine(exeDir, "..", "..", "VrTableManager.exe"));
         candidates.Add(Path.Combine(exeDir, "..", "VrTableManager.exe"));
         candidates.Add(Path.Combine(exeDir, "VrTableManager.exe"));
         // Running from source: the manager's build output next to this project.
