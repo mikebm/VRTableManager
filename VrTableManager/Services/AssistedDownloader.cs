@@ -9,6 +9,10 @@ public static class SitePolicy
     /// Sites that have agreed in writing to automated downloads. Everything else (VPUniverse, VPForums,
     /// Pinball Nirvana …) is downloaded by you in your own browser, so you see the site, its ads and its
     /// terms. Add a host here only with that site's permission.
+    /// <para>
+    /// While this is empty the release doesn't ship Playwright's driver (PlaywrightPlatform in the csproj), so adding
+    /// a host means shipping it again: without it <see cref="BrowserDownloader"/> can't start a browser.
+    /// </para>
     /// </summary>
     static readonly HashSet<string> AutomationAllowed = new(StringComparer.OrdinalIgnoreCase);
 

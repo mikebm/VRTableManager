@@ -17,13 +17,34 @@
 
   <ItemGroup>
     <PackageReference Include="Avalonia" Version="12.1.4" />
-    <PackageReference Include="Avalonia.Desktop" Version="12.1.4" />
+    <!-- Windows only: Avalonia.Win32 and Skia, not Avalonia.Desktop, which also brings the Linux (X11, FreeDesktop,
+         D-Bus) and macOS (Avalonia.Native, Metal) backends. Program.BuildAvaloniaApp names the platform itself. -->
+    <PackageReference Include="Avalonia.Win32" Version="12.1.4" />
+    <PackageReference Include="Avalonia.Skia" Version="12.1.4" />
+    <PackageReference Include="Avalonia.HarfBuzz" Version="12.1.4" />
     <PackageReference Include="Avalonia.Fonts.Inter" Version="12.1.4" />
     <PackageReference Include="Avalonia.Themes.Fluent" Version="12.1.4" />
     <PackageReference Include="CommunityToolkit.Mvvm" Version="8.4.2" />
     <PackageReference Include="Microsoft.Playwright" Version="1.63.0" />
     <PackageReference Include="NAudio.Wasapi" Version="2.2.1" />
   </ItemGroup>
+
+  <PropertyGroup Condition="'$(_IsPublishing)' == 'true'">
+    <!-- A publish (the release) leaves out Playwright's Node.js driver (.playwright, about 100 MB): the sign-in
+         browser only runs for a site in SitePolicy.AutomationAllowed, and there are none. Builds keep it. -->
+    <PlaywrightPlatform>none</PlaywrightPlatform>
+  </PropertyGroup>
+
+  <!-- No debug symbols in a publish either: SkiaSharp's and HarfBuzzSharp's native .pdb files alone are over 100 MB.
+       Builds keep theirs. -->
+  <Target Name="LeaveSymbolsOutOfPublish" AfterTargets="ComputeResolvedFilesToPublishList">
+    <ItemGroup>
+      <ResolvedFileToPublish
+        Remove="@(ResolvedFileToPublish)"
+        Condition="'%(Extension)' == '.pdb'"
+      />
+    </ItemGroup>
+  </Target>
 
   <ItemGroup>
     <ProjectReference Include="..\VrTableManager.Core\VrTableManager.Core.csproj" />

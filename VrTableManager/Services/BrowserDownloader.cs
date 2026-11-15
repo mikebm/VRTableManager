@@ -65,6 +65,14 @@ public sealed class BrowserDownloader : IAsyncDisposable
             return _ctx;
         }
 
+        if (!Directory.Exists(Path.Combine(AppContext.BaseDirectory, ".playwright")))
+        {
+            // Left out of releases (see SitePolicy.AutomationAllowed).
+            throw new InvalidOperationException(
+                "This copy of VR Table Manager doesn't include the sign-in browser's driver (.playwright)."
+            );
+        }
+
         _pw ??= await Playwright.CreateAsync();
 
         var opts = new BrowserTypeLaunchPersistentContextOptions

@@ -114,5 +114,12 @@ static class Program
     }
 
     public static AppBuilder BuildAvaloniaApp() =>
-        AppBuilder.Configure<App>().UsePlatformDetect().WithInterFont().LogToTrace();
+        AppBuilder
+            .Configure<App>()
+            // What UsePlatformDetect picks on Windows; the other platforms' backends aren't referenced (see the csproj).
+            .UseWin32()
+            .UseSkia()
+            .UseHarfBuzz()
+            .WithInterFont()
+            .LogToTrace();
 }
