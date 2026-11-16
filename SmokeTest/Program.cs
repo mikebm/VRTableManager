@@ -3394,6 +3394,11 @@ foreach (var (ok, name) in await AssistedDownloadChecks.RunAsync(root))
     Check(ok, name);
 }
 
+foreach (var (ok, name) in await DownloadGateChecks.RunAsync())
+{
+    Check(ok, name);
+}
+
 // ---- VR graphics, logs, storage, backup ----
 {
     var gs = new AppSettings

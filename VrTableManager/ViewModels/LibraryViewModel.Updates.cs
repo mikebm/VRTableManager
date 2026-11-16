@@ -307,13 +307,15 @@ public sealed partial class LibraryViewModel
     internal async Task UpdateAllTablesAsync()
     {
         // All started at once: each waits its turn in the download queue (Setup → "Downloads at once"), shared
-        // with anything else you start meanwhile. Each table has one update, so they can't collide.
-        await Task.WhenAll(
-            _allInstalled
-                .Select(i => i.Update)
-                .OfType<TableUpdate>()
-                .ToList()
-                .Select(u => App.Catalog.InstallAsync(u.Game, u.File, u.Table))
-        );
+        // with anything else you start meanwhile. Each table has one update, so they can't collide, except that a
+        // VPU Remix is made by patching its base table's file: remixes go once the tables they patch are updated,
+        // so a patch never reads a base that's being replaced.
+        var updates = _allInstalled.Select(i => i.Update).OfType<TableUpdate>().ToList();
+        static bool IsRemixUpdate(TableUpdate u) =>
+            VpuRemix.IsRemix(u.File) || VpuRemix.IsRemix(u.Table.Manifest);
+        Task InstallAll(IEnumerable<TableUpdate> us) =>
+            Task.WhenAll(us.Select(u => App.Catalog.InstallAsync(u.Game, u.File, u.Table)));
+        await InstallAll(updates.Where(u => !IsRemixUpdate(u)));
+        await InstallAll(updates.Where(IsRemixUpdate));
     }
 }

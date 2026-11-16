@@ -42,10 +42,10 @@ public sealed partial class LobbyMediaViewModel
     async Task<string> DownloadAttractSourceAsync(JobItem job, MediaPackAudio.Source src)
     {
         var downloads = DownloadsViewModel.JobDownloadDir(job);
-        // In your browser: takes a download slot too (see FetchAsync).
+        // In your browser: takes a browser-page slot (see FetchAsync).
         if (!src.IsDirect && !SitePolicy.AllowsAutomation(src.Url))
         {
-            return await App.Downloads.WithDownloadSlotAsync(
+            return await App.Downloads.WithBrowserPageSlotAsync(
                 job,
                 () => App.Downloads.Assisted.DownloadAsync(src.Url, downloads, job)
             );

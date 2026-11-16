@@ -88,15 +88,16 @@ public sealed partial class DownloadsViewModel : ChildViewModel, IAsyncDisposabl
     /// <summary>
     /// Downloads a file straight (GitHub etc.); from a table site, opens its page in your browser and
     /// takes the file you download there (or drives the sign-in browser, for a site that allows it).
-    /// Every way takes a download slot, a page in your browser too (held until its file arrives), so
-    /// "Downloads at once" is how many pages open at a time as well.
+    /// Every way takes a download slot. A page in your browser takes one of the browser-page slots, held while it
+    /// waits for you (until its file arrives, you press DONE or cancel it), so "Downloads at once" is how many pages
+    /// open at a time as well.
     /// </summary>
     internal Task<string> FetchAsync(string url, JobItem job, string[] hint, string? what = null)
     {
         var downloads = JobDownloadDir(job);
         if (!BrowserDownloader.IsDirectFileUrl(url) && !SitePolicy.AllowsAutomation(url))
         {
-            return WithDownloadSlotAsync(
+            return WithBrowserPageSlotAsync(
                 job,
                 () => Assisted.DownloadAsync(url, downloads, job, what)
             );
@@ -130,37 +131,61 @@ public sealed partial class DownloadsViewModel : ChildViewModel, IAsyncDisposabl
 
     // ---- Download queue ----------------------------------------------------------
     // Downloads run a few at a time (Setup → "Downloads at once", default 2); the rest wait in the
-    // queue. One pool for tables, add-ons, ROMs and attract audio, whether direct or a page in your
-    // browser, and whether you clicked them or UPDATE ALL started them. Unpacking and installing don't
-    // take a slot, so the next download starts meanwhile.
+    // queue, for tables, add-ons, ROMs and attract audio alike, whether you clicked them or UPDATE ALL
+    // started them. Pages in your browser have slots of their own, as many again: one you leave waiting
+    // holds up the next page, but never a direct download. Unpacking and installing don't take a slot,
+    // so the next download starts meanwhile.
 
     public int[] ParallelDownloadChoices { get; } = [1, 2, 3, 4];
 
     [ObservableProperty]
     public partial int MaxParallelDownloads { get; set; }
-    SemaphoreSlim _downloadSlots = new(2);
+
+    /// <summary>Direct downloads (GitHub and other links the app fetches itself).</summary>
+    readonly DownloadGate _downloadSlots = new(2);
+
+    /// <summary>Pages open in your browser, waiting for you to download the file (VPUniverse, VPForums …).</summary>
+    readonly DownloadGate _browserPageSlots = new(2);
 
     partial void OnMaxParallelDownloadsChanged(int value)
     {
         value = Math.Clamp(value, 1, 4);
         Settings.MaxParallelDownloads = value;
         Settings.Save();
-        // Jobs already holding a slot release it to the old gate; new jobs use the new size.
-        _downloadSlots = new SemaphoreSlim(value);
+        // Applies to jobs already queued too: raised, the next ones start now.
+        _downloadSlots.Limit = value;
+        _browserPageSlots.Limit = value;
     }
 
-    internal async Task<T> WithDownloadSlotAsync<T>(JobItem job, Func<Task<T>> download)
+    /// <summary>Runs a direct download once a slot is free.</summary>
+    internal Task<T> WithDownloadSlotAsync<T>(JobItem job, Func<Task<T>> download) =>
+        WithSlotAsync(_downloadSlots, job, download, "Queued: waiting for a free download slot…");
+
+    /// <summary>Opens a page in your browser (and waits for its file) once fewer than the limit are open.</summary>
+    internal Task<T> WithBrowserPageSlotAsync<T>(JobItem job, Func<Task<T>> wait) =>
+        WithSlotAsync(
+            _browserPageSlots,
+            job,
+            wait,
+            "Queued: its page opens in your browser once one of the pages already open has its file (or is cancelled)."
+        );
+
+    static async Task<T> WithSlotAsync<T>(
+        DownloadGate slots,
+        JobItem job,
+        Func<Task<T>> work,
+        string queued
+    )
     {
-        var slots = _downloadSlots;
-        if (slots.CurrentCount == 0)
+        if (slots.IsFull)
         {
-            job.Report("Queued: waiting for a free download slot…");
+            job.Report(queued);
         }
 
         await slots.WaitAsync(job.Cts.Token);
         try
         {
-            return await download();
+            return await work();
         }
         finally
         {

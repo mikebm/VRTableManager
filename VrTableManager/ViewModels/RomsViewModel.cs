@@ -356,7 +356,7 @@ public sealed partial class RomsViewModel(MainViewModel app) : ChildViewModel(ap
                                 job.Cts.Token
                             )
                     )
-                : await App.Downloads.WithDownloadSlotAsync(
+                : await App.Downloads.WithBrowserPageSlotAsync(
                     job,
                     () =>
                         App.Downloads.Assisted.DownloadAllAsync(
