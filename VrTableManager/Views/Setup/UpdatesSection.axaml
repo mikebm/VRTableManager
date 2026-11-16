@@ -77,6 +77,8 @@
               <TextBlock Grid.Row="1" Grid.Column="1" Classes="v" Text="{Binding App.Library.TableUpdateText}"
                          Classes.new="{Binding App.Library.TableUpdateCount, Converter={x:Static v:Converters.NonZero}}" />
               <StackPanel Grid.Row="1" Grid.Column="2" Orientation="Horizontal" Spacing="8" VerticalAlignment="Center">
+                <TextBlock Classes="v" VerticalAlignment="Center" Text="{Binding App.Library.AutoLinkProgress}"
+                           IsVisible="{Binding App.Library.IsAutoLinking}" />
                 <Button Classes="small" Content="AUTO-LINK" Command="{Binding App.Library.AutoLinkTablesCommand}"
                         IsVisible="{Binding App.Library.AutoLinkableCount, Converter={x:Static v:Converters.NonZero}}"
                         IsEnabled="{Binding !App.Library.IsAutoLinking}"

@@ -43,6 +43,7 @@ public static class CatalogLink
             .Where(n => !string.IsNullOrWhiteSpace(n))
             .Select(n => Path.GetFileNameWithoutExtension(n) + ".vpx")
             .Distinct(StringComparer.OrdinalIgnoreCase)
+            .Select(TableFileMatch.Prepare)
             .ToList();
         double Score(VpsGame g) =>
             labels.Count == 0 ? 0 : labels.Max(l => TableFileMatch.Score(g, l));

@@ -10,7 +10,15 @@ namespace VrTableManager.Services;
 /// </summary>
 public static partial class TableFileMatch
 {
-    public static readonly string[] Extensions = [".zip", ".rar", ".7z", ".vpx", ".fpt", VpuRemix.PatchExt];
+    public static readonly string[] Extensions =
+    [
+        ".zip",
+        ".rar",
+        ".7z",
+        ".vpx",
+        ".fpt",
+        VpuRemix.PatchExt,
+    ];
 
     public static bool IsFuturePinball(string file) =>
         Path.GetExtension(file).Equals(".fpt", StringComparison.OrdinalIgnoreCase);
@@ -77,24 +85,82 @@ public static partial class TableFileMatch
     static bool IsYear(string w) =>
         w.Length == 4 && int.TryParse(w, out var y) && y is >= 1930 and <= 2039;
 
-    /// <summary>How well a game's name matches the file name: 0 (no shared word) to about 1.2 (every word, plus maker and year).</summary>
-    public static double Score(VpsGame g, string fileName)
+    /// <summary>A file name split into words once, to score against every catalog game (see <see cref="Score(VpsGame, FileWords)"/>).</summary>
+    public sealed class FileWords
     {
-        var file = NameWords(Path.GetFileNameWithoutExtension(fileName));
+        internal FileWords(string fileName)
+        {
+            Words = NameWords(Path.GetFileNameWithoutExtension(fileName));
+            Set = [.. Words];
+            // Also accept the name's words run together ("AttackFromMars", "attack_from_mars" split differently).
+            Joined = string.Concat(Words);
+        }
+
+        internal readonly List<string> Words;
+        internal readonly HashSet<string> Set;
+        internal readonly string Joined;
+    }
+
+    public static FileWords Prepare(string fileName) => new(fileName);
+
+    /// <summary>A catalog game's name and maker split into words, kept with the strings they came from.</summary>
+    sealed class GameWords(string name, string? maker)
+    {
+        public readonly string FromName = name;
+        public readonly string? FromMaker = maker;
+        public readonly List<string> Name = NameWords(name);
+        public readonly HashSet<string> NameSet = [.. NameWords(name)];
+        public readonly List<string> Maker = string.IsNullOrWhiteSpace(maker)
+            ? []
+            : NameWords(maker);
+    }
+
+    /// <summary>
+    /// Per catalog game, built once: AUTO-LINK scores every installed table against every game, and splitting
+    /// the game's name again each time was most of its run time. Rebuilt if the game's name or maker changes.
+    /// </summary>
+    static readonly System.Runtime.CompilerServices.ConditionalWeakTable<
+        VpsGame,
+        GameWords
+    > GameWordsIndex = new();
+
+    static GameWords WordsOf(VpsGame g)
+    {
+        if (
+            GameWordsIndex.TryGetValue(g, out var w)
+            && ReferenceEquals(w.FromName, g.Name)
+            && ReferenceEquals(w.FromMaker, g.Manufacturer)
+        )
+        {
+            return w;
+        }
+
+        w = new GameWords(g.Name, g.Manufacturer);
+        GameWordsIndex.AddOrUpdate(g, w);
+        return w;
+    }
+
+    /// <summary>How well a game's name matches the file name: 0 (no shared word) to about 1.2 (every word, plus maker and year).</summary>
+    public static double Score(VpsGame g, string fileName) => Score(g, Prepare(fileName));
+
+    /// <inheritdoc cref="Score(VpsGame, string)"/>
+    public static double Score(VpsGame g, FileWords f)
+    {
+        var file = f.Words;
         if (file.Count == 0)
         {
             return 0;
         }
 
-        var name = NameWords(g.Name);
+        var gw = WordsOf(g);
+        var name = gw.Name;
         if (name.Count == 0)
         {
             return 0;
         }
 
-        var fileSet = file.ToHashSet();
-        // Also accept the name's words run together ("AttackFromMars", "attack_from_mars" split differently).
-        var joined = string.Concat(file);
+        var fileSet = f.Set;
+        var joined = f.Joined;
         // "LE" in a file name is how the catalog's "(Limited Edition)" gets shortened ("The Walking Dead LE").
         bool Found(string w) =>
             fileSet.Contains(w)
@@ -108,14 +174,13 @@ public static partial class TableFileMatch
         }
         // Share of the game's words found, less a little for file words the name doesn't explain.
         var extra = file.Count(w =>
-            !name.Contains(w) && !w.All(char.IsDigit) && !(w == "le" && name.Contains("limited"))
+            !gw.NameSet.Contains(w)
+            && !w.All(char.IsDigit)
+            && !(w == "le" && gw.NameSet.Contains("limited"))
         );
         // More words matched wins a tie ("Attack from Mars" over "Attack" for "AttackFromMars").
         var score = hits / (double)name.Count - 0.04 * extra + 0.03 * hits;
-        if (
-            !string.IsNullOrWhiteSpace(g.Manufacturer)
-            && NameWords(g.Manufacturer).Any(fileSet.Contains)
-        )
+        if (gw.Maker.Any(fileSet.Contains))
         {
             score += 0.1;
         }
@@ -127,7 +192,7 @@ public static partial class TableFileMatch
                 score += 0.1;
             }
             // The file names another year: "The Walking Dead (Stern 2014)" isn't the 2016 original of that name.
-            else if (file.Any(w => IsYear(w) && !name.Contains(w)))
+            else if (file.Any(w => IsYear(w) && !gw.NameSet.Contains(w)))
             {
                 score -= 0.15;
             }
@@ -140,7 +205,7 @@ public static partial class TableFileMatch
     public static List<VpsGame> Guess(string file, IEnumerable<VpsGame> games, int take = 3)
     {
         var fp = IsFuturePinball(file);
-        var name = Path.GetFileName(file);
+        var name = Prepare(Path.GetFileName(file));
         return games
             .Where(g => g.TableFiles?.Any(t => VpsCatalog.IsVpx(t) != fp) == true)
             .Select(g => (g, s: Score(g, name)))

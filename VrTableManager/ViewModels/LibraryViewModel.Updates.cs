@@ -91,6 +91,10 @@ public sealed partial class LibraryViewModel
     [ObservableProperty]
     public partial bool IsAutoLinking { get; set; }
 
+    /// <summary>What AUTO-LINK is doing ("Linking 120 of 450…"), shown beside its button while it runs.</summary>
+    [ObservableProperty]
+    public partial string AutoLinkProgress { get; set; } = "";
+
     static bool IsUnlinked(InstalledItem i) =>
         i.Table.Manifest.TableFileId == ""
         && i.Table.Manifest.Engine is TableManifest.Vpx or TableManifest.FuturePinball;
@@ -119,6 +123,7 @@ public sealed partial class LibraryViewModel
         }
 
         IsAutoLinking = true;
+        AutoLinkProgress = "Getting ready…";
         List<InstalledItem> toFix = [];
         try
         {
@@ -129,12 +134,31 @@ public sealed partial class LibraryViewModel
                 .Select(i => i.Table)
                 .Where(t => !_busyTables.Contains(t.TablePath))
                 .ToList();
+            // Progress<T> posts back to the UI thread; shown as a count, as a big library takes a while.
+            var linking = true; // a report still queued when the run ends mustn't overwrite what comes next
+            var progress = new Progress<int>(done =>
+            {
+                if (linking)
+                {
+                    AutoLinkProgress = $"Linking {done} of {tables.Count}…";
+                }
+            });
+            IProgress<int> report = progress;
+            AutoLinkProgress = $"Linking 0 of {tables.Count}…";
             var (linked, changed) = await Task.Run(() =>
             {
                 var n = 0;
+                var done = 0;
+                var lastReport = Environment.TickCount64;
                 var touched = new List<InstalledTable>();
                 foreach (var scanned in tables)
                 {
+                    if (Environment.TickCount64 - lastReport >= 200)
+                    {
+                        lastReport = Environment.TickCount64;
+                        report.Report(done);
+                    }
+                    done++;
                     try
                     {
                         // As saved now, not as scanned: a rename meanwhile mustn't be written back over.
@@ -163,6 +187,8 @@ public sealed partial class LibraryViewModel
                 return (n, touched);
             });
 
+            linking = false;
+            AutoLinkProgress = "Reading the tables back…";
             // Read them back from disk: a rescan while this ran (a download finishing, the lobby closing) may have
             // replaced the tables with copies read before they were saved, which would still show as unlinked.
             if (changed.Count > 0)
@@ -170,6 +196,7 @@ public sealed partial class LibraryViewModel
                 RefreshInstalled(); // re-reads vrtm.json and pictures
             }
             ApplyTableUpdates();
+            AutoLinkProgress = "";
 
             var left = _allInstalled.Where(IsUnlinked).ToList();
             var fixable = left.Count(i => i.CanRename);
@@ -215,6 +242,7 @@ public sealed partial class LibraryViewModel
         finally
         {
             IsAutoLinking = false;
+            AutoLinkProgress = "";
         }
 
         if (toFix.Count > 0)
