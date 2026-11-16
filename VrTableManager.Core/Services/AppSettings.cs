@@ -325,6 +325,12 @@ public sealed class AppSettings
     /// <summary>The name of the collection in <see cref="LibraryCollectionKind"/>; empty for Any collection.</summary>
     public string LibraryCollection { get; set; } = "";
 
+    /// <summary>
+    /// My Tables' last choice of All / Favourites / Updates / Most played / Recently played / Not linked, so it's still
+    /// chosen when the app starts again. One the app no longer offers falls back to All.
+    /// </summary>
+    public string LibraryFilter { get; set; } = "All";
+
     /// <summary>The Setup section that was showing last ("vpx", "headset", …), so Setup opens there again.</summary>
     public string SetupSection { get; set; } = "vpx";
 

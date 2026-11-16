@@ -109,7 +109,16 @@ public sealed partial class LibraryViewModel(MainViewModel app) : ChildViewModel
     [ObservableProperty]
     public partial bool IsInstalledNarrowed { get; set; }
 
-    partial void OnInstalledFilterChanged(string value) => InstalledFilterChanged(value);
+    partial void OnInstalledFilterChanged(string value)
+    {
+        // Kept in settings, like the Collection filter, so My Tables opens on it next time.
+        if (value != null && Settings.LibraryFilter != value)
+        {
+            Settings.LibraryFilter = value;
+            Settings.Save();
+        }
+        InstalledFilterChanged(value);
+    }
 
     internal List<InstalledItem> _allInstalled = [];
     internal PlayStats _stats = new();
