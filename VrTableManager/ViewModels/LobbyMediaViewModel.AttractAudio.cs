@@ -9,9 +9,7 @@ namespace VrTableManager.ViewModels;
 public sealed partial class LobbyMediaViewModel
 {
     internal IReadOnlyList<MediaPackAudio.Source> AttractAudioSourcesFor(InstalledTable t) =>
-        t.IsVpx
-        && t.Manifest.GameId != ""
-        && App.Catalog.CatalogGame(t.Manifest.GameId) is { } game
+        t.IsVpx && t.Manifest.GameId != "" && App.Catalog.CatalogGame(t.Manifest.GameId) is { } game
             ? MediaPackAudio.SourcesFor(game)
             : [];
 
@@ -44,10 +42,13 @@ public sealed partial class LobbyMediaViewModel
     async Task<string> DownloadAttractSourceAsync(JobItem job, MediaPackAudio.Source src)
     {
         var downloads = DownloadsViewModel.JobDownloadDir(job);
-        // In your browser: no download slot (see FetchAsync).
+        // In your browser: takes a download slot too (see FetchAsync).
         if (!src.IsDirect && !SitePolicy.AllowsAutomation(src.Url))
         {
-            return await App.Downloads.Assisted.DownloadAsync(src.Url, downloads, job);
+            return await App.Downloads.WithDownloadSlotAsync(
+                job,
+                () => App.Downloads.Assisted.DownloadAsync(src.Url, downloads, job)
+            );
         }
 
         return await App.Downloads.WithDownloadSlotAsync(

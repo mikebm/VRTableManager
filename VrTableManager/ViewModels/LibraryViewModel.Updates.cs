@@ -306,10 +306,14 @@ public sealed partial class LibraryViewModel
     [RelayCommand]
     internal async Task UpdateAllTablesAsync()
     {
-        // As many at once as Setup → "Downloads at once" (each table has one update, so they can't collide).
-        await App.Downloads.ForEachFewAtATimeAsync(
-            _allInstalled.Select(i => i.Update).OfType<TableUpdate>().ToList(),
-            u => App.Catalog.InstallAsync(u.Game, u.File, u.Table)
+        // All started at once: each waits its turn in the download queue (Setup → "Downloads at once"), shared
+        // with anything else you start meanwhile. Each table has one update, so they can't collide.
+        await Task.WhenAll(
+            _allInstalled
+                .Select(i => i.Update)
+                .OfType<TableUpdate>()
+                .ToList()
+                .Select(u => App.Catalog.InstallAsync(u.Game, u.File, u.Table))
         );
     }
 }

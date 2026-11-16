@@ -356,11 +356,15 @@ public sealed partial class RomsViewModel(MainViewModel app) : ChildViewModel(ap
                                 job.Cts.Token
                             )
                     )
-                : await App.Downloads.Assisted.DownloadAllAsync(
-                    url,
-                    DownloadsViewModel.JobDownloadDir(job),
+                : await App.Downloads.WithDownloadSlotAsync(
                     job,
-                    got => RomSetComplete(table, got, src.Version!)
+                    () =>
+                        App.Downloads.Assisted.DownloadAllAsync(
+                            url,
+                            DownloadsViewModel.JobDownloadDir(job),
+                            job,
+                            got => RomSetComplete(table, got, src.Version!)
+                        )
                 );
             files = await Task.Run(() => DropOtherMachinesRoms(files, table, family, job));
             job.Report("Installing ROM…");

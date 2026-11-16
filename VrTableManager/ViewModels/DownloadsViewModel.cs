@@ -88,15 +88,18 @@ public sealed partial class DownloadsViewModel : ChildViewModel, IAsyncDisposabl
     /// <summary>
     /// Downloads a file straight (GitHub etc.); from a table site, opens its page in your browser and
     /// takes the file you download there (or drives the sign-in browser, for a site that allows it).
-    /// Downloads in your browser don't take a download slot: the browser does the downloading, and you may
-    /// have several pages counting down at once.
+    /// Every way takes a download slot, a page in your browser too (held until its file arrives), so
+    /// "Downloads at once" is how many pages open at a time as well.
     /// </summary>
     internal Task<string> FetchAsync(string url, JobItem job, string[] hint, string? what = null)
     {
         var downloads = JobDownloadDir(job);
         if (!BrowserDownloader.IsDirectFileUrl(url) && !SitePolicy.AllowsAutomation(url))
         {
-            return Assisted.DownloadAsync(url, downloads, job, what);
+            return WithDownloadSlotAsync(
+                job,
+                () => Assisted.DownloadAsync(url, downloads, job, what)
+            );
         }
 
         return WithDownloadSlotAsync(
@@ -127,7 +130,9 @@ public sealed partial class DownloadsViewModel : ChildViewModel, IAsyncDisposabl
 
     // ---- Download queue ----------------------------------------------------------
     // Downloads run a few at a time (Setup → "Downloads at once", default 2); the rest wait in the
-    // queue. Unpacking and installing don't take a slot, so the next download starts meanwhile.
+    // queue. One pool for tables, add-ons, ROMs and attract audio, whether direct or a page in your
+    // browser, and whether you clicked them or UPDATE ALL started them. Unpacking and installing don't
+    // take a slot, so the next download starts meanwhile.
 
     public int[] ParallelDownloadChoices { get; } = [1, 2, 3, 4];
 
@@ -161,30 +166,6 @@ public sealed partial class DownloadsViewModel : ChildViewModel, IAsyncDisposabl
         {
             slots.Release();
         }
-    }
-
-    /// <summary>
-    /// Runs <paramref name="work"/> for each item, as many at once as "Downloads at once" allows (Update All). The
-    /// slots above only cover direct downloads; table-site pages (VPUniverse …) open in your browser and take none,
-    /// so without this a batch would either open every page at once or, run in a plain loop, one at a time.
-    /// </summary>
-    internal async Task ForEachFewAtATimeAsync<T>(IEnumerable<T> items, Func<T, Task> work)
-    {
-        using var gate = new SemaphoreSlim(Math.Clamp(MaxParallelDownloads, 1, 4));
-        await Task.WhenAll(
-            items.Select(async item =>
-            {
-                await gate.WaitAsync();
-                try
-                {
-                    await work(item);
-                }
-                finally
-                {
-                    gate.Release();
-                }
-            })
-        );
     }
 
     /// <summary>Each job downloads into its own folder, so parallel downloads with the same file name can't collide.</summary>

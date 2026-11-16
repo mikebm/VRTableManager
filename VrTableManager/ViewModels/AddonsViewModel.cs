@@ -120,23 +120,23 @@ public sealed partial class AddonsViewModel(MainViewModel app) : ChildViewModel(
     [RelayCommand]
     internal async Task UpdateAllAddonsAsync()
     {
-        // As many tables at once as Setup → "Downloads at once"; one table's add-ons one after another, as a table
-        // takes one job at a time (a second would be skipped as busy).
+        // Every table's started at once, each download waiting its turn in the download queue (Setup → "Downloads
+        // at once"). One table's add-ons go one after another, as a table takes one job at a time (a second would
+        // be skipped as busy).
         var byTable = App
             .Library._allInstalled.Select(i =>
                 i.Addons.Select(s => s.Update).OfType<AddonUpdate>().ToList()
             )
             .Where(us => us.Count > 0)
             .ToList();
-        await App.Downloads.ForEachFewAtATimeAsync(
-            byTable,
-            async updates =>
+        await Task.WhenAll(
+            byTable.Select(async updates =>
             {
                 foreach (var u in updates)
                 {
                     await GetAddonAsync(u.Kind, u.Table, u.Game, u.File);
                 }
-            }
+            })
         );
     }
 
