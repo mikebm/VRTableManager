@@ -1387,6 +1387,29 @@ foreach (var vpw in new[] { "Fish Tales (Williams 1992) VPW", "Metallica Premium
         ToyFiles.ClearAll(toyDir) == 800 * 1024 && ToyFiles.SizeBytes(toyDir) == 0,
         "toy cache: clearing it deletes every table's toys"
     );
+
+    // PREPARE TABLES first drops the toys it can't use (a table updated since, an older format): left in, they filled
+    // the size chosen on Setup and nothing was prepared until the cache was cleared by hand.
+    string Saved(string vpx)
+    {
+        var f = ToyFiles.FileFor(vpx, toyDir);
+        File.WriteAllBytes(f, new byte[300 * 1024]);
+        return f;
+    }
+    var updated = Path.Combine(toyDir, "Updated.vpx");
+    var unchanged = Path.Combine(toyDir, "Unchanged.vpx");
+    var notListed = Path.Combine(toyDir, "NotListed.vpx");
+    var never = Path.Combine(toyDir, "NeverRead.vpx");
+    var (fUpdated, fUnchanged, fNotListed) = (Saved(updated), Saved(unchanged), Saved(notListed));
+    var dropStale = ToyFiles.DropStale([updated, unchanged, never], vpx => vpx != updated, toyDir);
+    Check(
+        dropStale == 1
+            && !File.Exists(fUpdated)
+            && File.Exists(fUnchanged)
+            && File.Exists(fNotListed)
+            && ToyFiles.SizeBytes(toyDir) == 600 * 1024,
+        "toy cache: PREPARE TABLES drops toys saved for an older copy of their table, so they don't fill the space"
+    );
     Directory.Delete(toyDir, true);
 }
 

@@ -54,6 +54,37 @@ public static class ToyFiles
         return freed;
     }
 
+    /// <summary>
+    /// Deletes the saved toys of these tables that <paramref name="isCurrent"/> says can't be used any more (the table
+    /// changed since, another budget, an older format): they'd be read again anyway, and till then they count against
+    /// the size chosen on Setup. PREPARE TABLES does this before it works out the room left; without it, toys saved for
+    /// tables updated while toys were off filled that room, and nothing was prepared until the cache was cleared.
+    /// Returns how many files went. Never throws: a file in use is skipped.
+    /// </summary>
+    public static int DropStale(
+        IEnumerable<string> vpxs,
+        Func<string, bool> isCurrent,
+        string? dir = null
+    )
+    {
+        dir ??= Dir;
+        var dropped = 0;
+        foreach (var vpx in vpxs)
+        {
+            try
+            {
+                var file = FileFor(vpx, dir);
+                if (File.Exists(file) && !isCurrent(vpx))
+                {
+                    File.Delete(file);
+                    dropped++;
+                }
+            }
+            catch (Exception e) when (e is IOException or UnauthorizedAccessException) { }
+        }
+        return dropped;
+    }
+
     /// <summary>The sizes Setup offers, in GB; 0 is no limit.</summary>
     public static readonly IReadOnlyList<int> LimitsGb = [0, 1, 2, 5, 10, 20, 50];
 

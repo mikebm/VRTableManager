@@ -38,12 +38,18 @@ static class PrepareTables
             .OrderBy(x => x.Vpx, StringComparer.OrdinalIgnoreCase)
             .Select(x => (x.Table, Vpx: x.Vpx!))
             .ToList();
-        // The saved toys: those from an older version first (unusable, but they'd count against the space), then how
-        // much room is left. Already full: no toys are planned, so they aren't counted as work that never happens.
+        // The saved toys: the unusable ones go first (an older version, or saved from an older copy of their table, say
+        // one updated while toys were off): they'd count against the space, and with a size chosen on Setup they could
+        // fill it, so nothing was prepared. Then how much room is left. Already full: no toys are planned, so they
+        // aren't counted as work that never happens.
         long toyBytes = 0;
         if (settings.LobbyTableToys)
         {
             ToyCache.DropStale(ToyCache.DefaultDir);
+            ToyFiles.DropStale(
+                tables.Select(x => x.Vpx),
+                vpx => ToyCache.IsCurrent(vpx, ToyCache.DefaultDir, TableToysLoader.DefaultBudget)
+            );
             toyBytes = ToyFiles.SizeBytes();
         }
         var toysFit = toyLimit <= 0 || toyBytes < toyLimit;
