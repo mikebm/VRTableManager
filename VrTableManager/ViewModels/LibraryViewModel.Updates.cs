@@ -306,10 +306,10 @@ public sealed partial class LibraryViewModel
     [RelayCommand]
     internal async Task UpdateAllTablesAsync()
     {
-        // One at a time: the browser downloader handles one site page at a time anyway.
-        foreach (var u in _allInstalled.Select(i => i.Update).OfType<TableUpdate>().ToList())
-        {
-            await App.Catalog.InstallAsync(u.Game, u.File, u.Table);
-        }
+        // As many at once as Setup → "Downloads at once" (each table has one update, so they can't collide).
+        await App.Downloads.ForEachFewAtATimeAsync(
+            _allInstalled.Select(i => i.Update).OfType<TableUpdate>().ToList(),
+            u => App.Catalog.InstallAsync(u.Game, u.File, u.Table)
+        );
     }
 }

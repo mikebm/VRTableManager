@@ -163,6 +163,30 @@ public sealed partial class DownloadsViewModel : ChildViewModel, IAsyncDisposabl
         }
     }
 
+    /// <summary>
+    /// Runs <paramref name="work"/> for each item, as many at once as "Downloads at once" allows (Update All). The
+    /// slots above only cover direct downloads; table-site pages (VPUniverse …) open in your browser and take none,
+    /// so without this a batch would either open every page at once or, run in a plain loop, one at a time.
+    /// </summary>
+    internal async Task ForEachFewAtATimeAsync<T>(IEnumerable<T> items, Func<T, Task> work)
+    {
+        using var gate = new SemaphoreSlim(Math.Clamp(MaxParallelDownloads, 1, 4));
+        await Task.WhenAll(
+            items.Select(async item =>
+            {
+                await gate.WaitAsync();
+                try
+                {
+                    await work(item);
+                }
+                finally
+                {
+                    gate.Release();
+                }
+            })
+        );
+    }
+
     /// <summary>Each job downloads into its own folder, so parallel downloads with the same file name can't collide.</summary>
     internal static string JobDownloadDir(JobItem job) =>
         Directory.CreateDirectory(Path.Combine(AppSettings.DataDir, "downloads", job.Id)).FullName;
