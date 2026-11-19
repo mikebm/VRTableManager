@@ -343,6 +343,7 @@ public static class TableInstaller
             {
                 Engine = isFp ? TableManifest.FuturePinball : TableManifest.Vpx,
                 GameId = game.Id,
+                TrackUpdates = replacing?.Manifest.TrackUpdates ?? true,
                 // An update keeps the name you gave the table.
                 GameName = name.Name,
                 OriginalName = name.Original,

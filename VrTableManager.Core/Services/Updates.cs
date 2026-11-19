@@ -32,7 +32,12 @@ public static class TableUpdates
         foreach (var t in installed)
         {
             var m = t.Manifest;
-            if (m.GameId == "" || m.TableFileId == "" || !byId.TryGetValue(m.GameId, out var game))
+            if (
+                !m.TrackUpdates
+                || m.GameId == ""
+                || m.TableFileId == ""
+                || !byId.TryGetValue(m.GameId, out var game)
+            )
             {
                 continue;
             }

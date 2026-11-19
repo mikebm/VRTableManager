@@ -30,7 +30,7 @@ It's built for Meta Quest (Link, Air Link or Virtual Desktop) with the official 
 Add-ons are matched to the table's ROM and installed where VPX's plugins look. They're tracked, so a newer version shows up as an update. Already have a pack? Each add-on menu has **Add a … you already have** for its archive or unpacked folder.
 
 ### Staying up to date
-- Every time the app starts, it checks for new versions of your tables, their add-ons, Visual Pinball X itself and UEVR. **SHOW THEM** (or the **Updates** filter) lists the tables with a newer version. Update one, or all of them with one button.
+- Every time the app starts, it checks for new versions of your tables, their add-ons, Visual Pinball X itself and UEVR. **SHOW THEM** (or the **Updates** filter) lists the tables with a newer version. Update one, or all of them with one button. Turn update tracking on or off for a linked table in its ⋯ menu; it is on by default.
 - Updating a table keeps its ROMs, high scores, settings, favourite star and play history.
 
 ### Playing in VR

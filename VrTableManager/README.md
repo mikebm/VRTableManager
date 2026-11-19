@@ -38,7 +38,7 @@ Limits:
 
 Checked once each time the app starts (after the catalog loads), or with **Check now** on Setup.
 
-- **Tables** – each installed table's `vrtm.json` records the VPS table file id and version. When VPS lists a different version for that entry, My Tables shows an **Update** badge (and a count on the tab). Updating re-runs the install into the same folder, removes the old `.vpx`/`.fpt`, and keeps ROMs, NVRAM (high scores), PuP packs and table settings.
+- **Tables** – each installed table's `vrtm.json` records the VPS table file id, version and whether to track updates (on by default; change it in the table's ⋯ menu). When VPS lists a different version for a tracked entry, My Tables shows an **Update** badge (and a count on the tab). Updating re-runs the install into the same folder, removes the old `.vpx`/`.fpt`, and keeps ROMs, NVRAM (high scores), PuP packs and table settings.
 - **Add-ons** – same check on the PuP pack, colours, AltSound and backglass recorded in `vrtm.json`; **Update** replaces the installed folder (or file, for a backglass).
 - **VPX** – latest BGFX build from github.com/vpinball.
 - **UEVR** – latest stable `UEVR.zip` from github.com/praydog/UEVR, unpacked over the UEVR folder. Game profiles live in `%APPDATA%\UnrealVRMod`, so they're untouched.

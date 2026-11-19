@@ -16,6 +16,9 @@ public sealed class TableManifest
     public string GameId { get; set; } = "";
     public string GameName { get; set; } = "";
 
+    /// <summary>Whether this table is included in catalog update checks.</summary>
+    public bool TrackUpdates { get; set; } = true;
+
     /// <summary>
     /// The name the table had before you renamed it (the catalog's, or the file's), so it can go back; null when
     /// it wasn't renamed. An update keeps your name and puts the catalog's latest name here.

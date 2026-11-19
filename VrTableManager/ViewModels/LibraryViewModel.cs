@@ -73,13 +73,16 @@ public sealed partial class LibraryViewModel(MainViewModel app) : ChildViewModel
     public partial string PlayStatus { get; set; } = "";
 
     public string[] InstalledFilters { get; } =
-    ["All", "Favourites", UpdatesFilter, "Most played", "Recently played", UnlinkedFilter];
+    ["All", "Favourites", UpdatesFilter, "Most played", "Recently played", NotTrackedFilter, UnlinkedFilter];
 
     /// <summary>The filter that shows only tables with a newer version (the updates banner's SHOW THEM).</summary>
     const string UpdatesFilter = "Updates";
 
     /// <summary>Tables update checks can't compare (no catalog version): AUTO-LINK's SHOW THEM, to fix by hand.</summary>
     const string UnlinkedFilter = "Not linked";
+
+    /// <summary>Catalog-linked tables whose update tracking is turned off.</summary>
+    const string NotTrackedFilter = "Not tracked";
 
     [RelayCommand]
     void ShowTableUpdates()
@@ -335,6 +338,8 @@ public sealed partial class LibraryViewModel(MainViewModel app) : ChildViewModel
                 .OrderBy(i => LetterRails.SortKey(i.Title), StringComparer.OrdinalIgnoreCase),
             UpdatesFilter => pool.Where(i => i.HasUpdate)
                 .OrderBy(i => LetterRails.SortKey(i.Title), StringComparer.OrdinalIgnoreCase),
+            NotTrackedFilter => pool.Where(i => i.IsUpdateTrackingOff)
+                .OrderBy(i => LetterRails.SortKey(i.Title), StringComparer.OrdinalIgnoreCase),
             UnlinkedFilter => pool.Where(IsUnlinked)
                 .OrderBy(i => LetterRails.SortKey(i.Title), StringComparer.OrdinalIgnoreCase),
             "Most played" => pool.Where(i => i.Plays > 0)
@@ -361,7 +366,7 @@ public sealed partial class LibraryViewModel(MainViewModel app) : ChildViewModel
             search == null
                 && InstalledFilter switch
                 {
-                    "Favourites" or UpdatesFilter or UnlinkedFilter => true,
+                    "Favourites" or UpdatesFilter or NotTrackedFilter or UnlinkedFilter => true,
                     "Most played" or "Recently played" => false,
                     _ => InstalledSort == InstalledSorts[0],
                 }
@@ -392,8 +397,9 @@ public sealed partial class LibraryViewModel(MainViewModel app) : ChildViewModel
                     "No favourites yet. Tap the ☆ on a table (or press the right grip on it in the VR lobby).",
                 UpdatesFilter when App.Catalog._allGames.Count == 0 =>
                     "Updates are checked once the catalog has loaded.",
-                UpdatesFilter =>
-                    "No updates: every table from the catalog is on its newest version.",
+                UpdatesFilter => "No tracked table has a newer version.",
+                NotTrackedFilter =>
+                    "Every catalog-linked table has update tracking turned on.",
                 UnlinkedFilter =>
                     "Every table is linked to its catalog version, so all of them are checked for updates.",
                 _ =>
@@ -421,6 +427,31 @@ public sealed partial class LibraryViewModel(MainViewModel app) : ChildViewModel
         {
             FilterInstalled();
         }
+    }
+
+    [RelayCommand]
+    void ToggleTableUpdateTracking(InstalledItem item)
+    {
+        if (item.IsBusy)
+        {
+            return;
+        }
+
+        var trackUpdates = item.Table.Manifest.TrackUpdates;
+        item.Table.Manifest.TrackUpdates = !trackUpdates;
+        try
+        {
+            TableInstaller.SaveManifest(item.Table);
+        }
+        catch (Exception e)
+        {
+            item.Table.Manifest.TrackUpdates = trackUpdates;
+            PlayStatus = "Couldn't save update tracking: " + e.Message;
+            return;
+        }
+
+        item.UpdateTrackingChanged();
+        ApplyTableUpdates();
     }
 
     [RelayCommand]

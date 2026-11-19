@@ -242,6 +242,20 @@ public sealed partial class InstalledItem : ObservableObject
     /// <summary>For the card's menu: flyouts sit outside the window's visual tree, so they bind commands through this.</summary>
     public MainViewModel? Owner { get; }
     public bool IsVpx => Table.IsVpx;
+    public bool CanTrackUpdates => CanRename && Table.Manifest.TableFileId != "";
+    public bool IsUpdateTrackingOff =>
+        Table.Manifest.TableFileId != "" && !Table.Manifest.TrackUpdates;
+    public bool IsUnlinked =>
+        Table.Manifest.TableFileId == ""
+        && Table.Manifest.Engine is TableManifest.Vpx or TableManifest.FuturePinball;
+    public string UpdateTrackingMenuHeader =>
+        Table.Manifest.TrackUpdates ? "Turn off update tracking" : "Turn on update tracking";
+
+    public void UpdateTrackingChanged()
+    {
+        OnPropertyChanged(nameof(UpdateTrackingMenuHeader));
+        OnPropertyChanged(nameof(IsUpdateTrackingOff));
+    }
 
     /// <summary>A VPX table in its own folder: a lobby video is kept per folder, and loose .vpx files share one.</summary>
     public bool CanHaveLobbyVideo => Table.HasOwnFolder;

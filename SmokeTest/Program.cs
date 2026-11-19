@@ -2140,6 +2140,12 @@ Check(
     }
 
     var old = await TableInstaller.InstallAsync(p10, ug, v10, us, _ => { }, CancellationToken.None);
+    Check(old.Manifest.TrackUpdates, "table update tracking defaults on");
+    Check(
+        System.Text.Json.JsonSerializer.Deserialize<TableManifest>("{\"GameId\":\"legacy\"}")!
+            .TrackUpdates,
+        "older manifests without an update tracking preference default on"
+    );
     var nvram = Path.Combine(old.Folder, "pinmame", "nvram", "upd.nv");
     Directory.CreateDirectory(Path.GetDirectoryName(nvram)!);
     File.WriteAllText(nvram, "high scores");
@@ -2181,6 +2187,20 @@ Check(
         found.Count == 1 && found[0].Label == "v1.0 → v1.1",
         "newer VPS version is flagged as an update"
     );
+    found[0].Table.Manifest.TrackUpdates = false;
+    TableInstaller.SaveManifest(found[0].Table);
+    var notTracking = TableInstaller.Fresh(found[0].Table);
+    Check(
+        !notTracking.Manifest.TrackUpdates && TableUpdates.Find([notTracking], [ug]).Count == 0,
+        "turning off update tracking persists and hides table updates"
+    );
+    notTracking.Manifest.TrackUpdates = true;
+    TableInstaller.SaveManifest(notTracking);
+    found = TableUpdates.Find(TableInstaller.Scan(us).Where(t => t.IsVpx), [ug]);
+    Check(
+        found.Count == 1,
+        "turning update tracking back on finds table updates again"
+    );
 
     // Starred, played and in a collection before the update (which brings a new file name).
     var updStats = PlayStats.PathBeside(us.SourcePath);
@@ -2214,6 +2234,8 @@ Check(
         z.CreateEntry("Upd Table v1.1.vpx");
     }
 
+    found[0].Table.Manifest.TrackUpdates = false;
+    TableInstaller.SaveManifest(found[0].Table);
     var upd = await TableInstaller.InstallAsync(
         p11,
         ug,
@@ -2227,6 +2249,7 @@ Check(
         File.Exists(upd.TablePath) && !File.Exists(old.TablePath),
         "update replaces the old .vpx"
     );
+    Check(!upd.Manifest.TrackUpdates, "table update keeps update tracking turned off");
     Check(File.Exists(nvram), "update keeps NVRAM (high scores)");
     var afterStats = PlayStats.Load(updStats);
     Check(

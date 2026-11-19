@@ -39,7 +39,12 @@ public sealed partial class LibraryViewModel
         TableUpdateCount = updates.Count;
         // Only tables linked to a catalog version (installed from the catalog, AUTO-LINK, Fix table match) can be
         // checked. Say how many others there are, or 18 of 381 reads as "all 18".
-        var tracked = _allInstalled.Count(i => i.Table.Manifest.TableFileId != "");
+        var tracked = _allInstalled.Count(i =>
+            i.Table.Manifest.TableFileId != "" && i.Table.Manifest.TrackUpdates
+        );
+        var notTracking = _allInstalled.Count(i =>
+            i.Table.Manifest.TableFileId != "" && !i.Table.Manifest.TrackUpdates
+        );
         var untracked = UnlinkedCount = _allInstalled.Count(IsUnlinked);
         AutoLinkableCount = _allInstalled.Count(i => IsUnlinked(i) && i.Table.IsVpx && i.CanRename);
         var others =
@@ -47,16 +52,32 @@ public sealed partial class LibraryViewModel
             : untracked == 1
                 ? " 1 other table isn't linked to a catalog version, so it can't be checked."
             : $" {untracked} other tables aren't linked to a catalog version, so they can't be checked.";
+        others += notTracking switch
+        {
+            0 => "",
+            1 => " Update tracking is off for 1 linked table.",
+            _ => $" Update tracking is off for {notTracking} linked tables.",
+        };
         TableUpdateText = updates.Count switch
         {
+            0 when tracked == 0 && notTracking > 0 =>
+                (notTracking == 1
+                    ? "Update tracking is off for your 1 linked table."
+                    : $"Update tracking is off for all {notTracking} linked tables.")
+                + (
+                    untracked == 0 ? ""
+                    : untracked == 1
+                        ? " 1 other table isn't linked to a catalog version, so it can't be checked."
+                    : $" {untracked} other tables aren't linked to a catalog version, so they can't be checked."
+                ),
             0 when tracked == 0 => untracked == 0 ? "No tables installed from the catalog yet."
             : untracked == 1
                 ? "Your table isn't linked to a catalog version, so it can't be checked."
             : $"None of your {untracked} tables are linked to a catalog version, so they can't be checked.",
             0 => (
                 tracked == 1
-                    ? "Your 1 linked table is up to date."
-                    : $"All {tracked} linked tables are up to date."
+                    ? "Your 1 linked table with update tracking on is up to date."
+                    : $"All {tracked} linked tables with update tracking on are up to date."
             ) + others,
             // Name them when they fit on the line; SHOW THEM lists them all either way.
             1 => $"{updates.Values.First().Table.Manifest.GameName} has a newer version.",
@@ -64,7 +85,7 @@ public sealed partial class LibraryViewModel
                 $"{string.Join(", ", updates.Values.Select(u => u.Table.Manifest.GameName).Order())} have newer versions.",
             _ => $"{updates.Count} tables have newer versions.",
         };
-        if (InstalledFilter is UpdatesFilter or UnlinkedFilter)
+        if (InstalledFilter is UpdatesFilter or NotTrackedFilter or UnlinkedFilter)
         {
             FilterInstalled(); // one was updated or linked, or a new version came out
         }

@@ -53,6 +53,14 @@
           <Border Classes="chip hot" IsVisible="{Binding IsIncomplete}"><TextBlock Text="INCOMPLETE" /></Border>
           <Border Classes="chip hot" IsVisible="{Binding HasUpdate}"><TextBlock Text="UPDATE" /></Border>
           <Border Classes="chip hot" IsVisible="{Binding NeedsRom}"><TextBlock Text="NEEDS ROM" /></Border>
+          <Border Classes="chip quiet" IsVisible="{Binding IsUpdateTrackingOff}"
+                  ToolTip.Tip="Update tracking is off; this table is omitted from catalog update checks">
+            <TextBlock Text="NOT TRACKED" VerticalAlignment="Center" />
+          </Border>
+          <Border Classes="chip quiet" IsVisible="{Binding IsUnlinked}"
+                  ToolTip.Tip="This table isn't linked to a catalog version, so it can't be checked for updates">
+            <TextBlock Text="UNLINKED" VerticalAlignment="Center" />
+          </Border>
           <Border Classes="chip" IsVisible="{Binding Pup.IsInstalled}" ToolTip.Tip="{Binding Pup.Status}"><TextBlock Text="PUP" /></Border>
           <Border Classes="chip" IsVisible="{Binding Colour.IsInstalled}" ToolTip.Tip="{Binding Colour.Status}"><TextBlock Text="COLOUR" /></Border>
           <Border Classes="chip" IsVisible="{Binding Sound.IsInstalled}" ToolTip.Tip="{Binding Sound.Status}"><TextBlock Text="ALTSOUND" /></Border>
@@ -407,6 +415,10 @@
                   <MenuItem Header="Clear texture cache" Command="{Binding Owner.Library.ClearTableCacheCommand}" CommandParameter="{Binding}" />
                 </MenuItem>
                 <Separator />
+                <MenuItem Header="{Binding UpdateTrackingMenuHeader}" IsVisible="{Binding CanTrackUpdates}"
+                          IsEnabled="{Binding !IsBusy}"
+                          ToolTip.Tip="Include or exclude this table from catalog update checks"
+                          Command="{Binding Owner.Library.ToggleTableUpdateTrackingCommand}" CommandParameter="{Binding}" />
                 <MenuItem Header="Rename…" IsVisible="{Binding CanRename}" IsEnabled="{Binding !IsBusy}"
                           ToolTip.Tip="The name shown in My Tables and the VR lobby. The table keeps its catalog link, collections, play history and pictures."
                           Command="{Binding Owner.Library.RenameTableCommand}" CommandParameter="{Binding}" />
@@ -450,6 +462,14 @@
             <Border Classes="chip hot" Margin="0,0,5,4" IsVisible="{Binding IsIncomplete}"><TextBlock Text="INCOMPLETE" /></Border>
             <Border Classes="chip hot" Margin="0,0,5,4" IsVisible="{Binding HasUpdate}"><TextBlock Text="UPDATE" /></Border>
             <Border Classes="chip hot" Margin="0,0,5,4" IsVisible="{Binding NeedsRom}"><TextBlock Text="NEEDS ROM" /></Border>
+            <Border Classes="chip quiet" Margin="0,0,5,4" IsVisible="{Binding IsUpdateTrackingOff}"
+                    ToolTip.Tip="Update tracking is off; this table is omitted from catalog update checks">
+              <TextBlock Text="NOT TRACKED" VerticalAlignment="Center" />
+            </Border>
+            <Border Classes="chip quiet" Margin="0,0,5,4" IsVisible="{Binding IsUnlinked}"
+                    ToolTip.Tip="This table isn't linked to a catalog version, so it can't be checked for updates">
+              <TextBlock Text="UNLINKED" VerticalAlignment="Center" />
+            </Border>
             <Border Classes="chip" Margin="0,0,5,4" IsVisible="{Binding Pup.IsInstalled}" ToolTip.Tip="{Binding Pup.Status}"><TextBlock Text="PUP" /></Border>
             <Border Classes="chip" Margin="0,0,5,4" IsVisible="{Binding Colour.IsInstalled}" ToolTip.Tip="{Binding Colour.Status}"><TextBlock Text="COLOUR" /></Border>
             <Border Classes="chip" Margin="0,0,5,4" IsVisible="{Binding Sound.IsInstalled}" ToolTip.Tip="{Binding Sound.Status}"><TextBlock Text="ALTSOUND" /></Border>
