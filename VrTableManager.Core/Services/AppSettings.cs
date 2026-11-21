@@ -92,9 +92,9 @@ public sealed class AppSettings
 
     /// <summary>
     /// Also install and update to VPX's nightly BGFX builds (built from every change to its master branch) when
-    /// they're newer than the newest release. Untested by the VPX team; off by default.
+    /// they're newer than the newest release. Untested by the VPX team; on by default.
     /// </summary>
-    public bool VpxUseNightlyBuilds { get; set; }
+    public bool VpxUseNightlyBuilds { get; set; } = true;
 
     /// <summary>
     /// The VPX build the player picked from the Setup tab's build list (often an older one, when a newer build broke

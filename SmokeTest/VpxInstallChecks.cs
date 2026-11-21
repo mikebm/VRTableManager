@@ -10,6 +10,9 @@ static class VpxInstallChecks
     {
         var results = new List<(bool, string)>();
         results.Add(
+            (new AppSettings().VpxUseNightlyBuilds, "nightly VPX builds are enabled by default")
+        );
+        results.Add(
             (
                 VpxSetup.TagFromProductVersion("10.8.1.5436.af26b2d93") == "v10.8.1-5436-af26b2d93"
                     && VpxSetup.TagFromProductVersion("10.8.1.5436") == "v10.8.1-5436"
