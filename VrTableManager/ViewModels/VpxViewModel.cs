@@ -18,9 +18,6 @@ public sealed partial class VpxViewModel(MainViewModel app) : ChildViewModel(app
     public ObservableCollection<TableFolderRow> TableFolders { get; } = [];
 
     [ObservableProperty]
-    public partial bool VpxUseDoNotUseBuilds { get; set; }
-
-    [ObservableProperty]
     public partial bool VpxUseNightlyBuilds { get; set; }
 
     [ObservableProperty]
@@ -63,9 +60,6 @@ public sealed partial class VpxViewModel(MainViewModel app) : ChildViewModel(app
         }
     }
 
-    partial void OnVpxUseDoNotUseBuildsChanged(bool value) =>
-        SaveSetting(s => s.VpxUseDoNotUseBuilds = value);
-
     partial void OnVpxUseNightlyBuildsChanged(bool value) =>
         SaveSetting(s => s.VpxUseNightlyBuilds = value);
 
@@ -73,7 +67,6 @@ public sealed partial class VpxViewModel(MainViewModel app) : ChildViewModel(app
     {
         VpxDir = s.VpxDir;
         ShowTableFolders(s);
-        VpxUseDoNotUseBuilds = s.VpxUseDoNotUseBuilds;
         VpxUseNightlyBuilds = s.VpxUseNightlyBuilds;
     }
 
@@ -98,7 +91,6 @@ public sealed partial class VpxViewModel(MainViewModel app) : ChildViewModel(app
         {
             var releases = await VpxSetup.FindReleasesAsync(
                 CancellationToken.None,
-                Settings.VpxUseDoNotUseBuilds,
                 Settings.VpxUseNightlyBuilds
             );
             var (text, hasUpdate) = VpxSetup.DescribeUpdate(
@@ -139,20 +131,7 @@ public sealed partial class VpxViewModel(MainViewModel app) : ChildViewModel(app
         LatestVpx = "Getting the list of VPX builds from GitHub…";
         try
         {
-            var builds = await VpxSetup.FindBuildsAsync(
-                CancellationToken.None,
-                Settings.VpxUseDoNotUseBuilds,
-                Settings.VpxUseNightlyBuilds
-            );
-            VpxBuilds.Clear();
-            foreach (var b in builds)
-            {
-                VpxBuilds.Add(b);
-            }
-            HasVpxBuilds = VpxBuilds.Count > 0;
-            MarkInstalledVpxBuild();
-            ChosenVpxBuild =
-                VpxBuilds.FirstOrDefault(b => b.Installed) ?? VpxBuilds.FirstOrDefault();
+            await RefreshVpxBuildsAsync();
             LatestVpx = HasVpxBuilds
                 ? $"{VpxBuilds.Count} builds. Pick one and click INSTALL THIS BUILD."
                     + (
@@ -166,6 +145,23 @@ public sealed partial class VpxViewModel(MainViewModel app) : ChildViewModel(app
         {
             LatestVpx = "Couldn't check GitHub: " + e.Message;
         }
+    }
+
+    async Task RefreshVpxBuildsAsync()
+    {
+        var builds = await VpxSetup.FindBuildsAsync(
+            CancellationToken.None,
+            Settings.VpxUseNightlyBuilds
+        );
+        VpxBuilds.Clear();
+        foreach (var b in builds)
+        {
+            VpxBuilds.Add(b);
+        }
+        HasVpxBuilds = VpxBuilds.Count > 0;
+        MarkInstalledVpxBuild();
+        ChosenVpxBuild =
+            VpxBuilds.FirstOrDefault(b => b.Installed) ?? VpxBuilds.FirstOrDefault();
     }
 
     /// <summary>Marks which build in the list is the installed one (after the list loads, and after an install).</summary>
@@ -234,12 +230,11 @@ public sealed partial class VpxViewModel(MainViewModel app) : ChildViewModel(app
             LatestVpx = "Checking GitHub for the newest VPX build…";
             var releases = await VpxSetup.FindReleasesAsync(
                 ct,
-                Settings.VpxUseDoNotUseBuilds,
                 Settings.VpxUseNightlyBuilds
             );
             var installed = VpxSetup.InstalledVersion(Settings);
             var (text, hasUpdate) = VpxSetup.DescribeUpdate(releases, installed);
-            // Only install what's offered: no "DO NOT USE" build unless allowed, never an older one over a newer install.
+            // Only install what's offered; never an older build over a newer install.
             if (releases.Latest is not { } rel || (installed != null && !hasUpdate))
             {
                 LatestVpx = text;
@@ -286,6 +281,18 @@ public sealed partial class VpxViewModel(MainViewModel app) : ChildViewModel(app
                     }),
                 cts.Token
             );
+            if (HasVpxBuilds)
+            {
+                try
+                {
+                    await RefreshVpxBuildsAsync();
+                }
+                catch (Exception e)
+                {
+                    LatestVpx = $"Installed {rel.Tag}. Couldn't refresh the build list: {e.Message}";
+                    return;
+                }
+            }
             LatestVpx =
                 $"Installed {rel.Tag}."
                 + (

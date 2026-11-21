@@ -217,7 +217,8 @@ public partial class MainWindow : Window, IUiHost
         string title,
         string message,
         string initial,
-        string okLabel
+        string okLabel,
+        bool isPassword = false
     )
     {
         string? result = null;
@@ -230,7 +231,12 @@ public partial class MainWindow : Window, IUiHost
             WindowStartupLocation = WindowStartupLocation.CenterOwner,
             Icon = Icon,
         };
-        var box = new TextBox { Text = initial, MaxLength = 80 };
+        var box = new TextBox
+        {
+            Text = initial,
+            MaxLength = isPassword ? 256 : 80,
+            PasswordChar = isPassword ? '*' : '\0',
+        };
         var ok = new Button
         {
             Content = okLabel,

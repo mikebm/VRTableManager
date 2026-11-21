@@ -14,9 +14,8 @@ public sealed record VpxRelease(
     bool Nightly = false
 );
 
-/// <param name="Latest">Newest BGFX build that's fine to use.</param>
-/// <param name="Withdrawn">Newest BGFX build renamed "DO NOT USE", when it's newer than <paramref name="Latest"/>.</param>
-public sealed record VpxReleases(VpxRelease? Latest, VpxRelease? Withdrawn);
+/// <param name="Latest">Newest BGFX release.</param>
+public sealed record VpxReleases(VpxRelease? Latest);
 
 /// <summary>
 /// A build the Setup tab's build list offers, so a player can go back to an older one (a nightly that broke
@@ -55,41 +54,30 @@ public static class VpxSetup
             )
         : "-linux-x64-Release.tar.gz";
 
-    /// <summary>The newest usable BGFX build, or null.</summary>
+    /// <summary>The newest BGFX release, or null.</summary>
     public static async Task<VpxRelease?> FindLatestAsync(
         CancellationToken ct,
-        bool useDoNotUse = false,
         bool nightly = false
-    ) => (await FindReleasesAsync(ct, useDoNotUse, nightly)).Latest;
+    ) => (await FindReleasesAsync(ct, nightly)).Latest;
 
     /// <summary>
-    /// What GitHub offers: the newest BGFX build that's fine to use, and the newest one the VPX team has
-    /// since renamed "DO NOT USE" when that's newer still. Unless <paramref name="useDoNotUse"/> (the
-    /// "use DO NOT USE builds" setting), those are never installed or offered as updates; the app keeps
-    /// whatever VPX is installed and says why. With <paramref name="nightly"/> (the "nightly builds" setting),
-    /// the newest master-branch build stands in for the release when it's newer.
+    /// The newest BGFX release. With <paramref name="nightly"/> (the "nightly builds" setting), the newest
+    /// master-branch build stands in for the release when it's newer.
     /// </summary>
     public static async Task<VpxReleases> FindReleasesAsync(
         CancellationToken ct,
-        bool useDoNotUse = false,
         bool nightly = false
     )
     {
-        var releases = ParseReleases(
-            await GitHubApi.GetStringAsync(ReleasesApi, ct),
-            useDoNotUse
-        );
+        var releases = ParseReleases(await GitHubApi.GetStringAsync(ReleasesApi, ct));
         return nightly ? WithNightly(releases, await FindNightlyAsync(ct)) : releases;
     }
 
-    /// <summary>The nightly build in place of the release when it's newer (it then supersedes any "DO NOT USE" note too).</summary>
+    /// <summary>The nightly build in place of the release when it's newer.</summary>
     public static VpxReleases WithNightly(VpxReleases r, VpxRelease? nightly) =>
         nightly == null || (r.Latest != null && !IsNewer(nightly.Tag, r.Latest.Tag))
             ? r
-            : new VpxReleases(
-                nightly,
-                r.Withdrawn != null && IsNewer(r.Withdrawn.Tag, nightly.Tag) ? r.Withdrawn : null
-            );
+            : new VpxReleases(nightly);
 
     // Every push to VPX's master branch builds all platforms in the "vpinball" workflow. GitHub only hands
     // workflow artifacts to signed-in users; nightly.link serves the same files publicly.
@@ -109,18 +97,17 @@ public static class VpxSetup
             : null;
 
     /// <summary>
-    /// Every build the build list offers, releases first, each newest first: the releases (those marked "DO NOT USE" only with
-    /// <paramref name="useDoNotUse"/>), and with <paramref name="nightly"/> the recent nightlies too.
+    /// Every build the build list offers, releases first, each newest first, and with <paramref name="nightly"/>
+    /// the recent nightlies too.
     /// </summary>
     public static async Task<List<VpxBuildChoice>> FindBuildsAsync(
         CancellationToken ct,
-        bool useDoNotUse,
         bool nightly
     )
     {
         var releases = GitHubApi.GetStringAsync(ReleasesApi, ct);
         var runs = nightly ? GitHubApi.GetStringAsync(NightlyRunsListApi, ct) : null;
-        var builds = ParseReleaseList(await releases, useDoNotUse);
+        var builds = ParseReleaseList(await releases);
         if (runs != null)
         {
             builds.AddRange(ParseNightlyRuns(await runs));
@@ -130,8 +117,8 @@ public static class VpxSetup
         return [.. builds.OrderBy(b => b.Release == null).ThenByDescending(b => b.Date)];
     }
 
-    /// <summary>Every release with a BGFX build for this OS (not drafts; "DO NOT USE" ones only when allowed).</summary>
-    public static List<VpxBuildChoice> ParseReleaseList(string json, bool useDoNotUse)
+    /// <summary>Every release with a BGFX build for this OS, including releases marked "DO NOT USE".</summary>
+    public static List<VpxBuildChoice> ParseReleaseList(string json)
     {
         using var doc = JsonDocument.Parse(json);
         var list = new List<VpxBuildChoice>();
@@ -141,7 +128,6 @@ public static class VpxSetup
             var doNotUse = name.StartsWith("DO NOT USE", StringComparison.OrdinalIgnoreCase);
             if (
                 rel.GetProperty("draft").GetBoolean()
-                || (doNotUse && !useDoNotUse)
                 || BgfxAsset(rel) is not { } asset
             )
             {
@@ -242,10 +228,9 @@ public static class VpxSetup
         return null;
     }
 
-    public static VpxReleases ParseReleases(string json, bool useDoNotUse = false)
+    public static VpxReleases ParseReleases(string json)
     {
         using var doc = JsonDocument.Parse(json);
-        VpxRelease? withdrawn = null;
         foreach (var rel in doc.RootElement.EnumerateArray())
         {
             if (rel.GetProperty("draft").GetBoolean())
@@ -253,21 +238,15 @@ public static class VpxSetup
                 continue;
             }
 
-            var name = rel.TryGetProperty("name", out var n) ? n.GetString() ?? "" : "";
             var asset = BgfxAsset(rel);
             if (asset == null)
             {
                 continue;
             }
 
-            if (useDoNotUse || !name.StartsWith("DO NOT USE", StringComparison.OrdinalIgnoreCase))
-            {
-                return new VpxReleases(asset, withdrawn);
-            }
-
-            withdrawn ??= asset;
+            return new VpxReleases(asset);
         }
-        return new VpxReleases(null, withdrawn);
+        return new VpxReleases(null);
     }
 
     static VpxRelease? BgfxAsset(JsonElement rel)
@@ -302,15 +281,10 @@ public static class VpxSetup
         string? kept = null
     )
     {
-        var note = r.Withdrawn is { } w
-            ? $" The VPX team has marked newer builds (up to {w.Tag}) \"DO NOT USE\" on GitHub, so they aren't offered."
-            : "";
         if (r.Latest == null)
         {
             return (
-                installed != null ? $"Keeping your installed {installed}.{note}"
-                : r.Withdrawn != null
-                    ? $"No VR (BGFX) build is available to install right now.{note} Check github.com/vpinball/vpinball/releases."
+                installed != null ? $"Keeping your installed {installed}."
                 : "No VPX release found for this OS.",
                 false
             );
@@ -319,12 +293,12 @@ public static class VpxSetup
         var latest = r.Latest.Nightly ? $"{r.Latest.Tag} (nightly)" : r.Latest.Tag;
         if (installed == null)
         {
-            return ($"Not Installed: latest is {latest}.{note}", false);
+            return ($"Not Installed: latest is {latest}.", false);
         }
 
         if (installed == r.Latest.Tag || SameBuild(installed, r.Latest.Tag))
         {
-            return ($"Up to date ({installed}).{note}", false);
+            return ($"Up to date ({installed}).", false);
         }
         if (kept != null && (installed == kept || SameBuild(installed, kept)))
         {
@@ -335,10 +309,10 @@ public static class VpxSetup
                 false
             );
         }
-        // Installed something newer than the newest usable build (e.g. a build later marked DO NOT USE): keep it.
-        if (installed == r.Withdrawn?.Tag || IsNewer(installed, r.Latest.Tag))
+        // Don't replace a build newer than the latest release available to this app.
+        if (IsNewer(installed, r.Latest.Tag))
         {
-            return ($"Keeping your installed {installed}.{note}", false);
+            return ($"Keeping your installed {installed}.", false);
         }
 
         return ($"{installed} → {latest}", true);

@@ -354,9 +354,36 @@ public sealed partial class AddonsViewModel(MainViewModel app) : ChildViewModel(
             {
                 job.Report("Reading the table script…");
                 var names = await Task.Run(() => PupPacks.ExpectedNames(table));
-                var pup = await Task.Run(() =>
-                    PupPacks.Install(downloaded, table, file, names, job.Report)
-                );
+                string? password = null;
+                PupInstall pup;
+                while (true)
+                {
+                    try
+                    {
+                        pup = await Task.Run(() =>
+                            PupPacks.Install(downloaded, table, file, names, job.Report, password)
+                        );
+                        break;
+                    }
+                    catch (ArchivePasswordRequiredException e)
+                    {
+                        password = await Ui.AskTextAsync(
+                            "PuP pack password",
+                            $"{(e.IncorrectPassword ? "That password wasn't accepted. " : "")}Enter the password for {Path.GetFileName(e.ArchivePath)}.",
+                            "",
+                            "UNPACK",
+                            isPassword: true
+                        );
+                        if (password == null)
+                        {
+                            throw new OperationCanceledException();
+                        }
+                        if (password.Length == 0)
+                        {
+                            throw new InvalidDataException("A password is required to unpack this PuP pack.");
+                        }
+                    }
+                }
                 record = pup.Record;
                 table.Manifest.PupName ??= names.Script;
                 note =

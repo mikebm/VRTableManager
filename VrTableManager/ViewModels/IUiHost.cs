@@ -18,7 +18,13 @@ public interface IUiHost
     Task<bool> ConfirmAsync(string title, string message, string okLabel = "Delete");
 
     /// <summary>Asks for a line of text; null when cancelled.</summary>
-    Task<string?> AskTextAsync(string title, string message, string initial, string okLabel);
+    Task<string?> AskTextAsync(
+        string title,
+        string message,
+        string initial,
+        string okLabel,
+        bool isPassword = false
+    );
 
     /// <summary>Shows a message with several buttons; returns the index pressed, or -1 if the window was closed.</summary>
     /// <param name="details">Optional monospaced text (e.g. log lines) shown in a scrolling box under the message.</param>

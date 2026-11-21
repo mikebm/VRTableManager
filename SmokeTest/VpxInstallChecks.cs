@@ -18,8 +18,7 @@ static class VpxInstallChecks
             )
         );
         var rel = new VpxReleases(
-            new VpxRelease("v10.8.1-5436-af26b2d93", "x.zip", "http://x", 1),
-            null
+            new VpxRelease("v10.8.1-5436-af26b2d93", "x.zip", "http://x", 1)
         );
         results.Add(
             (
@@ -43,16 +42,14 @@ static class VpxInstallChecks
             $$"""{"draft":false,"name":"{{name}}","tag_name":"{{tag}}","published_at":"{{date}}","assets":[{"name":"VPinballX_BGFX-{{tag.TrimStart('v')}}{{suffix}}","browser_download_url":"https://x/{{tag}}.zip","size":1}]}""";
         var releasesJson =
             $"[{Rel("v10.8.1-5436-af26b2d93", "DO NOT USE - v10.8.1-5436-af26b2d93", "2026-08-21T05:45:31Z", suffix)},{Rel("v10.8.0-2051-28dd6c3", "Visual Pinball X 10.8.0", "2025-01-29T21:46:54Z", suffix)}]";
-        var withDnu = VpxSetup.ParseReleaseList(releasesJson, useDoNotUse: true);
-        var withoutDnu = VpxSetup.ParseReleaseList(releasesJson, useDoNotUse: false);
+        var builds = VpxSetup.ParseReleaseList(releasesJson);
         results.Add(
             (
-                withDnu.Count == 2
-                    && withDnu[0].Label.Contains("DO NOT USE")
-                    && withDnu[0].Release?.Tag == "v10.8.1-5436-af26b2d93"
-                    && withoutDnu.Count == 1
-                    && withoutDnu[0].Release?.Tag == "v10.8.0-2051-28dd6c3",
-                "build list: every release is listed, DO NOT USE ones only when allowed"
+                builds.Count == 2
+                    && builds[0].Label.Contains("DO NOT USE")
+                    && builds[0].Release?.Tag == "v10.8.1-5436-af26b2d93"
+                    && builds[1].Release?.Tag == "v10.8.0-2051-28dd6c3",
+                "build list: includes releases marked DO NOT USE"
             )
         );
         var runs = VpxSetup.ParseNightlyRuns(
@@ -71,13 +68,13 @@ static class VpxInstallChecks
             (
                 VpxSetup.IsInstalled(runs[1], "v10.8.1-6625-2ad1916b2")
                     && !VpxSetup.IsInstalled(runs[0], "v10.8.1-6625-2ad1916b2")
-                    && VpxSetup.IsInstalled(withDnu[0], "v10.8.1-5436")
-                    && !VpxSetup.IsInstalled(withDnu[1], "v10.8.1-5436-af26b2d93")
+                    && VpxSetup.IsInstalled(builds[0], "v10.8.1-5436")
+                    && !VpxSetup.IsInstalled(builds[1], "v10.8.1-5436-af26b2d93")
                     && !VpxSetup.IsInstalled(runs[1], null),
                 "build list: the installed build is recognised (a nightly by its commit)"
             )
         );
-        var resolved = await VpxSetup.ResolveAsync(withDnu[0], CancellationToken.None);
+        var resolved = await VpxSetup.ResolveAsync(builds[0], CancellationToken.None);
         results.Add(
             (
                 resolved?.Tag == "v10.8.1-5436-af26b2d93",
@@ -87,8 +84,7 @@ static class VpxInstallChecks
 
         // A picked build is kept: newer builds are mentioned, not offered.
         var newer = new VpxReleases(
-            new VpxRelease("v10.8.1-6625-2ad1916b2", "x.zip", "http://x", 1, Nightly: true),
-            null
+            new VpxRelease("v10.8.1-6625-2ad1916b2", "x.zip", "http://x", 1, Nightly: true)
         );
         var kept = VpxSetup.DescribeUpdate(
             newer,

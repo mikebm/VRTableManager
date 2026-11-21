@@ -91,12 +91,6 @@ public sealed class AppSettings
     public bool HideAdult { get; set; } = true;
 
     /// <summary>
-    /// Install and update to VPX builds the VPX team has labelled "DO NOT USE" on GitHub. Those are the current
-    /// BGFX builds with the newest VR work; off: only builds without that label are offered.
-    /// </summary>
-    public bool VpxUseDoNotUseBuilds { get; set; } = true;
-
-    /// <summary>
     /// Also install and update to VPX's nightly BGFX builds (built from every change to its master branch) when
     /// they're newer than the newest release. Untested by the VPX team; off by default.
     /// </summary>

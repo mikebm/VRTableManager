@@ -1,9 +1,25 @@
 using System.Text.Json;
 using SharpCompress.Archives;
 using SharpCompress.Common;
+using SharpCompress.Readers;
 using VrTableManager.Models;
 
 namespace VrTableManager.Services;
+
+public sealed class ArchivePasswordRequiredException(
+    string archivePath,
+    bool incorrect = false,
+    Exception? innerException = null
+) : Exception(
+    incorrect
+        ? $"The password for {Path.GetFileName(archivePath)} was not accepted."
+        : $"{Path.GetFileName(archivePath)} is password-protected.",
+    innerException
+)
+{
+    public string ArchivePath { get; } = archivePath;
+    public bool IncorrectPassword { get; } = incorrect;
+}
 
 public sealed record InstalledTable(TableManifest Manifest, string TablePath, string Folder)
 {
@@ -1589,50 +1605,81 @@ public static class TableInstaller
         }
     }
 
-    public static void Extract(string archivePath, string destDir)
+    public static void Extract(string archivePath, string destDir, string? password = null)
     {
         Directory.CreateDirectory(destDir);
         // "D:\" or a folder typed with a trailing backslash already ends in one; a second would refuse every entry.
         var full = Path.GetFullPath(destDir);
         var root = Path.EndsInDirectorySeparator(full) ? full : full + Path.DirectorySeparatorChar;
         // 7-Zip unpacks a .tar.gz only to the inner .tar, so gzip stays with SharpCompress, which reads through both.
+        var encrypted = false;
         if (
             !Path.GetExtension(archivePath).Equals(".gz", StringComparison.OrdinalIgnoreCase)
-            && TryNative7Zip(archivePath, destDir, root)
+            && TryNative7Zip(archivePath, destDir, root, password, out encrypted)
         )
         {
             return;
         }
-
-        using var archive = ArchiveFactory.OpenArchive(archivePath);
-        // 7z (and solid RAR) packs many files into one compressed stream. Opening entries one by one
-        // makes each restart that stream from the top, so a big table pack takes hours; read it once, in order.
-        if (archive.IsSolid || archive.Type == ArchiveType.SevenZip)
+        if (encrypted && string.IsNullOrEmpty(password))
         {
-            using var reader = archive.ExtractAllEntries();
-            while (reader.MoveToNextEntry())
+            throw new ArchivePasswordRequiredException(archivePath);
+        }
+
+        try
+        {
+            using var archive = ArchiveFactory.OpenArchive(
+                archivePath,
+                new ReaderOptions { Password = password }
+            );
+            encrypted |= archive.IsEncrypted || archive.Entries.Any(e => e.IsEncrypted);
+            if (encrypted && string.IsNullOrEmpty(password))
             {
-                if (Target(reader.Entry, destDir, root) is not { } dest)
+                throw new ArchivePasswordRequiredException(archivePath);
+            }
+
+            // 7z (and solid RAR) packs many files into one compressed stream. Opening entries one by one
+            // makes each restart that stream from the top, so a big table pack takes hours; read it once, in order.
+            if (archive.IsSolid || archive.Type == ArchiveType.SevenZip)
+            {
+                using var reader = archive.ExtractAllEntries();
+                while (reader.MoveToNextEntry())
+                {
+                    if (Target(reader.Entry, destDir, root) is not { } dest)
+                    {
+                        continue;
+                    }
+
+                    using var src = reader.OpenEntryStream();
+                    using var dst = File.Create(dest);
+                    src.CopyTo(dst);
+                }
+                return;
+            }
+
+            foreach (var entry in archive.Entries)
+            {
+                if (Target(entry, destDir, root) is not { } dest)
                 {
                     continue;
                 }
 
-                using var src = reader.OpenEntryStream();
+                using var src = entry.OpenEntryStream();
                 using var dst = File.Create(dest);
                 src.CopyTo(dst);
             }
-            return;
         }
-        foreach (var entry in archive.Entries)
+        catch (Exception e)
+            when (e is not ArchivePasswordRequiredException
+                && (
+                    IsPasswordFailure(e)
+                    || (
+                        encrypted
+                        && password != null
+                        && e is (InvalidDataException or InvalidOperationException)
+                    )
+                ))
         {
-            if (Target(entry, destDir, root) is not { } dest)
-            {
-                continue;
-            }
-
-            using var src = entry.OpenEntryStream();
-            using var dst = File.Create(dest);
-            src.CopyTo(dst);
+            throw new ArchivePasswordRequiredException(archivePath, password != null, e);
         }
     }
 
@@ -1641,19 +1688,45 @@ public static class TableInstaller
     /// SharpCompress's managed LZMA decoder (a 330 MB table pack: ~1 s against ~10 s) and one pass over
     /// solid archives. False if it can't open or finish the archive, so the caller falls back.
     /// </summary>
-    static bool TryNative7Zip(string archivePath, string destDir, string root)
+    static bool TryNative7Zip(
+        string archivePath,
+        string destDir,
+        string root,
+        string? password,
+        out bool encrypted
+    )
     {
+        encrypted = false;
         try
         {
-            using var archive = new SevenZipExtractor.ArchiveFile(archivePath);
+            using var archive = new SevenZipExtractor.ArchiveFile(archivePath, password ?? "");
+            encrypted = archive.Entries.Any(e => e.IsEncrypted);
+            if (encrypted && string.IsNullOrEmpty(password))
+            {
+                return false;
+            }
             archive.Extract(e => Target(e.IsFolder, e.FileName, destDir, root));
             return true;
         }
-        catch
+        catch (Exception e)
         {
+            if (IsPasswordFailure(e))
+            {
+                encrypted = true;
+                if (password != null)
+                {
+                    throw new ArchivePasswordRequiredException(archivePath, incorrect: true, e);
+                }
+            }
             return false;
         }
     }
+
+    static bool IsPasswordFailure(Exception e) =>
+        e is System.Security.Cryptography.CryptographicException
+            or SharpCompress.Common.CryptographicException
+        || e.Message.Contains("password", StringComparison.OrdinalIgnoreCase)
+        || e.Message.Contains("encrypted", StringComparison.OrdinalIgnoreCase);
 
     static string? Target(IEntry entry, string destDir, string root) =>
         Target(entry.IsDirectory, entry.Key, destDir, root);

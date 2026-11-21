@@ -52,7 +52,6 @@ public sealed partial class UpdatesViewModel(MainViewModel app) : ChildViewModel
             var vpxTask = Try<VpxReleases>(async () =>
                 await VpxSetup.FindReleasesAsync(
                     ct,
-                    Settings.VpxUseDoNotUseBuilds,
                     Settings.VpxUseNightlyBuilds
                 )
             );

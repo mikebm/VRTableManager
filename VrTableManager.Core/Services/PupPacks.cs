@@ -186,14 +186,21 @@ public static class PupPacks
         InstalledTable table,
         VpsFile file,
         PupNames expectedNames,
-        Action<string>? status = null
+        Action<string>? status = null,
+        string? password = null
     )
     {
         var staging = Addons.StagingDir("pup");
         try
         {
             status?.Invoke("Unpacking the PuP pack…");
-            Addons.Unpack(downloaded, staging, () => PackRoots(staging).Count > 0, "PuP pack");
+            Addons.Unpack(
+                downloaded,
+                staging,
+                () => PackRoots(staging).Count > 0,
+                "PuP pack",
+                password: password
+            );
             var roots = PackRoots(staging);
             if (roots.Count == 0)
             {

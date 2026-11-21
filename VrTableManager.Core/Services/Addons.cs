@@ -213,7 +213,8 @@ public static class Addons
         string staging,
         Func<bool> found,
         string what,
-        string[]? looseExts = null
+        string[]? looseExts = null,
+        string? password = null
     )
     {
         if (Directory.Exists(downloaded))
@@ -247,7 +248,7 @@ public static class Addons
             );
         }
 
-        TableInstaller.Extract(downloaded, staging);
+        TableInstaller.Extract(downloaded, staging, password);
         if (found())
         {
             return;
@@ -262,7 +263,8 @@ public static class Addons
         {
             TableInstaller.Extract(
                 nested,
-                Path.Combine(staging, "_nested", Path.GetFileNameWithoutExtension(nested))
+                Path.Combine(staging, "_nested", Path.GetFileNameWithoutExtension(nested)),
+                password
             );
         }
     }

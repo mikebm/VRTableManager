@@ -43,12 +43,9 @@
             <TextBlock Classes="muted" TextWrapping="Wrap"
                        Text="Installs the official BGFX build from github.com/vpinball (VR through OpenXR)." />
             <TextBlock Classes="eyebrow" Text="BUILDS" Margin="0,6,0,0" />
-            <CheckBox IsChecked="{Binding VpxUseDoNotUseBuilds}"
-                      Content="Use the BGFX builds marked &quot;DO NOT USE&quot; on GitHub (recommended)"
-                      ToolTip.Tip="The VPX team labels its current BGFX builds &quot;DO NOT USE&quot;; they have the newest VR work. Off: only builds without that label are installed or offered as updates (plus nightlies, if that option is on). Click CHECK FOR UPDATES after changing this." />
             <CheckBox IsChecked="{Binding VpxUseNightlyBuilds}"
                       Content="Use nightly BGFX builds (newest, untested)"
-                      ToolTip.Tip="VPX builds every change to its master branch. On: the newest of those builds is installed and offered as an update when it's newer than the newest release. They're downloaded through nightly.link (GitHub only gives them to signed-in users) and nobody has tested them, so one can break tables. Works with or without the &quot;DO NOT USE&quot; builds option above, which only decides whether those releases are offered too (some work better than the newest nightly). Off: only releases. Turning it off keeps the nightly you have until a newer release comes out. Click CHECK FOR UPDATES after changing this." />
+                      ToolTip.Tip="VPX builds every change to its master branch. On: the newest of those builds is installed and offered as an update when it's newer than the newest release. They're downloaded through nightly.link (GitHub only gives them to signed-in users) and nobody has tested them, so one can break tables. Off: only releases. Turning it off keeps the nightly you have until a newer release comes out. Click CHECK FOR UPDATES after changing this." />
           </StackPanel>
         </Border>
 

@@ -202,6 +202,7 @@ public sealed class AssistedDownloader
                         var mayDelete =
                             File.GetCreationTimeUtc(picked) >= started
                             || File.GetLastWriteTimeUtc(picked) >= started;
+                        MarkTaken(picked);
                         got.Add(await Task.Run(() => CopyIn(picked, destDir, job, mayDelete)));
                         lastGot = DateTime.UtcNow;
                         if (!many)
@@ -398,7 +399,7 @@ public sealed class AssistedDownloader
     /// </summary>
     Owner Claim(string file, JobItem me)
     {
-        var key = file + "|" + File.GetLastWriteTimeUtc(file).Ticks;
+        var key = TakenKey(file);
         lock (_lock)
         {
             if (_taken.Contains(key))
@@ -464,6 +465,17 @@ public sealed class AssistedDownloader
             return Owner.Mine;
         }
     }
+
+    void MarkTaken(string file)
+    {
+        lock (_lock)
+        {
+            _taken.Add(TakenKey(file));
+        }
+    }
+
+    static string TakenKey(string file) =>
+        Path.GetFullPath(file) + "|" + File.GetLastWriteTimeUtc(file).Ticks;
 
     /// <summary>
     /// How well a file name carries a job's names (game, ROMs, "pup" …): a whole name ("mm_109c",

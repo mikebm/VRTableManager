@@ -429,66 +429,48 @@ Check(
 
 // 6. Latest VPX release (live: GitHub's releases API; the parsing is checked offline below)
 await Live(
-    "finds the BGFX Windows build (usable or marked DO NOT USE)",
+    "finds the newest BGFX Windows build",
     async () =>
     {
         var vpxReleases = await VpxSetup.FindReleasesAsync(CancellationToken.None);
         var rel = vpxReleases.Latest;
-        Console.WriteLine(
-            $"latest VPX: {rel?.Tag} {rel?.AssetName} {rel?.Size / 1_048_576} MB; newest marked DO NOT USE: {vpxReleases.Withdrawn?.Tag}"
-        );
+        Console.WriteLine($"latest VPX: {rel?.Tag} {rel?.AssetName} {rel?.Size / 1_048_576} MB");
         Check(
-            (rel ?? vpxReleases.Withdrawn)?.AssetName.StartsWith("VPinballX_BGFX-") == true,
-            "finds the BGFX Windows build (usable or marked DO NOT USE)"
+            rel?.AssetName.StartsWith("VPinballX_BGFX-") == true,
+            "finds the newest BGFX Windows build"
         );
     }
 );
 {
     static string Rel(string tag, string name) =>
         $$"""{"draft":false,"name":"{{name}}","tag_name":"{{tag}}","assets":[{"name":"VPinballX_BGFX-{{tag.TrimStart('v')}}-windows-x64-Release.zip","browser_download_url":"https://x/{{tag}}.zip","size":1}]}""";
-    var allWithdrawn = VpxSetup.ParseReleases(
+    var markedReleases = VpxSetup.ParseReleases(
         $"[{Rel("v10.8.1-5436-a", "DO NOT USE - v10.8.1-5436-a")},{Rel("v10.8.1-3788-b", "DO NOT USE - v10.8.1-3788-b")}]"
     );
     Check(
-        allWithdrawn.Latest == null && allWithdrawn.Withdrawn?.Tag == "v10.8.1-5436-a",
-        "DO NOT USE builds are never picked to install"
-    );
-    var keep = VpxSetup.DescribeUpdate(allWithdrawn, "v10.8.1-5436-a");
-    Check(
-        !keep.HasUpdate
-            && keep.Text.StartsWith("Keeping your installed v10.8.1-5436-a")
-            && keep.Text.Contains("DO NOT USE"),
-        "installed build is kept and the reason is shown"
+        markedReleases.Latest?.Tag == "v10.8.1-5436-a"
+            && VpxSetup.DescribeUpdate(markedReleases, "v10.8.1-3788-b").HasUpdate,
+        "newest VPX release is offered even when marked DO NOT USE"
     );
     Check(
-        !VpxSetup.DescribeUpdate(allWithdrawn, null).HasUpdate,
-        "nothing to install when every build is marked DO NOT USE"
+        !VpxSetup.DescribeUpdate(new VpxReleases(null), null).HasUpdate,
+        "nothing to install when no BGFX release is available"
     );
     var mixed = VpxSetup.ParseReleases(
         $"[{Rel("v10.8.2-100-c", "DO NOT USE - v10.8.2-100-c")},{Rel("v10.8.1-5436-a", "v10.8.1")}]"
     );
     Check(
-        mixed.Latest?.Tag == "v10.8.1-5436-a" && mixed.Withdrawn?.Tag == "v10.8.2-100-c",
-        "falls back to the newest usable build"
+        mixed.Latest?.Tag == "v10.8.2-100-c",
+        "the newest release is offered even when marked DO NOT USE"
     );
     Check(
-        VpxSetup.DescribeUpdate(mixed, "v10.8.1-3788-b").HasUpdate,
-        "older install: offers the newest usable build"
+        VpxSetup.DescribeUpdate(mixed, "v10.8.1-5436-a").HasUpdate,
+        "older install: offers the newest build"
     );
     Check(
         !VpxSetup.DescribeUpdate(mixed, "v10.8.2-100-c").HasUpdate,
         "never offers an older build over a newer install"
     );
-    var allowed = VpxSetup.ParseReleases(
-        $"[{Rel("v10.8.2-100-c", "DO NOT USE - v10.8.2-100-c")},{Rel("v10.8.1-5436-a", "v10.8.1")}]",
-        useDoNotUse: true
-    );
-    Check(
-        allowed.Latest?.Tag == "v10.8.2-100-c"
-            && VpxSetup.DescribeUpdate(allowed, "v10.8.1-5436-a").HasUpdate,
-        "DO NOT USE setting: the newest BGFX build is installed and offered as an update"
-    );
-
     // Nightly builds (GitHub Actions artifacts of VPX's master branch).
     var artifacts =
         $$"""{"artifacts":[{"id":7,"name":"VPinballX_GL-10.8.2-6625-ab-windows-x64-Release.zip","size_in_bytes":1,"expired":false},{"id":8,"name":"VPinballX_BGFX-10.8.2-6625-ab{{(OperatingSystem.IsWindows() ? "-windows-x64-Release.zip" : OperatingSystem.IsMacOS() ? (System.Runtime.InteropServices.RuntimeInformation.OSArchitecture == System.Runtime.InteropServices.Architecture.Arm64 ? "-macos-arm64-Release.dmg" : "-macos-x64-Release.dmg") : "-linux-x64-Release.tar.gz")}}","size_in_bytes":5,"expired":false}]}""";
@@ -504,7 +486,7 @@ await Live(
         ) == null,
         "nightly: expired artifacts are skipped"
     );
-    var withN = VpxSetup.WithNightly(allowed, n);
+    var withN = VpxSetup.WithNightly(mixed, n);
     Check(
         withN.Latest == n
             && VpxSetup.DescribeUpdate(withN, "v10.8.2-100-c") is { HasUpdate: true } u
@@ -512,13 +494,9 @@ await Live(
         "nightly setting: a newer nightly is offered over the newest release"
     );
     Check(
-        VpxSetup.WithNightly(allowed, n! with { Tag = "v10.8.1-100-old" }).Latest?.Tag
+        VpxSetup.WithNightly(mixed, n! with { Tag = "v10.8.1-100-old" }).Latest?.Tag
             == "v10.8.2-100-c",
         "nightly setting: an older nightly never replaces a release"
-    );
-    Check(
-        VpxSetup.WithNightly(allWithdrawn, n).Withdrawn == null,
-        "nightly setting: no DO NOT USE note once the nightly is newer"
     );
     Check(
         !VpxSetup.DescribeUpdate(mixed, "v10.8.2-6625-ab").HasUpdate,

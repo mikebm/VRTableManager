@@ -439,6 +439,50 @@ public static class AssistedDownloadChecks
             )
         );
 
+        // A file handed to one ambiguous add-on job must not be picked up by another job after the first stops waiting.
+        var handoffDir = Path.Combine(root, "assisted", "Downloads-handoff");
+        Directory.CreateDirectory(handoffDir);
+        var handoffs = new AssistedDownloader(_ => { }, handoffDir)
+        {
+            PollInterval = TimeSpan.FromMilliseconds(200),
+        };
+        var handoffJob = new JobItem("Jaws PuP")
+        {
+            FileNames = ["Jaws", "pup"],
+            FileTypes = [".zip"],
+        };
+        var waitingJob = new JobItem("Medieval Madness PuP")
+        {
+            FileNames = ["Medieval Madness", "pup"],
+            FileTypes = [".zip"],
+        };
+        var handoffWait = handoffs.DownloadAsync(
+            "https://vpuniverse.com/files/file/1/",
+            Path.Combine(root, "assisted", "handoff-first"),
+            handoffJob
+        );
+        var waitingWait = handoffs.DownloadAsync(
+            "https://vpuniverse.com/files/file/2/",
+            Path.Combine(root, "assisted", "handoff-second"),
+            waitingJob
+        );
+        await Task.Delay(100);
+        var shared = Path.Combine(handoffDir, "PUPPack.zip");
+        File.WriteAllText(shared, "first");
+        handoffJob.HandOff(shared);
+        var handoffGot = await handoffWait.WaitAsync(TimeSpan.FromSeconds(10));
+        await Task.Delay(300);
+        var secondFile = Path.Combine(handoffDir, "Medieval_Madness_PuP.zip");
+        File.WriteAllText(secondFile, "second");
+        var waitingGot = await waitingWait.WaitAsync(TimeSpan.FromSeconds(10));
+        results.Add(
+            (
+                Path.GetFileName(handoffGot) == "PUPPack.zip"
+                    && Path.GetFileName(waitingGot) == "Medieval_Madness_PuP.zip",
+                "assisted: a manually handed-off pack is not reused by another waiting table"
+            )
+        );
+
         results.Add(
             (
                 !SitePolicy.AllowsAutomation("https://vpuniverse.com/files/file/42-test/")
