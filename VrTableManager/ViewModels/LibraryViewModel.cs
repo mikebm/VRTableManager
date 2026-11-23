@@ -1,4 +1,5 @@
 using System.Collections.ObjectModel;
+using System.Diagnostics;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using VrTableManager.Models;
@@ -456,6 +457,46 @@ public sealed partial class LibraryViewModel(MainViewModel app) : ChildViewModel
 
     [RelayCommand]
     void OpenTableFolder(InstalledItem item) => Ui.OpenExternal(item.Table.Folder);
+
+    [RelayCommand]
+    void OpenWithVisualPinball(InstalledItem item)
+    {
+        if (!item.Table.IsVpx)
+        {
+            return;
+        }
+
+        if (!File.Exists(item.Table.TablePath))
+        {
+            PlayStatus = $"Couldn't open {item.Title} in Visual Pinball: the table file is missing.";
+            return;
+        }
+
+        try
+        {
+            var exe = VpxSetup.FindExe(Settings);
+            if (exe is null)
+            {
+                PlayStatus = "Couldn't open the table in Visual Pinball: it's not installed yet (Setup tab).";
+                return;
+            }
+
+            var start = new ProcessStartInfo(exe)
+            {
+                WorkingDirectory = Path.GetDirectoryName(exe)!,
+                UseShellExecute = false,
+            };
+            start.ArgumentList.Add("-edit");
+            start.ArgumentList.Add(item.Table.TablePath);
+            using var process =
+                Process.Start(start)
+                ?? throw new InvalidOperationException("Windows didn't start the Visual Pinball process.");
+        }
+        catch (Exception e)
+        {
+            PlayStatus = $"Couldn't open {item.Title} in Visual Pinball: " + e.Message;
+        }
+    }
 
     /// <summary>
     /// ⋯ → Rename…: the name shown in My Tables and the VR lobby. It's kept in the table's vrtm.json; the catalog

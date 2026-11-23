@@ -429,6 +429,8 @@
                   <MenuItem Header="{Binding SourcePageMenuHeader}" IsVisible="{Binding HasSourcePage}"
                             ToolTip.Tip="The page the author posted this table on: rate it, leave a comment, report a problem or say thanks"
                             Command="{Binding Owner.OpenPageCommand}" CommandParameter="{Binding SourcePage}" />
+                  <MenuItem Header="Open with Visual Pinball" IsVisible="{Binding IsVpx}"
+                            Command="{Binding Owner.Library.OpenWithVisualPinballCommand}" CommandParameter="{Binding}" />
                   <MenuItem Header="Table folder" Command="{Binding Owner.Library.OpenTableFolderCommand}" CommandParameter="{Binding}" />
                   <MenuItem Header="ROM folder" IsVisible="{Binding IsVpx}" Command="{Binding Owner.Library.OpenRomFolderCommand}" CommandParameter="{Binding}" />
                   <MenuItem Header="High score (NVRAM) folder" IsVisible="{Binding IsVpx}" Command="{Binding Owner.Library.OpenNvramFolderCommand}" CommandParameter="{Binding}" />
