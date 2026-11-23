@@ -24,32 +24,34 @@
                       Content="Apply VR Table Manager's VPX settings"
                       ToolTip.Tip="On: VPX uses your VPinballX.ini with the manager's VR and desktop settings on top. Off: VPX loads its normal VPinballX.ini without the manager's settings layers or per-launch VPX overrides. Your saved manager settings are kept if you turn this back on." />
             <TextBlock Classes="muted" TextWrapping="Wrap"
-                       Text="Turn this off to have VPX use its own VPinballX.ini for every table. The manager's saved settings are kept, but aren't applied until you turn this back on." />
+                       Text="Off: VPX uses its own VPinballX.ini without the manager's VR or desktop INI layers, including VR graphics and fit settings. Saved manager settings are kept for when you turn this back on." />
           </StackPanel>
         </Border>
 
         <Border Classes="panel">
           <StackPanel Spacing="10">
             <TextBlock Classes="h2" Text="ROMs, displays &amp; backglass" />
-            <CheckBox IsChecked="{Binding UseBuiltInPinmame}"
-                      Content="Use VPX's built-in PinMAME (recommended)"
-                      ToolTip.Tip="In VR and desktop play, reads each table's ROMs, scores, ROM aliases and Serum colours from its own folder. Off: VPX uses a separately installed VPinMAME and its own roms folder." />
-            <CheckBox IsChecked="{Binding UsePupPlugin}"
-                      Content="Show PuP packs (VPX's PinUP Player plugin)"
-                      ToolTip.Tip="Plays a table's PuP pack (pupvideos in its folder) on the cabinet's backglass and DMD. Tables without one are unaffected." />
-            <CheckBox IsChecked="{Binding UseDisplayPlugins}"
-                      Content="Use VPX's FlexDMD and backglass (B2S) plugins (recommended)"
-                      ToolTip.Tip="FlexDMD draws the DMD for tables whose script makes it (many originals, such as Jaws and Mass Effect). B2S shows a table's .directb2s backglass." />
-            <CheckBox IsChecked="{Binding VrAutoBackglass}"
-                      Content="Add a backglass in VR to desktop tables, not VR tables (needed for PuP packs)"
-                      ToolTip.Tip="Desktop and cabinet tables have no backglass in the VR scene, so their PuP pack or .directb2s plays with nothing to show it: they get VPX's default backglass display. VR tables have their own and don't. Off: VPX's own Add Backglass setting decides. A table setting saved in VPX always wins." />
+            <StackPanel Spacing="10" IsEnabled="{Binding ApplyVpxSettings}">
+              <CheckBox IsChecked="{Binding UseBuiltInPinmame}"
+                        Content="Use VPX's built-in PinMAME (recommended)"
+                        ToolTip.Tip="In VR and desktop play, reads each table's ROMs, scores, ROM aliases and Serum colours from its own folder. Off: VPX uses a separately installed VPinMAME and its own roms folder." />
+              <CheckBox IsChecked="{Binding UsePupPlugin}"
+                        Content="Show PuP packs (VPX's PinUP Player plugin)"
+                        ToolTip.Tip="Plays a table's PuP pack (pupvideos in its folder) on the cabinet's backglass and DMD. Tables without one are unaffected." />
+              <CheckBox IsChecked="{Binding UseDisplayPlugins}"
+                        Content="Use VPX's FlexDMD and backglass (B2S) plugins (recommended)"
+                        ToolTip.Tip="FlexDMD draws the DMD for tables whose script makes it (many originals, such as Jaws and Mass Effect). B2S shows a table's .directb2s backglass." />
+              <CheckBox IsChecked="{Binding VrAutoBackglass}"
+                        Content="Add a backglass in VR to desktop tables, not VR tables (needed for PuP packs)"
+                        ToolTip.Tip="Desktop and cabinet tables have no backglass in the VR scene, so their PuP pack or .directb2s plays with nothing to show it: they get VPX's default backglass display. VR tables have their own and don't. Off: VPX's own Add Backglass setting decides. A table setting saved in VPX always wins." />
+            </StackPanel>
           </StackPanel>
         </Border>
 
         <Border Classes="panel">
           <StackPanel Spacing="10">
             <TextBlock Classes="h2" Text="While you play" />
-            <CheckBox IsChecked="{Binding DesktopBloomOff}"
+            <CheckBox IsEnabled="{Binding ApplyVpxSettings}" IsChecked="{Binding DesktopBloomOff}"
                       Content="Turn off VPX's bloom (the glow around bright lights) in desktop play"
                       ToolTip.Tip="Sets VPX's Force Bloom Off for every desktop launch: a little faster on slow graphics cards, and lights look crisper. Off: VPX's own setting decides. VR play has its own Bloom setting under VPX GRAPHICS IN VR." />
             <CheckBox IsChecked="{Binding AutoVrRoom}"
