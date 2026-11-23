@@ -338,6 +338,29 @@ public static partial class RomDetector
             || name.Equals("LoadController", StringComparison.OrdinalIgnoreCase);
     }
 
+    static bool InsideWithController(string text, int index)
+    {
+        var start = text.LastIndexOf("With ", index, StringComparison.OrdinalIgnoreCase);
+        if (start < 0)
+        {
+            return false;
+        }
+
+        var startLineEnd = text.IndexOfAny(['\r', '\n'], start);
+        if (startLineEnd < 0)
+        {
+            return false;
+        }
+        var startLine = text[start..startLineEnd];
+        if (!Regex.IsMatch(startLine, @"\bWith[ \t]+Controller\b", RegexOptions.IgnoreCase))
+        {
+            return false;
+        }
+
+        var end = text.IndexOf("End With", start + 5, StringComparison.OrdinalIgnoreCase);
+        return end >= 0 && end >= index;
+    }
+
     /// <summary>
     /// The ROM the script hands PinMAME when it isn't cGameName: <c>.GameName = "swrds_l2"</c>, or
     /// <c>.GameName = cRomName</c> with <c>Const cRomName = "swrds_l2"</c>. Rethemes keep their own cGameName
@@ -346,10 +369,19 @@ public static partial class RomDetector
     /// </summary>
     public static string? ControllerRomFromScript(string script)
     {
-        foreach (var line in CodeLinesWith(script, ".GameName"))
+        foreach (var (index, line) in CodeLinesAt(script, ".GameName"))
         {
             if (ControllerGameNameRegex().Match(line) is not { Success: true } m)
             {
+                continue;
+            }
+            var before = line[..m.Index].TrimEnd();
+            if (
+                !before.EndsWith("Controller", StringComparison.OrdinalIgnoreCase)
+                && !InsideWithController(script, index)
+            )
+            {
+                // FlexDMD and UltraDMD also use .GameName, but they are not PinMAME controllers.
                 continue;
             }
             if (m.Groups["rom"].Success)

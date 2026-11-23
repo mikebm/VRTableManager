@@ -2929,6 +2929,9 @@ Console.WriteLine($"   gamepad connected: {Gamepad.IsConnected()?.ToString() ?? 
                 == "nfl"
             && RomDetector.ControllerRomFromScript(
                 "Const cGameName = \"mm_109c\"\r\n.GameName = cGameName\r\n"
+            ) == null
+            && RomDetector.ControllerRomFromScript(
+                "Set FlexDMD = CreateObject(\"FlexDMD.FlexDMD\")\r\nFlexDMD.GameName = \"Diablo2\"\r\n"
             ) == null,
         "the ROM the script hands PinMAME beats cGameName (rethemes run another machine's ROM)"
     );
