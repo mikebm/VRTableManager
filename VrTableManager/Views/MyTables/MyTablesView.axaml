@@ -51,10 +51,17 @@
       </Border>
 
       <WrapPanel IsVisible="{Binding InstalledTotal, Converter={x:Static v:Converters.NonZero}}">
-        <TextBox Text="{Binding InstalledSearch}" Classes.active="{Binding $self.Text, Converter={x:Static StringConverters.IsNotNullOrEmpty}}" PlaceholderText="Search your tables" Width="260" ToolTip.Tip="Name, maker, author, theme, year or ROM. Typos are fine, words can be in any order, and initials work: afm, tz, mm" Margin="0,0,12,8">
+        <TextBox Text="{Binding InstalledSearch}" Classes.active="{Binding $self.Text, Converter={x:Static StringConverters.IsNotNullOrEmpty}}" PlaceholderText="Search your tables" Width="260" VerticalContentAlignment="Center" ToolTip.Tip="Name, maker, author, theme, year or ROM. Typos are fine, words can be in any order, and initials work: afm, tz, mm" Margin="0,0,12,8">
           <TextBox.InnerLeftContent>
             <PathIcon Classes="search" Margin="12,0,0,0" />
           </TextBox.InnerLeftContent>
+          <TextBox.InnerRightContent>
+            <Button Classes="icon" Content="✕" Width="28" Height="28" Padding="0" BorderThickness="0" FontSize="16"
+                    HorizontalContentAlignment="Center" VerticalContentAlignment="Center" VerticalAlignment="Center"
+                    Margin="0,0,6,0" ToolTip.Tip="Clear search"
+                    IsVisible="{Binding InstalledSearch, Converter={x:Static StringConverters.IsNotNullOrEmpty}}"
+                    Command="{Binding ClearInstalledSearchCommand}" />
+          </TextBox.InnerRightContent>
         </TextBox>
         <ListBox Classes="segmented" ItemsSource="{Binding InstalledFilters}" SelectedItem="{Binding InstalledFilter}" Margin="0,0,12,8" />
         <ComboBox Classes.active="{Binding $self.SelectedIndex, Converter={x:Static v:Converters.NonZero}}" ItemsSource="{Binding InstalledEngines}" SelectedItem="{Binding InstalledEngine}" MinWidth="150" Margin="0,0,12,8" VerticalAlignment="Center" />

@@ -124,6 +124,9 @@ public sealed partial class CatalogViewModel(MainViewModel app) : ChildViewModel
 
     partial void OnSearchTextChanged(string value) => ApplyFilter();
 
+    [RelayCommand]
+    void ClearSearch() => SearchText = "";
+
     partial void OnVrOnlyChanged(bool value) => ApplyFilter();
 
     partial void OnHideInstalledChanged(bool value) => ApplyFilter();

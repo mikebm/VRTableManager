@@ -250,6 +250,9 @@ public sealed partial class LibraryViewModel(MainViewModel app) : ChildViewModel
 
     partial void OnInstalledSearchChanged(string value) => InstalledFilterChanged(value);
 
+    [RelayCommand]
+    void ClearInstalledSearch() => InstalledSearch = "";
+
     partial void OnInstalledEngineChanged(string value) => InstalledFilterChanged(value);
 
     partial void OnInstalledSortChanged(string value) => FilterInstalled();
