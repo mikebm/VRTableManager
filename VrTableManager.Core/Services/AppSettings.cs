@@ -140,6 +140,12 @@ public sealed class AppSettings
     public bool WarnSteamVrRuntime { get; set; } = true;
 
     /// <summary>
+    /// Whether VR and desktop table launches apply the manager's VPX settings files and per-launch INI overrides.
+    /// Off, VPX loads its own VPinballX.ini without the manager layering a settings file over it.
+    /// </summary>
+    public bool ApplyVpxSettings { get; set; } = true;
+
+    /// <summary>
     /// VR and desktop play use VPX's built-in PinMAME (plugin) rather than a separately installed VPinMAME, so ROMs,
     /// aliases and Serum files come from each table's own folder.
     /// </summary>

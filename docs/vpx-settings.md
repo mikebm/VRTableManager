@@ -19,6 +19,7 @@ A higher layer wins. Anything a layer doesn't set comes from the one below.
 - **The VR and desktop files only hold the differences.** A setting with an empty value (`AAFactor = `) isn't an override, so yours is used. VPX writes an empty value for anything left at its default, which is why most lines in these files are empty.
 - **Changes you make while playing stay with that mode.** Change something in VPX's in-game menu while playing in VR (sound, graphics, lining the table up) and it goes into the VR file when the table closes. Desktop play and your own `VPinballX.ini` don't change. The one exception is graphics with the VR graphics switched off, next.
 - **VR graphics switched off.** With **Use these graphics settings in VR** unticked (Setup → VR graphics), VR play uses the graphics from your own `VPinballX.ini`. Change one of them in VPX's menu during VR play and it goes back into your `VPinballX.ini` when the table closes, just as if you'd played without the app, so desktop play picks it up too. That covers render scale, MSAA, anti-aliasing, reflections, ambient occlusion, bloom, sharpen and the FPS display. Anything else still goes into the VR file, and a graphics setting the table's own `<table>.ini` sets stays with that table. If your `VPinballX.ini` can't be written (read-only, or open in another program), the change isn't kept, and the play log says why.
+- **Use VPX's own settings only.** Turn off **Apply VR Table Manager's VPX settings** under Setup → Playing tables to launch every table without the manager's VR/desktop settings layers or per-launch VPX overrides. VPX loads its normal `VPinballX.ini`, as when you start it on its own. Your manager settings files and Setup choices aren't changed; turn the option back on to use them again. VPX still reads a table's own `<table>.ini`.
 - **The app's own options live in the VR and desktop files.** Setup's switches (PinMAME, PuP packs, FlexDMD and B2S, the VR backglass) and the VR graphics presets are written there.
 - **Tables you open in VPX directly use only your `VPinballX.ini`.** Nothing changes for them.
 
@@ -63,6 +64,8 @@ Some settings are better changed on Setup, because the app writes them before ev
 ## How it works
 
 Before each launch, the app combines the layers into `VrTableManager-VR.play.ini` or `VrTableManager-Desktop.play.ini` next to `VPinballX.exe`, and starts VPX with it. When the table closes, it compares that file with what it started with, and copies anything VPX changed into the VR or desktop file. Values written differently but meaning the same (`1.5` and `1.500000`) don't count as changes.
+
+When **Apply VR Table Manager's VPX settings** is off, the app skips this step and starts VPX without `-Ini`, so VPX chooses its usual `VPinballX.ini`.
 
 The `.play.ini` files are rebuilt every launch, so editing them does nothing lasting.
 

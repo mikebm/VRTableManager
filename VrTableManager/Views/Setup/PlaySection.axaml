@@ -19,6 +19,16 @@
         </StackPanel>
 
         <Border Classes="panel">
+          <StackPanel Spacing="8">
+            <CheckBox IsChecked="{Binding ApplyVpxSettings}"
+                      Content="Apply VR Table Manager's VPX settings"
+                      ToolTip.Tip="On: VPX uses your VPinballX.ini with the manager's VR and desktop settings on top. Off: VPX loads its normal VPinballX.ini without the manager's settings layers or per-launch VPX overrides. Your saved manager settings are kept if you turn this back on." />
+            <TextBlock Classes="muted" TextWrapping="Wrap"
+                       Text="Turn this off to have VPX use its own VPinballX.ini for every table. The manager's saved settings are kept, but aren't applied until you turn this back on." />
+          </StackPanel>
+        </Border>
+
+        <Border Classes="panel">
           <StackPanel Spacing="10">
             <TextBlock Classes="h2" Text="ROMs, displays &amp; backglass" />
             <CheckBox IsChecked="{Binding UseBuiltInPinmame}"

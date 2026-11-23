@@ -16,6 +16,10 @@ public sealed partial class PlayViewModel(MainViewModel app) : ChildViewModel(ap
     [ObservableProperty]
     public partial bool ReturnAfterPlay { get; set; }
 
+    /// <summary>Table launches use the manager's VPX settings layers and per-launch INI overrides.</summary>
+    [ObservableProperty]
+    public partial bool ApplyVpxSettings { get; set; }
+
     /// <summary>VR play uses VPX's built-in PinMAME, which reads ROMs from each table's own folder.</summary>
     [ObservableProperty]
     public partial bool UseBuiltInPinmame { get; set; }
@@ -42,6 +46,8 @@ public sealed partial class PlayViewModel(MainViewModel app) : ChildViewModel(ap
 
     partial void OnReturnAfterPlayChanged(bool value) => SaveSetting(s => s.ReturnAfterPlay = value);
 
+    partial void OnApplyVpxSettingsChanged(bool value) => SaveSetting(s => s.ApplyVpxSettings = value);
+
     partial void OnUseBuiltInPinmameChanged(bool value) => SaveSetting(s => s.UseBuiltInPinmame = value);
 
     partial void OnUsePupPluginChanged(bool value) => SaveSetting(s => s.UsePupPlugin = value);
@@ -57,6 +63,7 @@ public sealed partial class PlayViewModel(MainViewModel app) : ChildViewModel(ap
     internal override void LoadSettings(AppSettings s)
     {
         ReturnAfterPlay = s.ReturnAfterPlay;
+        ApplyVpxSettings = s.ApplyVpxSettings;
         UseBuiltInPinmame = s.UseBuiltInPinmame;
         UsePupPlugin = s.UsePupPlugin;
         UseDisplayPlugins = s.UseDisplayPlugins;

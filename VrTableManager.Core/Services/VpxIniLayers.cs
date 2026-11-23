@@ -81,6 +81,11 @@ public static class VpxIniLayers
     public static Dictionary<(string Section, string Key), string> Effective(AppSettings s, bool vr)
     {
         var result = BasePath(s) is { } b ? IniFile.Read(b) : IniFile.Read("");
+        if (!s.ApplyVpxSettings)
+        {
+            return result;
+        }
+
         foreach (var (k, v) in Overrides(s, vr))
         {
             result[k] = v;

@@ -725,6 +725,17 @@ public static class Launcher
             WorkingDirectory = Path.GetDirectoryName(exe)!,
             UseShellExecute = false,
         };
+        if (!s.ApplyVpxSettings)
+        {
+            PrepareTableLaunch(tablePath, vr, s, cabinetBackglass: null);
+            foreach (var a in VpxArgs(null, tablePath))
+            {
+                psi.ArgumentList.Add(a);
+            }
+
+            return Process.Start(psi)!;
+        }
+
         if (vr)
         {
             VpxSetup.EnsureVrIni(s);
@@ -788,6 +799,25 @@ public static class Launcher
                     )
                 : null
         );
+        PrepareTableLaunch(tablePath, vr, s, cabinetBackglass);
+
+        foreach (var a in VpxArgs(play.Path, tablePath))
+        {
+            psi.ArgumentList.Add(a);
+        }
+
+        var proc = Process.Start(psi)!;
+        VpxIniLayers.SaveBackOnExit(proc, play, PlaySession.Log);
+        return proc;
+    }
+
+    static void PrepareTableLaunch(
+        string tablePath,
+        bool vr,
+        AppSettings s,
+        VrBackglass.Placement? cabinetBackglass
+    )
+    {
         if (
             VrRoomSwitch.Prepare(tablePath, vr, s.AutoVrRoom, s.UsePupPlugin, cabinetBackglass) is
             { } changed
@@ -828,15 +858,6 @@ public static class Launcher
                 );
             }
         }
-
-        foreach (var a in VpxArgs(play.Path, tablePath))
-        {
-            psi.ArgumentList.Add(a);
-        }
-
-        var proc = Process.Start(psi)!;
-        VpxIniLayers.SaveBackOnExit(proc, play, PlaySession.Log);
-        return proc;
     }
 
     /// <summary>

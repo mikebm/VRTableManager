@@ -56,6 +56,21 @@ static class VpxIniLayersChecks
                 )
             );
 
+            s.ApplyVpxSettings = false;
+            var unlayered = VpxIniLayers.Effective(s, vr: true);
+            var unlayeredArgs = Launcher.VpxArgs(null, @"C:\tables\table.vpx");
+            s.ApplyVpxSettings = true;
+            results.Add(
+                (
+                    unlayered.GetValueOrDefault(("Player", "AAFactor")) == "2"
+                        && unlayered.GetValueOrDefault(("Player", "MSAASamples")) == ""
+                        && unlayered.GetValueOrDefault(("Plugin.PinMAME", "Enable")) == ""
+                        && !unlayered.ContainsKey(("PlayerVR", "AskToTurnOn"))
+                        && unlayeredArgs.SequenceEqual(["-Play", @"C:\tables\table.vpx"]),
+                    "layers: disabling manager VPX settings leaves the player's INI effective and launches without -Ini"
+                )
+            );
+
             File.WriteAllText(own, File.ReadAllText(own).Replace("AAFactor = 2", "AAFactor = 1.5"));
             results.Add(
                 (
