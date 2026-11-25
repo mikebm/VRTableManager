@@ -19,8 +19,8 @@ public sealed record VpxReleases(VpxRelease? Latest);
 
 /// <summary>
 /// A build the Setup tab's build list offers, so a player can go back to an older one (a nightly that broke
-/// something, say). A release knows its download; a nightly only its run, whose download is looked up when it's
-/// installed (<see cref="VpxSetup.ResolveAsync"/>), so listing them costs one GitHub call, not one per build.
+/// something, say). A release knows its download; a nightly stores its run, with its version label loaded from the
+/// repository's artifacts in batches and its download looked up when installed (<see cref="VpxSetup.ResolveAsync"/>).
 /// </summary>
 public sealed record VpxBuildChoice(
     string Label,
@@ -32,6 +32,9 @@ public sealed record VpxBuildChoice(
 {
     /// <summary>The build VPX's folder has now (shown in the list).</summary>
     public bool Installed { get; init; }
+
+    /// <summary>The nightly workflow run this choice represents.</summary>
+    public long? RunId { get; init; }
 
     public override string ToString() => Installed ? Label + " · installed" : Label;
 }
@@ -87,6 +90,8 @@ public static class VpxSetup
     // The build list's nightlies: VPX's master branch builds several times a day, so this reaches back about a week.
     const string NightlyRunsListApi =
         "https://api.github.com/repos/vpinball/vpinball/actions/workflows/vpinball.yml/runs?branch=master&event=push&status=success&per_page=60";
+    const string RepositoryArtifactsApi =
+        "https://api.github.com/repos/vpinball/vpinball/actions/artifacts?per_page=100&page=";
     const string NightlyDownload = "https://nightly.link/vpinball/vpinball/actions/artifacts/";
 
     /// <summary>The BGFX build from the newest successful master-branch run, or null.</summary>
@@ -110,7 +115,7 @@ public static class VpxSetup
         var builds = ParseReleaseList(await releases);
         if (runs != null)
         {
-            builds.AddRange(ParseNightlyRuns(await runs));
+            builds.AddRange(await AddNightlyArtifactTagsAsync(ParseNightlyRuns(await runs), ct));
         }
         // Releases first (a handful, easy to find by version), then the nightlies: by date alone a week of nightlies
         // would bury every release.
@@ -162,17 +167,157 @@ public static class VpxSetup
                     ArtifactsUrl: run.GetProperty("artifacts_url").GetString() + "?per_page=100",
                     Sha: sha
                 )
+                {
+                    RunId = run.GetProperty("id").GetInt64(),
+                }
             );
         }
         return list;
     }
 
+    /// <summary>Maps the repository artifact list's BGFX assets to the nightly workflow run IDs.</summary>
+    public static IReadOnlyDictionary<long, string> ParseNightlyArtifactTags(string json)
+    {
+        using var doc = JsonDocument.Parse(json);
+        var tags = new Dictionary<long, string>();
+        foreach (var artifact in doc.RootElement.GetProperty("artifacts").EnumerateArray())
+        {
+            if (TryNightlyArtifactTag(artifact, out var runId, out var tag))
+            {
+                tags[runId] = tag;
+            }
+        }
+        return tags;
+    }
+
+    /// <summary>Replaces date/hash-only nightly labels with their full VPX version, build and commit hash.</summary>
+    public static List<VpxBuildChoice> WithNightlyArtifactTags(
+        IEnumerable<VpxBuildChoice> builds,
+        IReadOnlyDictionary<long, string> tags
+    ) =>
+        [
+            .. builds.Select(build =>
+                build.RunId is { } runId && tags.TryGetValue(runId, out var tag)
+                    ? build with
+                    {
+                        Label =
+                            $"VPinballX-{tag.TrimStart('v')} · {build.Date:yyyy-MM-dd HH:mm} UTC",
+                    }
+                    : build
+            ),
+        ];
+
+    static async Task<List<VpxBuildChoice>> AddNightlyArtifactTagsAsync(
+        List<VpxBuildChoice> builds,
+        CancellationToken ct
+    )
+    {
+        const int pageSize = 100;
+        const int pagesPerBatch = 4;
+        var runIds = builds.Select(build => build.RunId).OfType<long>().ToHashSet();
+        if (runIds.Count == 0)
+        {
+            return builds;
+        }
+
+        var oldestRun = builds.Min(build => build.Date);
+        var tags = new Dictionary<long, string>();
+        long totalCount = long.MaxValue;
+        bool ProcessPage(string json)
+        {
+            using var doc = JsonDocument.Parse(json);
+            var response = doc.RootElement;
+            var artifacts = response.GetProperty("artifacts");
+            totalCount = response.GetProperty("total_count").GetInt64();
+            foreach (var artifact in artifacts.EnumerateArray())
+            {
+                if (
+                    TryNightlyArtifactTag(artifact, out var runId, out var tag)
+                    && runIds.Contains(runId)
+                )
+                {
+                    tags[runId] = tag;
+                }
+            }
+
+            var olderThanRequestedRuns =
+                artifacts.GetArrayLength() > 0
+                && artifacts.EnumerateArray()
+                    .All(artifact => TryDateOf(artifact, "created_at", out var date) && date < oldestRun);
+            return (artifacts.GetArrayLength() > 0 && olderThanRequestedRuns)
+                || runIds.All(runId => tags.ContainsKey(runId));
+        }
+
+        var firstPage = await GitHubApi.GetStringAsync(RepositoryArtifactsApi + "1", ct);
+        if (!ProcessPage(firstPage) && totalCount > pageSize)
+        {
+            var lastPage = (int)Math.Ceiling(totalCount / (double)pageSize);
+            for (var first = 2; first <= lastPage; first += pagesPerBatch)
+            {
+                var count = Math.Min(pagesPerBatch, lastPage - first + 1);
+                var pages = await Task.WhenAll(
+                    Enumerable
+                        .Range(first, count)
+                        .Select(page =>
+                            GitHubApi.GetStringAsync(RepositoryArtifactsApi + page, ct)
+                        )
+                );
+                var shouldStop = false;
+                foreach (var page in pages)
+                {
+                    if (ProcessPage(page))
+                    {
+                        shouldStop = true;
+                        break;
+                    }
+                }
+                if (shouldStop)
+                {
+                    break;
+                }
+            }
+        }
+
+        return WithNightlyArtifactTags(builds, tags);
+    }
+
+    static bool TryNightlyArtifactTag(JsonElement artifact, out long runId, out string tag)
+    {
+        runId = 0;
+        tag = "";
+        if (
+            !artifact.TryGetProperty("workflow_run", out var workflowRun)
+            || workflowRun.ValueKind != JsonValueKind.Object
+            || !workflowRun.TryGetProperty("id", out var id)
+            || !id.TryGetInt64(out runId)
+            || !artifact.TryGetProperty("name", out var nameElement)
+            || nameElement.ValueKind != JsonValueKind.String
+            || NightlyTagFromArtifactName(nameElement.GetString() ?? "") is not { } parsedTag
+        )
+        {
+            return false;
+        }
+
+        tag = parsedTag;
+        return true;
+    }
+
+    static string? NightlyTagFromArtifactName(string name) =>
+        name.StartsWith("VPinballX_BGFX-")
+        && name.EndsWith(AssetSuffix)
+            ? "v" + name["VPinballX_BGFX-".Length..^AssetSuffix.Length]
+            : null;
+
     static DateTimeOffset DateOf(JsonElement e, string property) =>
-        e.TryGetProperty(property, out var d)
-        && d.ValueKind == JsonValueKind.String
-        && DateTimeOffset.TryParse(d.GetString(), out var date)
-            ? date
-            : DateTimeOffset.MinValue;
+        TryDateOf(e, property, out var date) ? date : DateTimeOffset.MinValue;
+
+    static bool TryDateOf(JsonElement e, string property, out DateTimeOffset date)
+    {
+        date = DateTimeOffset.MinValue;
+        return e.TryGetProperty(property, out var d)
+            && d.ValueKind == JsonValueKind.String
+            && DateTimeOffset.TryParse(d.GetString(), out date);
+    }
 
     /// <summary>
     /// The download for a build in the list: a release's own, or a nightly run's BGFX artifact (null when GitHub
@@ -207,16 +352,14 @@ public static class VpxSetup
         foreach (var a in doc.RootElement.GetProperty("artifacts").EnumerateArray())
         {
             var name = a.GetProperty("name").GetString() ?? "";
+            var tag = NightlyTagFromArtifactName(name);
             if (
                 a.GetProperty("expired").GetBoolean()
-                || !name.StartsWith("VPinballX_BGFX-")
-                || !name.EndsWith(AssetSuffix)
+                || tag == null
             )
             {
                 continue;
             }
-            // "VPinballX_BGFX-10.8.1-6625-2ad1916b2-windows-x64-Release.zip" → "v10.8.1-6625-2ad1916b2"
-            var tag = "v" + name["VPinballX_BGFX-".Length..^AssetSuffix.Length];
             return new VpxRelease(
                 tag,
                 name,
@@ -349,12 +492,39 @@ public static class VpxSetup
         }
 
         var f = Path.Combine(s.VpxDir, VersionFile);
-        if (File.Exists(f))
+        var recorded = File.Exists(f) ? File.ReadAllText(f).Trim() : null;
+        var productVersion = FileVersionInfo.GetVersionInfo(exe).ProductVersion;
+        return TagFromInstalledMetadata(recorded, productVersion);
+    }
+
+    /// <summary>
+    /// Uses the saved tag when it contains the version, build and hash; older hash-only markers fall back to VPX's
+    /// own product version so Setup can show the full installed build.
+    /// </summary>
+    public static string? TagFromInstalledMetadata(string? recordedTag, string? productVersion)
+    {
+        var recorded = recordedTag?.Trim();
+        if (HasVersionAndHash(recorded))
         {
-            return File.ReadAllText(f).Trim();
+            return recorded;
         }
 
-        return TagFromProductVersion(FileVersionInfo.GetVersionInfo(exe).ProductVersion);
+        return TagFromProductVersion(productVersion)
+            ?? (string.IsNullOrWhiteSpace(recorded) ? null : recorded);
+    }
+
+    static bool HasVersionAndHash(string? tag)
+    {
+        if (string.IsNullOrWhiteSpace(tag))
+        {
+            return false;
+        }
+
+        var parts = tag.TrimStart('v').Split('-');
+        return parts.Length >= 3
+            && Version.TryParse(parts[0], out _)
+            && int.TryParse(parts[1], out _)
+            && !string.IsNullOrWhiteSpace(parts[2]);
     }
 
     public static string? TagFromProductVersion(string? productVersion)

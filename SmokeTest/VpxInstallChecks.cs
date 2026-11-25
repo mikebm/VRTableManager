@@ -20,6 +20,19 @@ static class VpxInstallChecks
                 "a hand-unzipped VPX's version is read from the program"
             )
         );
+        results.Add(
+            (
+                VpxSetup.TagFromInstalledMetadata(
+                    "a13d7625a",
+                    "10.9.0.7001.a13d7625a"
+                ) == "v10.9.0-7001-a13d7625a"
+                    && VpxSetup.TagFromInstalledMetadata(
+                        "v10.8.1-5436-af26b2d93",
+                        "10.8.1.5436.otherhash"
+                    ) == "v10.8.1-5436-af26b2d93",
+                "an old hash-only marker is shown with VPX's full version and build"
+            )
+        );
         var rel = new VpxReleases(
             new VpxRelease("v10.8.1-5436-af26b2d93", "x.zip", "http://x", 1)
         );
@@ -56,15 +69,29 @@ static class VpxInstallChecks
             )
         );
         var runs = VpxSetup.ParseNightlyRuns(
-            """{"workflow_runs":[{"head_sha":"934be537e0000000000000000000000000000000","created_at":"2026-11-08T19:06:27Z","artifacts_url":"https://api/runs/2/artifacts"},{"head_sha":"2ad1916b2fffffffffffffffffffffffffffffff","created_at":"2026-11-06T21:26:14Z","artifacts_url":"https://api/runs/1/artifacts"}]}"""
+            """{"workflow_runs":[{"id":2,"head_sha":"934be537e0000000000000000000000000000000","created_at":"2026-11-08T19:06:27Z","artifacts_url":"https://api/runs/2/artifacts"},{"id":1,"head_sha":"2ad1916b2fffffffffffffffffffffffffffffff","created_at":"2026-11-06T21:26:14Z","artifacts_url":"https://api/runs/1/artifacts"}]}"""
         );
         results.Add(
             (
                 runs.Count == 2
                     && runs[1].Label == "Nightly · 2026-11-06 21:26 UTC · 2ad1916b2"
                     && runs[1].ArtifactsUrl == "https://api/runs/1/artifacts?per_page=100"
+                    && runs[1].RunId == 1
                     && runs[1].Release == null,
                 "build list: nightly runs are listed with their date and commit"
+            )
+        );
+        var artifactTags = VpxSetup.ParseNightlyArtifactTags(
+            $$$"""{"total_count":2,"artifacts":[{"name":"VPinballX_BGFX-10.8.1-6625-2ad1916b2{{{suffix}}}","workflow_run":{"id":1}},{"name":"VPinballX_GL-10.8.1-6625-2ad1916b2{{{suffix}}}","workflow_run":{"id":2}}]}"""
+        );
+        var labeledNightlies = VpxSetup.WithNightlyArtifactTags(runs, artifactTags);
+        results.Add(
+            (
+                artifactTags.Count == 1
+                    && labeledNightlies[1].Label
+                        == "VPinballX-10.8.1-6625-2ad1916b2 · 2026-11-06 21:26 UTC"
+                    && labeledNightlies[0].Label == runs[0].Label,
+                "build list: full nightly version labels map to run IDs from batched artifacts"
             )
         );
         results.Add(
