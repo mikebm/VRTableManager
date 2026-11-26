@@ -3,7 +3,7 @@ using VrTableManager.Services;
 
 namespace VrTableManager.ViewModels;
 
-// My Tables → MORE → My artwork: your own card picture, VR lobby playfield and backglass, and lobby video
+// My Tables → MORE: your own card picture and VR lobby playfield, backglass and wheel art
 // (UserArtwork; the files sit in the table's artwork\ folder, where you can also drop them by hand).
 public sealed partial class LobbyMediaViewModel
 {

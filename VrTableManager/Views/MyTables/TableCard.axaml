@@ -375,16 +375,13 @@
                               IsEnabled="{Binding !IsBusy}" Command="{Binding Owner.Media.GetWheelArtCommand}" CommandParameter="{Binding}" />
                     <MenuItem Header="Remove wheel art" IsVisible="{Binding HasWheelArt}" IsEnabled="{Binding !IsBusy}" Command="{Binding Owner.Media.RemoveWheelArtCommand}" CommandParameter="{Binding}" />
                   </MenuItem>
-                </MenuItem>
-                <MenuItem Header="My artwork"
-                          ToolTip.Tip="Your own pictures win over the catalog's and the table's. They're kept in the table's artwork folder (card, playfield, backglass, wheel .png/.jpg), where you can also put them by hand">
-                  <MenuItem Header="Card picture in My Tables…" Command="{Binding Owner.Media.ChooseCardArtCommand}" CommandParameter="{Binding}" />
-                  <MenuItem Header="VR lobby playfield picture…" Command="{Binding Owner.Media.ChoosePlayfieldArtCommand}" CommandParameter="{Binding}" />
-                  <MenuItem Header="VR lobby backglass picture…" Command="{Binding Owner.Media.ChooseBackglassArtCommand}" CommandParameter="{Binding}" />
-                  <MenuItem Header="VR lobby wheel art (the game's logo)…" Command="{Binding Owner.Media.ChooseWheelArtCommand}" CommandParameter="{Binding}"
-                            ToolTip.Tip="A logo on a transparent background (.png) works best, like a front end's wheel image" />
-                  <MenuItem Header="Open the artwork folder" Command="{Binding Owner.Media.OpenArtworkFolderCommand}" CommandParameter="{Binding}" />
-                  <MenuItem Header="Remove my pictures" IsVisible="{Binding HasUserArtwork}" Command="{Binding Owner.Media.RemoveUserArtworkCommand}" CommandParameter="{Binding}" />
+                  <MenuItem Header="My lobby pictures"
+                            ToolTip.Tip="Your playfield, backglass and wheel pictures for the VR lobby. They are kept in the table's artwork folder and take priority over catalog and table pictures.">
+                    <MenuItem Header="Playfield picture…" Command="{Binding Owner.Media.ChoosePlayfieldArtCommand}" CommandParameter="{Binding}" />
+                    <MenuItem Header="Backglass picture…" Command="{Binding Owner.Media.ChooseBackglassArtCommand}" CommandParameter="{Binding}" />
+                    <MenuItem Header="Wheel art (the game's logo)…" Command="{Binding Owner.Media.ChooseWheelArtCommand}" CommandParameter="{Binding}"
+                              ToolTip.Tip="A logo on a transparent background (.png) works best, like a front end's wheel image" />
+                  </MenuItem>
                   <Separator IsVisible="{Binding IsVpx}" />
                   <MenuItem Header="{Binding GenericCabinetMenuHeader}" IsVisible="{Binding IsVpx}"
                             ToolTip.Tip="For a table whose own VR cabinet looks wrong in the lobby: it stands on the plain cabinet instead, wearing its playfield and backglass. Setup → VR lobby can do this for every table"
@@ -392,6 +389,12 @@
                   <MenuItem Header="Clear saved 3D toys" IsVisible="{Binding IsVpx}"
                             ToolTip.Tip="For the VR lobby's 3D toys (Setup → VR lobby): deletes what it saved of this table's toys, so it reads them again from the table the next time you pick it"
                             Command="{Binding Owner.Media.ClearTableToysCommand}" CommandParameter="{Binding}" />
+                </MenuItem>
+                <MenuItem Header="My artwork"
+                          ToolTip.Tip="Your own card and VR lobby pictures, kept in the table's artwork folder. You can also put pictures there by hand.">
+                  <MenuItem Header="Card picture in My Tables…" Command="{Binding Owner.Media.ChooseCardArtCommand}" CommandParameter="{Binding}" />
+                  <MenuItem Header="Open the artwork folder" Command="{Binding Owner.Media.OpenArtworkFolderCommand}" CommandParameter="{Binding}" />
+                  <MenuItem Header="Remove my pictures" IsVisible="{Binding HasUserArtwork}" Command="{Binding Owner.Media.RemoveUserArtworkCommand}" CommandParameter="{Binding}" />
                 </MenuItem>
                 <MenuItem Header="Table settings" IsVisible="{Binding IsVpx}">
                   <MenuItem Header="{Binding ScaleMenuHeader}" ItemsSource="{Binding ScaleChoices}">
