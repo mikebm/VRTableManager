@@ -253,13 +253,21 @@ public sealed partial class CatalogViewModel(MainViewModel app) : ChildViewModel
     [ObservableProperty]
     public partial int TotalCount { get; set; }
 
-    internal void ApplyFilter()
+    internal void ApplyFilter(bool preserveSelection = false)
     {
+        var selected = SelectedGame;
+        var selectedId = selected?.Game.Id;
+        var selectedOffset = selected == null ? -1 : Games.IndexOf(selected);
+        var previousPageStart = _pageStart;
         _installedIds = App.Library._allInstalled.Select(i => i.Table.Manifest.GameId).ToHashSet();
         var search = TableSearch.Parse(SearchText);
         var scored = _allGames
             .Where(g => g.TableFiles!.Any(IsVisible))
-            .Where(g => !HideInstalled || !_installedIds.Contains(g.Id))
+            .Where(g =>
+                !HideInstalled
+                || !_installedIds.Contains(g.Id)
+                || (preserveSelection && g.Id == selectedId)
+            )
             .Where(MatchesCatalogFilters)
             .Select(g => (Game: g, Score: search?.Score(_gameIndex.GetValue(g, IndexGame)) ?? 1))
             .Where(x => x.Score > 0)
@@ -290,11 +298,23 @@ public sealed partial class CatalogViewModel(MainViewModel app) : ChildViewModel
         UpdateManufacturers();
         UpdateCatalogLetters(CatalogSort == CatalogSorts[0] && search == null);
 
-        var selectedId = SelectedGame?.Game.Id;
-        _pageStart = 0;
+        if (preserveSelection)
+        {
+            var selectedIndex =
+                selectedId == null ? -1
+                : _filtered.FindIndex(g => g.Id == selectedId);
+            _pageStart = selectedIndex >= 0
+                ? Math.Max(0, selectedIndex - Math.Max(0, selectedOffset))
+                : Math.Min(previousPageStart, Math.Max(0, _filtered.Count - 1));
+        }
+        else
+        {
+            _pageStart = 0;
+        }
         Games.Clear();
         AddPage();
-        SelectedGame = Games.FirstOrDefault(g => g.Game.Id == selectedId);
+        SelectedGame = Games.FirstOrDefault(g => g.Game.Id == selectedId)
+            ?? (preserveSelection ? selected : null);
         CatalogStatus = $"{_filtered.Count} of {_allGames.Count} machines";
         if (VpsCatalog.UsingSavedCopy && VpsCatalog.SavedAt is { } saved)
         {
@@ -578,7 +598,7 @@ public sealed partial class CatalogViewModel(MainViewModel app) : ChildViewModel
                     + installed.InstallNote
             );
             App.Library.RefreshInstalled();
-            ApplyFilter();
+            ApplyFilter(preserveSelection: true);
             if (getRom)
             {
                 // After this returns: an update holds the table busy until then, and GetRomAsync needs it free.
