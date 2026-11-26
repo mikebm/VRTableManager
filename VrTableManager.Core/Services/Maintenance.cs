@@ -76,7 +76,6 @@ public static class AppFolders
     public static string Downloads => Path.Combine(AppSettings.DataDir, "downloads");
     public static string ArtworkCache => Path.Combine(AppSettings.DataDir, "img-cache");
     public static string CabinetCache => Lobby.LobbyFiles.Cabinets;
-    public static string BrowserProfile => Path.Combine(AppSettings.DataDir, "browser-profile");
     public static string Godot =>
         Path.Combine(
             Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
@@ -177,12 +176,6 @@ public static class AppFolders
                 "Each ROM table's attract music, recorded from its ROM for the VR lobby. Setup → VR lobby → GENERATE ATTRACT MUSIC records it again, several at a time (about half a minute a table).",
                 true,
                 Lobby.LobbyFiles.AttractAudio
-            ),
-            E(
-                "Sign-in browser",
-                "The browser profile that keeps you signed in to the table sites. Not cleared here (you'd be signed out).",
-                false,
-                BrowserProfile
             ),
             E("Godot (lobby engine)", "The engine the VR lobby runs on.", false, Godot),
         ];

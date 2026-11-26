@@ -3533,6 +3533,10 @@ foreach (var (ok, name) in await DownloadGateChecks.RunAsync())
             && cacheEntry.Bytes >= 5000,
         "storage finds per-table texture caches"
     );
+    Check(
+        !AppFolders.Survey(gs).Any(e => e.Name.Equals("Sign-in browser", StringComparison.OrdinalIgnoreCase)),
+        "storage does not show the sign-in browser profile"
+    );
     var freed = AppFolders.Clear(
         cacheEntry with
         {
