@@ -96,6 +96,19 @@ public static class DirectB2s
         return (stem + ".img", stem + ".grill", stem + ".none");
     }
 
+    /// <summary>Deletes the lobby's cached picture, grille height and "none" marker for this file version.</summary>
+    public static void RemoveCache(string path, string cacheDir)
+    {
+        if (CacheFiles(path, cacheDir) is not var (file, meta, none))
+        {
+            return;
+        }
+
+        File.Delete(file);
+        File.Delete(meta);
+        File.Delete(none);
+    }
+
     /// <summary>
     /// The backglass picture as a file in <paramref name="cacheDir"/> and its grille height, extracting it the first
     /// time. Keyed on the file's path, size and date, so a replaced backglass is read again; a file without a picture

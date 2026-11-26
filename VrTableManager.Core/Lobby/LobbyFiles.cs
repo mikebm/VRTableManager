@@ -1,3 +1,4 @@
+using VrTableManager.Models;
 using VrTableManager.Services;
 
 namespace VrTableManager.Lobby;
@@ -21,6 +22,28 @@ public static class LobbyFiles
     public static string Cabinets => Ready(Path.Combine(Root, "cabinets"));
     public static string Pictures => Ready(Path.Combine(Root, "pictures"));
     public static string AttractAudio => Ready(Path.Combine(Root, "attract-audio"));
+
+    /// <summary>Deletes the VR lobby's caches that belong only to this table.</summary>
+    public static void RemoveTableCaches(InstalledTable table)
+    {
+        if (
+            !table.IsVpx
+            || !table.TablePath.EndsWith(".vpx", StringComparison.OrdinalIgnoreCase)
+        )
+        {
+            return;
+        }
+
+        File.Delete(CabinetFiles.FileFor(table.TablePath, Cabinets));
+        File.Delete(ToyFiles.FileFor(table.TablePath));
+        VpxImages.RemoveCache(table.TablePath, Pictures);
+
+        var b2s = Backglasses.PathFor(table);
+        if (File.Exists(b2s))
+        {
+            DirectB2s.RemoveCache(b2s, Pictures);
+        }
+    }
 
     /// <summary>The lobby's own files in the shared img-cache (before vr-lobby): what each name starts with.</summary>
     static readonly string[] PicturePrefixes = ["vpx-", "bgvpx-", "bpvpx-", "b2s-"];

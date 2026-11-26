@@ -236,6 +236,30 @@ public static class VpxImages
         );
     }
 
+    /// <summary>Deletes the lobby's cached pictures and "none" markers for this table version.</summary>
+    public static void RemoveCache(string vpxPath, string cacheDir)
+    {
+        if (PlayfieldCacheFiles(vpxPath, cacheDir) is not var (file, none))
+        {
+            return;
+        }
+
+        var key = Path.GetFileName(file);
+        var files = new[]
+        {
+            file,
+            none,
+            Path.Combine(cacheDir, Versioned("bg") + key),
+            Path.Combine(cacheDir, Versioned("bp") + key),
+            Path.Combine(cacheDir, Versioned("bll") + key),
+            Path.Combine(cacheDir, Versioned("blr") + key),
+        };
+        foreach (var cached in files)
+        {
+            File.Delete(cached);
+        }
+    }
+
     /// <summary>
     /// The playfield picture as a file in <paramref name="cacheDir"/>, extracting it the first time.
     /// Keyed on the table's path, size and date, so an updated table gets its new picture. A table with

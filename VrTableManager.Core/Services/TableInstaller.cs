@@ -2,6 +2,7 @@ using System.Text.Json;
 using SharpCompress.Archives;
 using SharpCompress.Common;
 using SharpCompress.Readers;
+using VrTableManager.Lobby;
 using VrTableManager.Models;
 
 namespace VrTableManager.Services;
@@ -1312,6 +1313,7 @@ public static class TableInstaller
         if (table.IsIncomplete && SamePath(table.TablePath, table.Folder))
         {
             // Cut off before the table file arrived; the marker shows this app created the folder.
+            LobbyFiles.RemoveTableCaches(table);
             Directory.Delete(table.Folder, recursive: true);
             return;
         }
@@ -1323,6 +1325,8 @@ public static class TableInstaller
         {
             throw new InvalidOperationException("Unexpected table layout; not removing.");
         }
+
+        LobbyFiles.RemoveTableCaches(table);
 
         if (
             table.IsVpx

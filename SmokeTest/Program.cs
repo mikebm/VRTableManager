@@ -3187,6 +3187,11 @@ foreach (var (ok, name) in LobbyBackglassChecks.Run(root))
     }
 }
 
+foreach (var (ok, name) in LobbyTableCacheChecks.Run(root))
+{
+    Check(ok, name);
+}
+
 foreach (var (ok, name) in HighScoreChecks.Run())
 {
     Check(ok, name);
