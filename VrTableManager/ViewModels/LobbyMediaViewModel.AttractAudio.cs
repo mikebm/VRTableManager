@@ -38,6 +38,51 @@ public sealed partial class LobbyMediaViewModel
         }
     }
 
+    /// <summary>Copies an audio file you have into the table's lobby music folder.</summary>
+    [RelayCommand(AllowConcurrentExecutions = true)]
+    async Task UseOwnAttractAudio(InstalledItem item)
+    {
+        var table = item.Table;
+        if (
+            !item.IsVpx
+            || await Ui.PickFileAsync(
+                $"Choose attract audio for {item.Title}",
+                "*.mp3;*.ogg;*.wav",
+                startFolder: Environment.GetFolderPath(Environment.SpecialFolder.MyMusic)
+            ) is not { } file
+        )
+        {
+            return;
+        }
+
+        if (!App.Library.TryBeginBusy(table.TablePath))
+        {
+            return;
+        }
+
+        try
+        {
+            var saved = MediaPackAudio.Save(file, table.Folder, table.Manifest.GameName);
+            if (saved == null)
+            {
+                App.Library.PlayStatus =
+                    "Couldn't use that audio. Choose a non-empty .mp3, .ogg or .wav under 20 MB.";
+                return;
+            }
+
+            SetHasAttractAudio(table.TablePath, true);
+            App.Library.PlayStatus = $"Saved your attract audio for {item.Title}.";
+        }
+        catch (Exception e)
+        {
+            App.Library.PlayStatus = "Couldn't use that audio: " + e.Message;
+        }
+        finally
+        {
+            App.Library.EndBusy(table.TablePath);
+        }
+    }
+
     /// <summary>Downloads a sound file or media pack into the job's folder and returns the file.</summary>
     async Task<string> DownloadAttractSourceAsync(JobItem job, MediaPackAudio.Source src)
     {

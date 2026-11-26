@@ -313,6 +313,7 @@
                     <Binding Path="CanHaveLobbyVideo" />
                     <Binding Path="HasLobbyVideo" />
                     <Binding Path="CanHaveLoadingVideo" />
+                    <Binding Path="IsVpx" />
                     <Binding Path="CanGetAttractAudio" />
                     <Binding Path="HasAttractAudio" />
                     <Binding Path="CanGetWheelArt" />
@@ -353,15 +354,13 @@
                     <MenuItem Header="Remove loading video" IsVisible="{Binding HasLoadingVideo}" IsEnabled="{Binding !IsBusy}" Command="{Binding Owner.Media.RemoveLoadingVideoCommand}" CommandParameter="{Binding}" />
                   </MenuItem>
                   <MenuItem Header="Attract audio">
-                  <MenuItem.IsVisible>
-                    <MultiBinding Converter="{x:Static BoolConverters.Or}">
-                      <Binding Path="CanGetAttractAudio" />
-                      <Binding Path="HasAttractAudio" />
-                    </MultiBinding>
-                  </MenuItem.IsVisible>
+                    <MenuItem.IsVisible><Binding Path="IsVpx" /></MenuItem.IsVisible>
                     <MenuItem Header="{Binding AttractAudioMenuHeader}" IsVisible="{Binding CanGetAttractAudio}"
                               ToolTip.Tip="Download this table's sound file or media pack and keep only its audio, as music\attract (the pack's videos are deleted)"
                               IsEnabled="{Binding !IsBusy}" Command="{Binding Owner.Media.GetAttractAudioCommand}" CommandParameter="{Binding}" />
+                    <MenuItem Header="Use my own attract audio…"
+                              ToolTip.Tip="Choose an .mp3, .ogg or .wav for the VR lobby; it is saved as music\attract and replaces any existing attract audio"
+                              IsEnabled="{Binding !IsBusy}" Command="{Binding Owner.Media.UseOwnAttractAudioCommand}" CommandParameter="{Binding}" />
                     <MenuItem Header="Remove attract audio" IsVisible="{Binding HasAttractAudio}" Command="{Binding Owner.Media.RemoveAttractAudioCommand}" CommandParameter="{Binding}" />
                   </MenuItem>
                   <MenuItem Header="Wheel art">
