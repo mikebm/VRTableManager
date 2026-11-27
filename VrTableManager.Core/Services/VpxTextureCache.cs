@@ -26,6 +26,39 @@ public static class VpxTextureCache
         );
 
     /// <summary>
+    /// Deletes this table's VPX texture caches beside the table and in legacy or versioned preference folders,
+    /// leaving caches belonging to other tables alone.
+    /// </summary>
+    public static void RemoveCache(string vpx)
+    {
+        var title = Path.GetFileNameWithoutExtension(vpx);
+        var tableFolder = Path.GetDirectoryName(vpx);
+        if (tableFolder != null)
+        {
+            DeleteTableCache(Path.Combine(tableFolder, "cache", title));
+        }
+
+        var prefs = AppFolders.VpxPrefs;
+        if (!Directory.Exists(prefs))
+        {
+            return;
+        }
+
+        foreach (var folder in Directory.EnumerateDirectories(prefs).Prepend(prefs))
+        {
+            DeleteTableCache(Path.Combine(folder, "Cache", title));
+        }
+    }
+
+    static void DeleteTableCache(string path)
+    {
+        if (Directory.Exists(path))
+        {
+            Directory.Delete(path, recursive: true);
+        }
+    }
+
+    /// <summary>
     /// Writes the list when the table has none. Returns a line for the play log when it did, else null. Never
     /// throws: a table must start even if this can't be done.
     /// </summary>

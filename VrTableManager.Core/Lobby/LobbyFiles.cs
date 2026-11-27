@@ -34,15 +34,31 @@ public static class LobbyFiles
             return;
         }
 
-        File.Delete(CabinetFiles.FileFor(table.TablePath, Cabinets));
-        File.Delete(ToyFiles.FileFor(table.TablePath));
-        VpxImages.RemoveCache(table.TablePath, Pictures);
-
-        var b2s = Backglasses.PathFor(table);
-        if (File.Exists(b2s))
+        var cabinets = Cabinets;
+        if (Directory.Exists(cabinets))
         {
-            DirectB2s.RemoveCache(b2s, Pictures);
+            File.Delete(CabinetFiles.FileFor(table.TablePath, cabinets));
         }
+
+        var toys = ToyFiles.Dir;
+        if (Directory.Exists(toys))
+        {
+            File.Delete(ToyFiles.FileFor(table.TablePath, toys));
+        }
+
+        var pictures = Pictures;
+        if (Directory.Exists(pictures))
+        {
+            VpxImages.RemoveCache(table.TablePath, pictures);
+
+            var b2s = Backglasses.PathFor(table);
+            if (File.Exists(b2s))
+            {
+                DirectB2s.RemoveCache(b2s, pictures);
+            }
+        }
+
+        VpxTextureCache.RemoveCache(table.TablePath);
     }
 
     /// <summary>The lobby's own files in the shared img-cache (before vr-lobby): what each name starts with.</summary>
