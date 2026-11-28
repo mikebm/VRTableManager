@@ -14,6 +14,13 @@ void Check(bool ok, string what)
     }
 }
 
+var testTablesRoot = Environment.GetEnvironmentVariable("VRTM_TEST_TABLES_DIR");
+if (!string.IsNullOrWhiteSpace(testTablesRoot) && !Directory.Exists(testTablesRoot))
+{
+    Console.WriteLine($"SKIP  local table checks (directory not found: {testTablesRoot})");
+    testTablesRoot = null;
+}
+
 // Live checks call GitHub's API, which allows 60 unauthenticated calls an hour per address: they run only with
 // VRTM_LIVE=1, and GitHub being unreachable or rate-limited skips them. The parsing they rely on is checked offline.
 var live = Environment.GetEnvironmentVariable("VRTM_LIVE") == "1";
@@ -1191,12 +1198,11 @@ Check(
     "cabinet parts: camel-case Cab panels (AC/DC's TAFCabLeft) count, words that merely contain cab don't"
 );
 
-// Installed tables: what a table's cabinet is read to contain. These need the tables on this PC (under
-// C:\Users\mikem\VPinball\Tables); where one isn't installed the check says SKIP rather than vanishing.
+// Optional diagnostics against real tables. The smoke suite never inspects a user's table library by default.
 string? Installed(string fragment) =>
-    Directory.Exists(@"C:\Users\mikem\VPinball\Tables")
+    testTablesRoot != null
         ? Directory
-            .GetFiles(@"C:\Users\mikem\VPinball\Tables", "*.vpx", SearchOption.AllDirectories)
+            .GetFiles(testTablesRoot, "*.vpx", SearchOption.AllDirectories)
             .FirstOrDefault(f => f.Contains(fragment, StringComparison.OrdinalIgnoreCase))
         : null;
 Dictionary<string, VpxCabinetPart>? PartsOf(string vpx) =>
@@ -1212,24 +1218,31 @@ void WithTable(string fragment, string what, Func<string, bool> ok)
     }
     else
     {
-        Console.WriteLine($"SKIP  {what} (no table matching \"{fragment}\" installed)");
+        Console.WriteLine(
+            testTablesRoot == null
+                ? $"SKIP  {what} (set VRTM_TEST_TABLES_DIR to run local table checks)"
+                : $"SKIP  {what} (no table matching \"{fragment}\" in VRTM_TEST_TABLES_DIR)"
+        );
     }
 }
 
-// VPU Remix check on real tables: every installed table must read as a VPX, or a remix made from it would be refused
+// VPU Remix check on real tables: every selected table must read as a VPX, or a remix made from it would be refused
 // as "wrong version" (decal fonts and drag points are written outside the usual records).
 {
-    var tablesRoot = @"C:\Users\mikem\VPinball\Tables";
-    var real = Directory.Exists(tablesRoot)
+    var real = testTablesRoot != null
         ? Directory
-            .GetFiles(tablesRoot, "*.vpx", SearchOption.AllDirectories)
+            .GetFiles(testTablesRoot, "*.vpx", SearchOption.AllDirectories)
             .OrderBy(f => new FileInfo(f).Length)
             .Take(12)
             .ToList()
         : [];
     if (real.Count == 0)
     {
-        Console.WriteLine("SKIP  remix: installed tables read as VPX (no tables installed)");
+        Console.WriteLine(
+            testTablesRoot == null
+                ? "SKIP  remix: local table check (set VRTM_TEST_TABLES_DIR to run it)"
+                : "SKIP  remix: no VPX tables in VRTM_TEST_TABLES_DIR"
+        );
     }
     else
     {
@@ -1549,11 +1562,7 @@ foreach (
         }
     );
 }
-var realCab = Directory.Exists(@"C:\Users\mikem\VPinball\Tables")
-    ? Directory
-        .GetFiles(@"C:\Users\mikem\VPinball\Tables", "*.vpx", SearchOption.AllDirectories)
-        .FirstOrDefault(f => f.Contains("Medieval Madness"))
-    : null;
+var realCab = Installed("Medieval Madness");
 if (realCab != null)
 {
     var sw = System.Diagnostics.Stopwatch.StartNew();
@@ -1628,11 +1637,13 @@ if (realCab != null)
         $"a real cabinet's front faces point where its normals do ({agree * 100 / Math.Max(total, 1)}%)"
     );
 }
-var realAfm = Directory.Exists(@"C:\Users\mikem\VPinball\Tables")
-    ? Directory
-        .GetFiles(@"C:\Users\mikem\VPinball\Tables", "*.vpx", SearchOption.AllDirectories)
-        .FirstOrDefault(f => f.Contains("Attack from Mars"))
-    : null;
+else
+{
+    Console.WriteLine(
+        "SKIP  real Medieval Madness cabinet check (set VRTM_TEST_TABLES_DIR to run local table checks)"
+    );
+}
+var realAfm = Installed("Attack from Mars");
 if (realAfm != null)
 {
     var pf = VpxImages.ExtractPlayfield(realAfm);
@@ -1646,6 +1657,12 @@ if (realAfm != null)
     Check(
         pf != null && pick!.Height >= 2048 && pf[0] == 0x89,
         "a real table gives its full-resolution playfield (≥ 2048 px tall)"
+    );
+}
+else
+{
+    Console.WriteLine(
+        "SKIP  real Attack from Mars playfield check (set VRTM_TEST_TABLES_DIR to run local table checks)"
     );
 }
 if (VpsCatalog.LoadCached() is { } cachedGames)
